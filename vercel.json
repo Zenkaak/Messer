@@ -1,3 +1,4 @@
 {
-  "buildCommand": "pnpm run build && node scripts/vercel-output.mjs"
+  "buildCommand": "pnpm run build && node scripts/vercel-output.mjs",
+  "framework": null
 }
