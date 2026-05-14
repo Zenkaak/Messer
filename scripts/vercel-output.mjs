@@ -85,6 +85,14 @@ await esbuild({
 });
 console.log("✓ API function bundled");
 
+// ── 3b. Copy index.html into the Lambda directory ─────────────────────────
+// The Express catch-all in app.ts reads __dirname/index.html to serve the SPA.
+await cp(
+  path.join(out, "static", "index.html"),
+  path.join(out, "functions", "index.func", "index.html"),
+);
+console.log("✓ index.html copied to Lambda directory");
+
 // ── 4. Function runtime config ─────────────────────────────────────────────
 await writeFile(
   path.join(out, "functions", "index.func", ".vc-config.json"),
@@ -103,7 +111,7 @@ await writeFile(
     routes: [
       { src: "^/api(/.*)?$", dest: "/index" },
       { handle: "filesystem" },
-      { src: "/(.*)", dest: "/index.html" },
+      { src: "/(.*)", dest: "/index" },
     ],
   }, null, 2),
 );
