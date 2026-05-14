@@ -3,6 +3,7 @@ import { Link, useLocation } from "wouter";
 import { Home, Grid, ShoppingCart, User, Search, Menu, Tag, X, ChevronRight, Phone, Cpu, Lock, Server, Zap } from "lucide-react";
 import { useGetCart } from "@workspace/api-client-react";
 import { useAuth } from "@/hooks/use-auth";
+import { NotificationBell } from "@/components/notification-bell";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
@@ -117,11 +118,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <DesktopNavLink href={`${basePath}/direct-unlock`} label="Direct Unlock" active={location === "/direct-unlock"} />
           </nav>
 
-          {/* Right: search + cart + account */}
+          {/* Right: search + notifications + cart + account */}
           <div className="flex items-center gap-2">
             <button className="p-2 hover:bg-white/10 rounded-full transition-colors" aria-label="Search">
               <Search size={18} />
             </button>
+            <NotificationBell />
 
             <Link href={`${basePath}/cart`} className="relative p-2 hover:bg-white/10 rounded-full transition-colors" aria-label="Cart">
               <ShoppingCart size={18} />
