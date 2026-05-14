@@ -505,10 +505,14 @@ export function moreInfoNeededEmail(params: {
 export function orderCompletedEmail(params: {
   orderId: number;
   customerName?: string | null;
+  items?: Array<{ productName: string; quantity: number; price: string }>;
+  total?: string | null;
+  notes?: string | null;
   result?: string | null;
 }) {
   const name = params.customerName || "Valued Customer";
   const orderUrl = appUrl(`/orders/${params.orderId}`);
+  const deliveryNote = params.notes || params.result;
 
   const h = header(
     "linear-gradient(135deg,#064e3b 0%,#059669 100%)",
@@ -519,7 +523,8 @@ export function orderCompletedEmail(params: {
     <p style="margin:0 0 20px;font-size:15px;color:#475569;">Dear <strong style="color:#0f172a;">${name}</strong>,</p>
     <p style="margin:0 0 20px;font-size:15px;color:#475569;">We are pleased to inform you that your <strong style="color:#0f172a;">Order #${params.orderId}</strong> has been successfully completed. Your service has been delivered.</p>
     ${statusChip("Order Completed", "#059669")}
-    ${params.result ? alertBox("Delivery Details", params.result, "#059669", "#f0fdf4") : ""}
+    ${params.items && params.items.length > 0 && params.total ? orderItemsTable(params.items, params.total) : ""}
+    ${deliveryNote ? alertBox("Delivery Details", deliveryNote, "#059669", "#f0fdf4") : ""}
     ${btn("View Order & Result", orderUrl, "#059669")}
     <div style="margin-top:32px;padding-top:20px;border-top:1px solid #f1f5f9;">
       <p style="margin:0;font-size:14px;color:#475569;">Thank you for choosing GSM World. We value your business and look forward to serving you again.</p>
@@ -528,7 +533,7 @@ export function orderCompletedEmail(params: {
   `;
   return {
     subject: `Order #${params.orderId} Completed — GSM World`,
-    text: `Dear ${name},\n\nYour Order #${params.orderId} has been completed successfully.\n${params.result ? `\nResult:\n${params.result}\n` : ""}\nView your order: ${orderUrl}\n\nThank you for choosing GSM World.\n\n— GSM World Team`,
+    text: `Dear ${name},\n\nYour Order #${params.orderId} has been completed successfully.\n${deliveryNote ? `\nDetails:\n${deliveryNote}\n` : ""}\nView your order: ${orderUrl}\n\nThank you for choosing GSM World.\n\n— GSM World Team`,
     html: layout(`Order #${params.orderId} has been completed and delivered.`, "#059669", h, body),
   };
 }
@@ -564,5 +569,63 @@ export function walletTopUpEmail(params: {
     subject: "Wallet Top-Up Confirmed — GSM World",
     text: `Dear ${name},\n\nYour GSM World wallet has been topped up.\n\nAmount Added: $${parseFloat(params.amount).toFixed(2)} USD\nNew Balance: $${parseFloat(params.newBalance).toFixed(2)} USD\n\nManage your account: ${accountUrl}\n\n— GSM World Team`,
     html: layout(`Your wallet has been credited with $${parseFloat(params.amount).toFixed(2)} USD.`, "#0ea5e9", h, body),
+  };
+}
+
+// ── 9. Pending manual payment ─────────────────────────────────────────────────
+
+export function pendingManualPaymentEmail(params: {
+  orderId: number;
+  customerName?: string | null;
+  paymentMethod: string;
+  total: string;
+  binanceId?: string | null;
+  usdtAddress?: string | null;
+}) {
+  const name = params.customerName || "Valued Customer";
+  const orderUrl = appUrl(`/orders/${params.orderId}`);
+  const isBinance = params.paymentMethod === "binance_pay";
+  const isUsdt = params.paymentMethod === "usdt_manual";
+
+  const methodLabel = isBinance ? "Binance Pay" : isUsdt ? "USDT TRC20 (Manual Transfer)" : params.paymentMethod;
+
+  const h = header(
+    "linear-gradient(135deg,#1e1b4b 0%,#4338ca 100%)",
+    "Complete Your Payment",
+    `Manual payment instructions for Order #${params.orderId}`
+  );
+
+  const paymentRows: Array<[string, string]> = [
+    ["Order Reference", `#${params.orderId}`],
+    ["Amount Due", `$${parseFloat(params.total).toFixed(2)} USD`],
+    ["Payment Method", methodLabel],
+  ];
+  if (isBinance && params.binanceId) paymentRows.push(["Binance ID", params.binanceId]);
+  if (isUsdt && params.usdtAddress) {
+    paymentRows.push(["USDT Address (TRC20)", params.usdtAddress]);
+    paymentRows.push(["Network", "TRC20 (Tron)"]);
+  }
+
+  const body = `
+    <p style="margin:0 0 20px;font-size:15px;color:#475569;">Dear <strong style="color:#0f172a;">${name}</strong>,</p>
+    <p style="margin:0 0 20px;font-size:15px;color:#475569;">Thank you for placing your order. To complete your purchase, please send the exact amount using the payment details below. Your order will be processed once our team confirms the transfer.</p>
+    ${infoTable(paymentRows)}
+    ${alertBox(
+      "Important",
+      `Send exactly $${parseFloat(params.total).toFixed(2)} USD. Always include your order reference ORDER-${params.orderId} in the payment note or screenshot so we can match your payment quickly.`,
+      "#4338ca",
+      "#eef2ff"
+    )}
+    <p style="margin:0 0 16px;font-size:14px;color:#475569;">After sending payment, please <strong>upload a screenshot</strong> of your transaction via the order page below so our team can verify it promptly.</p>
+    ${btn("Open Order & Upload Screenshot", orderUrl, "#4338ca")}
+    <div style="margin-top:32px;padding-top:20px;border-top:1px solid #f1f5f9;">
+      <p style="margin:0;font-size:13px;color:#94a3b8;">Payment verification typically takes 1–3 hours during business hours. For urgent assistance, contact us via WhatsApp.</p>
+      <p style="margin:12px 0 0;font-size:14px;color:#475569;">Regards,<br><strong style="color:#0f172a;">GSM World Team</strong></p>
+    </div>
+  `;
+  return {
+    subject: `Payment Instructions — Order #${params.orderId} | GSM World`,
+    text: `Dear ${name},\n\nPlease complete your payment for Order #${params.orderId}.\n\nAmount Due: $${parseFloat(params.total).toFixed(2)} USD\nMethod: ${methodLabel}${isBinance && params.binanceId ? `\nBinance ID: ${params.binanceId}` : ""}${isUsdt && params.usdtAddress ? `\nUSDT Address (TRC20): ${params.usdtAddress}\nNetwork: TRC20` : ""}\n\nAfter sending, upload your payment screenshot: ${orderUrl}\n\n— GSM World Team`,
+    html: layout(`Payment instructions for Order #${params.orderId} — please complete your transfer.`, "#4338ca", h, body),
   };
 }
