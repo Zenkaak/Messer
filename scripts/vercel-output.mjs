@@ -21,10 +21,14 @@ import { cp, mkdir, writeFile, rm } from "node:fs/promises";
 import { build as esbuild } from "esbuild";
 import esbuildPluginPino from "esbuild-plugin-pino";
 
-globalThis.require = createRequire(import.meta.url);
-
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const out  = path.join(root, ".vercel", "output");
+
+// Resolve pino and its transitive deps from api-server's node_modules,
+// where they are already installed, not from scripts/.
+globalThis.require = createRequire(
+  path.join(root, "artifacts", "api-server", "package.json"),
+);
 
 // ── 1. Clean & scaffold ────────────────────────────────────────────────────
 await rm(out, { recursive: true, force: true });

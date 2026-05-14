@@ -9,8 +9,7 @@
   },
   "dependencies": {
     "esbuild": "catalog:",
-    "esbuild-plugin-pino": "^2.3.3",
-    "pino": "^9"
+    "esbuild-plugin-pino": "^2.3.3"
   },
   "devDependencies": {
     "@types/node": "catalog:",
