@@ -39,7 +39,7 @@ app.use("/api", router);
 // In production (Vercel Lambda), index.html is copied next to index.js by
 // scripts/vercel-output.mjs. In local dev this route is never reached because
 // Vite serves the frontend directly.
-app.get("*", (_req, res) => {
+app.get("/{*path}", (_req, res) => {
   const indexHtml = path.resolve(__dirname, "index.html");
   res.sendFile(indexHtml);
 });
