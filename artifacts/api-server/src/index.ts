@@ -22,4 +22,15 @@ app.listen(port, (err) => {
   }
 
   logger.info({ port }, "Server listening");
+
+  // Keep-alive self-ping every 4 minutes to prevent server from sleeping
+  const selfPingUrl = `http://localhost:${port}/api/healthz`;
+  setInterval(async () => {
+    try {
+      const res = await fetch(selfPingUrl);
+      logger.debug({ status: res.status }, "Keep-alive ping");
+    } catch (e) {
+      logger.warn({ e }, "Keep-alive ping failed");
+    }
+  }, 4 * 60 * 1000);
 });
