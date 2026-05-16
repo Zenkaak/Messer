@@ -222,10 +222,10 @@ export function OrderPage() {
             <span className="font-medium">{order.customerPhone}</span>
           </div>
         )}
-        {order.deviceIdentifier && (
+        {!!(order as unknown as Record<string, unknown>).deviceIdentifier && (
           <div className="flex justify-between">
             <span className="text-muted-foreground">IMEI / ID</span>
-            <span className="font-medium font-mono text-xs">{order.deviceIdentifier}</span>
+            <span className="font-medium font-mono text-xs">{String((order as unknown as Record<string, unknown>).deviceIdentifier)}</span>
           </div>
         )}
         <div className="flex justify-between">
