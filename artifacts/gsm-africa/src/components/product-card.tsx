@@ -6,7 +6,7 @@ export function ProductCard({ product, compact = false }: { product: Product, co
   const [, navigate] = useLocation();
 
   const hasImage = product.imageUrl && product.imageUrl.trim() !== "";
-  const needsDetails = !!(product.requiredFields && (product.requiredFields as string[]).length > 0);
+  const needsDetails = !!((product as unknown as Record<string, unknown>).requiredFields as string[] | undefined)?.length;
 
   function handleCartClick(e: React.MouseEvent) {
     e.preventDefault();
