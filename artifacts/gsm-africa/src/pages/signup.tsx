@@ -310,6 +310,7 @@ export function SignupPage() {
           </>
         )}
       </div>
+      </div>
     </div>
   );
 }
