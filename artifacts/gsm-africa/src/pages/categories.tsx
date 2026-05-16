@@ -76,7 +76,8 @@ export function CategoriesPage() {
         </div>
       </div>
 
-      <div className="px-4 space-y-2">
+      <div className="px-4 md:px-8 max-w-5xl mx-auto w-full">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
         {isLoading ? (
           Array.from({ length: 10 }).map((_, i) => (
             <div key={i} className="bg-white rounded-2xl border border-gray-100 p-4 flex items-center gap-3 shadow-sm">
@@ -120,6 +121,7 @@ export function CategoriesPage() {
             );
           })
         )}
+      </div>
       </div>
     </div>
   );

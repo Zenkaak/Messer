@@ -6,7 +6,7 @@ import {
   ChevronLeft, ChevronRight, CheckCircle2, Clock, XCircle, AlertCircle,
   ToggleLeft, ToggleRight, KeyRound, AlertTriangle, X, ArrowUpRight,
   Smartphone, Zap, Ban, Trash2, UserCheck, MoreVertical,
-  MessageSquare, Send, Cpu,
+  MessageSquare, Send, Cpu, UserPlus,
 } from "lucide-react";
 
 // ─── types ────────────────────────────────────────────────────────────────────
@@ -922,6 +922,13 @@ function UsersPanel({ pwd }: { pwd: string }) {
   const [walletModal, setWalletModal] = useState<{ user: AdminUser; action: "add" | "deduct" } | null>(null);
   const [walletAmount, setWalletAmount] = useState("");
   const [walletSaving, setWalletSaving] = useState(false);
+  const [createModal, setCreateModal] = useState(false);
+  const [createForm, setCreateForm] = useState({ email: "", password: "", name: "", walletBalance: "" });
+  const [creating, setCreating] = useState(false);
+  const [msgModal, setMsgModal] = useState<AdminUser | null>(null);
+  const [msgText, setMsgText] = useState("");
+  const [msgOrderId, setMsgOrderId] = useState("");
+  const [msgSending, setMsgSending] = useState(false);
   const { toast } = useToast();
   const PER = 30;
 
@@ -991,6 +998,44 @@ function UsersPanel({ pwd }: { pwd: string }) {
         toast({ variant: "destructive", title: "Delete failed" });
       }
     } finally { setActing(null); }
+  }
+
+  async function createUser() {
+    if (!createForm.email || !createForm.password) { toast({ variant: "destructive", title: "Email and password are required" }); return; }
+    setCreating(true);
+    try {
+      const body: Record<string, unknown> = { email: createForm.email, password: createForm.password };
+      if (createForm.name) body.name = createForm.name;
+      if (createForm.walletBalance) body.walletBalance = createForm.walletBalance;
+      const r = await adminFetch(`/api/admin/users`, pwd, { method: "POST", body: JSON.stringify(body) });
+      const d = await r.json() as AdminUser & { error?: string };
+      if (!r.ok) throw new Error(d.error || "Failed");
+      setUsers(prev => [d, ...prev]);
+      setTotal(t => t + 1);
+      toast({ title: "User created", description: d.email });
+      setCreateModal(false);
+      setCreateForm({ email: "", password: "", name: "", walletBalance: "" });
+    } catch (err) {
+      toast({ variant: "destructive", title: err instanceof Error ? err.message : "Create failed" });
+    } finally { setCreating(false); }
+  }
+
+  async function sendDirectMessage() {
+    if (!msgModal || !msgText.trim()) return;
+    setMsgSending(true);
+    try {
+      const body: Record<string, unknown> = { message: msgText.trim() };
+      if (msgOrderId) body.orderId = Number(msgOrderId);
+      const r = await adminFetch(`/api/admin/users/${msgModal.id}/message`, pwd, { method: "POST", body: JSON.stringify(body) });
+      const d = await r.json() as { error?: string };
+      if (!r.ok) throw new Error(d.error || "Failed");
+      toast({ title: "Message sent", description: `Sent to ${msgModal.email}` });
+      setMsgModal(null);
+      setMsgText("");
+      setMsgOrderId("");
+    } catch (err) {
+      toast({ variant: "destructive", title: err instanceof Error ? err.message : "Send failed" });
+    } finally { setMsgSending(false); }
   }
 
   const COLORS = ["from-blue-500 to-blue-700","from-purple-500 to-purple-700","from-emerald-500 to-emerald-700","from-rose-500 to-rose-700","from-amber-500 to-amber-700"];
@@ -1072,15 +1117,72 @@ function UsersPanel({ pwd }: { pwd: string }) {
         </div>
       )}
 
+      {/* Create User Modal */}
+      {createModal && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm" onClick={e => { if (e.target === e.currentTarget) setCreateModal(false); }}>
+          <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl p-5 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between">
+              <h3 className="font-black text-slate-900 text-lg">Create User</h3>
+              <button onClick={() => setCreateModal(false)} className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200">✕</button>
+            </div>
+            <div className="space-y-3">
+              <div><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Email *</label><input type="email" value={createForm.email} onChange={e => setCreateForm(f=>({...f,email:e.target.value}))} placeholder="user@example.com" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+              <div><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Password * (min 6 chars)</label><input type="password" value={createForm.password} onChange={e => setCreateForm(f=>({...f,password:e.target.value}))} placeholder="••••••" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+              <div><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Name (optional)</label><input value={createForm.name} onChange={e => setCreateForm(f=>({...f,name:e.target.value}))} placeholder="John Doe" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+              <div><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Starting Wallet Balance ($)</label><input type="number" step="0.01" min="0" value={createForm.walletBalance} onChange={e => setCreateForm(f=>({...f,walletBalance:e.target.value}))} placeholder="0.00" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button onClick={() => setCreateModal(false)} className="flex-1 py-3 border border-slate-200 text-slate-600 font-bold rounded-2xl text-sm">Cancel</button>
+              <button onClick={createUser} disabled={creating} className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-2xl text-sm disabled:opacity-60">{creating ? "Creating…" : "Create User"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Send Direct Message Modal */}
+      {msgModal && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm" onClick={e => { if (e.target === e.currentTarget) { setMsgModal(null); setMsgText(""); setMsgOrderId(""); } }}>
+          <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl p-5 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between">
+              <h3 className="font-black text-slate-900 text-lg">Direct Message</h3>
+              <button onClick={() => { setMsgModal(null); setMsgText(""); setMsgOrderId(""); }} className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200">✕</button>
+            </div>
+            <p className="text-sm text-slate-500">Sending to <span className="font-semibold text-slate-700">{msgModal.email}</span></p>
+            <div className="space-y-3">
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Order ID (optional – auto-uses latest order)</label>
+                <input type="number" value={msgOrderId} onChange={e => setMsgOrderId(e.target.value)} placeholder="e.g. 42" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Message *</label>
+                <textarea value={msgText} onChange={e => setMsgText(e.target.value)} rows={4} placeholder="Type your message to the user…" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none" />
+              </div>
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button onClick={() => { setMsgModal(null); setMsgText(""); setMsgOrderId(""); }} className="flex-1 py-3 border border-slate-200 text-slate-600 font-bold rounded-2xl text-sm">Cancel</button>
+              <button onClick={sendDirectMessage} disabled={msgSending || !msgText.trim()} className="flex-1 flex items-center justify-center gap-1.5 py-3 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-2xl text-sm disabled:opacity-60">
+                {msgSending ? "Sending…" : <><Send size={13} /> Send</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <div>
           <p className="text-xs text-slate-400 font-medium">{total} registered</p>
           <h2 className="text-xl font-black text-slate-900">Users</h2>
         </div>
-        <button onClick={() => load(page)}
-          className={`w-9 h-9 rounded-full border border-slate-200 flex items-center justify-center text-slate-400 hover:text-blue-600 hover:border-blue-300 transition-colors ${loading ? "animate-spin" : ""}`}>
-          <RefreshCw size={15} />
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setCreateModal(true)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 transition-colors">
+            <UserPlus size={13} /> Create
+          </button>
+          <button onClick={() => load(page)}
+            className={`w-9 h-9 rounded-full border border-slate-200 flex items-center justify-center text-slate-400 hover:text-blue-600 hover:border-blue-300 transition-colors ${loading ? "animate-spin" : ""}`}>
+            <RefreshCw size={15} />
+          </button>
+        </div>
       </div>
 
       {loading ? <div className="space-y-2">{[1,2,3,4,5].map(i => <Skeleton key={i} />)}</div>
@@ -1131,6 +1233,13 @@ function UsersPanel({ pwd }: { pwd: string }) {
                         <button onClick={() => { setWalletModal({ user: u, action: "deduct" }); setWalletAmount(""); setExpandedId(null); }}
                           className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-rose-500 text-white text-xs font-bold">
                           <DollarSign size={13} /> Deduct
+                        </button>
+                      </div>
+                      {/* Send message row */}
+                      <div className="flex gap-2">
+                        <button onClick={() => { setMsgModal(u); setMsgText(""); setMsgOrderId(""); setExpandedId(null); }}
+                          className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 transition-colors">
+                          <MessageSquare size={13} /> Send Message
                         </button>
                       </div>
                       {/* Status / admin actions row */}

@@ -98,7 +98,8 @@ export function SignupPage() {
   }
 
   return (
-    <div className="flex flex-col min-h-full bg-white">
+    <div className="flex flex-col min-h-full bg-white md:items-center md:justify-center md:py-12">
+      <div className="w-full md:max-w-md md:shadow-xl md:rounded-3xl md:overflow-hidden">
 
       {/* Dark hero */}
       <div

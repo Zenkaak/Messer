@@ -96,7 +96,8 @@ export function LoginPage() {
   }
 
   return (
-    <div className="min-h-[80vh] flex flex-col justify-center p-6">
+    <div className="min-h-[80vh] flex flex-col justify-center p-6 md:items-center">
+      <div className="w-full md:max-w-md">
       <div className="mb-8 text-center">
         <div className="w-16 h-16 rounded-2xl bg-[#1a2332] flex items-center justify-center mx-auto mb-4 shadow-lg">
           <Lock size={28} className="text-white" />
@@ -282,6 +283,7 @@ export function LoginPage() {
 
       <div className="mt-4 p-3 bg-muted/50 rounded-xl text-xs text-muted-foreground text-center">
         Your account lets you track orders and manage your profile.
+      </div>
       </div>
     </div>
   );

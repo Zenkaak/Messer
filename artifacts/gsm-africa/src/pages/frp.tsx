@@ -1,30 +1,44 @@
 import { useState, useMemo } from "react";
-import { Link } from "wouter";
-import { useListProducts, useAddToCart, getGetCartQueryKey } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useListProducts } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAddToCart, getGetCartQueryKey } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Search, ShoppingCart, Check, ChevronRight, Shield, X } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ProductCard } from "@/components/product-card";
 
-const FRP_CATEGORIES = [
-  "Samsung FRP Remove","Samsung Account Remove","Samsung Unlock","Z3X Samstool Online (Official Distributor)",
-  "Huawei FRP Remove","Huawei ID Remove","Huawei Unlock",
-  "Xiaomi FRP Remove","Xiaomi Mi Account Remove","FckTool Xiaomi FRP","Xiaomi Repair Tool (XRT)",
-  "Oppo Services","OnePlus Services",
-  "FRP Bypass Android 11","FRP Bypass Android 12","FRP Bypass Android 13","FRP Bypass Android 14",
-  "FRPToolPro",
+const FRP_KEYWORDS = [
+  "frp", "google account", "bypass", "factory reset protection",
+  "samsung frp", "huawei frp", "xiaomi frp", "samsung account",
+  "mi account", "frptoolpro", "fcktool", "xrt", "samstool",
+  "z3x", "huawei id", "oppo services", "oneplus services",
 ];
 
 const BRAND_TABS = [
-  { label: "All",          cats: FRP_CATEGORIES },
-  { label: "Samsung",      cats: ["Samsung FRP Remove","Samsung Account Remove","Samsung Unlock","Z3X Samstool Online (Official Distributor)"] },
-  { label: "Huawei",       cats: ["Huawei FRP Remove","Huawei ID Remove","Huawei Unlock"] },
-  { label: "Xiaomi",       cats: ["Xiaomi FRP Remove","Xiaomi Mi Account Remove","FckTool Xiaomi FRP","Xiaomi Repair Tool (XRT)"] },
-  { label: "Oppo/OnePlus", cats: ["Oppo Services","OnePlus Services"] },
-  { label: "Android",      cats: ["FRP Bypass Android 11","FRP Bypass Android 12","FRP Bypass Android 13","FRP Bypass Android 14"] },
-  { label: "Tools",        cats: ["FRPToolPro"] },
+  { label: "All", keywords: FRP_KEYWORDS },
+  { label: "Samsung", keywords: ["samsung frp", "samsung account", "samsung unlock", "z3x", "samstool"] },
+  { label: "Huawei", keywords: ["huawei frp", "huawei id", "huawei unlock"] },
+  { label: "Xiaomi", keywords: ["xiaomi frp", "mi account", "fcktool", "xrt", "xiaomi repair"] },
+  { label: "Oppo/OnePlus", keywords: ["oppo services", "oneplus services"] },
+  { label: "Android", keywords: ["android 11", "android 12", "android 13", "android 14", "bypass android"] },
+  { label: "Tools", keywords: ["frptoolpro", "tool"] },
 ];
+
+function matchesKeywords(text: string, keywords: string[]): boolean {
+  const lower = text.toLowerCase();
+  return keywords.some(kw => lower.includes(kw));
+}
+
+function catColor(cat: string) {
+  const lower = cat.toLowerCase();
+  if (lower.includes("samsung")) return "bg-blue-100 text-blue-700";
+  if (lower.includes("huawei")) return "bg-red-100 text-red-700";
+  if (lower.includes("xiaomi") || lower.includes("redmi")) return "bg-orange-100 text-orange-700";
+  if (lower.includes("oppo") || lower.includes("oneplus")) return "bg-rose-100 text-rose-700";
+  if (lower.includes("android")) return "bg-green-100 text-green-700";
+  if (lower.includes("tool") || lower.includes("z3x")) return "bg-slate-200 text-slate-700";
+  return "bg-amber-100 text-amber-700";
+}
 
 function AddButton({ product }: { product: { id: number; name: string; inStock: boolean } }) {
   const addToCart = useAddToCart();
@@ -64,18 +78,24 @@ export function FrpPage() {
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState(0);
 
-  const { data, isLoading } = useListProducts({ limit: 1500 }, { query: { staleTime: 60_000 } as never });
+  const { data, isLoading } = useListProducts({ limit: 2000 }, { query: { staleTime: 60_000 } as never });
 
-  const allFrp = useMemo(() =>
-    (data?.products ?? []).filter(p => FRP_CATEGORIES.includes(p.categoryName ?? "")),
-    [data]
-  );
+  const allFrp = useMemo(() => {
+    const allProducts = data?.products ?? [];
+    return allProducts.filter(p => {
+      const text = `${p.categoryName ?? ""} ${p.name ?? ""}`;
+      return matchesKeywords(text, FRP_KEYWORDS);
+    });
+  }, [data]);
 
-  const tabCats = BRAND_TABS[activeTab].cats;
-  const tabFiltered = useMemo(() =>
-    allFrp.filter(p => tabCats.includes(p.categoryName ?? "")),
-    [allFrp, tabCats]
-  );
+  const tabFiltered = useMemo(() => {
+    if (activeTab === 0) return allFrp;
+    const keywords = BRAND_TABS[activeTab].keywords;
+    return allFrp.filter(p => {
+      const text = `${p.categoryName ?? ""} ${p.name ?? ""}`;
+      return matchesKeywords(text, keywords);
+    });
+  }, [allFrp, activeTab]);
 
   const searched = useMemo(() => {
     if (!search.trim()) return tabFiltered;
@@ -104,7 +124,7 @@ export function FrpPage() {
           <Shield size={18} className="text-blue-300" />
           <h1 className="text-white font-black text-lg">FRP Bypass</h1>
           <span className="ml-auto bg-blue-500/20 border border-blue-400/30 text-blue-200 text-[10px] font-bold px-2 py-0.5 rounded-full">
-            {allFrp.length} Services
+            {isLoading ? "Loading…" : `${allFrp.length} Services`}
           </span>
         </div>
         <p className="text-blue-300/60 text-xs mb-4">
@@ -158,13 +178,19 @@ export function FrpPage() {
           <div className="flex flex-col items-center justify-center py-20 gap-3 text-center">
             <Shield size={44} className="text-gray-200" />
             <p className="font-bold text-gray-500">No services found</p>
+            <p className="text-xs text-gray-400">Try a different brand tab or search term</p>
             {search && <button onClick={() => setSearch("")} className="text-blue-600 text-sm font-bold">Clear search</button>}
           </div>
         ) : (
           Object.entries(grouped).map(([cat, products]) => (
             <div key={cat}>
               <div className="flex items-center justify-between mb-2.5">
-                <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">{cat}</p>
+                <div className="flex items-center gap-2">
+                  <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${catColor(cat)}`}>
+                    {cat.replace(/ FRP Remove$/i, "").replace(/ Bypass$/i, "")}
+                  </span>
+                  <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">{cat}</p>
+                </div>
                 <span className="text-[10px] text-gray-400">{products.length} services</span>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">

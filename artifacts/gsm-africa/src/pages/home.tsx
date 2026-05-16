@@ -126,7 +126,7 @@ export function Home() {
       </div>
 
       {/* ── Feature cards ────────────────────────────────────────────────── */}
-      <div className="px-4 pb-6 grid grid-cols-2 gap-3 max-w-2xl mx-auto w-full">
+      <div className="px-4 pb-6 grid grid-cols-2 md:grid-cols-4 gap-3 max-w-5xl mx-auto w-full">
         {[
           { icon: <Zap size={20} className="text-yellow-500" />, title: "Instant Delivery", desc: "Products delivered instantly after payment confirmation.", bg: "bg-yellow-50 border-yellow-100" },
           { icon: <ShieldCheck size={20} className="text-green-600" />, title: "Secure Payments", desc: "M-Pesa, USDT & crypto payments with full encryption.", bg: "bg-green-50 border-green-100" },
@@ -142,14 +142,14 @@ export function Home() {
       </div>
 
       {/* ── Category quick links ─────────────────────────────────────────── */}
-      <div className="px-4 pb-6 max-w-2xl mx-auto w-full">
+      <div className="px-4 pb-6 max-w-5xl mx-auto w-full">
         <div className="flex items-center justify-between mb-3">
           <h3 className="font-black text-gray-800 text-[15px]">Popular Categories</h3>
           <Link href="/categories" className="text-blue-600 text-xs font-semibold flex items-center gap-1">
             View all <ArrowRight size={12} />
           </Link>
         </div>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
           {[
             { label: "iPhone Unlock", emoji: "🍎", color: "bg-gray-50 border-gray-200",     slug: "iphone-unlock-tmobile" },
             { label: "Samsung",       emoji: "🔵", color: "bg-blue-50 border-blue-100",     slug: "samsung-unlock" },
@@ -169,7 +169,7 @@ export function Home() {
       </div>
 
       {/* ── Why choose us ────────────────────────────────────────────────── */}
-      <div className="mx-4 mb-6 rounded-2xl overflow-hidden max-w-2xl md:mx-auto w-[calc(100%-2rem)]" style={{ background: "linear-gradient(135deg, #1a2332 0%, #1e3a5f 100%)" }}>
+      <div className="mx-4 mb-6 rounded-2xl overflow-hidden max-w-5xl md:mx-auto w-[calc(100%-2rem)]" style={{ background: "linear-gradient(135deg, #1a2332 0%, #1e3a5f 100%)" }}>
         <div className="px-5 py-5 text-center">
           <p className="text-blue-300/80 text-xs font-semibold uppercase tracking-widest mb-1">Why GSM World?</p>
           <h3 className="text-white font-black text-[17px] mb-4 leading-tight">The Most Trusted GSM Platform Worldwide</h3>

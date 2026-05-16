@@ -276,19 +276,21 @@ export function StorePage() {
   return (
     <div className="flex flex-col min-h-full bg-gray-50">
       {/* Header */}
-      <div className="px-4 pt-5 pb-3 border-b border-gray-200 bg-white">
-        <h1 className="text-xl font-bold text-gray-900 mb-0.5">
-          {activeCategoryName || "Product List"}
-        </h1>
-        <p className="text-[13px] text-gray-500">
-          {activeCategoryName
-            ? `Showing all products in ${activeCategoryName}`
-            : "Comprehensive list of all products and services."}
-        </p>
+      <div className="px-4 md:px-8 pt-5 pb-3 border-b border-gray-200 bg-white max-w-none">
+        <div className="max-w-7xl mx-auto">
+          <h1 className="text-xl font-bold text-gray-900 mb-0.5">
+            {activeCategoryName || "Product List"}
+          </h1>
+          <p className="text-[13px] text-gray-500">
+            {activeCategoryName
+              ? `Showing all products in ${activeCategoryName}`
+              : "Comprehensive list of all products and services."}
+          </p>
+        </div>
       </div>
 
       {/* Search & Filter Bar */}
-      <div className="px-4 py-3 bg-white border-b border-gray-200 sticky top-14 z-30 space-y-2">
+      <div className="px-4 md:px-8 py-3 bg-white border-b border-gray-200 sticky top-14 z-30 space-y-2">
         {/* Search input */}
         <div className="flex gap-2">
           <div className="relative flex-1">
@@ -464,7 +466,7 @@ export function StorePage() {
       </div>
 
       {/* Product list */}
-      <div className="px-4 py-4 flex-1">
+      <div className="px-4 md:px-8 py-4 flex-1 max-w-7xl mx-auto w-full">
         {isFiltering ? (
           loadingFiltered ? (
             <SectionSkeleton rows={8} />

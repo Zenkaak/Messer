@@ -10,6 +10,7 @@ import authRouter from "./auth";
 import checkoutRouter from "./checkout";
 import walletRouter from "./wallet";
 import activationsRouter from "./activations";
+import uploadsRouter from "./uploads";
 
 const router: IRouter = Router();
 
@@ -24,5 +25,6 @@ router.use(adminRouter);
 router.use(checkoutRouter);
 router.use(walletRouter);
 router.use(activationsRouter);
+router.use(uploadsRouter);
 
 export default router;

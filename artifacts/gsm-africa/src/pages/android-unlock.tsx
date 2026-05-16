@@ -7,75 +7,47 @@ import { Search, ShoppingCart, Check, Smartphone, X } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ProductCard } from "@/components/product-card";
 
-const ANDROID_CATEGORIES = [
-  // Samsung
-  "Samsung Unlock","Samsung Factory Unlock","Samsung MDM Bypass","Samsung FRP Bypass",
-  "Samsung Network Unlock","Samsung Knox Bypass",
-  // Huawei / Honor
-  "Huawei Unlock","Huawei NCK Unlock","Huawei FRP Bypass","Honor Unlock",
-  // Xiaomi / POCO / Redmi
-  "Xiaomi Unlock","Xiaomi Mi Unlock","Xiaomi Redmi Unlock","Xiaomi POCO Unlock","Xiaomi FRP Bypass",
-  // LG
-  "LG Unlock","LG Factory Unlock","LG FRP Bypass",
-  // Motorola / Lenovo
-  "Motorola Unlock","Motorola Factory Unlock","Moto G Unlock","Lenovo Unlock",
-  // Nokia
-  "Nokia Unlock","Nokia Factory Unlock",
-  // Sony
-  "Sony Unlock","Sony Xperia Unlock",
-  // Google / Android One
-  "Google Pixel Unlock","Android One Unlock",
-  // HTC
-  "HTC Unlock","HTC Factory Unlock",
-  // ZTE / Alcatel / TCL
-  "ZTE Unlock","Alcatel Unlock","TCL Unlock",
-  // OPPO / Realme / OnePlus / Vivo
-  "OPPO Unlock","Realme Unlock","OnePlus Unlock","Vivo Unlock",
-  // General Android
-  "Android FRP Bypass","Android MDM Bypass","Android Unlock Generic",
+const ANDROID_KEYWORDS = [
+  "samsung", "huawei", "honor", "xiaomi", "redmi", "poco",
+  "lg", "motorola", "moto", "lenovo", "nokia", "sony", "xperia",
+  "google pixel", "pixel", "android one", "htc",
+  "zte", "alcatel", "tcl", "oppo", "realme", "oneplus", "vivo",
+  "android frp", "android mdm", "android unlock", "frp bypass",
+  "mdm bypass", "frp remove", "network unlock",
 ];
 
 const BRAND_TABS = [
-  { label: "All",        cats: ANDROID_CATEGORIES },
-  { label: "Samsung",   cats: ["Samsung Unlock","Samsung Factory Unlock","Samsung MDM Bypass","Samsung FRP Bypass","Samsung Network Unlock","Samsung Knox Bypass"] },
-  { label: "Huawei",    cats: ["Huawei Unlock","Huawei NCK Unlock","Huawei FRP Bypass","Honor Unlock"] },
-  { label: "Xiaomi",    cats: ["Xiaomi Unlock","Xiaomi Mi Unlock","Xiaomi Redmi Unlock","Xiaomi POCO Unlock","Xiaomi FRP Bypass"] },
-  { label: "LG",        cats: ["LG Unlock","LG Factory Unlock","LG FRP Bypass"] },
-  { label: "Motorola",  cats: ["Motorola Unlock","Motorola Factory Unlock","Moto G Unlock","Lenovo Unlock"] },
-  { label: "Nokia",     cats: ["Nokia Unlock","Nokia Factory Unlock"] },
-  { label: "OPPO+",     cats: ["OPPO Unlock","Realme Unlock","OnePlus Unlock","Vivo Unlock"] },
-  { label: "FRP / MDM", cats: ["Android FRP Bypass","Android MDM Bypass","Android Unlock Generic","Samsung FRP Bypass","Xiaomi FRP Bypass","Huawei FRP Bypass","LG FRP Bypass"] },
+  { label: "All", keywords: ANDROID_KEYWORDS },
+  { label: "Samsung", keywords: ["samsung"] },
+  { label: "Huawei", keywords: ["huawei", "honor"] },
+  { label: "Xiaomi", keywords: ["xiaomi", "redmi", "poco"] },
+  { label: "LG", keywords: ["lg unlock", "lg factory", "lg frp"] },
+  { label: "Motorola", keywords: ["motorola", "moto g", "lenovo"] },
+  { label: "Nokia", keywords: ["nokia"] },
+  { label: "OPPO+", keywords: ["oppo", "realme", "oneplus", "vivo"] },
+  { label: "FRP / MDM", keywords: ["frp", "mdm", "bypass"] },
 ];
 
-const BRAND_COLOR: Record<string, string> = {
-  Samsung: "bg-blue-100 text-blue-700",
-  Huawei: "bg-red-100 text-red-700",
-  Honor: "bg-red-100 text-red-700",
-  Xiaomi: "bg-orange-100 text-orange-700",
-  Redmi: "bg-orange-100 text-orange-700",
-  POCO: "bg-orange-100 text-orange-700",
-  LG: "bg-purple-100 text-purple-700",
-  Motorola: "bg-indigo-100 text-indigo-700",
-  Moto: "bg-indigo-100 text-indigo-700",
-  Lenovo: "bg-indigo-100 text-indigo-700",
-  Nokia: "bg-cyan-100 text-cyan-700",
-  Sony: "bg-gray-200 text-gray-700",
-  Google: "bg-green-100 text-green-700",
-  HTC: "bg-pink-100 text-pink-700",
-  ZTE: "bg-emerald-100 text-emerald-700",
-  Alcatel: "bg-teal-100 text-teal-700",
-  TCL: "bg-teal-100 text-teal-700",
-  OPPO: "bg-rose-100 text-rose-700",
-  Realme: "bg-yellow-100 text-yellow-700",
-  OnePlus: "bg-red-100 text-red-700",
-  Vivo: "bg-blue-100 text-blue-700",
-};
+function matchesKeywords(text: string, keywords: string[]): boolean {
+  const lower = text.toLowerCase();
+  return keywords.some(kw => lower.includes(kw));
+}
 
 function catColor(cat: string) {
-  for (const [brand, cls] of Object.entries(BRAND_COLOR)) {
-    if (cat.includes(brand)) return cls;
-  }
-  if (cat.toLowerCase().includes("frp") || cat.toLowerCase().includes("mdm")) return "bg-amber-100 text-amber-700";
+  const lower = cat.toLowerCase();
+  if (lower.includes("samsung")) return "bg-blue-100 text-blue-700";
+  if (lower.includes("huawei") || lower.includes("honor")) return "bg-red-100 text-red-700";
+  if (lower.includes("xiaomi") || lower.includes("redmi") || lower.includes("poco")) return "bg-orange-100 text-orange-700";
+  if (lower.includes("lg")) return "bg-purple-100 text-purple-700";
+  if (lower.includes("motorola") || lower.includes("moto") || lower.includes("lenovo")) return "bg-indigo-100 text-indigo-700";
+  if (lower.includes("nokia")) return "bg-cyan-100 text-cyan-700";
+  if (lower.includes("sony") || lower.includes("xperia")) return "bg-gray-200 text-gray-700";
+  if (lower.includes("google") || lower.includes("pixel")) return "bg-green-100 text-green-700";
+  if (lower.includes("zte") || lower.includes("alcatel") || lower.includes("tcl")) return "bg-teal-100 text-teal-700";
+  if (lower.includes("oppo") || lower.includes("realme")) return "bg-rose-100 text-rose-700";
+  if (lower.includes("oneplus")) return "bg-red-100 text-red-700";
+  if (lower.includes("vivo")) return "bg-blue-100 text-blue-700";
+  if (lower.includes("frp") || lower.includes("mdm")) return "bg-amber-100 text-amber-700";
   return "bg-slate-100 text-slate-600";
 }
 
@@ -117,18 +89,25 @@ export function AndroidUnlockPage() {
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState(0);
 
-  const { data, isLoading } = useListProducts({ limit: 1500 }, { query: { staleTime: 60_000 } as never });
+  const { data, isLoading } = useListProducts({ limit: 2000 }, { query: { staleTime: 60_000 } as never });
 
-  const allAndroid = useMemo(() =>
-    (data?.products ?? []).filter(p => ANDROID_CATEGORIES.includes(p.categoryName ?? "")),
-    [data]
-  );
+  const allAndroid = useMemo(() => {
+    const allProducts = data?.products ?? [];
+    return allProducts.filter(p => {
+      const cat = (p.categoryName ?? "").toLowerCase();
+      const name = (p.name ?? "").toLowerCase();
+      return matchesKeywords(cat, ANDROID_KEYWORDS) || matchesKeywords(name, ["unlock", "frp", "mdm", "bypass"]);
+    });
+  }, [data]);
 
-  const tabCats = BRAND_TABS[activeTab].cats;
-  const tabFiltered = useMemo(() =>
-    allAndroid.filter(p => tabCats.includes(p.categoryName ?? "")),
-    [allAndroid, tabCats]
-  );
+  const tabFiltered = useMemo(() => {
+    if (activeTab === 0) return allAndroid;
+    const keywords = BRAND_TABS[activeTab].keywords;
+    return allAndroid.filter(p => {
+      const text = `${p.categoryName ?? ""} ${p.name ?? ""}`;
+      return matchesKeywords(text, keywords);
+    });
+  }, [allAndroid, activeTab]);
 
   const searched = useMemo(() => {
     if (!search.trim()) return tabFiltered;
@@ -158,7 +137,7 @@ export function AndroidUnlockPage() {
           <Smartphone size={18} className="text-green-300" />
           <h1 className="text-white font-black text-lg">Android Unlock</h1>
           <span className="ml-auto bg-green-500/20 border border-green-400/30 text-green-200 text-[10px] font-bold px-2 py-0.5 rounded-full">
-            {allAndroid.length > 0 ? `${allAndroid.length} Services` : "All Brands"}
+            {isLoading ? "Loading…" : `${allAndroid.length} Services`}
           </span>
         </div>
         <p className="text-green-300/60 text-xs mb-4">
@@ -196,38 +175,6 @@ export function AndroidUnlockPage() {
         </div>
       </div>
 
-      {/* Device overview grid (shown when no search and "All" tab) */}
-      {activeTab === 0 && !search && allAndroid.length === 0 && !isLoading && (
-        <div className="px-4 pt-4">
-          <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Supported Brands</p>
-          <div className="grid grid-cols-3 gap-2">
-            {[
-              { brand: "Samsung", emoji: "🔵" },
-              { brand: "Huawei", emoji: "🔴" },
-              { brand: "Xiaomi", emoji: "🟠" },
-              { brand: "LG", emoji: "🟣" },
-              { brand: "Motorola", emoji: "🔷" },
-              { brand: "Nokia", emoji: "🔵" },
-              { brand: "OPPO", emoji: "🔴" },
-              { brand: "OnePlus", emoji: "🔴" },
-              { brand: "Realme", emoji: "🟡" },
-              { brand: "Vivo", emoji: "🔵" },
-              { brand: "Sony", emoji: "⚫" },
-              { brand: "Google Pixel", emoji: "🟢" },
-            ].map(({ brand, emoji }) => (
-              <div key={brand} className="bg-white border border-gray-100 rounded-2xl p-3 text-center shadow-sm">
-                <span className="text-2xl block mb-1">{emoji}</span>
-                <p className="text-[10px] font-bold text-gray-700 leading-tight">{brand}</p>
-              </div>
-            ))}
-          </div>
-          <div className="mt-4 bg-green-50 border border-green-100 rounded-2xl p-4 text-center">
-            <p className="text-sm font-bold text-green-800 mb-1">Browse all Android unlock services</p>
-            <p className="text-xs text-green-600">Select a brand tab above or search by model name</p>
-          </div>
-        </div>
-      )}
-
       {/* Results */}
       <div className="px-4 pt-3 space-y-5">
         {isLoading ? (
@@ -240,11 +187,11 @@ export function AndroidUnlockPage() {
               </div>
             ))}
           </div>
-        ) : Object.keys(grouped).length === 0 && (search || activeTab !== 0) ? (
+        ) : Object.keys(grouped).length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 gap-3 text-center">
             <Smartphone size={44} className="text-gray-200" />
             <p className="font-bold text-gray-500">No services found</p>
-            <p className="text-xs text-gray-400">Try selecting a different brand or check back later</p>
+            <p className="text-xs text-gray-400">Try a different brand tab or search term</p>
             {search && <button onClick={() => setSearch("")} className="text-green-600 text-sm font-bold">Clear search</button>}
           </div>
         ) : (
@@ -253,7 +200,7 @@ export function AndroidUnlockPage() {
               <div className="flex items-center justify-between mb-2.5">
                 <div className="flex items-center gap-2">
                   <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${catColor(cat)}`}>
-                    {cat.replace(" Unlock","").replace(" Bypass","").replace("Android ","")}
+                    {cat.replace(/ Unlock$/i, "").replace(/ Bypass$/i, "").replace(/^Android /i, "")}
                   </span>
                   <p className="text-[11px] font-black text-gray-700">{cat}</p>
                 </div>

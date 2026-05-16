@@ -1,41 +1,45 @@
 import { useState, useMemo } from "react";
-import { Link } from "wouter";
-import { useListProducts, useAddToCart, getGetCartQueryKey } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useListProducts } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAddToCart, getGetCartQueryKey } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Search, ShoppingCart, Check, Smartphone, X } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ProductCard } from "@/components/product-card";
 
-const IPHONE_CATEGORIES = [
-  "iPhone Unlock T-Mobile USA","iPhone Unlock AT&T USA","USA Sprint Clean Unlock",
-  "iPhone Unlock EE UK","iPhone Unlock O2 UK",
-  "iPhone Unlock Optus Australia",
-  "iPhone Unlock Rogers Canada",
-  "iCloud Activation Lock","iCloud Bypass With Network iPhone 5s–X iOS12/17","iCloud Full Unlock",
-  "A12+ Offer Service iPhones / iPads","Hfz Activator A12+ Windows iPhone","Mina A12+ Bypass No Signal",
-  "iRemoval Pro Tools","iRemoval Pro V5.0 iPads Wi-Fi & Cellular",
-  "IMEI Repair","Remote Services",
+const IPHONE_KEYWORDS = [
+  "iphone", "ipad", "ios", "icloud", "apple",
+  "t-mobile", "at&t", "sprint", "verizon",
+  "ee uk", "o2 uk", "optus", "rogers",
+  "a12", "a13", "a14", "a15", "a16", "a17",
+  "iremoval", "hfz", "mina", "imei repair",
+  "remote service",
 ];
 
 const REGION_TABS = [
-  { label: "All",       cats: IPHONE_CATEGORIES },
-  { label: "USA",       cats: ["iPhone Unlock T-Mobile USA","iPhone Unlock AT&T USA","USA Sprint Clean Unlock"] },
-  { label: "UK",        cats: ["iPhone Unlock EE UK","iPhone Unlock O2 UK"] },
-  { label: "Australia", cats: ["iPhone Unlock Optus Australia"] },
-  { label: "Canada",    cats: ["iPhone Unlock Rogers Canada"] },
-  { label: "iCloud",    cats: ["iCloud Activation Lock","iCloud Bypass With Network iPhone 5s–X iOS12/17","iCloud Full Unlock"] },
-  { label: "A12+",      cats: ["A12+ Offer Service iPhones / iPads","Hfz Activator A12+ Windows iPhone","Mina A12+ Bypass No Signal"] },
-  { label: "Tools",     cats: ["iRemoval Pro Tools","iRemoval Pro V5.0 iPads Wi-Fi & Cellular"] },
+  { label: "All", keywords: IPHONE_KEYWORDS },
+  { label: "USA", keywords: ["t-mobile", "at&t", "sprint", "usa"] },
+  { label: "UK", keywords: ["ee uk", "o2 uk", " uk"] },
+  { label: "Australia", keywords: ["optus", "australia"] },
+  { label: "Canada", keywords: ["rogers", "canada"] },
+  { label: "iCloud", keywords: ["icloud", "activation lock", "fmi"] },
+  { label: "A12+", keywords: ["a12", "a13", "a14", "a15", "hfz", "mina"] },
+  { label: "Tools", keywords: ["iremoval", "tool", "activator"] },
 ];
 
+function matchesKeywords(text: string, keywords: string[]): boolean {
+  const lower = text.toLowerCase();
+  return keywords.some(kw => lower.includes(kw));
+}
+
 function regionBadge(cat: string) {
-  if (cat.includes("USA") || cat.includes("Sprint")) return "bg-red-100 text-red-700";
-  if (cat.includes("UK")) return "bg-blue-100 text-blue-700";
-  if (cat.includes("Australia")) return "bg-green-100 text-green-700";
-  if (cat.includes("Canada")) return "bg-orange-100 text-orange-700";
-  if (cat.toLowerCase().includes("icloud")) return "bg-purple-100 text-purple-700";
-  if (cat.includes("A12+") || cat.includes("Hfz") || cat.includes("Mina")) return "bg-gray-200 text-gray-700";
+  const lower = cat.toLowerCase();
+  if (lower.includes("usa") || lower.includes("sprint") || lower.includes("t-mobile") || lower.includes("at&t")) return "bg-red-100 text-red-700";
+  if (lower.includes("uk") || lower.includes("ee") || lower.includes("o2")) return "bg-blue-100 text-blue-700";
+  if (lower.includes("australia") || lower.includes("optus")) return "bg-green-100 text-green-700";
+  if (lower.includes("canada") || lower.includes("rogers")) return "bg-orange-100 text-orange-700";
+  if (lower.includes("icloud") || lower.includes("activation")) return "bg-purple-100 text-purple-700";
+  if (lower.includes("a12") || lower.includes("hfz") || lower.includes("mina")) return "bg-gray-200 text-gray-700";
   return "bg-indigo-100 text-indigo-700";
 }
 
@@ -77,18 +81,24 @@ export function IphoneUnlockPage() {
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState(0);
 
-  const { data, isLoading } = useListProducts({ limit: 1500 }, { query: { staleTime: 60_000 } as never });
+  const { data, isLoading } = useListProducts({ limit: 2000 }, { query: { staleTime: 60_000 } as never });
 
-  const allIphone = useMemo(() =>
-    (data?.products ?? []).filter(p => IPHONE_CATEGORIES.includes(p.categoryName ?? "")),
-    [data]
-  );
+  const allIphone = useMemo(() => {
+    const allProducts = data?.products ?? [];
+    return allProducts.filter(p => {
+      const text = `${p.categoryName ?? ""} ${p.name ?? ""}`;
+      return matchesKeywords(text, IPHONE_KEYWORDS);
+    });
+  }, [data]);
 
-  const tabCats = REGION_TABS[activeTab].cats;
-  const tabFiltered = useMemo(() =>
-    allIphone.filter(p => tabCats.includes(p.categoryName ?? "")),
-    [allIphone, tabCats]
-  );
+  const tabFiltered = useMemo(() => {
+    if (activeTab === 0) return allIphone;
+    const keywords = REGION_TABS[activeTab].keywords;
+    return allIphone.filter(p => {
+      const text = `${p.categoryName ?? ""} ${p.name ?? ""}`;
+      return matchesKeywords(text, keywords);
+    });
+  }, [allIphone, activeTab]);
 
   const searched = useMemo(() => {
     if (!search.trim()) return tabFiltered;
@@ -118,7 +128,7 @@ export function IphoneUnlockPage() {
           <Smartphone size={18} className="text-purple-300" />
           <h1 className="text-white font-black text-lg">iPhone / iCloud Unlock</h1>
           <span className="ml-auto bg-purple-500/20 border border-purple-400/30 text-purple-200 text-[10px] font-bold px-2 py-0.5 rounded-full">
-            {allIphone.length} Services
+            {isLoading ? "Loading…" : `${allIphone.length} Services`}
           </span>
         </div>
         <p className="text-purple-300/60 text-xs mb-4">
@@ -172,14 +182,20 @@ export function IphoneUnlockPage() {
           <div className="flex flex-col items-center justify-center py-20 gap-3 text-center">
             <Smartphone size={44} className="text-gray-200" />
             <p className="font-bold text-gray-500">No services found</p>
+            <p className="text-xs text-gray-400">Try a different region tab or search term</p>
             {search && <button onClick={() => setSearch("")} className="text-indigo-600 text-sm font-bold">Clear search</button>}
           </div>
         ) : (
           Object.entries(grouped).map(([cat, products]) => (
             <div key={cat}>
               <div className="flex items-center justify-between mb-2.5">
-                <p className="text-[11px] font-black text-gray-700">{cat}</p>
-                <span className="text-[10px] text-gray-400">{products.length} services</span>
+                <div className="flex items-center gap-2">
+                  <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${regionBadge(cat)}`}>
+                    {cat.replace(/^iPhone Unlock /i, "").replace(/^iCloud /i, "")}
+                  </span>
+                  <p className="text-[11px] font-black text-gray-700 truncate max-w-[180px]">{cat}</p>
+                </div>
+                <span className="text-[10px] text-gray-400 shrink-0">{products.length} services</span>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 {products.map(p => <ProductCard key={p.id} product={p} compact />)}

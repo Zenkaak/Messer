@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { db, usersTable } from "@workspace/db";
+import { db, usersTable, adminSettingsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { getGoogleCredentials } from "../lib/admin-settings";
@@ -19,7 +19,27 @@ const NEON_AUTH_URL =
   process.env.NEON_AUTH_URL ||
   "https://ep-young-frost-am13gy4v.neonauth.c-5.us-east-1.aws.neon.tech/neondb/auth";
 
-const otpStore = new Map<string, { code: string; expiresAt: number }>();
+// ─── DB-backed OTP store (survives restarts) ──────────────────────────────────
+async function setOtp(key: string, code: string, ttlMs: number) {
+  const val = JSON.stringify({ code, expiresAt: Date.now() + ttlMs });
+  await db.insert(adminSettingsTable)
+    .values({ key: `otp:${key}`, value: val })
+    .onConflictDoUpdate({ target: adminSettingsTable.key, set: { value: val, updatedAt: new Date() } });
+}
+
+async function getOtp(key: string): Promise<{ code: string; expiresAt: number } | null> {
+  const rows = await db.select({ value: adminSettingsTable.value })
+    .from(adminSettingsTable)
+    .where(eq(adminSettingsTable.key, `otp:${key}`))
+    .limit(1);
+  if (!rows.length || !rows[0].value) return null;
+  try { return JSON.parse(rows[0].value) as { code: string; expiresAt: number }; }
+  catch { return null; }
+}
+
+async function deleteOtp(key: string) {
+  await db.delete(adminSettingsTable).where(eq(adminSettingsTable.key, `otp:${key}`));
+}
 
 function makeToken(userId: number, email: string) {
   return jwt.sign({ userId, email }, _jwtSecret, { expiresIn: "30d" });
@@ -63,7 +83,7 @@ router.post("/auth/register", async (req, res) => {
     const token = makeToken(user.id, user.email);
     logger.info({ userId: user.id }, "User registered");
     const otp = String(Math.floor(100000 + Math.random() * 900000));
-    otpStore.set(user.email, { code: otp, expiresAt: Date.now() + 10 * 60 * 1000 });
+    await setOtp(user.email, otp, 10 * 60 * 1000);
     sendEmail({ to: user.email, ...otpEmail(otp) }).catch((err) => {
       logger.error({ err }, "Failed to send welcome OTP email");
     });
@@ -78,14 +98,14 @@ router.post("/auth/verify-otp", async (req, res) => {
   try {
     const { email, code } = req.body || {};
     if (!email || !code) { res.status(400).json({ error: "Email and code are required" }); return; }
-    const entry = otpStore.get(email.toLowerCase());
+    const entry = await getOtp(email.toLowerCase());
     if (!entry || entry.code !== String(code)) { res.status(400).json({ error: "Invalid or expired code" }); return; }
     if (Date.now() > entry.expiresAt) {
-      otpStore.delete(email.toLowerCase());
+      await deleteOtp(email.toLowerCase());
       res.status(400).json({ error: "Code has expired. Please request a new one." });
       return;
     }
-    otpStore.delete(email.toLowerCase());
+    await deleteOtp(email.toLowerCase());
     res.json({ success: true });
   } catch (err) {
     req.log.error({ err }, "OTP verification failed");
@@ -151,7 +171,7 @@ router.post("/auth/otp-login/send", async (req, res) => {
       return;
     }
     const otp = String(Math.floor(100000 + Math.random() * 900000));
-    otpStore.set(`login:${email.toLowerCase()}`, { code: otp, expiresAt: Date.now() + 10 * 60 * 1000 });
+    await setOtp(`login:${email.toLowerCase()}`, otp, 10 * 60 * 1000);
     sendEmail({
       to: email.toLowerCase(),
       subject: "Your GSM World Login Code",
@@ -169,14 +189,14 @@ router.post("/auth/otp-login/verify", async (req, res) => {
     const { email, code } = req.body || {};
     if (!email || !code) { res.status(400).json({ error: "Email and code are required" }); return; }
     const key = `login:${email.toLowerCase()}`;
-    const entry = otpStore.get(key);
+    const entry = await getOtp(key);
     if (!entry || entry.code !== String(code)) { res.status(400).json({ error: "Invalid or expired code" }); return; }
     if (Date.now() > entry.expiresAt) {
-      otpStore.delete(key);
+      await deleteOtp(key);
       res.status(400).json({ error: "Code has expired. Please request a new one." });
       return;
     }
-    otpStore.delete(key);
+    await deleteOtp(key);
     const rows = await db
       .select({ id: usersTable.id, email: usersTable.email, name: usersTable.name, status: usersTable.status })
       .from(usersTable).where(eq(usersTable.email, email.toLowerCase())).limit(1);

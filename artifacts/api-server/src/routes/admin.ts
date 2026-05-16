@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and, sql, count, sum, ilike, or, desc } from "drizzle-orm";
+import bcrypt from "bcryptjs";
 import {
   db,
   adminSettingsTable,
@@ -7,6 +8,7 @@ import {
   insertToolActivationSchema,
   usersTable,
   ordersTable,
+  orderMessagesTable,
 } from "@workspace/db";
 import { productsTable, categoriesTable } from "@workspace/db";
 import { z } from "zod";
@@ -261,6 +263,89 @@ router.delete("/admin/users/:id", async (req, res) => {
     res.status(204).send();
   } catch (err) {
     req.log.error({ err }, "Failed to delete user");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.post("/admin/users", async (req, res) => {
+  try {
+    if (!(await checkAdminAuth(req, res))) return;
+    const parsed = z.object({
+      email: z.string().email(),
+      password: z.string().min(6),
+      name: z.string().optional(),
+      walletBalance: z.string().optional(),
+    }).safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const existing = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.email, parsed.data.email.toLowerCase())).limit(1);
+    if (existing.length > 0) {
+      res.status(409).json({ error: "A user with this email already exists" });
+      return;
+    }
+    const passwordHash = await bcrypt.hash(parsed.data.password, 10);
+    const [user] = await db.insert(usersTable).values({
+      email: parsed.data.email.toLowerCase(),
+      passwordHash,
+      name: parsed.data.name || null,
+      walletBalance: parsed.data.walletBalance ?? "0",
+      status: "active",
+    }).returning({
+      id: usersTable.id,
+      email: usersTable.email,
+      name: usersTable.name,
+      walletBalance: usersTable.walletBalance,
+      status: usersTable.status,
+      createdAt: usersTable.createdAt,
+    });
+    res.status(201).json(user);
+  } catch (err) {
+    req.log.error({ err }, "Failed to create user");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ─── admin direct message to user (creates a message on one of their orders) ──
+router.post("/admin/users/:id/message", async (req, res) => {
+  try {
+    if (!(await checkAdminAuth(req, res))) return;
+    const userId = Number(req.params.id);
+    const parsed = z.object({
+      message: z.string().min(1),
+      orderId: z.number().int().optional(),
+    }).safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const [user] = await db.select({ id: usersTable.id, email: usersTable.email }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+    if (!user) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+    let orderId = parsed.data.orderId;
+    if (!orderId) {
+      const latestOrder = await db.select({ id: ordersTable.id }).from(ordersTable)
+        .where(eq(ordersTable.customerEmail, user.email))
+        .orderBy(desc(ordersTable.createdAt))
+        .limit(1);
+      if (!latestOrder.length) {
+        res.status(400).json({ error: "User has no orders. Please specify an orderId." });
+        return;
+      }
+      orderId = latestOrder[0].id;
+    }
+    const [msg] = await db.insert(orderMessagesTable).values({
+      orderId,
+      senderType: "admin",
+      senderEmail: "admin",
+      message: parsed.data.message,
+    }).returning();
+    res.status(201).json(msg);
+  } catch (err) {
+    req.log.error({ err }, "Failed to send direct message");
     res.status(500).json({ error: "Internal server error" });
   }
 });
