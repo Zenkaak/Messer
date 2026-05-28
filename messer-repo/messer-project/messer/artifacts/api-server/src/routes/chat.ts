@@ -297,6 +297,7 @@ YOUR TOOLS — USE THEM IMMEDIATELY, NEVER DESCRIBE WHAT YOU COULD DO
 13. send_password_reset_otp(email) — send password reset OTP to customer's email
 14. reset_user_password(email, code, new_password) — verify OTP and set new password
 15. place_order(payment_method, customer_email, ...) — complete checkout and create order
+16. add_wallet_funds(payment_method, amount, phone?, pay_currency?) — top up customer's GSM World wallet balance
 
 When a user asks about something, call the tool immediately. Do not say "I can look that up" — just look it up.
 
@@ -317,6 +318,19 @@ NOWPAYMENTS — CRITICAL SAFETY WARNING (always say this before showing address)
 "⚠️ This crypto address is valid for 15 minutes ONLY. Send the EXACT amount shown.
 Sending after the timer expires or to the wrong address = funds permanently lost.
 GSM World is not liable for payments sent after expiry or to incorrect addresses."
+
+══════════════════════════════════════════════════════════════
+WALLET TOP-UP (help customers fund their GSM World wallet)
+══════════════════════════════════════════════════════════════
+When a customer asks to top up their wallet, add funds, or load their balance:
+1. Confirm they are logged in (need botToken). If not, help them log in first.
+2. Ask: how much do they want to add (USD)?
+3. Ask: which payment method — M-Pesa | Crypto (NOWPayments, min $13) | USDT (manual transfer)?
+4. For M-Pesa: collect phone (07XXXXXXXX) → add_wallet_funds("mpesa", amount, phone=...)
+5. For Crypto: ask preferred coin (default: USDT TRC20) → add_wallet_funds("nowpayments", amount, pay_currency=...) — min $13
+   Always warn: "⚠️ Crypto address valid for 15 min only. Send exact amount. Wrong address/late payment = funds lost."
+6. For USDT manual: add_wallet_funds("usdt", amount) — shows static deposit address
+After initiating: "Wallet check runs automatically every 30 seconds — I'll confirm once payment clears."
 
 ══════════════════════════════════════════════════════════════
 LOGIN / SIGNUP / PASSWORD RESET (assist customers in-chat)
@@ -1055,6 +1069,23 @@ const TOOLS = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "add_wallet_funds",
+      description: "Top up the customer's GSM World wallet balance. Customer must be logged in (botToken required). Supports M-Pesa (STK push), NOWPayments (crypto, min $13), and USDT (manual transfer). Always confirm amount and payment method before calling.",
+      parameters: {
+        type: "object",
+        properties: {
+          payment_method: { type: "string", description: "Payment method: 'mpesa', 'nowpayments', or 'usdt'" },
+          amount: { type: "number", description: "Amount in USD to add to wallet. Min $13 for NOWPayments. For M-Pesa: USD amount (converted to KES at ~130)." },
+          phone: { type: "string", description: "Phone number for M-Pesa STK push (e.g. 07XXXXXXXX). Required when payment_method is mpesa." },
+          pay_currency: { type: "string", description: "Crypto currency for NOWPayments (e.g. 'usdttrc20', 'btc', 'eth', 'ltc'). Default: usdttrc20." },
+        },
+        required: ["payment_method", "amount"],
+      },
+    },
+  },
 ];
 
 // ─── Tool executors ──────────────────────────────────────────────────────────
@@ -1673,6 +1704,41 @@ async function toolPlaceOrder(args: {
   }
 }
 
+async function toolAddWalletFunds(args: {
+  paymentMethod: string; amount: number; phone?: string; payCurrency?: string; botToken?: string | null;
+}): Promise<Record<string, unknown>> {
+  if (!args.botToken) return { success: false, error: "You must be logged in to top up your wallet. Please log in first." };
+  const port = process.env.PORT ?? "5000";
+  const headers: Record<string, string> = { "Content-Type": "application/json", Authorization: `Bearer ${args.botToken}` };
+  const pm = args.paymentMethod.toLowerCase();
+  try {
+    if (pm === "mpesa") {
+      if (!args.phone) return { success: false, error: "Phone number is required for M-Pesa top-up." };
+      const r = await fetch(`http://localhost:${port}/api/wallet/add-fund/mpesa`, {
+        method: "POST", headers, body: JSON.stringify({ phone: args.phone, amount: args.amount }),
+      });
+      const data = await r.json() as Record<string, unknown>;
+      if (r.ok) return { success: true, ...data };
+      return { success: false, error: (data as { error?: string }).error ?? "M-Pesa top-up failed." };
+    } else if (pm === "nowpayments") {
+      const r = await fetch(`http://localhost:${port}/api/wallet/add-fund/nowpayments`, {
+        method: "POST", headers, body: JSON.stringify({ amount: args.amount, payCurrency: args.payCurrency ?? "usdttrc20" }),
+      });
+      const data = await r.json() as Record<string, unknown>;
+      if (r.ok) return { success: true, ...data };
+      return { success: false, error: (data as { error?: string }).error ?? "Crypto top-up failed." };
+    } else if (pm === "usdt") {
+      const r = await fetch(`http://localhost:${port}/api/wallet/add-fund/usdt`, { method: "GET", headers });
+      const data = await r.json() as Record<string, unknown>;
+      if (r.ok) return { success: true, ...data };
+      return { success: false, error: "Could not retrieve USDT deposit details." };
+    }
+    return { success: false, error: "Unknown payment method. Use: mpesa, nowpayments, or usdt." };
+  } catch {
+    return { success: false, error: "Wallet top-up service unavailable. Please try again." };
+  }
+}
+
 type ToolCallItem = { id: string; type: string; function: { name: string; arguments: string } };
 
 /** Execute a list of tool calls in parallel and return tool-role messages + action data. */
@@ -1800,6 +1866,28 @@ async function runToolCalls(
           } else {
             lat = "checkout_done";
             lad = { orderId: rd.orderId, paymentMethod: args.payment_method, total: rd.total, currency: rd.currency };
+          }
+        }
+      } else if (fn === "add_wallet_funds") {
+        const r = await toolAddWalletFunds({
+          paymentMethod: String(args.payment_method ?? ""),
+          amount: Number(args.amount ?? 0),
+          phone: args.phone ? String(args.phone) : undefined,
+          payCurrency: args.pay_currency ? String(args.pay_currency) : undefined,
+          botToken: opts.botToken,
+        });
+        result = JSON.stringify(r);
+        if (r.success) {
+          const pm = String(args.payment_method ?? "").toLowerCase();
+          if (pm === "mpesa" && r.checkoutRequestId) {
+            lat = "wallet_topup_mpesa";
+            lad = { checkoutRequestId: r.checkoutRequestId, amountUsd: Number(args.amount), amountKes: r.amountKes, message: r.message };
+          } else if (pm === "nowpayments" && r.paymentId) {
+            lat = "wallet_topup_nowpayments";
+            lad = { paymentId: r.paymentId, payAddress: r.payAddress, payAmount: r.payAmount, payCurrency: r.payCurrency, expiresAt: r.expiresAt, amountUsd: Number(args.amount) };
+          } else if (pm === "usdt" && r.addresses) {
+            lat = "wallet_topup_usdt";
+            lad = { addresses: r.addresses, note: r.note };
           }
         }
       }

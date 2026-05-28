@@ -40,6 +40,15 @@ interface CartAddedData { productName: string; quantity: number; price: string }
 interface LoginSuccessData {
   token: string; user: { id: number; email: string; name: string | null }; isNewAccount?: boolean;
 }
+interface WalletTopUpMpesaData {
+  checkoutRequestId: string; amountUsd: number; amountKes: number; message: string;
+}
+interface WalletTopUpNowpaymentsData {
+  paymentId: string; payAddress: string; payAmount: number; payCurrency: string; expiresAt?: string; amountUsd: number;
+}
+interface WalletTopUpUsdtData {
+  addresses: Array<{ network: string; address: string; minDeposit?: string }>; note: string;
+}
 interface ChatMessage {
   role: "user" | "assistant";
   content: string;
@@ -55,6 +64,9 @@ interface ChatMessage {
   cartAddedData?: CartAddedData;
   loginSuccessData?: LoginSuccessData;
   passwordResetDone?: boolean;
+  walletTopUpMpesaData?: WalletTopUpMpesaData;
+  walletTopUpNowpaymentsData?: WalletTopUpNowpaymentsData;
+  walletTopUpUsdtData?: WalletTopUpUsdtData;
 }
 interface HumanMessage {
   id: number;
@@ -533,35 +545,84 @@ function PasswordResetDoneWidget() {
   );
 }
 
-// ─── NOWPayments checkout widget ──────────────────────────────────────────────
-function NowPaymentsWidget({ data }: { data: NowPaymentsData }) {
+// ─── Shared crypto address copy block ────────────────────────────────────────
+function CopyBlock({ label, value, mono = true }: { label: string; value: string; mono?: boolean }) {
   const [copied, setCopied] = useState(false);
+  const copy = () => { void navigator.clipboard.writeText(value); setCopied(true); setTimeout(() => setCopied(false), 2000); };
+  return (
+    <div>
+      <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wide mb-0.5">{label}</p>
+      <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1">
+        <span className={`flex-1 ${mono ? "font-mono text-[9px]" : "text-[10px]"} text-slate-700 truncate`}>{value}</span>
+        <button onClick={copy} className="flex items-center gap-0.5 text-[10px] font-semibold text-slate-600 hover:text-slate-800 shrink-0">
+          <Copy size={10} /> {copied ? "✓" : "Copy"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── NOWPayments checkout widget (order) ──────────────────────────────────────
+function NowPaymentsWidget({ data }: { data: NowPaymentsData }) {
   const [copiedAmt, setCopiedAmt] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState<number>(() => {
     if (!data.expiresAt) return 15 * 60;
     const ms = new Date(data.expiresAt).getTime() - Date.now();
     return Math.max(0, Math.round(ms / 1000));
   });
+  const [pollStatus, setPollStatus] = useState<"pending" | "paid" | "failed">("pending");
   const expired = secondsLeft <= 0;
+  const base = apiBase();
 
   useEffect(() => {
-    if (expired) return undefined;
+    if (expired || pollStatus !== "pending") return undefined;
     const t = setInterval(() => setSecondsLeft(s => Math.max(0, s - 1)), 1000);
     return () => clearInterval(t);
-  }, [expired]);
+  }, [expired, pollStatus]);
+
+  useEffect(() => {
+    if (pollStatus !== "pending") return undefined;
+    const poll = async () => {
+      try {
+        const r = await fetch(`${base}/api/payments/nowpayments/query`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ orderId: data.orderId }),
+        });
+        if (!r.ok) return;
+        const d = await r.json() as { paymentStatus?: string };
+        if (d.paymentStatus === "paid") setPollStatus("paid");
+        else if (d.paymentStatus === "failed") setPollStatus("failed");
+      } catch { /* network error — retry next interval */ }
+    };
+    void poll();
+    const t = setInterval(() => void poll(), 30_000);
+    return () => clearInterval(t);
+  }, [base, data.orderId, pollStatus]);
 
   const mins = Math.floor(secondsLeft / 60);
   const secs = secondsLeft % 60;
   const urgent = secondsLeft < 5 * 60;
+  const copyAmt = () => { void navigator.clipboard.writeText(String(data.payAmount)); setCopiedAmt(true); setTimeout(() => setCopiedAmt(false), 2000); };
 
-  const copyAddress = () => {
-    void navigator.clipboard.writeText(data.payAddress);
-    setCopied(true); setTimeout(() => setCopied(false), 2000);
-  };
-  const copyAmt = () => {
-    void navigator.clipboard.writeText(String(data.payAmount));
-    setCopiedAmt(true); setTimeout(() => setCopiedAmt(false), 2000);
-  };
+  if (pollStatus === "paid") {
+    return (
+      <div className="mt-2 rounded-xl border border-emerald-200 bg-emerald-50 overflow-hidden text-xs shadow-sm px-3 py-3 flex items-start gap-2">
+        <CheckCircle size={16} className="text-emerald-600 shrink-0 mt-0.5" />
+        <div>
+          <p className="font-bold text-emerald-800 text-[12px]">Payment Confirmed! ✅</p>
+          <p className="text-emerald-700 text-[11px] mt-0.5">Order #{data.orderId} is now being processed. Check your email for confirmation.</p>
+        </div>
+      </div>
+    );
+  }
+  if (pollStatus === "failed") {
+    return (
+      <div className="mt-2 rounded-xl border border-red-200 bg-red-50 px-3 py-3 flex items-start gap-2 text-xs">
+        <AlertCircle size={14} className="text-red-600 shrink-0 mt-0.5" />
+        <p className="text-red-700 font-semibold">Payment failed or expired. Please start a new order.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="mt-2 rounded-xl border border-purple-200 bg-white overflow-hidden text-xs shadow-sm">
@@ -572,12 +633,15 @@ function NowPaymentsWidget({ data }: { data: NowPaymentsData }) {
           </div>
           <span className="font-bold text-purple-800 text-[11px]">Crypto Payment — Order #{data.orderId}</span>
         </div>
-        {!expired && (
-          <span className={`font-mono text-[11px] font-bold px-2 py-0.5 rounded-full ${urgent ? "text-red-700 bg-red-100 border border-red-300 animate-pulse" : "text-amber-700 bg-amber-100 border border-amber-300"}`}>
-            {String(mins).padStart(2, "0")}:{String(secs).padStart(2, "0")}
-          </span>
-        )}
-        {expired && <span className="text-[11px] font-bold text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full">EXPIRED</span>}
+        <div className="flex items-center gap-1.5">
+          {!expired && (
+            <span className={`font-mono text-[11px] font-bold px-2 py-0.5 rounded-full ${urgent ? "text-red-700 bg-red-100 border border-red-300 animate-pulse" : "text-amber-700 bg-amber-100 border border-amber-300"}`}>
+              {String(mins).padStart(2, "0")}:{String(secs).padStart(2, "0")}
+            </span>
+          )}
+          {expired && <span className="text-[11px] font-bold text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full">EXPIRED</span>}
+          <span className="text-[9px] text-slate-400 animate-pulse">● checking</span>
+        </div>
       </div>
       <div className="px-3 py-2.5 space-y-2.5">
         {expired ? (
@@ -607,15 +671,7 @@ function NowPaymentsWidget({ data }: { data: NowPaymentsData }) {
                     </button>
                   </div>
                 </div>
-                <div>
-                  <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wide mb-0.5">Wallet Address</p>
-                  <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1">
-                    <span className="flex-1 font-mono text-[9px] text-slate-700 truncate">{data.payAddress}</span>
-                    <button onClick={copyAddress} className="flex items-center gap-0.5 text-[10px] font-semibold text-slate-600 hover:text-slate-800 shrink-0">
-                      <Copy size={10} /> {copied ? "✓" : "Copy"}
-                    </button>
-                  </div>
-                </div>
+                <CopyBlock label="Wallet Address" value={data.payAddress} />
               </div>
             </div>
             <div className="text-[10px] text-slate-500 flex justify-between">
@@ -628,15 +684,60 @@ function NowPaymentsWidget({ data }: { data: NowPaymentsData }) {
   );
 }
 
-// ─── M-Pesa pending widget ────────────────────────────────────────────────────
+// ─── M-Pesa pending widget (order) ───────────────────────────────────────────
 function MpesaPendingWidget({ data }: { data: MpesaPendingData }) {
+  const [pollStatus, setPollStatus] = useState<"pending" | "paid" | "failed">("pending");
+  const base = apiBase();
+
+  useEffect(() => {
+    if (pollStatus !== "pending") return undefined;
+    const poll = async () => {
+      try {
+        const r = await fetch(`${base}/api/payments/mpesa/query`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ orderId: data.orderId, checkoutRequestId: data.checkoutRequestId }),
+        });
+        if (!r.ok) return;
+        const d = await r.json() as { paymentStatus?: string };
+        if (d.paymentStatus === "paid") setPollStatus("paid");
+        else if (d.paymentStatus === "failed") setPollStatus("failed");
+      } catch { /* retry next interval */ }
+    };
+    void poll();
+    const t = setInterval(() => void poll(), 30_000);
+    return () => clearInterval(t);
+  }, [base, data.orderId, data.checkoutRequestId, pollStatus]);
+
+  if (pollStatus === "paid") {
+    return (
+      <div className="mt-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-3 flex items-start gap-2 text-xs shadow-sm">
+        <CheckCircle size={16} className="text-emerald-600 shrink-0 mt-0.5" />
+        <div>
+          <p className="font-bold text-emerald-800 text-[12px]">M-Pesa Payment Confirmed! ✅</p>
+          <p className="text-emerald-700 text-[11px] mt-0.5">Order #{data.orderId} is now being processed. Check your email for confirmation.</p>
+        </div>
+      </div>
+    );
+  }
+  if (pollStatus === "failed") {
+    return (
+      <div className="mt-2 rounded-xl border border-red-200 bg-red-50 px-3 py-3 flex items-start gap-2 text-xs">
+        <AlertCircle size={14} className="text-red-600 shrink-0 mt-0.5" />
+        <p className="text-red-700 font-semibold">M-Pesa payment failed or was cancelled. Please try again.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="mt-2 rounded-xl border border-green-200 bg-white overflow-hidden text-xs shadow-sm">
-      <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border-b border-green-100">
-        <div className="w-5 h-5 rounded-md bg-green-500 flex items-center justify-center shrink-0">
-          <Smartphone size={11} className="text-white" />
+      <div className="flex items-center justify-between px-3 py-2 bg-green-50 border-b border-green-100">
+        <div className="flex items-center gap-2">
+          <div className="w-5 h-5 rounded-md bg-green-500 flex items-center justify-center shrink-0">
+            <Smartphone size={11} className="text-white" />
+          </div>
+          <span className="font-bold text-green-800 text-[11px]">M-Pesa STK Push Sent — Order #{data.orderId}</span>
         </div>
-        <span className="font-bold text-green-800 text-[11px]">M-Pesa STK Push Sent — Order #{data.orderId}</span>
+        <span className="text-[9px] text-slate-400 animate-pulse">● checking</span>
       </div>
       <div className="px-3 py-2.5 space-y-2">
         <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
@@ -644,7 +745,7 @@ function MpesaPendingWidget({ data }: { data: MpesaPendingData }) {
           <span className="text-green-700 text-[11px] font-semibold">STK push sent! Check your phone for the M-Pesa PIN prompt.</span>
         </div>
         <p className="text-slate-600 text-[11px]">{data.message}</p>
-        <p className="text-slate-500 text-[10px]">Total: <strong>{data.currency} {Number(data.total).toFixed(2)}</strong></p>
+        <p className="text-slate-500 text-[10px]">Total: <strong>{data.currency} {Number(data.total).toFixed(2)}</strong> · Auto-checking every 30s</p>
       </div>
     </div>
   );
@@ -666,6 +767,213 @@ function CheckoutDoneWidget({ data }: { data: CheckoutDoneData }) {
         <Link href={`${base}/orders/${data.orderId}`} className="flex items-center gap-1 text-blue-600 font-semibold text-[11px] hover:underline">
           <ExternalLink size={10} /> View order details
         </Link>
+      </div>
+    </div>
+  );
+}
+
+// ─── Wallet top-up M-Pesa widget (with polling) ───────────────────────────────
+function WalletTopUpMpesaWidget({ data }: { data: WalletTopUpMpesaData }) {
+  const [pollStatus, setPollStatus] = useState<"pending" | "paid" | "failed">("pending");
+  const base = apiBase();
+  const token = typeof window !== "undefined" ? (localStorage.getItem("gsmafrica_token") ?? undefined) : undefined;
+
+  useEffect(() => {
+    if (pollStatus !== "pending") return undefined;
+    const poll = async () => {
+      try {
+        const r = await fetch(`${base}/api/wallet/add-fund/mpesa/query`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          body: JSON.stringify({ checkoutRequestId: data.checkoutRequestId }),
+        });
+        if (!r.ok) return;
+        const d = await r.json() as { status?: string };
+        if (d.status === "paid") setPollStatus("paid");
+        else if (d.status === "failed") setPollStatus("failed");
+      } catch { /* retry */ }
+    };
+    void poll();
+    const t = setInterval(() => void poll(), 30_000);
+    return () => clearInterval(t);
+  }, [base, data.checkoutRequestId, pollStatus, token]);
+
+  if (pollStatus === "paid") {
+    return (
+      <div className="mt-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-3 flex items-start gap-2 text-xs shadow-sm">
+        <CheckCircle size={16} className="text-emerald-600 shrink-0 mt-0.5" />
+        <div>
+          <p className="font-bold text-emerald-800 text-[12px]">Wallet Topped Up! ✅</p>
+          <p className="text-emerald-700 text-[11px] mt-0.5">${data.amountUsd.toFixed(2)} has been credited to your GSM World wallet.</p>
+        </div>
+      </div>
+    );
+  }
+  if (pollStatus === "failed") {
+    return (
+      <div className="mt-2 rounded-xl border border-red-200 bg-red-50 px-3 py-3 flex items-start gap-2 text-xs">
+        <AlertCircle size={14} className="text-red-600 shrink-0 mt-0.5" />
+        <p className="text-red-700 font-semibold">M-Pesa payment failed or was cancelled. Please try again.</p>
+      </div>
+    );
+  }
+  return (
+    <div className="mt-2 rounded-xl border border-green-200 bg-white overflow-hidden text-xs shadow-sm">
+      <div className="flex items-center justify-between px-3 py-2 bg-green-50 border-b border-green-100">
+        <div className="flex items-center gap-2">
+          <div className="w-5 h-5 rounded-md bg-green-500 flex items-center justify-center shrink-0">
+            <Smartphone size={11} className="text-white" />
+          </div>
+          <span className="font-bold text-green-800 text-[11px]">Wallet Top-Up — M-Pesa</span>
+        </div>
+        <span className="text-[9px] text-slate-400 animate-pulse">● checking</span>
+      </div>
+      <div className="px-3 py-2.5 space-y-2">
+        <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+          <CheckCircle size={13} className="text-green-600 shrink-0" />
+          <span className="text-green-700 text-[11px] font-semibold">STK push sent! Enter your M-Pesa PIN to confirm.</span>
+        </div>
+        <p className="text-slate-600 text-[11px]">{data.message}</p>
+        <p className="text-slate-500 text-[10px]">Amount: <strong>KES {data.amountKes} (≈ ${data.amountUsd.toFixed(2)})</strong> · Auto-checking every 30s</p>
+      </div>
+    </div>
+  );
+}
+
+// ─── Wallet top-up NOWPayments widget (with countdown + polling) ──────────────
+function WalletTopUpNowpaymentsWidget({ data }: { data: WalletTopUpNowpaymentsData }) {
+  const [secondsLeft, setSecondsLeft] = useState<number>(() => {
+    if (!data.expiresAt) return 15 * 60;
+    const ms = new Date(data.expiresAt).getTime() - Date.now();
+    return Math.max(0, Math.round(ms / 1000));
+  });
+  const [pollStatus, setPollStatus] = useState<"pending" | "paid" | "failed">("pending");
+  const expired = secondsLeft <= 0;
+  const base = apiBase();
+  const token = typeof window !== "undefined" ? (localStorage.getItem("gsmafrica_token") ?? undefined) : undefined;
+
+  useEffect(() => {
+    if (expired || pollStatus !== "pending") return undefined;
+    const t = setInterval(() => setSecondsLeft(s => Math.max(0, s - 1)), 1000);
+    return () => clearInterval(t);
+  }, [expired, pollStatus]);
+
+  useEffect(() => {
+    if (pollStatus !== "pending") return undefined;
+    const poll = async () => {
+      try {
+        const r = await fetch(`${base}/api/wallet/add-fund/nowpayments/status`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          body: JSON.stringify({ paymentId: data.paymentId, amountUsd: data.amountUsd }),
+        });
+        if (!r.ok) return;
+        const d = await r.json() as { status?: string };
+        if (d.status === "paid") setPollStatus("paid");
+        else if (d.status === "failed") setPollStatus("failed");
+      } catch { /* retry */ }
+    };
+    void poll();
+    const t = setInterval(() => void poll(), 30_000);
+    return () => clearInterval(t);
+  }, [base, data.paymentId, data.amountUsd, pollStatus, token]);
+
+  const mins = Math.floor(secondsLeft / 60);
+  const secs = secondsLeft % 60;
+  const urgent = secondsLeft < 5 * 60;
+
+  if (pollStatus === "paid") {
+    return (
+      <div className="mt-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-3 flex items-start gap-2 text-xs shadow-sm">
+        <CheckCircle size={16} className="text-emerald-600 shrink-0 mt-0.5" />
+        <div>
+          <p className="font-bold text-emerald-800 text-[12px]">Wallet Topped Up! ✅</p>
+          <p className="text-emerald-700 text-[11px] mt-0.5">${data.amountUsd.toFixed(2)} has been credited to your GSM World wallet via crypto.</p>
+        </div>
+      </div>
+    );
+  }
+  if (pollStatus === "failed") {
+    return (
+      <div className="mt-2 rounded-xl border border-red-200 bg-red-50 px-3 py-3 flex items-start gap-2 text-xs">
+        <AlertCircle size={14} className="text-red-600 shrink-0 mt-0.5" />
+        <p className="text-red-700 font-semibold">Payment failed or expired. Please try again.</p>
+      </div>
+    );
+  }
+  return (
+    <div className="mt-2 rounded-xl border border-purple-200 bg-white overflow-hidden text-xs shadow-sm">
+      <div className="flex items-center justify-between px-3 py-2 bg-purple-50 border-b border-purple-100">
+        <div className="flex items-center gap-1.5">
+          <div className="w-5 h-5 rounded-md bg-purple-600 flex items-center justify-center shrink-0">
+            <span className="text-white font-black text-[9px]">₿</span>
+          </div>
+          <span className="font-bold text-purple-800 text-[11px]">Wallet Top-Up — Crypto</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          {!expired ? (
+            <span className={`font-mono text-[11px] font-bold px-2 py-0.5 rounded-full ${urgent ? "text-red-700 bg-red-100 border border-red-300 animate-pulse" : "text-amber-700 bg-amber-100 border border-amber-300"}`}>
+              {String(mins).padStart(2, "0")}:{String(secs).padStart(2, "0")}
+            </span>
+          ) : (
+            <span className="text-[11px] font-bold text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full">EXPIRED</span>
+          )}
+          <span className="text-[9px] text-slate-400 animate-pulse">● checking</span>
+        </div>
+      </div>
+      <div className="px-3 py-2.5 space-y-2.5">
+        {expired ? (
+          <div className="flex items-start gap-1.5 text-[11px] text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+            <AlertCircle size={12} className="shrink-0 mt-0.5" />
+            <span className="font-semibold">This address has expired. Do NOT send funds — they will be lost.</span>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-start gap-1.5 text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
+              <AlertCircle size={11} className="shrink-0 mt-0.5" />
+              <span><strong>⚠️ Expires in {mins}m {secs}s.</strong> Send the EXACT amount. Late or wrong payments = funds lost.</span>
+            </div>
+            <div className="flex gap-3">
+              <img
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(data.payAddress)}`}
+                alt="Payment QR"
+                className="w-[70px] h-[70px] rounded-lg border border-purple-100 shrink-0"
+              />
+              <div className="flex-1 space-y-1.5">
+                <CopyBlock label={`Send Amount (${data.payCurrency.toUpperCase()})`} value={String(data.payAmount)} />
+                <CopyBlock label="Wallet Address" value={data.payAddress} />
+              </div>
+            </div>
+            <p className="text-[10px] text-slate-500">Top-up: <strong>${data.amountUsd.toFixed(2)} USD</strong> · Auto-checking every 30s</p>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Wallet top-up USDT widget ────────────────────────────────────────────────
+function WalletTopUpUsdtWidget({ data }: { data: WalletTopUpUsdtData }) {
+  return (
+    <div className="mt-2 rounded-xl border border-teal-200 bg-white overflow-hidden text-xs shadow-sm">
+      <div className="flex items-center gap-2 px-3 py-2 bg-teal-50 border-b border-teal-100">
+        <div className="w-5 h-5 rounded-md bg-teal-600 flex items-center justify-center shrink-0">
+          <span className="text-white font-black text-[9px]">$</span>
+        </div>
+        <span className="font-bold text-teal-800 text-[11px]">Wallet Top-Up — USDT Manual Transfer</span>
+      </div>
+      <div className="px-3 py-2.5 space-y-2.5">
+        <div className="flex items-start gap-1.5 text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
+          <AlertCircle size={11} className="shrink-0 mt-0.5" />
+          <span><strong>Send USDT on the correct network only.</strong> Sending on the wrong network = funds lost permanently.</span>
+        </div>
+        {data.addresses.map((a) => (
+          <div key={a.network} className="space-y-1">
+            <p className="text-[10px] font-bold text-slate-600">{a.network}{a.minDeposit ? ` · Min: ${a.minDeposit}` : ""}</p>
+            <CopyBlock label="Deposit Address" value={a.address} />
+          </div>
+        ))}
+        <p className="text-[10px] text-slate-500 leading-relaxed">{data.note}</p>
       </div>
     </div>
   );
@@ -885,6 +1193,12 @@ export function GsmBot() {
         msg.mpesaPendingData = finalActionData as unknown as MpesaPendingData;
       } else if (finalAction === "checkout_done" && finalActionData) {
         msg.checkoutDoneData = finalActionData as unknown as CheckoutDoneData;
+      } else if (finalAction === "wallet_topup_mpesa" && finalActionData) {
+        msg.walletTopUpMpesaData = finalActionData as unknown as WalletTopUpMpesaData;
+      } else if (finalAction === "wallet_topup_nowpayments" && finalActionData) {
+        msg.walletTopUpNowpaymentsData = finalActionData as unknown as WalletTopUpNowpaymentsData;
+      } else if (finalAction === "wallet_topup_usdt" && finalActionData) {
+        msg.walletTopUpUsdtData = finalActionData as unknown as WalletTopUpUsdtData;
       }
 
       setMessages(prev => [...prev.slice(0, -1), msg]);
@@ -1247,6 +1561,9 @@ export function GsmBot() {
                       {m.nowpaymentsData && <NowPaymentsWidget data={m.nowpaymentsData} />}
                       {m.mpesaPendingData && <MpesaPendingWidget data={m.mpesaPendingData} />}
                       {m.checkoutDoneData && <CheckoutDoneWidget data={m.checkoutDoneData} />}
+                      {m.walletTopUpMpesaData && <WalletTopUpMpesaWidget data={m.walletTopUpMpesaData} />}
+                      {m.walletTopUpNowpaymentsData && <WalletTopUpNowpaymentsWidget data={m.walletTopUpNowpaymentsData} />}
+                      {m.walletTopUpUsdtData && <WalletTopUpUsdtWidget data={m.walletTopUpUsdtData} />}
                       {m.showHumanButton && m.role === "assistant" && (
                         <InlineHumanButton onClick={startHumanRequest} />
                       )}

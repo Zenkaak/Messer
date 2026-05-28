@@ -15,7 +15,7 @@ import {
 } from "../lib/nowpayments";
 
 const router: IRouter = Router();
-const JWT_SECRET = process.env.JWT_SECRET || "gsm-africa-jwt-secret-change-in-prod";
+const JWT_SECRET = process.env.JWT_SECRET || "gsm-world-jwt-secret-change-in-prod";
 const USD_TO_KES = 130;
 
 const walletTopUpPending = new Map<string, { userId: number; amountUsd: number; email: string }>();

@@ -364,7 +364,7 @@ function SecurityContent({ user }: { user: { name: string | null; email: string 
     toast({ title: "2FA disabled", description: "Two-factor authentication has been removed." });
   }
 
-  const otpauthUrl = `otpauth://totp/GSMAfrica:${encodeURIComponent(user?.email ?? "user")}?secret=${secret}&issuer=GSMAfrica`;
+  const otpauthUrl = `otpauth://totp/GSMWorld:${encodeURIComponent(user?.email ?? "user")}?secret=${secret}&issuer=GSMWorld`;
 
   return (
     <div className="space-y-6 pb-4">
@@ -463,7 +463,7 @@ function SecurityContent({ user }: { user: { name: string | null; email: string 
             <div className="space-y-4">
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
                 <p className="font-bold">Step 2 — Enter the 6-digit code</p>
-                <p className="mt-0.5">Open your authenticator app and enter the current code for GSMAfrica.</p>
+                <p className="mt-0.5">Open your authenticator app and enter the current code for GSM World.</p>
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Verification Code</label>
