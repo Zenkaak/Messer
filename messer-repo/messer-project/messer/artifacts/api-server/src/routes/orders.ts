@@ -472,15 +472,15 @@ router.post("/orders/:id/cancel", async (req, res) => {
       .returning();
 
     // Insert in-app notification
-    if (order.userId) {
+    if (order.customerEmail) {
       await db.insert(notificationsTable).values({
-        userId: order.userId,
+        userEmail: order.customerEmail,
         title: "Order Cancelled",
         message: `Your order #${id} has been cancelled as requested.`,
         type: "info",
         orderId: id,
         read: false,
-      }).catch((err) => req.log.error({ err }, "Failed to insert cancel notification"));
+      }).catch((err: unknown) => req.log.error({ err }, "Failed to insert cancel notification"));
     }
 
     // Send email
