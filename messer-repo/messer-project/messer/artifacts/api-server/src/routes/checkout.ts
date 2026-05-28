@@ -647,4 +647,62 @@ router.post("/payments/mpesa/callback", async (req, res) => {
   res.json({ ResultCode: 0, ResultDesc: "Accepted" });
 });
 
+const RetryNowpaymentsBody = z.object({
+  orderId: z.number().int(),
+  payCurrency: z.string().optional(),
+});
+
+router.post("/payments/nowpayments/retry", async (req, res) => {
+  try {
+    const parsed = RetryNowpaymentsBody.safeParse(req.body);
+    if (!parsed.success) { res.status(400).json({ error: "Invalid request" }); return; }
+    const { orderId, payCurrency } = parsed.data;
+
+    const orderRows = await db
+      .select({ id: ordersTable.id, total: ordersTable.total, paymentStatus: ordersTable.paymentStatus })
+      .from(ordersTable)
+      .where(eq(ordersTable.id, orderId))
+      .limit(1);
+
+    if (!orderRows[0]) { res.status(404).json({ error: "Order not found" }); return; }
+    const order = orderRows[0];
+    if (order.paymentStatus === "paid") { res.status(400).json({ error: "Order already paid" }); return; }
+
+    const total = parseFloat(order.total);
+    const currency = payCurrency ?? "usdttrc20";
+
+    const payment = await createPayment({
+      priceAmount: total,
+      priceCurrency: "usd",
+      payCurrency: currency,
+      orderId: `checkout-${orderId}`,
+      orderDescription: `GSM World Checkout #${orderId} (retry)`,
+    });
+
+    await db.insert(paymentTransactionsTable).values({
+      orderId,
+      provider: "nowpayments",
+      providerReference: payment.payment_id,
+      amount: String(total),
+      currency: "USD",
+      status: "pending",
+      rawResponse: payment as unknown as Record<string, unknown>,
+    });
+
+    logger.info({ orderId, paymentId: payment.payment_id }, "NOWPayments retry: new payment created");
+
+    res.json({
+      paymentId: payment.payment_id,
+      payAddress: payment.pay_address,
+      payAmount: payment.pay_amount,
+      payCurrency: payment.pay_currency,
+      expiresAt: payment.expiration_estimate_date,
+    });
+  } catch (err) {
+    logger.error({ err }, "NOWPayments retry failed");
+    res.status(500).json({ error: "Could not create new payment address. Please try again." });
+  }
+});
+
 export default router;
+

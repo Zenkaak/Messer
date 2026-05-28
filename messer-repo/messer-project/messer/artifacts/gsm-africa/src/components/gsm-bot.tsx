@@ -4,7 +4,7 @@ import {
   MessageSquare, X, Send, Bot, RefreshCw, User, Phone,
   ExternalLink, CheckCircle, Clock, XCircle, AlertCircle,
   Package, ShoppingCart, Tag, Paperclip, UserCheck, ArrowLeft,
-  Headphones, WifiOff, Mail, Copy, Shield, Upload, Smartphone,
+  Headphones, WifiOff, Mail, Copy, Shield, Upload, Smartphone, Wallet,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -49,6 +49,14 @@ interface WalletTopUpNowpaymentsData {
 interface WalletTopUpUsdtData {
   addresses: Array<{ network: string; address: string; minDeposit?: string }>; note: string;
 }
+interface WalletBalanceData {
+  balance: number;
+}
+interface WalletInsufficientFundsData {
+  balance: number;
+  needed: number;
+  shortfall: number;
+}
 interface ChatMessage {
   role: "user" | "assistant";
   content: string;
@@ -67,6 +75,8 @@ interface ChatMessage {
   walletTopUpMpesaData?: WalletTopUpMpesaData;
   walletTopUpNowpaymentsData?: WalletTopUpNowpaymentsData;
   walletTopUpUsdtData?: WalletTopUpUsdtData;
+  walletBalanceData?: WalletBalanceData;
+  walletInsufficientFundsData?: WalletInsufficientFundsData;
 }
 interface HumanMessage {
   id: number;
@@ -565,14 +575,42 @@ function CopyBlock({ label, value, mono = true }: { label: string; value: string
 // ─── NOWPayments checkout widget (order) ──────────────────────────────────────
 function NowPaymentsWidget({ data }: { data: NowPaymentsData }) {
   const [copiedAmt, setCopiedAmt] = useState(false);
+  const [activeData, setActiveData] = useState<NowPaymentsData>(data);
   const [secondsLeft, setSecondsLeft] = useState<number>(() => {
     if (!data.expiresAt) return 15 * 60;
     const ms = new Date(data.expiresAt).getTime() - Date.now();
     return Math.max(0, Math.round(ms / 1000));
   });
   const [pollStatus, setPollStatus] = useState<"pending" | "paid" | "failed">("pending");
+  const [retrying, setRetrying] = useState(false);
+  const [retryError, setRetryError] = useState<string | null>(null);
   const expired = secondsLeft <= 0;
   const base = apiBase();
+
+  const handleRetry = async () => {
+    setRetrying(true);
+    setRetryError(null);
+    try {
+      const r = await fetch(`${base}/api/payments/nowpayments/retry`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId: activeData.orderId, payCurrency: activeData.payCurrency }),
+      });
+      const d = await r.json() as { payAddress?: string; payAmount?: number; payCurrency?: string; expiresAt?: string; error?: string };
+      if (r.ok && d.payAddress) {
+        const newData: NowPaymentsData = { ...activeData, payAddress: d.payAddress, payAmount: d.payAmount ?? activeData.payAmount, payCurrency: d.payCurrency ?? activeData.payCurrency, expiresAt: d.expiresAt };
+        setActiveData(newData);
+        const newSecs = d.expiresAt ? Math.max(0, Math.round((new Date(d.expiresAt).getTime() - Date.now()) / 1000)) : 15 * 60;
+        setSecondsLeft(newSecs);
+        setPollStatus("pending");
+      } else {
+        setRetryError(d.error ?? "Could not get new address. Please try again.");
+      }
+    } catch {
+      setRetryError("Network error. Please try again.");
+    }
+    setRetrying(false);
+  };
 
   useEffect(() => {
     if (expired || pollStatus !== "pending") return undefined;
@@ -586,7 +624,7 @@ function NowPaymentsWidget({ data }: { data: NowPaymentsData }) {
       try {
         const r = await fetch(`${base}/api/payments/nowpayments/query`, {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ orderId: data.orderId }),
+          body: JSON.stringify({ orderId: activeData.orderId }),
         });
         if (!r.ok) return;
         const d = await r.json() as { paymentStatus?: string };
@@ -597,12 +635,12 @@ function NowPaymentsWidget({ data }: { data: NowPaymentsData }) {
     void poll();
     const t = setInterval(() => void poll(), 30_000);
     return () => clearInterval(t);
-  }, [base, data.orderId, pollStatus]);
+  }, [base, activeData.orderId, pollStatus]);
 
   const mins = Math.floor(secondsLeft / 60);
   const secs = secondsLeft % 60;
   const urgent = secondsLeft < 5 * 60;
-  const copyAmt = () => { void navigator.clipboard.writeText(String(data.payAmount)); setCopiedAmt(true); setTimeout(() => setCopiedAmt(false), 2000); };
+  const copyAmt = () => { void navigator.clipboard.writeText(String(activeData.payAmount)); setCopiedAmt(true); setTimeout(() => setCopiedAmt(false), 2000); };
 
   if (pollStatus === "paid") {
     return (
@@ -610,7 +648,7 @@ function NowPaymentsWidget({ data }: { data: NowPaymentsData }) {
         <CheckCircle size={16} className="text-emerald-600 shrink-0 mt-0.5" />
         <div>
           <p className="font-bold text-emerald-800 text-[12px]">Payment Confirmed! ✅</p>
-          <p className="text-emerald-700 text-[11px] mt-0.5">Order #{data.orderId} is now being processed. Check your email for confirmation.</p>
+          <p className="text-emerald-700 text-[11px] mt-0.5">Order #{activeData.orderId} is now being processed. Check your email for confirmation.</p>
         </div>
       </div>
     );
@@ -631,7 +669,7 @@ function NowPaymentsWidget({ data }: { data: NowPaymentsData }) {
           <div className="w-5 h-5 rounded-md bg-purple-600 flex items-center justify-center shrink-0">
             <span className="text-white font-black text-[9px]">₿</span>
           </div>
-          <span className="font-bold text-purple-800 text-[11px]">Crypto Payment — Order #{data.orderId}</span>
+          <span className="font-bold text-purple-800 text-[11px]">Crypto Payment — Order #{activeData.orderId}</span>
         </div>
         <div className="flex items-center gap-1.5">
           {!expired && (
@@ -640,14 +678,26 @@ function NowPaymentsWidget({ data }: { data: NowPaymentsData }) {
             </span>
           )}
           {expired && <span className="text-[11px] font-bold text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full">EXPIRED</span>}
-          <span className="text-[9px] text-slate-400 animate-pulse">● checking</span>
+          {!expired && <span className="text-[9px] text-slate-400 animate-pulse">● checking</span>}
         </div>
       </div>
       <div className="px-3 py-2.5 space-y-2.5">
         {expired ? (
-          <div className="flex items-start gap-1.5 text-[11px] text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-            <AlertCircle size={12} className="shrink-0 mt-0.5" />
-            <span className="font-semibold">This payment address has expired. Do NOT send funds to this address — they will be lost. Please start a new order.</span>
+          <div className="space-y-2">
+            <div className="flex items-start gap-1.5 text-[11px] text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+              <AlertCircle size={12} className="shrink-0 mt-0.5" />
+              <span className="font-semibold">This payment address has expired. Do NOT send funds — they will be lost.</span>
+            </div>
+            {retryError && (
+              <p className="text-[10px] text-red-600 font-semibold">{retryError}</p>
+            )}
+            <button
+              onClick={() => void handleRetry()}
+              disabled={retrying}
+              className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg bg-purple-600 text-white text-[11px] font-bold hover:bg-purple-700 transition-colors disabled:opacity-60">
+              <RefreshCw size={11} className={retrying ? "animate-spin" : ""} />
+              {retrying ? "Getting new address…" : "Get New Payment Address"}
+            </button>
           </div>
         ) : (
           <>
@@ -657,7 +707,7 @@ function NowPaymentsWidget({ data }: { data: NowPaymentsData }) {
             </div>
             <div className="flex gap-3">
               <img
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(data.payAddress)}`}
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(activeData.payAddress)}`}
                 alt="Payment QR code"
                 className="w-[70px] h-[70px] rounded-lg border border-purple-100 shrink-0"
               />
@@ -665,17 +715,17 @@ function NowPaymentsWidget({ data }: { data: NowPaymentsData }) {
                 <div>
                   <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wide mb-0.5">Send Amount</p>
                   <div className="flex items-center gap-1.5 bg-purple-50 border border-purple-200 rounded-lg px-2 py-1">
-                    <span className="flex-1 font-mono text-[12px] font-bold text-purple-900">{data.payAmount} <span className="uppercase">{data.payCurrency}</span></span>
+                    <span className="flex-1 font-mono text-[12px] font-bold text-purple-900">{activeData.payAmount} <span className="uppercase">{activeData.payCurrency}</span></span>
                     <button onClick={copyAmt} className="flex items-center gap-0.5 text-[10px] font-semibold text-purple-600 hover:text-purple-800 shrink-0">
                       <Copy size={10} /> {copiedAmt ? "✓" : "Copy"}
                     </button>
                   </div>
                 </div>
-                <CopyBlock label="Wallet Address" value={data.payAddress} />
+                <CopyBlock label="Wallet Address" value={activeData.payAddress} />
               </div>
             </div>
             <div className="text-[10px] text-slate-500 flex justify-between">
-              <span>Order total: <strong>{data.currency} {Number(data.total).toFixed(2)}</strong></span>
+              <span>Order total: <strong>{activeData.currency} {Number(activeData.total).toFixed(2)}</strong></span>
             </div>
           </>
         )}
@@ -979,6 +1029,77 @@ function WalletTopUpUsdtWidget({ data }: { data: WalletTopUpUsdtData }) {
   );
 }
 
+// ─── Wallet balance widget ────────────────────────────────────────────────────
+function WalletBalanceWidget({ data }: { data: WalletBalanceData }) {
+  const base = apiBase();
+  return (
+    <div className="mt-2 rounded-xl border border-blue-200 bg-white overflow-hidden text-xs shadow-sm">
+      <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border-b border-blue-100">
+        <div className="w-5 h-5 rounded-md bg-blue-600 flex items-center justify-center shrink-0">
+          <Wallet size={11} className="text-white" />
+        </div>
+        <span className="font-bold text-blue-800 text-[11px]">GSM World Wallet</span>
+      </div>
+      <div className="px-3 py-2.5 space-y-2">
+        <div className="flex items-center justify-between bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
+          <span className="text-[11px] text-blue-700 font-semibold">Available Balance</span>
+          <span className="font-mono font-black text-blue-900 text-[14px]">${data.balance.toFixed(2)}</span>
+        </div>
+        <div className="flex gap-2">
+          <Link href={`${base}/account/wallet`}
+            className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg bg-blue-600 text-white text-[10px] font-bold hover:bg-blue-700 transition-colors">
+            <Wallet size={10} /> Top Up Wallet
+          </Link>
+          <Link href={`${base}/account/wallet`}
+            className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg border border-blue-200 text-blue-700 text-[10px] font-bold hover:bg-blue-50 transition-colors">
+            <ExternalLink size={10} /> View History
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Wallet insufficient funds widget ─────────────────────────────────────────
+function WalletInsufficientFundsWidget({ data, onSendMessage }: { data: WalletInsufficientFundsData; onSendMessage: (text: string) => void }) {
+  const base = apiBase();
+  return (
+    <div className="mt-2 rounded-xl border border-amber-200 bg-white overflow-hidden text-xs shadow-sm">
+      <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border-b border-amber-100">
+        <AlertCircle size={13} className="text-amber-600 shrink-0" />
+        <span className="font-bold text-amber-800 text-[11px]">Insufficient Wallet Balance</span>
+      </div>
+      <div className="px-3 py-2.5 space-y-2">
+        <div className="grid grid-cols-3 gap-1.5 text-center">
+          <div className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5">
+            <p className="text-[9px] font-bold text-slate-500 uppercase">Balance</p>
+            <p className="font-mono font-black text-slate-800 text-[11px]">${data.balance.toFixed(2)}</p>
+          </div>
+          <div className="bg-red-50 border border-red-200 rounded-lg px-2 py-1.5">
+            <p className="text-[9px] font-bold text-red-500 uppercase">Needed</p>
+            <p className="font-mono font-black text-red-700 text-[11px]">${data.needed.toFixed(2)}</p>
+          </div>
+          <div className="bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5">
+            <p className="text-[9px] font-bold text-amber-600 uppercase">Short</p>
+            <p className="font-mono font-black text-amber-800 text-[11px]">${data.shortfall.toFixed(2)}</p>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <Link href={`${base}/account/wallet`}
+            className="flex-1 flex items-center justify-center gap-1 py-2 rounded-lg bg-blue-600 text-white text-[10px] font-bold hover:bg-blue-700 transition-colors">
+            <Wallet size={10} /> Top Up Wallet
+          </Link>
+          <button
+            onClick={() => onSendMessage("I want to choose a different payment method")}
+            className="flex-1 flex items-center justify-center gap-1 py-2 rounded-lg border border-slate-200 text-slate-700 text-[10px] font-bold hover:bg-slate-50 transition-colors">
+            <RefreshCw size={10} /> Choose Another
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 export function GsmBot() {
   const { user, isAuthenticated, login } = useAuth();
@@ -1199,6 +1320,10 @@ export function GsmBot() {
         msg.walletTopUpNowpaymentsData = finalActionData as unknown as WalletTopUpNowpaymentsData;
       } else if (finalAction === "wallet_topup_usdt" && finalActionData) {
         msg.walletTopUpUsdtData = finalActionData as unknown as WalletTopUpUsdtData;
+      } else if (finalAction === "show_wallet_balance" && finalActionData) {
+        msg.walletBalanceData = finalActionData as unknown as WalletBalanceData;
+      } else if (finalAction === "wallet_insufficient_funds" && finalActionData) {
+        msg.walletInsufficientFundsData = finalActionData as unknown as WalletInsufficientFundsData;
       }
 
       setMessages(prev => [...prev.slice(0, -1), msg]);
@@ -1564,6 +1689,13 @@ export function GsmBot() {
                       {m.walletTopUpMpesaData && <WalletTopUpMpesaWidget data={m.walletTopUpMpesaData} />}
                       {m.walletTopUpNowpaymentsData && <WalletTopUpNowpaymentsWidget data={m.walletTopUpNowpaymentsData} />}
                       {m.walletTopUpUsdtData && <WalletTopUpUsdtWidget data={m.walletTopUpUsdtData} />}
+                      {m.walletBalanceData && <WalletBalanceWidget data={m.walletBalanceData} />}
+                      {m.walletInsufficientFundsData && (
+                        <WalletInsufficientFundsWidget
+                          data={m.walletInsufficientFundsData}
+                          onSendMessage={text => void sendMessage(text)}
+                        />
+                      )}
                       {m.showHumanButton && m.role === "assistant" && (
                         <InlineHumanButton onClick={startHumanRequest} />
                       )}

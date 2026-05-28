@@ -1058,7 +1058,7 @@ const TOOLS = [
       parameters: {
         type: "object",
         properties: {
-          payment_method: { type: "string", description: "Payment method: 'mpesa', 'nowpayments', 'usdt', 'binance'" },
+          payment_method: { type: "string", description: "Payment method: 'mpesa', 'nowpayments', 'usdt', 'binance', 'wallet' (GSM World wallet balance — instant, customer must be logged in)" },
           customer_email: { type: "string", description: "Customer's email for order confirmation" },
           customer_name: { type: "string", description: "Customer's full name" },
           customer_phone: { type: "string", description: "Phone number — REQUIRED for M-Pesa (format: 07XXXXXXXX or 254XXXXXXXXX)" },
@@ -1066,6 +1066,18 @@ const TOOLS = [
           pay_currency: { type: "string", description: "Crypto currency for NOWPayments (e.g. 'btc', 'eth', 'usdttrc20', 'ltc'). Default: usdttrc20" },
         },
         required: ["payment_method", "customer_email"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "get_wallet_balance",
+      description: "Get the customer's current GSM World wallet balance. Customer must be logged in (botToken required). Use when customer asks about their wallet balance or wants to pay with wallet.",
+      parameters: {
+        type: "object",
+        properties: {},
+        required: [],
       },
     },
   },
@@ -1704,6 +1716,22 @@ async function toolPlaceOrder(args: {
   }
 }
 
+async function toolGetWalletBalance(botToken: string | null): Promise<Record<string, unknown>> {
+  if (!botToken) return { success: false, error: "You must be logged in to check wallet balance. Please log in first." };
+  const port = process.env.PORT ?? "5000";
+  try {
+    const r = await fetch(`http://localhost:${port}/api/wallet/balance`, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${botToken}` },
+    });
+    const data = await r.json() as Record<string, unknown>;
+    if (r.ok) return { success: true, ...data };
+    return { success: false, error: (data as { error?: string }).error ?? "Could not retrieve balance." };
+  } catch {
+    return { success: false, error: "Wallet service unavailable." };
+  }
+}
+
 async function toolAddWalletFunds(args: {
   paymentMethod: string; amount: number; phone?: string; payCurrency?: string; botToken?: string | null;
 }): Promise<Record<string, unknown>> {
@@ -1863,10 +1891,26 @@ async function runToolCalls(
             const mp = rd.mpesa as { checkoutRequestId: string; message: string };
             lat = "show_mpesa_pending";
             lad = { orderId: rd.orderId, checkoutRequestId: mp.checkoutRequestId, message: mp.message, total: rd.total, currency: rd.currency };
+          } else if (pm === "wallet") {
+            lat = "checkout_done";
+            lad = { orderId: rd.orderId, paymentMethod: "wallet", total: rd.total, currency: rd.currency };
           } else {
             lat = "checkout_done";
             lad = { orderId: rd.orderId, paymentMethod: args.payment_method, total: rd.total, currency: rd.currency };
           }
+        } else if (!r.success && typeof r.error === "string" && r.error.includes("Insufficient wallet balance")) {
+          const m = r.error.match(/You have \$([0-9.]+) but need \$([0-9.]+)/);
+          const balance = m ? parseFloat(m[1]) : 0;
+          const needed = m ? parseFloat(m[2]) : 0;
+          lat = "wallet_insufficient_funds";
+          lad = { balance, needed, shortfall: parseFloat((needed - balance).toFixed(2)) };
+        }
+      } else if (fn === "get_wallet_balance") {
+        const r = await toolGetWalletBalance(opts.botToken ?? null);
+        result = JSON.stringify(r);
+        if (r.success && r.balance !== undefined) {
+          lat = "show_wallet_balance";
+          lad = { balance: r.balance };
         }
       } else if (fn === "add_wallet_funds") {
         const r = await toolAddWalletFunds({
