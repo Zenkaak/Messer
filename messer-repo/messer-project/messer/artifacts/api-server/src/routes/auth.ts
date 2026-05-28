@@ -232,6 +232,48 @@ router.post("/auth/otp-login/verify", async (req, res) => {
   }
 });
 
+// ─── Password reset via OTP ───────────────────────────────────────────────────
+router.post("/auth/password-reset/send", async (req, res) => {
+  try {
+    const { email } = req.body || {};
+    if (!email || typeof email !== "string") { res.status(400).json({ error: "Email is required" }); return; }
+    const rows = await db.select({ id: usersTable.id, status: usersTable.status })
+      .from(usersTable).where(eq(usersTable.email, email.toLowerCase())).limit(1);
+    if (!rows.length) { res.json({ success: true }); return; }
+    if (isBlocked(rows[0].status)) { res.status(403).json({ error: "Account disabled. Contact support." }); return; }
+    const otp = String(Math.floor(100000 + Math.random() * 900000));
+    await setOtp(`reset:${email.toLowerCase()}`, otp, 10 * 60 * 1000);
+    const emailResult = await sendEmail({ to: email.toLowerCase(), ...otpEmail(otp) });
+    if (!emailResult.sent) {
+      res.status(500).json({ error: `Could not send reset code: ${emailResult.reason ?? "email delivery failed"}` });
+      return;
+    }
+    res.json({ success: true });
+  } catch (err) {
+    req.log.error({ err }, "Password reset send failed");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.post("/auth/password-reset/reset", async (req, res) => {
+  try {
+    const { email, code, newPassword } = req.body || {};
+    if (!email || !code || !newPassword) { res.status(400).json({ error: "Email, code, and new password are required" }); return; }
+    if (typeof newPassword !== "string" || newPassword.length < 6) { res.status(400).json({ error: "Password must be at least 6 characters" }); return; }
+    const key = `reset:${email.toLowerCase()}`;
+    const entry = await getOtp(key);
+    if (!entry || entry.code !== String(code)) { res.status(400).json({ error: "Invalid or expired code" }); return; }
+    if (Date.now() > entry.expiresAt) { await deleteOtp(key); res.status(400).json({ error: "Code has expired. Request a new one." }); return; }
+    await deleteOtp(key);
+    const hash = await bcrypt.hash(newPassword, 10);
+    await db.update(usersTable).set({ passwordHash: hash }).where(eq(usersTable.email, email.toLowerCase()));
+    res.json({ success: true });
+  } catch (err) {
+    req.log.error({ err }, "Password reset failed");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // Google / Neon Auth sign-in
 router.post("/auth/google", async (req, res) => {
   try {

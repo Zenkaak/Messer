@@ -9,6 +9,8 @@ import {
   categoriesTable,
   liveChatSessionsTable,
   liveChatMessagesTable,
+  cartItemsTable,
+  usersTable,
 } from "@workspace/db";
 import {
   getOpenAiKey,
@@ -288,8 +290,50 @@ YOUR TOOLS — USE THEM IMMEDIATELY, NEVER DESCRIBE WHAT YOU COULD DO
 6. cancel_order(email, order_id) — cancel pending order within 30 min
 7. get_payment_instructions(method) — step-by-step for M-Pesa, USDT, Binance, etc.
 8. navigate_to(page, label) — send user to any page in the app
+9. add_to_cart(product_id, quantity) — add a product to customer's cart
+10. send_login_otp(email) — send OTP code to email for passwordless login
+11. verify_login_otp(email, code) — verify OTP and log customer in (returns token)
+12. signup_user(email, name, password) — register a new customer account
+13. send_password_reset_otp(email) — send password reset OTP to customer's email
+14. reset_user_password(email, code, new_password) — verify OTP and set new password
+15. place_order(payment_method, customer_email, ...) — complete checkout and create order
 
 When a user asks about something, call the tool immediately. Do not say "I can look that up" — just look it up.
+
+══════════════════════════════════════════════════════════════
+CART & CHECKOUT FLOW (complete purchases via chat)
+══════════════════════════════════════════════════════════════
+When a customer wants to buy a product:
+1. Find product → search_products or get_product_details
+2. Add to cart → add_to_cart(product_id, quantity)
+3. Collect info: email, device IMEI/serial if needed
+4. Ask payment method: M-Pesa | NOWPayments (crypto) | USDT | Binance Pay
+5. Place order → place_order(payment_method, customer_email, ...)
+   • mpesa: also collect phone (07XXXXXXXX). place_order sends STK push.
+   • nowpayments: ask preferred coin (BTC/ETH/USDT TRC20/LTC). Default: usdttrc20.
+   • usdt / binance: place_order creates order; use get_payment_instructions to show wallet.
+
+NOWPAYMENTS — CRITICAL SAFETY WARNING (always say this before showing address):
+"⚠️ This crypto address is valid for 15 minutes ONLY. Send the EXACT amount shown.
+Sending after the timer expires or to the wrong address = funds permanently lost.
+GSM World is not liable for payments sent after expiry or to incorrect addresses."
+
+══════════════════════════════════════════════════════════════
+LOGIN / SIGNUP / PASSWORD RESET (assist customers in-chat)
+══════════════════════════════════════════════════════════════
+LOGIN (easiest — no password needed):
+  1. Ask for email → send_login_otp(email)
+  2. Ask for 6-digit code from email → verify_login_otp(email, code)
+  3. Customer is now logged in ✓
+
+SIGNUP (new account):
+  1. Collect: email, full name, password (min 6 chars)
+  2. signup_user(email, name, password) → account created, they're logged in ✓
+
+FORGOT PASSWORD:
+  1. Ask for email → send_password_reset_otp(email)
+  2. Ask for code + new password → reset_user_password(email, code, new_password)
+  3. Then offer OTP login to get them in
 
 ══════════════════════════════════════════════════════════════
 NUMBERED PRODUCT PRESENTATION
@@ -902,6 +946,115 @@ const TOOLS = [
       },
     },
   },
+  {
+    type: "function" as const,
+    function: {
+      name: "add_to_cart",
+      description: "Add a product to the customer's cart. Use when customer wants to add an item before checkout. Requires product ID from catalog.",
+      parameters: {
+        type: "object",
+        properties: {
+          product_id: { type: "number", description: "Product ID to add (get from search_products or get_product_details)" },
+          quantity: { type: "number", description: "Quantity to add (default 1)" },
+        },
+        required: ["product_id"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "send_login_otp",
+      description: "Send a one-time password (OTP) to customer's email for passwordless login. Use when customer wants to log in without a password.",
+      parameters: {
+        type: "object",
+        properties: {
+          email: { type: "string", description: "Customer's email address" },
+        },
+        required: ["email"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "verify_login_otp",
+      description: "Verify the OTP code and log the customer in. Call after send_login_otp once customer provides the 6-digit code.",
+      parameters: {
+        type: "object",
+        properties: {
+          email: { type: "string", description: "Customer's email address" },
+          code: { type: "string", description: "The 6-digit OTP code from email" },
+        },
+        required: ["email", "code"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "signup_user",
+      description: "Register a new customer account. Use when customer wants to sign up. Collect email, full name, and password first.",
+      parameters: {
+        type: "object",
+        properties: {
+          email: { type: "string", description: "Customer's email address" },
+          name: { type: "string", description: "Customer's full name" },
+          password: { type: "string", description: "Password chosen by customer (minimum 6 characters)" },
+        },
+        required: ["email", "name", "password"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "send_password_reset_otp",
+      description: "Send a password reset OTP to customer's email. Use when customer forgot their password.",
+      parameters: {
+        type: "object",
+        properties: {
+          email: { type: "string", description: "Customer's email address" },
+        },
+        required: ["email"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "reset_user_password",
+      description: "Reset customer's password after verifying their OTP. Call after send_password_reset_otp when customer provides both the code and new password.",
+      parameters: {
+        type: "object",
+        properties: {
+          email: { type: "string", description: "Customer's email address" },
+          code: { type: "string", description: "The 6-digit OTP code from email" },
+          new_password: { type: "string", description: "The new password (minimum 6 characters)" },
+        },
+        required: ["email", "code", "new_password"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "place_order",
+      description: "Place an order and initiate payment. Call after customer has items in cart and has chosen a payment method. Collects all required info then creates the order.",
+      parameters: {
+        type: "object",
+        properties: {
+          payment_method: { type: "string", description: "Payment method: 'mpesa', 'nowpayments', 'usdt', 'binance'" },
+          customer_email: { type: "string", description: "Customer's email for order confirmation" },
+          customer_name: { type: "string", description: "Customer's full name" },
+          customer_phone: { type: "string", description: "Phone number — REQUIRED for M-Pesa (format: 07XXXXXXXX or 254XXXXXXXXX)" },
+          device_identifier: { type: "string", description: "IMEI, serial, or device info if the product requires it" },
+          pay_currency: { type: "string", description: "Crypto currency for NOWPayments (e.g. 'btc', 'eth', 'usdttrc20', 'ltc'). Default: usdttrc20" },
+        },
+        required: ["payment_method", "customer_email"],
+      },
+    },
+  },
 ];
 
 // ─── Tool executors ──────────────────────────────────────────────────────────
@@ -1388,12 +1541,144 @@ async function consumeStream(
   return { text, toolCalls };
 }
 
+// ─── New tool executors (cart / auth / checkout) ─────────────────────────────
+async function toolAddToCart(productId: number, quantity: number, sessionId: string): Promise<Record<string, unknown>> {
+  try {
+    const port = process.env.PORT ?? "5000";
+    const url = `http://localhost:${port}/api/cart${sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : ""}`;
+    const r = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ productId, quantity: quantity || 1 }),
+    });
+    const data = await r.json() as Record<string, unknown>;
+    if (r.ok) {
+      const [product] = await db.select({ name: productsTable.name, price: productsTable.price })
+        .from(productsTable).where(eq(productsTable.id, productId)).limit(1);
+      return {
+        success: true,
+        productName: product?.name ?? "Product",
+        price: product?.price ? `$${parseFloat(product.price).toFixed(2)}` : "N/A",
+        quantity: quantity || 1,
+        cart: data,
+      };
+    }
+    return { success: false, error: (data as { error?: string }).error ?? "Failed to add to cart" };
+  } catch {
+    return { success: false, error: "Cart service temporarily unavailable" };
+  }
+}
+
+async function toolSendLoginOtp(email: string): Promise<Record<string, unknown>> {
+  try {
+    const port = process.env.PORT ?? "5000";
+    const r = await fetch(`http://localhost:${port}/api/auth/otp-login/send`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: email.toLowerCase().trim() }),
+    });
+    const data = await r.json() as { success?: boolean; error?: string };
+    if (r.ok) return { success: true };
+    return { success: false, error: data.error ?? "Failed to send OTP" };
+  } catch {
+    return { success: false, error: "Could not send OTP — email service may be unavailable" };
+  }
+}
+
+async function toolVerifyLoginOtp(email: string, code: string): Promise<Record<string, unknown>> {
+  try {
+    const port = process.env.PORT ?? "5000";
+    const r = await fetch(`http://localhost:${port}/api/auth/otp-login/verify`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: email.toLowerCase().trim(), code: code.trim() }),
+    });
+    const data = await r.json() as { token?: string; user?: { id: number; email: string; name: string | null }; error?: string };
+    if (r.ok && data.token && data.user) return { success: true, token: data.token, user: data.user };
+    return { success: false, error: data.error ?? "Invalid or expired code" };
+  } catch {
+    return { success: false, error: "Verification service unavailable" };
+  }
+}
+
+async function toolSignupUser(email: string, name: string, password: string): Promise<Record<string, unknown>> {
+  try {
+    const port = process.env.PORT ?? "5000";
+    const r = await fetch(`http://localhost:${port}/api/auth/register`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: email.toLowerCase().trim(), name: name.trim(), password }),
+    });
+    const data = await r.json() as { token?: string; user?: { id: number; email: string; name: string | null }; error?: string; emailSent?: boolean };
+    if (r.ok && data.token && data.user) return { success: true, token: data.token, user: data.user, emailSent: data.emailSent };
+    return { success: false, error: data.error ?? "Registration failed" };
+  } catch {
+    return { success: false, error: "Registration service unavailable" };
+  }
+}
+
+async function toolSendPasswordResetOtp(email: string): Promise<Record<string, unknown>> {
+  try {
+    const port = process.env.PORT ?? "5000";
+    const r = await fetch(`http://localhost:${port}/api/auth/password-reset/send`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: email.toLowerCase().trim() }),
+    });
+    if (r.ok) return { success: true };
+    const data = await r.json() as { error?: string };
+    return { success: false, error: data.error ?? "Failed to send reset code" };
+  } catch {
+    return { success: false, error: "Service unavailable" };
+  }
+}
+
+async function toolResetUserPassword(email: string, code: string, newPassword: string): Promise<Record<string, unknown>> {
+  try {
+    const port = process.env.PORT ?? "5000";
+    const r = await fetch(`http://localhost:${port}/api/auth/password-reset/reset`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: email.toLowerCase().trim(), code: code.trim(), newPassword }),
+    });
+    if (r.ok) return { success: true };
+    const data = await r.json() as { error?: string };
+    return { success: false, error: data.error ?? "Password reset failed" };
+  } catch {
+    return { success: false, error: "Service unavailable" };
+  }
+}
+
+async function toolPlaceOrder(args: {
+  paymentMethod: string; customerEmail: string; customerName?: string;
+  customerPhone?: string; deviceIdentifier?: string; payCurrency?: string;
+  sessionId?: string | null; botToken?: string | null;
+}): Promise<Record<string, unknown>> {
+  try {
+    const port = process.env.PORT ?? "5000";
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (args.botToken) headers["Authorization"] = `Bearer ${args.botToken}`;
+    const r = await fetch(`http://localhost:${port}/api/checkout`, {
+      method: "POST", headers,
+      body: JSON.stringify({
+        customerEmail: args.customerEmail,
+        customerName: args.customerName,
+        customerPhone: args.customerPhone,
+        paymentMethod: args.paymentMethod,
+        payCurrency: args.payCurrency ?? (args.paymentMethod === "nowpayments" ? "usdttrc20" : undefined),
+        sessionId: args.sessionId ?? undefined,
+        deviceIdentifier: args.deviceIdentifier,
+      }),
+    });
+    const data = await r.json() as Record<string, unknown>;
+    if (r.ok) return { success: true, ...data };
+    return { success: false, error: (data as { error?: string }).error ?? "Order placement failed. Cart may be empty." };
+  } catch {
+    return { success: false, error: "Checkout service unavailable. Please try again." };
+  }
+}
+
 type ToolCallItem = { id: string; type: string; function: { name: string; arguments: string } };
 
 /** Execute a list of tool calls in parallel and return tool-role messages + action data. */
 async function runToolCalls(
   toolCalls: ToolCallItem[],
-  opts: { isAuthenticated: boolean; userEmail: string | null },
+  opts: { isAuthenticated: boolean; userEmail: string | null; sessionId?: string | null; botToken?: string | null },
 ): Promise<{
   messages: Array<{ role: string; content: string; tool_call_id: string; name: string }>;
   actionType: string | null;
@@ -1459,8 +1744,64 @@ async function runToolCalls(
         }
       } else if (fn === "check_order_by_phone") {
         const r = await toolCheckOrderByPhone(String(args.phone ?? ""));
-        result = JSON.stringify(r.found ? r.orders : r.error ?? r.message);
+        result = JSON.stringify(r.found ? r.orders : r.message);
         if (r.found && (r.orders as unknown[])?.length) { lat = "show_orders"; lad = { orders: r.orders }; }
+      } else if (fn === "add_to_cart") {
+        const r = await toolAddToCart(Number(args.product_id ?? 0), Number(args.quantity ?? 1), opts.sessionId ?? "guest-session");
+        result = JSON.stringify(r);
+        if (r.success) { lat = "cart_item_added"; lad = { productName: r.productName, quantity: r.quantity, price: r.price }; }
+      } else if (fn === "send_login_otp") {
+        const r = await toolSendLoginOtp(String(args.email ?? ""));
+        result = JSON.stringify(r);
+      } else if (fn === "verify_login_otp") {
+        const r = await toolVerifyLoginOtp(String(args.email ?? ""), String(args.code ?? ""));
+        result = JSON.stringify(r);
+        if (r.success && r.token && r.user) {
+          lat = "login_success";
+          lad = { token: r.token, user: r.user };
+        }
+      } else if (fn === "signup_user") {
+        const r = await toolSignupUser(String(args.email ?? ""), String(args.name ?? ""), String(args.password ?? ""));
+        result = JSON.stringify(r);
+        if (r.success && r.token && r.user) {
+          lat = "login_success";
+          lad = { token: r.token, user: r.user, isNewAccount: true };
+        }
+      } else if (fn === "send_password_reset_otp") {
+        const r = await toolSendPasswordResetOtp(String(args.email ?? ""));
+        result = JSON.stringify(r);
+      } else if (fn === "reset_user_password") {
+        const r = await toolResetUserPassword(String(args.email ?? ""), String(args.code ?? ""), String(args.new_password ?? ""));
+        result = JSON.stringify(r);
+        if (r.success) { lat = "password_reset_done"; lad = {}; }
+      } else if (fn === "place_order") {
+        const r = await toolPlaceOrder({
+          paymentMethod: String(args.payment_method ?? ""),
+          customerEmail: String(args.customer_email ?? ""),
+          customerName: args.customer_name ? String(args.customer_name) : undefined,
+          customerPhone: args.customer_phone ? String(args.customer_phone) : undefined,
+          deviceIdentifier: args.device_identifier ? String(args.device_identifier) : undefined,
+          payCurrency: args.pay_currency ? String(args.pay_currency) : undefined,
+          sessionId: opts.sessionId,
+          botToken: opts.botToken,
+        });
+        result = JSON.stringify(r);
+        if (r.success) {
+          const pm = String(args.payment_method ?? "").toLowerCase();
+          const rd = r as Record<string, unknown>;
+          if (pm === "nowpayments" && rd.nowpayments) {
+            const np = rd.nowpayments as { paymentId: string; payAddress: string; payAmount: number; payCurrency: string; expiresAt?: string };
+            lat = "show_nowpayments";
+            lad = { orderId: rd.orderId, payAddress: np.payAddress, payAmount: np.payAmount, payCurrency: np.payCurrency, expiresAt: np.expiresAt, total: rd.total, currency: rd.currency };
+          } else if (pm === "mpesa" && rd.mpesa) {
+            const mp = rd.mpesa as { checkoutRequestId: string; message: string };
+            lat = "show_mpesa_pending";
+            lad = { orderId: rd.orderId, checkoutRequestId: mp.checkoutRequestId, message: mp.message, total: rd.total, currency: rd.currency };
+          } else {
+            lat = "checkout_done";
+            lad = { orderId: rd.orderId, paymentMethod: args.payment_method, total: rd.total, currency: rd.currency };
+          }
+        }
       }
 
       return { toolCallId: tc.id, fn, result, lat, lad };
@@ -1562,9 +1903,11 @@ router.post("/chat/bot", async (req, res) => {
       : [];
 
     // Read authenticated user context from request
-    const { userEmail: rawUserEmail, isAuthenticated: rawIsAuth } = req.body as { userEmail?: string; isAuthenticated?: boolean };
+    const { userEmail: rawUserEmail, isAuthenticated: rawIsAuth, sessionId: rawSessionId, botToken: rawBotToken } = req.body as { userEmail?: string; isAuthenticated?: boolean; sessionId?: string; botToken?: string };
     const userEmail = typeof rawUserEmail === "string" && rawUserEmail.includes("@") ? rawUserEmail.toLowerCase() : null;
     const isAuthenticated = rawIsAuth === true;
+    const reqSessionId = typeof rawSessionId === "string" && rawSessionId.length > 0 ? rawSessionId : null;
+    const reqBotToken = typeof rawBotToken === "string" && rawBotToken.length > 0 ? rawBotToken : null;
 
     const systemPrompt = await getCachedSystemPrompt(waContact);
 
@@ -1650,7 +1993,7 @@ router.post("/chat/bot", async (req, res) => {
 
         // Has tool calls — add assistant msg and execute in parallel
         openaiMessages.push({ role: "assistant", content: text || null, tool_calls: toolCalls });
-        const tr = await runToolCalls(toolCalls, { isAuthenticated, userEmail });
+        const tr = await runToolCalls(toolCalls, { isAuthenticated, userEmail, sessionId: reqSessionId, botToken: reqBotToken });
         openaiMessages.push(...tr.messages);
         if (tr.actionType) actionType = tr.actionType;
         if (tr.actionData) actionData = tr.actionData;
@@ -1684,7 +2027,7 @@ router.post("/chat/bot", async (req, res) => {
 
         const tr = await runToolCalls(
           assistantMsg.tool_calls as ToolCallItem[],
-          { isAuthenticated, userEmail },
+          { isAuthenticated, userEmail, sessionId: reqSessionId, botToken: reqBotToken },
         );
         openaiMessages.push(...tr.messages);
         if (tr.actionType) actionType = tr.actionType;

@@ -26,6 +26,20 @@ interface PaymentData {
   usdtAddress?: string;
   usdtNetwork?: string;
 }
+interface NowPaymentsData {
+  orderId: number; payAddress: string; payAmount: number;
+  payCurrency: string; expiresAt?: string; total: number; currency: string;
+}
+interface MpesaPendingData {
+  orderId: number; checkoutRequestId: string; message: string; total: number; currency: string;
+}
+interface CheckoutDoneData {
+  orderId: number; paymentMethod: string; total: number; currency: string;
+}
+interface CartAddedData { productName: string; quantity: number; price: string }
+interface LoginSuccessData {
+  token: string; user: { id: number; email: string; name: string | null }; isNewAccount?: boolean;
+}
 interface ChatMessage {
   role: "user" | "assistant";
   content: string;
@@ -35,6 +49,12 @@ interface ChatMessage {
   products?: ProductResult[];
   showHumanButton?: boolean;
   paymentData?: PaymentData;
+  nowpaymentsData?: NowPaymentsData;
+  mpesaPendingData?: MpesaPendingData;
+  checkoutDoneData?: CheckoutDoneData;
+  cartAddedData?: CartAddedData;
+  loginSuccessData?: LoginSuccessData;
+  passwordResetDone?: boolean;
 }
 interface HumanMessage {
   id: number;
@@ -465,9 +485,195 @@ function OtpVerifyWidget({ email, base, onVerified, onCancel }: {
   );
 }
 
+// ─── Cart added widget ────────────────────────────────────────────────────────
+function CartAddedWidget({ data }: { data: CartAddedData }) {
+  const base = apiBase();
+  return (
+    <div className="mt-2 rounded-xl border border-emerald-200 bg-white overflow-hidden text-xs shadow-sm">
+      <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 border-b border-emerald-100">
+        <ShoppingCart size={12} className="text-emerald-600" />
+        <span className="font-bold text-emerald-800 text-[11px]">Added to Cart</span>
+      </div>
+      <div className="px-3 py-2 space-y-1">
+        <div className="flex justify-between text-slate-700">
+          <span className="font-semibold truncate">{data.quantity > 1 ? `${data.quantity}× ` : ""}{data.productName}</span>
+          <span className="font-bold ml-2 shrink-0">{data.price}</span>
+        </div>
+        <Link href={`${base}/cart`}
+          className="mt-1.5 flex items-center gap-1 text-[11px] font-bold text-emerald-700 hover:underline">
+          <ShoppingCart size={10} /> View Cart & Checkout →
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+// ─── Login success widget ─────────────────────────────────────────────────────
+function LoginSuccessWidget({ data }: { data: LoginSuccessData }) {
+  return (
+    <div className="mt-2 flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-3 py-2">
+      <CheckCircle size={14} className="text-green-600 shrink-0" />
+      <div>
+        <p className="text-green-700 text-[11px] font-semibold">
+          {data.isNewAccount ? "Account created & logged in!" : "Logged in successfully!"}
+        </p>
+        <p className="text-green-600 text-[10px]">{data.user.email}</p>
+      </div>
+    </div>
+  );
+}
+
+// ─── Password reset done widget ───────────────────────────────────────────────
+function PasswordResetDoneWidget() {
+  return (
+    <div className="mt-2 flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-3 py-2">
+      <CheckCircle size={14} className="text-green-600 shrink-0" />
+      <span className="text-green-700 text-[11px] font-semibold">Password reset successfully! You can now log in with your new password.</span>
+    </div>
+  );
+}
+
+// ─── NOWPayments checkout widget ──────────────────────────────────────────────
+function NowPaymentsWidget({ data }: { data: NowPaymentsData }) {
+  const [copied, setCopied] = useState(false);
+  const [copiedAmt, setCopiedAmt] = useState(false);
+  const [secondsLeft, setSecondsLeft] = useState<number>(() => {
+    if (!data.expiresAt) return 15 * 60;
+    const ms = new Date(data.expiresAt).getTime() - Date.now();
+    return Math.max(0, Math.round(ms / 1000));
+  });
+  const expired = secondsLeft <= 0;
+
+  useEffect(() => {
+    if (expired) return undefined;
+    const t = setInterval(() => setSecondsLeft(s => Math.max(0, s - 1)), 1000);
+    return () => clearInterval(t);
+  }, [expired]);
+
+  const mins = Math.floor(secondsLeft / 60);
+  const secs = secondsLeft % 60;
+  const urgent = secondsLeft < 5 * 60;
+
+  const copyAddress = () => {
+    void navigator.clipboard.writeText(data.payAddress);
+    setCopied(true); setTimeout(() => setCopied(false), 2000);
+  };
+  const copyAmt = () => {
+    void navigator.clipboard.writeText(String(data.payAmount));
+    setCopiedAmt(true); setTimeout(() => setCopiedAmt(false), 2000);
+  };
+
+  return (
+    <div className="mt-2 rounded-xl border border-purple-200 bg-white overflow-hidden text-xs shadow-sm">
+      <div className="flex items-center justify-between px-3 py-2 bg-purple-50 border-b border-purple-100">
+        <div className="flex items-center gap-1.5">
+          <div className="w-5 h-5 rounded-md bg-purple-600 flex items-center justify-center shrink-0">
+            <span className="text-white font-black text-[9px]">₿</span>
+          </div>
+          <span className="font-bold text-purple-800 text-[11px]">Crypto Payment — Order #{data.orderId}</span>
+        </div>
+        {!expired && (
+          <span className={`font-mono text-[11px] font-bold px-2 py-0.5 rounded-full ${urgent ? "text-red-700 bg-red-100 border border-red-300 animate-pulse" : "text-amber-700 bg-amber-100 border border-amber-300"}`}>
+            {String(mins).padStart(2, "0")}:{String(secs).padStart(2, "0")}
+          </span>
+        )}
+        {expired && <span className="text-[11px] font-bold text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full">EXPIRED</span>}
+      </div>
+      <div className="px-3 py-2.5 space-y-2.5">
+        {expired ? (
+          <div className="flex items-start gap-1.5 text-[11px] text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+            <AlertCircle size={12} className="shrink-0 mt-0.5" />
+            <span className="font-semibold">This payment address has expired. Do NOT send funds to this address — they will be lost. Please start a new order.</span>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-start gap-1.5 text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
+              <AlertCircle size={11} className="shrink-0 mt-0.5" />
+              <span><strong>⚠️ This address expires in {mins}m {secs}s.</strong> Send the EXACT amount below. Late or incorrect payments = funds permanently lost. GSM World is not liable.</span>
+            </div>
+            <div className="flex gap-3">
+              <img
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(data.payAddress)}`}
+                alt="Payment QR code"
+                className="w-[70px] h-[70px] rounded-lg border border-purple-100 shrink-0"
+              />
+              <div className="flex-1 space-y-1.5">
+                <div>
+                  <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wide mb-0.5">Send Amount</p>
+                  <div className="flex items-center gap-1.5 bg-purple-50 border border-purple-200 rounded-lg px-2 py-1">
+                    <span className="flex-1 font-mono text-[12px] font-bold text-purple-900">{data.payAmount} <span className="uppercase">{data.payCurrency}</span></span>
+                    <button onClick={copyAmt} className="flex items-center gap-0.5 text-[10px] font-semibold text-purple-600 hover:text-purple-800 shrink-0">
+                      <Copy size={10} /> {copiedAmt ? "✓" : "Copy"}
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wide mb-0.5">Wallet Address</p>
+                  <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1">
+                    <span className="flex-1 font-mono text-[9px] text-slate-700 truncate">{data.payAddress}</span>
+                    <button onClick={copyAddress} className="flex items-center gap-0.5 text-[10px] font-semibold text-slate-600 hover:text-slate-800 shrink-0">
+                      <Copy size={10} /> {copied ? "✓" : "Copy"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="text-[10px] text-slate-500 flex justify-between">
+              <span>Order total: <strong>{data.currency} {Number(data.total).toFixed(2)}</strong></span>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── M-Pesa pending widget ────────────────────────────────────────────────────
+function MpesaPendingWidget({ data }: { data: MpesaPendingData }) {
+  return (
+    <div className="mt-2 rounded-xl border border-green-200 bg-white overflow-hidden text-xs shadow-sm">
+      <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border-b border-green-100">
+        <div className="w-5 h-5 rounded-md bg-green-500 flex items-center justify-center shrink-0">
+          <Smartphone size={11} className="text-white" />
+        </div>
+        <span className="font-bold text-green-800 text-[11px]">M-Pesa STK Push Sent — Order #{data.orderId}</span>
+      </div>
+      <div className="px-3 py-2.5 space-y-2">
+        <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+          <CheckCircle size={13} className="text-green-600 shrink-0" />
+          <span className="text-green-700 text-[11px] font-semibold">STK push sent! Check your phone for the M-Pesa PIN prompt.</span>
+        </div>
+        <p className="text-slate-600 text-[11px]">{data.message}</p>
+        <p className="text-slate-500 text-[10px]">Total: <strong>{data.currency} {Number(data.total).toFixed(2)}</strong></p>
+      </div>
+    </div>
+  );
+}
+
+// ─── Checkout done widget ─────────────────────────────────────────────────────
+function CheckoutDoneWidget({ data }: { data: CheckoutDoneData }) {
+  const base = apiBase();
+  return (
+    <div className="mt-2 rounded-xl border border-blue-200 bg-white overflow-hidden text-xs shadow-sm">
+      <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border-b border-blue-100">
+        <CheckCircle size={13} className="text-blue-600 shrink-0" />
+        <span className="font-bold text-blue-800 text-[11px]">Order #{data.orderId} Placed Successfully</span>
+      </div>
+      <div className="px-3 py-2.5 space-y-1.5">
+        <p className="text-slate-600 text-[11px]">
+          Payment method: <strong className="capitalize">{data.paymentMethod}</strong> · Total: <strong>{data.currency} {Number(data.total).toFixed(2)}</strong>
+        </p>
+        <Link href={`${base}/orders/${data.orderId}`} className="flex items-center gap-1 text-blue-600 font-semibold text-[11px] hover:underline">
+          <ExternalLink size={10} /> View order details
+        </Link>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 export function GsmBot() {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, login } = useAuth();
   const [open, setOpen] = useState(false);
   const [tooltipVisible, setTooltipVisible] = useState(true);
   // Bot chat state
@@ -578,6 +784,9 @@ export function GsmBot() {
     setLoading(true);
 
     try {
+      const cartSessionId = typeof window !== "undefined" ? (localStorage.getItem("gsm_session_id") ?? undefined) : undefined;
+      const botToken = typeof window !== "undefined" ? (localStorage.getItem("gsmafrica_token") ?? undefined) : undefined;
+
       const res = await fetch(`${base}/api/chat/bot`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "Accept": "text/event-stream" },
@@ -585,6 +794,8 @@ export function GsmBot() {
           messages: next.map(m => ({ role: m.role, content: m.content })),
           userEmail: isAuthenticated && user?.email ? user.email : undefined,
           isAuthenticated: isAuthenticated && !!user?.email,
+          sessionId: cartSessionId,
+          botToken,
         }),
       });
 
@@ -659,6 +870,21 @@ export function GsmBot() {
         msg.paymentData = finalActionData as unknown as PaymentData;
       } else if (finalAction === "show_payment_usdt" && finalActionData) {
         msg.paymentData = finalActionData as unknown as PaymentData;
+      } else if (finalAction === "cart_item_added" && finalActionData) {
+        msg.cartAddedData = finalActionData as unknown as CartAddedData;
+      } else if (finalAction === "login_success" && finalActionData) {
+        const ld = finalActionData as unknown as LoginSuccessData;
+        msg.loginSuccessData = ld;
+        // Persist token and log user in via auth context
+        login(ld.token, ld.user);
+      } else if (finalAction === "password_reset_done") {
+        msg.passwordResetDone = true;
+      } else if (finalAction === "show_nowpayments" && finalActionData) {
+        msg.nowpaymentsData = finalActionData as unknown as NowPaymentsData;
+      } else if (finalAction === "show_mpesa_pending" && finalActionData) {
+        msg.mpesaPendingData = finalActionData as unknown as MpesaPendingData;
+      } else if (finalAction === "checkout_done" && finalActionData) {
+        msg.checkoutDoneData = finalActionData as unknown as CheckoutDoneData;
       }
 
       setMessages(prev => [...prev.slice(0, -1), msg]);
@@ -1015,6 +1241,12 @@ export function GsmBot() {
                       {m.paymentData?.method === "usdt" && (
                         <UsdtPaymentWidget data={m.paymentData} />
                       )}
+                      {m.cartAddedData && <CartAddedWidget data={m.cartAddedData} />}
+                      {m.loginSuccessData && <LoginSuccessWidget data={m.loginSuccessData} />}
+                      {m.passwordResetDone && <PasswordResetDoneWidget />}
+                      {m.nowpaymentsData && <NowPaymentsWidget data={m.nowpaymentsData} />}
+                      {m.mpesaPendingData && <MpesaPendingWidget data={m.mpesaPendingData} />}
+                      {m.checkoutDoneData && <CheckoutDoneWidget data={m.checkoutDoneData} />}
                       {m.showHumanButton && m.role === "assistant" && (
                         <InlineHumanButton onClick={startHumanRequest} />
                       )}
