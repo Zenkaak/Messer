@@ -1,0 +1,5 @@
+{
+  "installCommand": "pnpm install --no-frozen-lockfile",
+  "buildCommand": "pnpm --filter @workspace/gsm-africa run build && node scripts/build-vercel-handler.mjs",
+  "framework": null
+}
