@@ -138,7 +138,7 @@ router.post("/checkout", async (req, res) => {
       .insert(ordersTable)
       .values({
         sessionId,
-        customerEmail,
+        customerEmail: customerEmail.toLowerCase(),
         customerPhone: customerPhone ?? null,
         customerName: customerName ?? null,
         paymentMethod,

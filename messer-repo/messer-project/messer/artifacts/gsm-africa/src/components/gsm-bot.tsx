@@ -235,11 +235,12 @@ function ProductsWidget({ products, onSelect }: { products: ProductResult[]; onS
   );
 }
 
-function NavButton({ action }: { action: NavAction }) {
+function NavButton({ action, onClose }: { action: NavAction; onClose?: () => void }) {
   const base = apiBase();
   const href = action.href.startsWith("http") ? action.href : `${base}${action.href}`;
   return (
     <Link href={href}
+      onClick={() => onClose?.()}
       className="mt-2 flex items-center justify-center gap-1.5 w-full text-[11px] font-bold text-white rounded-xl py-2.5 px-4 transition-opacity hover:opacity-90"
       style={{ background: "linear-gradient(135deg,#1a2332 0%,#1e3a5f 100%)" }}>
       <ExternalLink size={11} />
@@ -1106,7 +1107,17 @@ export function GsmBot() {
   const [open, setOpen] = useState(false);
   const [tooltipVisible, setTooltipVisible] = useState(true);
   // Bot chat state
-  const [messages, setMessages] = useState<ChatMessage[]>([WELCOME]);
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    if (typeof window === "undefined") return [WELCOME];
+    try {
+      const saved = localStorage.getItem("gsm_chat_history");
+      if (saved) {
+        const parsed = JSON.parse(saved) as ChatMessage[];
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch { /* ignore */ }
+    return [WELCOME];
+  });
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   // Track last product list for number-selection
@@ -1132,6 +1143,19 @@ export function GsmBot() {
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const visitorId = useRef(getVisitorId());
   const base = apiBase();
+
+  useEffect(() => {
+    try {
+      const toSave = messages.map(m => ({ role: m.role, content: m.content }));
+      localStorage.setItem("gsm_chat_history", JSON.stringify(toSave));
+    } catch { /* ignore */ }
+  }, [messages]);
+
+  function startNewChat() {
+    try { localStorage.removeItem("gsm_chat_history"); } catch { /* ignore */ }
+    setMessages([WELCOME]);
+    setInput("");
+  }
 
   useEffect(() => {
     if (open) {
@@ -1510,6 +1534,11 @@ export function GsmBot() {
                   <span className="text-blue-300 text-[11px]">Full store knowledge · Orders · Payments</span>
                 </div>
               </div>
+              <button onClick={startNewChat}
+                title="Start new chat"
+                className="text-[10px] font-bold text-white/60 hover:text-white/90 border border-white/20 rounded-lg px-2 py-1 transition-colors hover:bg-white/10">
+                New Chat
+              </button>
               <button onClick={() => setOpen(false)}
                 className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-white/70 hover:text-white hover:bg-white/20 transition-colors">
                 <X size={14} />
@@ -1667,7 +1696,7 @@ export function GsmBot() {
                       {m.products && m.products.length > 0 && (
                         <ProductsWidget products={m.products} onSelect={handleProductSelect} />
                       )}
-                      {m.navAction && <NavButton action={m.navAction} />}
+                      {m.navAction && <NavButton action={m.navAction} onClose={() => setOpen(false)} />}
                       {m.paymentData?.method === "mpesa" && (
                         <MpesaPaymentWidget
                           data={m.paymentData}

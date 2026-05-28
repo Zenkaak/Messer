@@ -81,7 +81,7 @@ router.get("/orders/my", async (req, res) => {
     const orders = await db
       .select()
       .from(ordersTable)
-      .where(eq(ordersTable.customerEmail, user.email))
+      .where(eq(ordersTable.customerEmail, user.email.toLowerCase()))
       .orderBy(desc(ordersTable.createdAt))
       .limit(50);
     const result = await Promise.all(
