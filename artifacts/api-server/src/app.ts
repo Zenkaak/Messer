@@ -4,6 +4,11 @@ import pinoHttp from "pino-http";
 import path from "path";
 import router from "./routes";
 import { logger } from "./lib/logger";
+import { runMigrations } from "./lib/migrations";
+
+// Run DB migrations on every cold start (covers both dev and Vercel serverless).
+// Fire-and-forget — never blocks request handling.
+runMigrations().catch((err) => logger.warn({ err }, "Migration on cold-start failed"));
 
 const app: Express = express();
 
