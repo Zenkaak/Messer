@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import jwt from "jsonwebtoken";
-import { db, usersTable, adminSettingsTable } from "@workspace/db";
-import { eq, sql } from "drizzle-orm";
+import { db, usersTable, adminSettingsTable, walletTransactionsTable } from "@workspace/db";
+import { eq, sql, desc } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { initiateSTKPush } from "../lib/mpesa";
 import { getUsdtWallet, getUsdtNetwork } from "../lib/admin-settings";
@@ -27,6 +27,28 @@ function getUser(authHeader: string | undefined): { userId: number; email: strin
     return jwt.verify(authHeader.slice(7), JWT_SECRET) as { userId: number; email: string };
   } catch {
     return null;
+  }
+}
+
+async function logWalletTxn(
+  userId: number,
+  type: string,
+  amount: number,
+  fee = 0,
+  counterpartyUsername?: string | null,
+  note?: string | null,
+) {
+  try {
+    await db.insert(walletTransactionsTable).values({
+      userId,
+      type,
+      amount: amount.toFixed(2),
+      fee: fee.toFixed(2),
+      counterpartyUsername: counterpartyUsername ?? null,
+      note: note ?? null,
+    });
+  } catch (e) {
+    logger.warn({ e }, "Failed to log wallet transaction");
   }
 }
 
@@ -77,6 +99,7 @@ router.post("/wallet/add-fund/mpesa/callback", async (req, res) => {
       const { userId, amountUsd, email } = pending;
       await db.update(usersTable).set({ walletBalance: sql`wallet_balance + ${amountUsd.toFixed(2)}` }).where(eq(usersTable.id, userId));
       logger.info({ userId, amountUsd }, "Wallet top-up credited via M-Pesa callback");
+      void logWalletTxn(userId, "topup", amountUsd, 0, null, "M-Pesa top-up");
       sendEmail({ to: email, subject: "Wallet top-up confirmed", text: `Your wallet has been credited with $${amountUsd.toFixed(2)} USD. Thank you!` }).catch((e) => logger.error({ e }, "Email send failed"));
     } else if (pending) {
       walletTopUpPending.delete(checkoutRequestId);
@@ -102,6 +125,7 @@ router.post("/wallet/add-fund/mpesa/query", async (req, res) => {
         walletTopUpPending.delete(checkoutRequestId);
         await db.update(usersTable).set({ walletBalance: sql`wallet_balance + ${pending.amountUsd.toFixed(2)}` }).where(eq(usersTable.id, pending.userId));
         logger.info({ userId: pending.userId, amountUsd: pending.amountUsd }, "Wallet top-up credited via query");
+        void logWalletTxn(pending.userId, "topup", pending.amountUsd, 0, null, "M-Pesa top-up");
         res.json({ status: "paid", message: "Payment confirmed. Wallet credited!" });
       } else {
         res.json({ status: "paid", message: "Payment confirmed." });
@@ -176,6 +200,7 @@ router.post("/wallet/add-fund/nowpayments/status", async (req, res) => {
         nowPaymentsPending.delete(String(paymentId));
         await db.update(usersTable).set({ walletBalance: sql`wallet_balance + ${pending.amountUsd.toFixed(2)}` }).where(eq(usersTable.id, pending.userId));
         logger.info({ userId: pending.userId, amountUsd: pending.amountUsd, paymentId }, "Wallet credited via NOWPayments status check");
+        void logWalletTxn(pending.userId, "topup", pending.amountUsd, 0, null, "Crypto top-up");
         sendEmail({ to: pending.email, subject: "Wallet top-up confirmed", text: `Your wallet has been credited with $${pending.amountUsd.toFixed(2)} via crypto. Thank you!` }).catch(() => null);
       } else {
         // In-memory Map lost on server restart — recover using order_id pattern and price_amount from NOWPayments
@@ -230,6 +255,7 @@ router.post("/wallet/add-fund/nowpayments/ipn", async (req, res) => {
         nowPaymentsPending.delete(payment_id);
         await db.update(usersTable).set({ walletBalance: sql`wallet_balance + ${pending.amountUsd.toFixed(2)}` }).where(eq(usersTable.id, pending.userId));
         logger.info({ userId: pending.userId, amountUsd: pending.amountUsd }, "Wallet credited via NOWPayments IPN");
+        void logWalletTxn(pending.userId, "topup", pending.amountUsd, 0, null, "Crypto top-up");
         sendEmail({ to: pending.email, subject: "Wallet top-up confirmed", text: `Your wallet has been credited with $${pending.amountUsd.toFixed(2)} via crypto. Thank you!` }).catch(() => null);
       } else if (order_id?.startsWith("wallet-")) {
         const parts = order_id.split("-");
@@ -365,6 +391,7 @@ router.post("/wallet/add-fund/stripe/verify", async (req, res) => {
       });
 
     logger.info({ userId: payload.userId, sessionId, amountUsd }, "Wallet credited via Stripe card");
+    void logWalletTxn(payload.userId, "topup", amountUsd, 0, null, "Card top-up");
 
     const userRows = await db
       .select({ email: usersTable.email })
@@ -391,6 +418,7 @@ router.post("/wallet/credit", async (req, res) => {
   if (adminKey !== process.env.ADMIN_PASSWORD) { res.status(403).json({ error: "Forbidden" }); return; }
   if (!userId || !amount || isNaN(Number(amount))) { res.status(400).json({ error: "userId and amount required" }); return; }
   await db.update(usersTable).set({ walletBalance: sql`wallet_balance + ${Number(amount).toFixed(2)}` }).where(eq(usersTable.id, Number(userId)));
+  void logWalletTxn(Number(userId), "credit", Number(amount), 0, null, "Admin credit");
   const rows = await db.select({ email: usersTable.email }).from(usersTable).where(eq(usersTable.id, Number(userId))).limit(1);
   if (rows[0]?.email) {
     sendEmail({ to: rows[0].email, subject: "Wallet credited", text: `Your wallet has been credited with $${Number(amount).toFixed(2)}.` }).catch((e) => logger.error({ e }, "Email send failed"));
@@ -453,6 +481,12 @@ router.post("/wallet/transfer", async (req, res) => {
 
     logger.info({ from: payload.userId, to: recipient.id, amount: amountNum, fee }, "Wallet transfer");
 
+    // Log both sides of the transfer
+    void Promise.all([
+      logWalletTxn(payload.userId, "transfer_sent", amountNum, fee, toUsername.trim(), `Sent to @${toUsername.trim()}`),
+      logWalletTxn(recipient.id, "transfer_received", amountNum, 0, sender?.username ?? null, `Received from @${sender?.username ?? "someone"}`),
+    ]);
+
     sendEmail({
       to: recipient.email,
       subject: "You received a wallet transfer — GSM World",
@@ -469,6 +503,24 @@ router.post("/wallet/transfer", async (req, res) => {
   } catch (err) {
     logger.error({ err }, "Wallet transfer error");
     res.status(500).json({ error: "Transfer failed" });
+  }
+});
+
+// ── Wallet transaction history ────────────────────────────────────────────────
+router.get("/wallet/transactions", async (req, res) => {
+  const payload = getUser(req.headers.authorization);
+  if (!payload) { res.status(401).json({ error: "Unauthorized" }); return; }
+  try {
+    const rows = await db
+      .select()
+      .from(walletTransactionsTable)
+      .where(eq(walletTransactionsTable.userId, payload.userId))
+      .orderBy(desc(walletTransactionsTable.createdAt))
+      .limit(50);
+    res.json(rows);
+  } catch (err) {
+    logger.error({ err }, "wallet/transactions error");
+    res.status(500).json({ error: "Failed to fetch transactions" });
   }
 });
 

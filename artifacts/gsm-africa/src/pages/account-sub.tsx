@@ -1,5 +1,5 @@
 import { Link, useParams, useLocation } from "wouter";
-import { ArrowLeft, User, ShieldCheck, Cpu, DollarSign, FileText, BookOpen, ShoppingBag, BarChart2, ShoppingCart, Zap, Copy, Check, Smartphone, KeyRound, Shield, Eye, EyeOff, CheckCircle, RefreshCw, ChevronRight, MessageSquare, Send, Lock, Paperclip, X as XIcon, Wallet, Plus, ArrowRightLeft, CheckCircle2, CreditCard } from "lucide-react";
+import { ArrowLeft, User, ShieldCheck, Cpu, DollarSign, FileText, BookOpen, ShoppingBag, BarChart2, ShoppingCart, Zap, Copy, Check, Smartphone, KeyRound, Shield, Eye, EyeOff, CheckCircle, RefreshCw, ChevronRight, MessageSquare, Send, Lock, Paperclip, X as XIcon, Wallet, Plus, ArrowRightLeft, CheckCircle2, CreditCard, ArrowDownLeft, ArrowUpRight, Gift } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useWalletBalance } from "@/hooks/use-wallet";
 import { useState, useEffect, useRef, useCallback, type ReactNode } from "react";
@@ -2138,8 +2138,121 @@ function ProfileContent({ user }: { user: { id?: number; name: string | null; em
 }
 
 // ── Ledger ────────────────────────────────────────────────────────────────────
+interface WalletTxn {
+  id: number;
+  type: string;
+  amount: string;
+  fee: string;
+  counterpartyUsername: string | null;
+  note: string | null;
+  createdAt: string;
+}
+
+function WalletMovements({ token }: { token: string | null }) {
+  const [txns, setTxns] = useState<WalletTxn[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!token) return;
+    fetch("/api/wallet/transactions", { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : [])
+      .then((d: WalletTxn[]) => { setTxns(Array.isArray(d) ? d : []); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [token]);
+
+  if (loading) return (
+    <div className="space-y-2">
+      {Array.from({ length: 4 }).map((_, i) => (
+        <div key={i} className="bg-white border border-gray-100 rounded-2xl p-4 animate-pulse h-16" />
+      ))}
+    </div>
+  );
+
+  if (txns.length === 0) return (
+    <div className="flex flex-col items-center justify-center py-14 text-center">
+      <div className="w-16 h-16 bg-gray-50 rounded-2xl flex items-center justify-center mb-4 border border-gray-100">
+        <Wallet size={28} className="text-gray-200" />
+      </div>
+      <p className="font-bold text-gray-500">No wallet movements yet</p>
+      <p className="text-xs text-gray-400 mt-1">Top-ups and transfers will appear here</p>
+    </div>
+  );
+
+  function txnIcon(type: string) {
+    if (type === "transfer_sent")     return <ArrowUpRight size={14} className="text-red-500" />;
+    if (type === "transfer_received") return <ArrowDownLeft size={14} className="text-green-600" />;
+    if (type === "credit")            return <Gift size={14} className="text-purple-500" />;
+    return <Plus size={14} className="text-blue-500" />;
+  }
+
+  function txnBg(type: string) {
+    if (type === "transfer_sent")     return "bg-red-50 border-red-100";
+    if (type === "transfer_received") return "bg-green-50 border-green-100";
+    if (type === "credit")            return "bg-purple-50 border-purple-100";
+    return "bg-blue-50 border-blue-100";
+  }
+
+  function txnLabel(t: WalletTxn) {
+    if (t.type === "transfer_sent")     return `Sent to @${t.counterpartyUsername ?? ""}`;
+    if (t.type === "transfer_received") return `Received from @${t.counterpartyUsername ?? ""}`;
+    if (t.type === "credit")            return "Admin credit";
+    return t.note ?? "Wallet top-up";
+  }
+
+  function txnSign(type: string) {
+    return type === "transfer_sent" ? "-" : "+";
+  }
+
+  function txnAmountColor(type: string) {
+    return type === "transfer_sent" ? "text-red-600" : "text-green-600";
+  }
+
+  function txnBadge(type: string) {
+    if (type === "transfer_sent")     return { label: "Sent",      cls: "bg-red-100 text-red-700" };
+    if (type === "transfer_received") return { label: "Received",  cls: "bg-green-100 text-green-700" };
+    if (type === "credit")            return { label: "Credit",    cls: "bg-purple-100 text-purple-700" };
+    return { label: "Top-up", cls: "bg-blue-100 text-blue-700" };
+  }
+
+  return (
+    <div className="space-y-2">
+      {txns.map(t => {
+        const badge = txnBadge(t.type);
+        const fee = parseFloat(t.fee);
+        return (
+          <div key={t.id} className="bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-sm">
+            <div className="flex items-center gap-3 px-4 py-3.5">
+              <div className={`w-8 h-8 rounded-xl border flex items-center justify-center shrink-0 ${txnBg(t.type)}`}>
+                {txnIcon(t.type)}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-gray-800 truncate">{txnLabel(t)}</p>
+                <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                  <p className="text-[10px] text-gray-400">
+                    {new Date(t.createdAt).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}
+                    {" · "}
+                    {new Date(t.createdAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+                  </p>
+                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${badge.cls}`}>{badge.label}</span>
+                  {fee > 0 && <span className="text-[9px] text-gray-400">fee ${fee.toFixed(2)}</span>}
+                </div>
+              </div>
+              <div className="text-right shrink-0">
+                <p className={`text-sm font-black ${txnAmountColor(t.type)}`}>
+                  {txnSign(t.type)}${parseFloat(t.amount).toFixed(2)}
+                </p>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function LedgerContent({ token }: { token: string | null }) {
   const { data: balance = 0, isLoading: balanceLoading } = useWalletBalance();
+  const [activeTab, setActiveTab] = useState<"wallet" | "orders">("wallet");
   const [orders, setOrders] = useState<Array<{
     id: number; paymentStatus: string; paymentMethod: string | null; total: string;
     createdAt: string; orderType: string | null;
@@ -2195,7 +2308,7 @@ function LedgerContent({ token }: { token: string | null }) {
       <div style={{ background: "linear-gradient(135deg,#1a2332 0%,#1e3a5f 100%)" }} className="rounded-2xl p-5">
         <p className="text-blue-300/70 text-[10px] font-bold uppercase tracking-widest mb-1">Account Ledger</p>
         <p className="text-white font-black text-xl leading-tight">Transaction History</p>
-        <p className="text-blue-200/60 text-xs mt-1">All your orders and spending in one place</p>
+        <p className="text-blue-200/60 text-xs mt-1">Wallet movements and order history</p>
         <div className="mt-4 grid grid-cols-2 gap-3">
           <div className="bg-white/10 border border-white/15 rounded-xl px-4 py-3">
             <p className="text-blue-300/70 text-[10px] font-bold uppercase tracking-widest">Wallet Balance</p>
@@ -2212,6 +2325,27 @@ function LedgerContent({ token }: { token: string | null }) {
         </div>
       </div>
 
+      {/* Tab switcher */}
+      <div className="flex bg-gray-100 rounded-xl p-1 gap-1">
+        <button
+          onClick={() => setActiveTab("wallet")}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold transition-colors ${activeTab === "wallet" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"}`}
+        >
+          <Wallet size={13} />Wallet
+        </button>
+        <button
+          onClick={() => setActiveTab("orders")}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold transition-colors ${activeTab === "orders" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"}`}
+        >
+          <ShoppingBag size={13} />Orders
+        </button>
+      </div>
+
+      {/* Wallet movements */}
+      {activeTab === "wallet" && <WalletMovements token={token} />}
+
+      {/* Orders section */}
+      {activeTab === "orders" && <>
       {/* Table header */}
       <div className="bg-gray-100 rounded-xl px-4 py-2 grid grid-cols-[1fr_auto_auto] gap-2 items-center">
         <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest">Description</p>
@@ -2289,6 +2423,7 @@ function LedgerContent({ token }: { token: string | null }) {
           })}
         </div>
       )}
+      </>}
     </div>
   );
 }
