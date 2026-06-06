@@ -8,7 +8,7 @@ import {
   ToggleLeft, ToggleRight, KeyRound, AlertTriangle, X, ArrowUpRight,
   Smartphone, Zap, Ban, Trash2, UserCheck, MoreVertical,
   MessageSquare, Send, Cpu, UserPlus, Phone, Headphones, WifiOff, Bell,
-  Store, ExternalLink, Image,
+  Store, ExternalLink, Image, Menu,
 } from "lucide-react";
 
 // ─── types ────────────────────────────────────────────────────────────────────
@@ -3105,6 +3105,7 @@ export function AdminPage() {
   function setTab(newTab: Tab) { navigate(`/admin/${newTab}`); }
   const [showChangePwd, setShowChangePwd] = useState(false);
   const [isDefaultWarn, setIsDefaultWarn] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [paymentUnread, setPaymentUnread] = useState(0);
   const lastNotifTs = useRef(0);
   const { toast } = useToast();
@@ -3214,6 +3215,10 @@ export function AdminPage() {
             {/* Mobile: brand row */}
             <div className="flex md:hidden items-center justify-between py-3 border-b border-white/5">
               <div className="flex items-center gap-2.5">
+                <button onClick={() => setMobileSidebarOpen(true)}
+                  className="w-8 h-8 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-colors mr-1">
+                  <Menu size={15} />
+                </button>
                 <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center">
                   <Shield size={13} className="text-white" />
                 </div>
@@ -3233,14 +3238,9 @@ export function AdminPage() {
                     </span>
                   )}
                 </button>
-                <button onClick={() => { setShowChangePwd(true); setIsDefaultWarn(false); }}
-                  className="w-8 h-8 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-colors">
-                  <KeyRound size={13} />
-                </button>
                 <button onClick={() => { setAuthed(false); setPwd(""); try { sessionStorage.removeItem("gsm_admin_session_pwd"); sessionStorage.removeItem("gsm_admin_session_ok"); } catch {} }}
                   className="flex items-center gap-1.5 bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white text-xs font-semibold px-3 h-8 rounded-xl transition-colors">
                   <LogOut size={12} />
-                  Logout
                 </button>
               </div>
             </div>
@@ -3284,30 +3284,60 @@ export function AdminPage() {
             {tab === "imei_logs"  && <ImeiLogsPanel   pwd={pwd} />}
           </main>
 
-          {/* ── Mobile bottom nav — fixed so it never scrolls away ── */}
-          <nav className="fixed bottom-0 left-0 right-0 z-40 md:hidden bg-white border-t border-slate-100">
-            <div className="flex">
-              {NAV.map(item => {
-                const active = tab === item.id;
-                return (
-                  <button key={item.id} onClick={() => setTab(item.id)}
-                    className="flex-1 flex flex-col items-center justify-center py-2.5 gap-0.5 relative transition-colors">
-                    {active && (
-                      <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-blue-600 rounded-full" />
-                    )}
-                    <item.icon
-                      size={20}
-                      className={`transition-colors ${active ? "text-blue-600" : "text-slate-400"}`}
-                      strokeWidth={active ? 2.5 : 1.8}
-                    />
-                    <span className={`text-[10px] font-bold transition-colors ${active ? "text-blue-600" : "text-slate-400"}`}>
-                      {item.label}
-                    </span>
+          {/* ── Mobile slide-over sidebar ── */}
+          {mobileSidebarOpen && (
+            <div className="fixed inset-0 z-50 md:hidden flex">
+              {/* backdrop */}
+              <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setMobileSidebarOpen(false)} />
+              {/* panel */}
+              <aside className="relative w-64 bg-slate-900 flex flex-col h-full shadow-2xl">
+                {/* Brand */}
+                <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-blue-600 flex items-center justify-center shrink-0">
+                      <Shield size={15} className="text-white" />
+                    </div>
+                    <div>
+                      <p className="text-white font-black text-sm leading-none">GSM World</p>
+                      <p className="text-slate-500 text-[10px] mt-0.5">Admin Console</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setMobileSidebarOpen(false)}
+                    className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center text-slate-400 hover:text-white">
+                    <X size={14} />
                   </button>
-                );
-              })}
+                </div>
+                {/* Nav links */}
+                <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-0.5">
+                  {NAV.map(item => {
+                    const active = tab === item.id;
+                    return (
+                      <button key={item.id} onClick={() => { setTab(item.id); setMobileSidebarOpen(false); }}
+                        className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-colors text-left ${
+                          active ? "bg-blue-600 text-white" : "text-slate-400 hover:bg-white/10 hover:text-white"
+                        }`}>
+                        <item.icon size={17} strokeWidth={active ? 2.5 : 1.8} />
+                        <span className="text-sm font-semibold">{item.label}</span>
+                      </button>
+                    );
+                  })}
+                </nav>
+                {/* Footer */}
+                <div className="p-3 border-t border-white/10 space-y-1">
+                  <button onClick={() => { setShowChangePwd(true); setIsDefaultWarn(false); setMobileSidebarOpen(false); }}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:bg-white/10 hover:text-white transition-colors">
+                    <KeyRound size={15} />
+                    <span className="text-sm font-medium">Change Password</span>
+                  </button>
+                  <button onClick={() => { setAuthed(false); setPwd(""); setMobileSidebarOpen(false); try { sessionStorage.removeItem("gsm_admin_session_pwd"); sessionStorage.removeItem("gsm_admin_session_ok"); } catch {} }}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:bg-red-500/20 hover:text-red-400 transition-colors">
+                    <LogOut size={15} />
+                    <span className="text-sm font-medium">Logout</span>
+                  </button>
+                </div>
+              </aside>
             </div>
-          </nav>
+          )}
 
         </div>
       </div>

@@ -9,10 +9,31 @@ export async function runMigrations(): Promise<void> {
     await db.execute(sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS order_code TEXT`);
     await db.execute(sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS reseller_slug TEXT`);
     await db.execute(sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS device_identifier TEXT`);
+    // order_type: Drizzle includes this in every INSERT (notNull + default).
+    // Must exist in production DB or every checkout INSERT will fail.
+    await db.execute(sql`
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS order_type TEXT NOT NULL DEFAULT 'product'
+    `);
     await db.execute(sql`
       CREATE UNIQUE INDEX IF NOT EXISTS orders_order_code_unique
         ON orders (order_code)
         WHERE order_code IS NOT NULL
+    `);
+
+    // ── payment_transactions table (may not exist if drizzle push never ran) ─
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS payment_transactions (
+        id            SERIAL PRIMARY KEY,
+        order_id      INTEGER NOT NULL REFERENCES orders(id),
+        provider      TEXT NOT NULL,
+        provider_reference TEXT,
+        amount        NUMERIC NOT NULL,
+        currency      TEXT NOT NULL,
+        status        TEXT NOT NULL DEFAULT 'pending',
+        raw_response  JSONB,
+        created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
     `);
 
     // ── order_messages ────────────────────────────────────────────────────────
