@@ -214,17 +214,22 @@ router.post("/checkout", async (req, res) => {
         .where(eq(ordersTable.id, order.id));
       await db.delete(cartItemsTable).where(eq(cartItemsTable.sessionId, sessionId));
       addPaymentNotification({ orderId: order.id, customerEmail, amount: total.toFixed(2), method: "wallet" });
-      // Send payment confirmed email for wallet payments
-      sendEmail({
-        to: customerEmail,
-        ...paymentConfirmedEmail({
-          orderId: order.id,
-          orderCode: order.orderCode,
-          customerName: customerName ?? null,
-          amount: String(total),
-          paymentMethod: "wallet",
-        }),
-      }).catch((err) => logger.error({ err }, "Failed to send wallet payment confirmed email"));
+      // Send payment confirmed email for wallet payments (with order items)
+      db.select({ productName: orderItemsTable.productName, quantity: orderItemsTable.quantity, price: orderItemsTable.price })
+        .from(orderItemsTable)
+        .where(eq(orderItemsTable.orderId, order.id))
+        .then((walletItems) => sendEmail({
+          to: customerEmail,
+          ...paymentConfirmedEmail({
+            orderId: order.id,
+            orderCode: order.orderCode,
+            customerName: customerName ?? null,
+            amount: String(total),
+            paymentMethod: "wallet",
+            items: walletItems,
+          }),
+        }))
+        .catch((err) => logger.error({ err }, "Failed to send wallet payment confirmed email"));
       responseStatus = "paid";
     } else if (paymentMethod === "mpesa") {
       if (!customerPhone) {
@@ -615,11 +620,18 @@ router.post("/payments/nowpayments/query", async (req, res) => {
         if (orderRows[0]) {
           const { sessionId, customerEmail, customerName, total } = orderRows[0];
           await db.delete(cartItemsTable).where(eq(cartItemsTable.sessionId, sessionId));
+          const npItems = await db
+            .select({ productName: orderItemsTable.productName, quantity: orderItemsTable.quantity, price: orderItemsTable.price })
+            .from(orderItemsTable).where(eq(orderItemsTable.orderId, orderId));
           await sendEmail({
             to: customerEmail,
-            subject: `✅ Payment confirmed — Order #${orderId}`,
-            text: `Hi ${customerName ?? "Customer"},\n\nYour crypto payment has been confirmed and your order is processed!\n\nOrder #${orderId} — Total: $${parseFloat(total).toFixed(2)}\n\nView your order: ${appUrl(`/orders/${orderId}`)}\n\nThank you for shopping with GSM World!`,
-            html: `<div style="font-family:Arial,sans-serif;padding:24px"><h2>Payment Confirmed ✅</h2><p>Hi ${customerName ?? "Customer"}, your crypto payment for Order <strong>#${orderId}</strong> has been confirmed.</p><p>Total: <strong>$${parseFloat(total).toFixed(2)}</strong></p><a href="${appUrl(`/orders/${orderId}`)}" style="display:inline-block;margin-top:16px;background:#1e3a5f;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:bold">View Order</a></div>`,
+            ...paymentConfirmedEmail({
+              orderId,
+              customerName: customerName ?? null,
+              amount: total,
+              paymentMethod: "nowpayments",
+              items: npItems,
+            }),
           });
         }
 
@@ -705,20 +717,18 @@ router.post("/payments/mpesa/query", async (req, res) => {
         if (orderRows[0]) {
           const { sessionId, customerEmail, customerName, total } = orderRows[0];
           await db.delete(cartItemsTable).where(eq(cartItemsTable.sessionId, sessionId));
-
-          const items = await db
+          const mpesaQueryItems = await db
             .select({ productName: orderItemsTable.productName, quantity: orderItemsTable.quantity, price: orderItemsTable.price })
-            .from(orderItemsTable)
-            .where(eq(orderItemsTable.orderId, orderId));
-
-          const itemLines = items.map(i => `${i.productName} × ${i.quantity} — $${(parseFloat(i.price) * i.quantity).toFixed(2)}`).join("\n");
-          const htmlItems = items.map(i => `<tr><td style="padding:4px 8px">${i.productName}</td><td style="padding:4px 8px;text-align:center">${i.quantity}</td><td style="padding:4px 8px;text-align:right">$${(parseFloat(i.price) * i.quantity).toFixed(2)}</td></tr>`).join("");
-
+            .from(orderItemsTable).where(eq(orderItemsTable.orderId, orderId));
           await sendEmail({
             to: customerEmail,
-            subject: `✅ Payment confirmed — Order #${orderId}`,
-            text: `Hi ${customerName ?? "Customer"},\n\nYour M-Pesa payment has been received and your order is confirmed!\n\nOrder #${orderId}\n${itemLines}\n\nTotal: $${parseFloat(total).toFixed(2)}\n\nView your order: ${appUrl(`/orders/${orderId}`)}\n\nThank you for shopping with GSM World!`,
-            html: `<div style="font-family:Arial,sans-serif;background:#f8fafc;padding:24px"><div style="max-width:560px;margin:0 auto;background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:24px"><h2 style="margin:0 0 4px;color:#1a2332">Payment Confirmed ✅</h2><p style="color:#64748b;margin:0 0 20px">Hi ${customerName ?? "Customer"}, your M-Pesa payment for Order <strong>#${orderId}</strong> has been received.</p><table style="width:100%;border-collapse:collapse;font-size:14px"><thead><tr style="background:#f1f5f9"><th style="padding:6px 8px;text-align:left">Item</th><th style="padding:6px 8px;text-align:center">Qty</th><th style="padding:6px 8px;text-align:right">Amount</th></tr></thead><tbody>${htmlItems}</tbody><tfoot><tr><td colspan="2" style="padding:8px;font-weight:bold;text-align:right">Total</td><td style="padding:8px;font-weight:bold;text-align:right">$${parseFloat(total).toFixed(2)}</td></tr></tfoot></table><a href="${appUrl(`/orders/${orderId}`)}" style="display:inline-block;margin-top:20px;background:#1e3a5f;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:bold">View Order</a><p style="margin-top:24px;color:#64748b;font-size:12px">GSM World</p></div></div>`,
+            ...paymentConfirmedEmail({
+              orderId,
+              customerName: customerName ?? null,
+              amount: total,
+              paymentMethod: "mpesa",
+              items: mpesaQueryItems,
+            }),
           });
         }
 
@@ -783,24 +793,21 @@ router.post("/payments/mpesa/callback", async (req, res) => {
         if (orderRows[0]) {
           const { sessionId, customerEmail, customerName, total } = orderRows[0];
           await db.delete(cartItemsTable).where(eq(cartItemsTable.sessionId, sessionId));
-
-          const items = await db
+          const mpesaCbItems = await db
             .select({ productName: orderItemsTable.productName, quantity: orderItemsTable.quantity, price: orderItemsTable.price })
-            .from(orderItemsTable)
-            .where(eq(orderItemsTable.orderId, orderId));
-
-          const itemLines = items.map(i => `${i.productName} × ${i.quantity} — $${(parseFloat(i.price) * i.quantity).toFixed(2)}`).join("\n");
-          const htmlItems = items.map(i => `<tr><td style="padding:4px 8px">${i.productName}</td><td style="padding:4px 8px;text-align:center">${i.quantity}</td><td style="padding:4px 8px;text-align:right">$${(parseFloat(i.price) * i.quantity).toFixed(2)}</td></tr>`).join("");
-
+            .from(orderItemsTable).where(eq(orderItemsTable.orderId, orderId));
           await sendEmail({
             to: customerEmail,
-            subject: `✅ Payment confirmed — Order #${orderId}`,
-            text: `Hi ${customerName ?? "Customer"},\n\nYour M-Pesa payment has been received and your order is confirmed!\n\nOrder #${orderId}\n${itemLines}\n\nTotal: $${parseFloat(total).toFixed(2)}\n\nView your order: ${appUrl(`/orders/${orderId}`)}\n\nThank you for shopping with GSM World!`,
-            html: `<div style="font-family:Arial,sans-serif;background:#f8fafc;padding:24px"><div style="max-width:560px;margin:0 auto;background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:24px"><h2 style="margin:0 0 4px;color:#1a2332">Payment Confirmed ✅</h2><p style="color:#64748b;margin:0 0 20px">Hi ${customerName ?? "Customer"}, your M-Pesa payment for Order <strong>#${orderId}</strong> has been received.</p><table style="width:100%;border-collapse:collapse;font-size:14px"><thead><tr style="background:#f1f5f9"><th style="padding:6px 8px;text-align:left">Item</th><th style="padding:6px 8px;text-align:center">Qty</th><th style="padding:6px 8px;text-align:right">Amount</th></tr></thead><tbody>${htmlItems}</tbody><tfoot><tr><td colspan="2" style="padding:8px;font-weight:bold;text-align:right">Total</td><td style="padding:8px;font-weight:bold;text-align:right">$${parseFloat(total).toFixed(2)}</td></tr></tfoot></table><a href="${appUrl(`/orders/${orderId}`)}" style="display:inline-block;margin-top:20px;background:#1e3a5f;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:bold">View Order</a><p style="margin-top:24px;color:#64748b;font-size:12px">GSM World</p></div></div>`,
+            ...paymentConfirmedEmail({
+              orderId,
+              customerName: customerName ?? null,
+              amount: total,
+              paymentMethod: "mpesa",
+              items: mpesaCbItems,
+            }),
           });
-
           addPaymentNotification({ orderId, customerEmail, amount: parseFloat(total).toFixed(2), method: "mpesa" });
-          logger.info({ orderId, customerEmail }, "M-Pesa payment confirmed — confirmation email sent");
+          logger.info({ orderId, customerEmail }, "M-Pesa callback confirmed — confirmation email sent");
         }
       }
     }
