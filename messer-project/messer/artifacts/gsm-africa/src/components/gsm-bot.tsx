@@ -1341,6 +1341,16 @@ export function GsmBot() {
     } catch { /* ignore */ }
   }, [messages]);
 
+  // Clear chat history when user logs in or out (privacy fix)
+  const prevAuthRef = useRef(isAuthenticated);
+  useEffect(() => {
+    if (prevAuthRef.current !== isAuthenticated) {
+      prevAuthRef.current = isAuthenticated;
+      try { localStorage.removeItem("gsm_chat_history"); } catch { /* ignore */ }
+      setMessages([WELCOME]);
+    }
+  }, [isAuthenticated]);
+
   function startNewChat() {
     const hasUser = messages.some(m => m.role === "user");
     if (hasUser) {
