@@ -1,5 +1,5 @@
 {
   "installCommand": "cd messer-repo/messer-project/messer && pnpm install --no-frozen-lockfile",
-  "buildCommand": "cd messer-repo/messer-project/messer && pnpm --filter @workspace/gsm-africa run build && cd ../../.. && MESSER_DIR=messer-repo/messer-project/messer node messer-repo/messer-project/messer/scripts/build-vercel-handler.mjs",
+  "buildCommand": "cd messer-repo/messer-project/messer && pnpm --filter @workspace/db run push || true && pnpm --filter @workspace/gsm-africa run build && cd ../../.. && MESSER_DIR=messer-repo/messer-project/messer node messer-repo/messer-project/messer/scripts/build-vercel-handler.mjs",
   "framework": null
 }
