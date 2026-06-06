@@ -750,8 +750,8 @@ export function ResellerPage() {
           <div>
             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-1 mb-2">Select Payment Method</p>
             <div className="space-y-2">
-              {paymentMethods.map(pm => (
-                <button key={pm.method} onClick={() => setSelectedMethod(pm)}
+              {paymentMethods.filter(pm => pm.method !== "nowpayments").map(pm => (
+                <button key={pm.method} onClick={() => { setSelectedMethod(pm); setNpMode(false); }}
                   className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl border-2 text-left transition-colors ${
                     selectedMethod?.method === pm.method
                       ? "border-teal-500 bg-teal-50"
