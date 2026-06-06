@@ -128,6 +128,7 @@ await writeFile(
       launcherType: "Nodejs",
       shouldAddHelpers: true,
       supportsResponseStreaming: true,
+      maxDuration: 60,
     },
     null,
     2
