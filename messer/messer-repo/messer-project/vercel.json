@@ -1,0 +1,21 @@
+{
+  "installCommand": "cd messer && pnpm install --no-frozen-lockfile",
+  "buildCommand": "cd messer && pnpm --filter @workspace/gsm-africa run build && cd .. && MESSER_DIR=$OLDPWD node messer/scripts/build-vercel-handler.mjs",
+  "framework": null,
+  "headers": [
+    {
+      "source": "/index.html",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" },
+        { "key": "Pragma", "value": "no-cache" },
+        { "key": "Expires", "value": "0" }
+      ]
+    },
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    }
+  ]
+}
