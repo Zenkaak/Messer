@@ -13,7 +13,9 @@ import {
   cartItemsTable,
   paymentTransactionsTable,
   usersTable,
+  adminSettingsTable,
 } from "@workspace/db";
+import bcrypt from "bcryptjs";
 import {
   getOpenAiKey,
   getOtsConfig,
@@ -26,7 +28,7 @@ import {
   getBinancePayId,
   getSmtpConfig,
 } from "../lib/admin-settings";
-import { sendEmail, orderSubmittedEmail, pendingManualPaymentEmail, adminNewOrderAlertEmail } from "../lib/email";
+import { sendEmail, orderSubmittedEmail, pendingManualPaymentEmail, adminNewOrderAlertEmail, otpEmail } from "../lib/email";
 import { initiateSTKPush } from "../lib/mpesa";
 import { createPayment } from "../lib/nowpayments";
 import { logger } from "../lib/logger";
@@ -1887,78 +1889,128 @@ async function toolAddToCart(productId: number, quantity: number, sessionId: str
   }
 }
 
+// ── OTP helpers (direct DB — no localhost calls, safe for Vercel serverless) ──
+
+function _makeOtpCode(): string {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+async function _getSmtpFromDb(): Promise<{ host: string; port: number; user: string; pass: string; from: string } | null> {
+  try {
+    const rows = await db.select().from(adminSettingsTable).limit(1);
+    const s = rows[0];
+    if (!s?.smtpHost || !s?.smtpUser || !s?.smtpPass) return null;
+    return { host: s.smtpHost, port: s.smtpPort ?? 587, user: s.smtpUser, pass: s.smtpPass, from: s.smtpFrom ?? s.smtpUser };
+  } catch { return null; }
+}
+
+async function _setOtp(email: string, code: string): Promise<void> {
+  const expires = new Date(Date.now() + 10 * 60 * 1000);
+  await db.insert(usersTable)
+    .values({ email, otpCode: code, otpExpires: expires, name: null, passwordHash: null, role: "customer" } as never)
+    .onConflictDoUpdate({ target: (usersTable as never as { email: unknown }).email, set: { otpCode: code, otpExpires: expires } });
+}
+
+async function _getOtp(email: string): Promise<{ code: string | null; expires: Date | null }> {
+  const rows = await db.select().from(usersTable).where(eq((usersTable as never as { email: unknown }).email as never, email)).limit(1);
+  const u = rows[0] as never as { otpCode?: string | null; otpExpires?: Date | null } | undefined;
+  return { code: u?.otpCode ?? null, expires: u?.otpExpires ?? null };
+}
+
+async function _clearOtp(email: string): Promise<void> {
+  await db.update(usersTable).set({ otpCode: null, otpExpires: null } as never).where(eq((usersTable as never as { email: unknown }).email as never, email));
+}
+
+function _makeUserToken(userId: number): string {
+  return jwt.sign({ userId }, _BOT_JWT_SECRET, { expiresIn: "30d" });
+}
+
 async function toolSendLoginOtp(email: string): Promise<Record<string, unknown>> {
   try {
-    const port = process.env.PORT ?? "5000";
-    const r = await fetch(`http://localhost:${port}/api/auth/otp-login/send`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: email.toLowerCase().trim() }),
-    });
-    const data = await r.json() as { success?: boolean; error?: string };
-    if (r.ok) return { success: true };
-    return { success: false, error: data.error ?? "Failed to send OTP" };
-  } catch {
+    const normalEmail = email.toLowerCase().trim();
+    const code = _makeOtpCode();
+    await _setOtp(normalEmail, code);
+    const smtp = await _getSmtpFromDb();
+    if (smtp) {
+      const { html, text } = otpEmail(code);
+      await sendEmail({ smtp, to: normalEmail, subject: "Your GSM World login code", html, text });
+    }
+    return { success: true };
+  } catch (err) {
+    logger.error({ err }, "toolSendLoginOtp failed");
     return { success: false, error: "Could not send OTP — email service may be unavailable" };
   }
 }
 
 async function toolVerifyLoginOtp(email: string, code: string): Promise<Record<string, unknown>> {
   try {
-    const port = process.env.PORT ?? "5000";
-    const r = await fetch(`http://localhost:${port}/api/auth/otp-login/verify`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: email.toLowerCase().trim(), code: code.trim() }),
-    });
-    const data = await r.json() as { token?: string; user?: { id: number; email: string; name: string | null }; error?: string };
-    if (r.ok && data.token && data.user) return { success: true, token: data.token, user: data.user };
-    return { success: false, error: data.error ?? "Invalid or expired code" };
-  } catch {
+    const normalEmail = email.toLowerCase().trim();
+    const { code: stored, expires } = await _getOtp(normalEmail);
+    if (!stored || !expires || new Date() > expires || stored !== code.trim()) {
+      return { success: false, error: "Invalid or expired code" };
+    }
+    await _clearOtp(normalEmail);
+    const rows = await db.select().from(usersTable).where(eq((usersTable as never as { email: unknown }).email as never, normalEmail)).limit(1);
+    const user = rows[0] as never as { id: number; email: string; name: string | null } | undefined;
+    if (!user) return { success: false, error: "User not found" };
+    const token = _makeUserToken(user.id);
+    return { success: true, token, user: { id: user.id, email: user.email, name: user.name } };
+  } catch (err) {
+    logger.error({ err }, "toolVerifyLoginOtp failed");
     return { success: false, error: "Verification service unavailable" };
   }
 }
 
 async function toolSignupUser(email: string, name: string, password: string): Promise<Record<string, unknown>> {
   try {
-    const port = process.env.PORT ?? "5000";
-    const r = await fetch(`http://localhost:${port}/api/auth/register`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: email.toLowerCase().trim(), name: name.trim(), password }),
-    });
-    const data = await r.json() as { token?: string; user?: { id: number; email: string; name: string | null }; error?: string; emailSent?: boolean };
-    if (r.ok && data.token && data.user) return { success: true, token: data.token, user: data.user, emailSent: data.emailSent };
-    return { success: false, error: data.error ?? "Registration failed" };
-  } catch {
+    const normalEmail = email.toLowerCase().trim();
+    const existing = await db.select().from(usersTable).where(eq((usersTable as never as { email: unknown }).email as never, normalEmail)).limit(1);
+    if (existing.length > 0) return { success: false, error: "An account with this email already exists. Please log in instead." };
+    const passwordHash = await bcrypt.hash(password, 10);
+    const inserted = await db.insert(usersTable).values({ email: normalEmail, name: name.trim(), passwordHash, role: "customer" } as never).returning();
+    const user = inserted[0] as never as { id: number; email: string; name: string | null } | undefined;
+    if (!user) return { success: false, error: "Registration failed" };
+    const token = _makeUserToken(user.id);
+    return { success: true, token, user: { id: user.id, email: user.email, name: user.name }, emailSent: false };
+  } catch (err) {
+    logger.error({ err }, "toolSignupUser failed");
     return { success: false, error: "Registration service unavailable" };
   }
 }
 
 async function toolSendPasswordResetOtp(email: string): Promise<Record<string, unknown>> {
   try {
-    const port = process.env.PORT ?? "5000";
-    const r = await fetch(`http://localhost:${port}/api/auth/password-reset/send`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: email.toLowerCase().trim() }),
-    });
-    if (r.ok) return { success: true };
-    const data = await r.json() as { error?: string };
-    return { success: false, error: data.error ?? "Failed to send reset code" };
-  } catch {
+    const normalEmail = email.toLowerCase().trim();
+    const existing = await db.select().from(usersTable).where(eq((usersTable as never as { email: unknown }).email as never, normalEmail)).limit(1);
+    if (existing.length === 0) return { success: true }; // don't leak existence
+    const code = _makeOtpCode();
+    await _setOtp(normalEmail, code);
+    const smtp = await _getSmtpFromDb();
+    if (smtp) {
+      const { html, text } = otpEmail(code);
+      await sendEmail({ smtp, to: normalEmail, subject: "Your GSM World password reset code", html, text });
+    }
+    return { success: true };
+  } catch (err) {
+    logger.error({ err }, "toolSendPasswordResetOtp failed");
     return { success: false, error: "Service unavailable" };
   }
 }
 
 async function toolResetUserPassword(email: string, code: string, newPassword: string): Promise<Record<string, unknown>> {
   try {
-    const port = process.env.PORT ?? "5000";
-    const r = await fetch(`http://localhost:${port}/api/auth/password-reset/reset`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: email.toLowerCase().trim(), code: code.trim(), newPassword }),
-    });
-    if (r.ok) return { success: true };
-    const data = await r.json() as { error?: string };
-    return { success: false, error: data.error ?? "Password reset failed" };
-  } catch {
-    return { success: false, error: "Service unavailable" };
+    const normalEmail = email.toLowerCase().trim();
+    const { code: stored, expires } = await _getOtp(normalEmail);
+    if (!stored || !expires || new Date() > expires || stored !== code.trim()) {
+      return { success: false, error: "Invalid or expired reset code" };
+    }
+    await _clearOtp(normalEmail);
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    await db.update(usersTable).set({ passwordHash } as never).where(eq((usersTable as never as { email: unknown }).email as never, normalEmail));
+    return { success: true };
+  } catch (err) {
+    logger.error({ err }, "toolResetUserPassword failed");
+    return { success: false, error: "Password reset service unavailable" };
   }
 }
 
