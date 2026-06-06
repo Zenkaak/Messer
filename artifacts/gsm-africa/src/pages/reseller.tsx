@@ -182,7 +182,7 @@ export function ResellerPage() {
       const res = await fetch(`${BASE}/api/wallet/add-fund/nowpayments`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ amount: SECURITY_FEE_USD, payCurrency: npCurrency }),
+        body: JSON.stringify({ amount: 15, payCurrency: npCurrency }),
       });
       const d = await res.json() as { error?: string; paymentId?: string; payAddress?: string; payAmount?: number; payCurrency?: string; expiresAt?: string };
       if (!res.ok) throw new Error(d.error || "Failed to create payment");
@@ -627,28 +627,42 @@ export function ResellerPage() {
               </div>
 
               <div>
-                <label className="text-xs font-bold text-gray-500 mb-1.5 block">Payment Method *</label>
-                <select
-                  value={withdrawMethod}
-                  onChange={e => setWithdrawMethod(e.target.value)}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:border-teal-400 bg-white">
-                  <option value="M-Pesa">M-Pesa</option>
-                  <option value="USDT TRC20">USDT (TRC20)</option>
-                  <option value="USDT ERC20">USDT (ERC20)</option>
-                  <option value="Binance Pay">Binance Pay</option>
-                  <option value="Bitcoin">Bitcoin</option>
-                  <option value="Bank Transfer">Bank Transfer</option>
-                </select>
+                <label className="text-xs font-bold text-gray-500 mb-1.5 block">Payout Method *</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { value: "USDT (TRC20)", label: "USDT", sub: "Wallet address (TRC20)" },
+                    { value: "Binance Pay", label: "Binance Pay", sub: "Binance ID / Pay ID" },
+                    { value: "Credits", label: "Credits", sub: "Account email" },
+                    { value: "GSM Wallet", label: "GSM Wallet", sub: "Account email" },
+                  ].map(opt => (
+                    <button key={opt.value}
+                      onClick={() => { setWithdrawMethod(opt.value); setWithdrawAddress(""); }}
+                      className={`flex flex-col items-start px-3 py-2.5 rounded-xl border-2 text-left transition-colors ${
+                        withdrawMethod === opt.value ? "border-teal-500 bg-teal-50" : "border-gray-200 bg-white hover:border-gray-300"
+                      }`}>
+                      <span className="text-xs font-black text-gray-800">{opt.label}</span>
+                      <span className="text-[10px] text-gray-400 mt-0.5">{opt.sub}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div>
                 <label className="text-xs font-bold text-gray-500 mb-1.5 block">
-                  {withdrawMethod === "M-Pesa" ? "Phone Number *" : "Wallet Address *"}
+                  {withdrawMethod === "USDT (TRC20)" ? "USDT Wallet Address (TRC20) *" :
+                   withdrawMethod === "Binance Pay" ? "Binance Pay ID *" :
+                   withdrawMethod === "Credits" ? "Account Email (receive as credits) *" :
+                   withdrawMethod === "GSM Wallet" ? "Account Email (GSM World wallet) *" :
+                   "Payout Destination *"}
                 </label>
                 <input
                   value={withdrawAddress}
                   onChange={e => setWithdrawAddress(e.target.value)}
-                  placeholder={withdrawMethod === "M-Pesa" ? "e.g. 0712345678" : "Your wallet address"}
+                  placeholder={
+                    withdrawMethod === "USDT (TRC20)" ? "T... wallet address" :
+                    withdrawMethod === "Binance Pay" ? "e.g. 490759406" :
+                    "your@email.com"
+                  }
                   className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-400"
                 />
               </div>
@@ -1022,22 +1036,33 @@ export function ResellerPage() {
               </div>
             </div>
 
-            {/* Security fee notice */}
-            <div className="rounded-2xl overflow-hidden border border-amber-200">
-              <div className="bg-amber-50 px-4 py-2.5 flex items-center gap-2 border-b border-amber-200">
-                <Shield size={13} className="text-amber-600 shrink-0" />
-                <p className="text-xs font-black text-amber-700">One-time Security Fee Required</p>
+            {/* Free application notice */}
+            <div className="rounded-2xl overflow-hidden border border-emerald-200">
+              <div className="bg-emerald-50 px-4 py-2.5 flex items-center gap-2 border-b border-emerald-200">
+                <CheckCircle2 size={13} className="text-emerald-600 shrink-0" />
+                <p className="text-xs font-black text-emerald-700">Free Application — No Security Fee</p>
               </div>
-              <div className="bg-white px-4 py-3 flex items-center justify-between">
-                <div>
-                  <p className="text-2xl font-black text-gray-900">$15 <span className="text-sm font-semibold text-gray-400">USD</span></p>
-                  <p className="text-[11px] text-gray-400 mt-0.5">Fully refundable if your application is rejected</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Accept via</p>
-                  <p className="text-xs font-bold text-gray-600 mt-0.5">M-Pesa · USDT · Crypto</p>
-                </div>
+              <div className="bg-white px-4 py-3">
+                <p className="text-[11px] text-gray-500 leading-relaxed">
+                  Apply at no cost. Your store will be reviewed and activated within 24 hours. Start earning 10% commission on every sale through your link.
+                </p>
               </div>
+            </div>
+
+            {/* Requirements notice */}
+            <div className="bg-slate-50 rounded-2xl border border-slate-200 p-4 space-y-2">
+              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Application Requirements</p>
+              {[
+                "Active GSM World account in good standing",
+                "Valid store name (your brand or business name)",
+                "Agreement to reseller terms of service",
+                "Commitment to only refer legitimate customers",
+              ].map((req, i) => (
+                <div key={i} className="flex items-start gap-2">
+                  <CheckCircle2 size={12} className="text-teal-500 shrink-0 mt-0.5" />
+                  <p className="text-xs text-gray-600">{req}</p>
+                </div>
+              ))}
             </div>
 
             {/* CTA */}
@@ -1049,10 +1074,10 @@ export function ResellerPage() {
             >
               {submitting
                 ? <div className="w-5 h-5 border-2 border-white/50 border-t-white rounded-full animate-spin" />
-                : <><ArrowRight size={18} /> Continue to Payment</>}
+                : <><ArrowRight size={18} /> Submit Application</>}
             </button>
 
-            <p className="text-center text-[11px] text-gray-400">By applying you agree to our reseller terms. Your store activates within 24 hours after payment verification.</p>
+            <p className="text-center text-[11px] text-gray-400">By applying you agree to our reseller terms. Your store activates within 24 hours of approval.</p>
           </div>
         </div>
       );
@@ -1112,7 +1137,7 @@ export function ResellerPage() {
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             {[
               { step: "1", icon: <Store size={14} />, title: "Create your store", desc: "Pick a store name and unique URL slug", color: "bg-blue-100 text-blue-700" },
-              { step: "2", icon: <Shield size={14} />, title: "Pay $15 security fee", desc: "One-time activation fee, refundable if rejected", color: "bg-amber-100 text-amber-700" },
+              { step: "2", icon: <CheckCircle2 size={14} />, title: "Free application review", desc: "Submit your store details — no fees required", color: "bg-emerald-100 text-emerald-700" },
               { step: "3", icon: <Users size={14} />, title: "Share your link", desc: "Send customers to your branded store page", color: "bg-purple-100 text-purple-700" },
               { step: "4", icon: <DollarSign size={14} />, title: "Earn 10% commission", desc: "Get paid for every sale through your link", color: "bg-green-100 text-green-700" },
             ].map((s, i, arr) => (
@@ -1156,7 +1181,7 @@ export function ResellerPage() {
               Apply Now — it's free to apply
               <ArrowRight size={16} className="text-gray-400" />
             </button>
-            <p className="text-center text-[10px] text-white/50 mt-2.5">Only $15 security fee required · Refundable if rejected</p>
+            <p className="text-center text-[10px] text-white/50 mt-2.5">Free to apply · Approved within 24 hours · Earn 10% commission</p>
           </div>
         </div>
       </div>
