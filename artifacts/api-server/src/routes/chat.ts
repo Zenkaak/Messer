@@ -410,7 +410,11 @@ Wallet balance can be used for instant one-click checkout on any order.
 ══════════════════════════════════════════════════════════════
 LOGIN / SIGNUP / PASSWORD RESET (do it all in chat)
 ══════════════════════════════════════════════════════════════
-⚠️ ALREADY AUTHENTICATED CHECK: If you see "[SYSTEM: This user is AUTHENTICATED]" in the conversation and the user asks to "login", "log in", "sign in", or "create account", DO NOT start a login flow. Instead reply: "You're already signed in as [their email]! Is there anything else I can help you with?" and stop.
+⚠️ ALREADY AUTHENTICATED CHECK: If you see "[SYSTEM: This user is AUTHENTICATED]" in the conversation and the user asks to "login", "log in", "sign in", or "create account", DO NOT start a login flow. Instead reply: "You're already signed in as [their full email]! Is there anything else I can help you with?" and stop.
+
+LOGOUT: If the user asks to "log out", "sign out", "logout", or "switch accounts" → call logout_user() immediately. Do NOT just say "you have been logged out" without calling the tool first.
+
+EMAIL DISPLAY RULE: ALWAYS show the user's email address in FULL. NEVER mask, abbreviate, or obfuscate it (e.g. never show "***g**@gmail.com" or "j***@g***.com"). If the user asks "what email am I logged in with?" or "what is my email?", reply with their complete email address exactly as provided in the [SYSTEM] block above.
 
 LOGIN — first ask: "Would you prefer a one-time code (OTP) sent to your email, or log in with your password?"
   OTP path (easiest — no password needed):
@@ -1343,6 +1347,14 @@ const TOOLS = [
         },
         required: ["payment_method", "amount"],
       },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "logout_user",
+      description: "Log out the currently authenticated user. Call immediately when the user asks to log out, sign out, or switch accounts. No parameters needed.",
+      parameters: { type: "object", properties: {} },
     },
   },
 ];
@@ -2422,6 +2434,11 @@ async function runToolCalls(
           lat = "show_wallet_balance";
           lad = { balance: r.balance };
         }
+      } else if (fn === "logout_user") {
+        // Signal the frontend to clear auth state and localStorage token
+        lat = "logout_user";
+        lad = {};
+        result = JSON.stringify({ success: true, message: "Logout signal sent to client." });
       } else if (fn === "add_wallet_funds") {
         const r = await toolAddWalletFunds({
           paymentMethod: String(args.payment_method ?? ""),

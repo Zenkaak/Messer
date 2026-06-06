@@ -1369,7 +1369,7 @@ function renderContent(text: string, onLinkClick: () => void): React.ReactNode {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export function GsmBot() {
-  const { user, isAuthenticated, login } = useAuth();
+  const { user, isAuthenticated, login, logout } = useAuth();
   const [open, setOpen] = useState(false);
   const [tooltipVisible, setTooltipVisible] = useState(true);
   // Bot chat state
@@ -1660,6 +1660,9 @@ export function GsmBot() {
         msg.walletBalanceData = finalActionData as unknown as WalletBalanceData;
       } else if (finalAction === "wallet_insufficient_funds" && finalActionData) {
         msg.walletInsufficientFundsData = finalActionData as unknown as WalletInsufficientFundsData;
+      } else if (finalAction === "logout_user") {
+        // Actually log the user out — clear token and auth state
+        logout();
       }
 
       setMessages(prev => [...prev.slice(0, -1), msg]);
