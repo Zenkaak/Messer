@@ -15,7 +15,7 @@ import {
 } from "@workspace/db";
 import { productsTable, categoriesTable } from "@workspace/db";
 import { z } from "zod";
-import { getAllSettings, updateSettings, getAdminPassword, hasAdminPasswordBeenSet } from "../lib/admin-settings";
+import { getAllSettings, updateSettings, getAdminPassword, hasAdminPasswordBeenSet, getOpenAiKey, getOpenAiBaseUrl } from "../lib/admin-settings";
 import {
   sendEmail,
   otpEmail,
@@ -543,6 +543,10 @@ router.patch("/admin/orders/:id", async (req, res) => {
           ...orderCompletedEmail({ orderId: id, customerName: order.customerName, items, total: order.total, notes: notesForEmail }),
         }).catch((err) => req.log.error({ err }, "Failed to send admin order completed email"));
       } else if (newStatus === "paid") {
+        const paidItems = await db
+          .select({ productName: orderItemsTable.productName, quantity: orderItemsTable.quantity, price: orderItemsTable.price })
+          .from(orderItemsTable)
+          .where(eq(orderItemsTable.orderId, id));
         await sendEmail({
           to: order.customerEmail,
           ...paymentConfirmedEmail({
@@ -550,6 +554,7 @@ router.patch("/admin/orders/:id", async (req, res) => {
             customerName: order.customerName,
             amount: order.total,
             paymentMethod: order.paymentMethod,
+            items: paidItems,
           }),
         }).catch((err) => req.log.error({ err }, "Failed to send admin payment confirmed email"));
       } else if (["processing", "failed", "refunded", "pending_payment_confirmation", "cancelled"].includes(newStatus)) {
@@ -776,6 +781,7 @@ router.post("/admin/test-email", async (req, res) => {
           amount: SAMPLE_TOTAL,
           paymentMethod: "binance_pay",
           transactionRef: "BNB-TXN-8472916",
+          items: SAMPLE_ITEMS,
         });
         break;
       case "order_status":
@@ -836,12 +842,12 @@ router.post("/admin/announcements/ai-generate", async (req, res) => {
   if (!await checkAdminAuth(req, res)) return;
   const { prompt } = req.body || {};
   if (!prompt?.trim()) { res.status(400).json({ error: "Prompt is required" }); return; }
-  const settings = await getAllSettings();
-  const apiKey = settings.openaiApiKey;
-  if (!apiKey) { res.status(503).json({ error: "OpenAI API key not configured. Add it in Settings." }); return; }
   try {
+    const [apiKey, openaiBase] = await Promise.all([getOpenAiKey(), getOpenAiBaseUrl()]);
+    if (!apiKey) { res.status(503).json({ error: "OpenAI API key not configured. Add it in Admin → Settings." }); return; }
     const { default: OpenAI } = await import("openai") as { default: typeof import("openai").default };
-    const openai = new OpenAI({ apiKey });
+    const baseURL = openaiBase.endsWith("/v1") ? openaiBase : `${openaiBase}/v1`;
+    const openai = new OpenAI({ apiKey, baseURL });
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
