@@ -5,7 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   User, BarChart2, ShoppingBag, ShoppingCart, Zap,
   UserCircle, ShieldCheck, Cpu, DollarSign, FileText,
-  BookOpen, LogOut, ChevronRight, Plus, Server, KeyRound, Store,
+  BookOpen, LogOut, ChevronRight, Plus, Server, KeyRound, Store, Shield,
 } from "lucide-react";
 
 export function AccountPage() {
@@ -172,6 +172,12 @@ export function AccountPage() {
           <LogOut size={17} />
           Sign Out
         </button>
+
+        {/* Admin Panel link */}
+        <Link href="/admin" className="w-full h-10 flex items-center justify-center gap-2 text-xs text-gray-400 hover:text-gray-600 transition-colors">
+          <Shield size={13} />
+          Admin Panel
+        </Link>
 
         <p className="text-center text-[10px] text-gray-300 pb-2">GSM World · Since 2016</p>
       </div>

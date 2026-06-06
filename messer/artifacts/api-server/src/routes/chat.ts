@@ -2264,8 +2264,12 @@ async function runToolCalls(
         lad = { email };
         result = `Secure password login form displayed${email ? ` for ${email}` : ""}. Waiting for the user to enter their password.`;
       } else if (fn === "send_login_otp") {
-        const r = await toolSendLoginOtp(String(args.email ?? ""));
-        result = JSON.stringify(r);
+        if (userId !== null) {
+          result = JSON.stringify({ success: false, error: "already_authenticated", message: "User is already logged in. Do not send OTP." });
+        } else {
+          const r = await toolSendLoginOtp(String(args.email ?? ""));
+          result = JSON.stringify(r);
+        }
       } else if (fn === "show_otp_login_form") {
         const email = String(args.email ?? "");
         lat = "show_otp_login";

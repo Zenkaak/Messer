@@ -70,7 +70,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
         const currentVer = android?.getAppVersion?.() ?? APP_VERSION;
         if (data.version && data.version !== currentVer) {
           android.downloadAndInstall!(data.apkUrl);
-          toast({ title: "Update available", description: "Downloading in the background — the app will restart when ready." });
         }
       })
       .catch(() => { /* ignore network errors */ });

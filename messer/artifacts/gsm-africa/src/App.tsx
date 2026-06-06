@@ -26,7 +26,6 @@ import { DirectUnlockPage } from "@/pages/direct-unlock";
 import { GoogleCallbackPage } from "@/pages/google-callback";
 import { useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { ToastAction } from "@/components/ui/toast";
 
 const queryClient = new QueryClient();
 
@@ -76,27 +75,6 @@ function AppSetup() {
     fetch("/api/version")
       .then((r) => r.json())
       .then(({ version }: { version: string }) => {
-        const stored = localStorage.getItem("gsm_app_version");
-        if (stored && stored !== version) {
-          toast({
-            title: "✨ Update Available",
-            description: "A new version of GSM World is ready.",
-            action: (
-              <ToastAction
-                altText="Update"
-                onClick={() => {
-                  if (navigator.serviceWorker?.controller) {
-                    navigator.serviceWorker.controller.postMessage({ type: "SKIP_WAITING" });
-                  }
-                  window.location.reload();
-                }}
-              >
-                Update App
-              </ToastAction>
-            ),
-            duration: 0,
-          });
-        }
         localStorage.setItem("gsm_app_version", version);
       })
       .catch(() => {});
