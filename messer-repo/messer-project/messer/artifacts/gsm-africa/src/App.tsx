@@ -50,6 +50,9 @@ import { GoogleCallbackPage } from "@/pages/google-callback";
 import { GiftCardsPage } from "@/pages/gift-cards";
 import { UnlockToolsPage } from "@/pages/unlock-tools";
 import { UnsubscribePage } from "@/pages/unsubscribe";
+import { ResellerPage } from "@/pages/reseller";
+import { ResellerStorePage } from "@/pages/reseller-store";
+import { useAppVersion } from "@/hooks/use-app-version";
 
 const queryClient = new QueryClient();
 
@@ -57,6 +60,7 @@ function Router() {
   return (
     <Switch>
       {/* Admin — standalone, no layout chrome */}
+      <Route path="/admin/:tab" component={AdminPage} />
       <Route path="/admin" component={AdminPage} />
 
       {/* All other routes share the main layout */}
@@ -85,6 +89,8 @@ function Router() {
             <Route path="/gift-cards" component={GiftCardsPage} />
             <Route path="/unlock-tools" component={UnlockToolsPage} />
             <Route path="/unsubscribe" component={UnsubscribePage} />
+            <Route path="/reseller" component={ResellerPage} />
+            <Route path="/store/:slug" component={ResellerStorePage} />
             <Route path="/auth/google-callback" component={GoogleCallbackPage} />
             <Route>
               <div className="flex items-center justify-center h-[50vh] text-muted-foreground">
@@ -98,6 +104,11 @@ function Router() {
   );
 }
 
+function AppVersionChecker() {
+  useAppVersion();
+  return null;
+}
+
 export default function App() {
   return (
     <ErrorBoundary>
@@ -105,6 +116,7 @@ export default function App() {
         <NotificationProvider>
           <AuthProvider>
             <TooltipProvider>
+              <AppVersionChecker />
               <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
                 <Router />
               </WouterRouter>

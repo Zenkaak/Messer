@@ -11,6 +11,7 @@ import {
   orderItemsTable,
   orderMessagesTable,
   notificationsTable,
+  imeiLookupsTable,
 } from "@workspace/db";
 import { productsTable, categoriesTable } from "@workspace/db";
 import { z } from "zod";
@@ -826,6 +827,22 @@ router.post("/admin/test-email", async (req, res) => {
   } catch (err) {
     req.log.error({ err }, "Failed to send test email");
     res.status(500).json({ error: "Internal server error", detail: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// ── IMEI Lookup Log ───────────────────────────────────────────────────────────
+router.get("/admin/imei-logs", async (req, res) => {
+  if (!await checkAdminAuth(req, res)) return;
+  try {
+    const logs = await db
+      .select()
+      .from(imeiLookupsTable)
+      .orderBy(desc(imeiLookupsTable.checkedAt))
+      .limit(500);
+    res.json(logs);
+  } catch (err) {
+    req.log.error({ err }, "Failed to fetch IMEI logs");
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 

@@ -72,6 +72,16 @@ export function SignupPage() {
         return;
       }
       login(pendingToken!, pendingUser!);
+      try {
+        const sessionId = localStorage.getItem("gsm_session_id");
+        if (sessionId && pendingToken) {
+          await fetch("/api/auth/cart-migrate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${pendingToken}` },
+            body: JSON.stringify({ guestSessionId: sessionId }),
+          });
+        }
+      } catch {}
       notify("Welcome to GSM World!", `Hi ${pendingUser?.name || pendingUser?.email}, your account is now verified.`, "success");
       navigate(returnTo);
     } catch {
@@ -268,7 +278,9 @@ export function SignupPage() {
               type="button"
               onClick={() => {
                 const base = (import.meta.env.BASE_URL as string).replace(/\/$/, "");
-                window.location.href = `${base}/api/auth/google/redirect`;
+                const apiRoot = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, "") ?? `${window.location.origin}${base}`;
+                const origin = encodeURIComponent(window.location.origin);
+                window.location.href = `${apiRoot}/api/auth/google/redirect?origin=${origin}`;
               }}
               className="w-full group relative flex items-center gap-0 rounded-xl overflow-hidden border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 bg-white"
               style={{ minHeight: "48px" }}

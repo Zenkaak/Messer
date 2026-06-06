@@ -84,8 +84,21 @@ async function fetchCategories(): Promise<CategoryItem[]> {
   return res.json();
 }
 
+function getAuthToken(): string | null {
+  try { return localStorage.getItem("gsmafrica_token"); } catch { return null; }
+}
+
+function cartHeaders(extra?: Record<string, string>): Record<string, string> {
+  const h: Record<string, string> = { "Content-Type": "application/json", ...extra };
+  const token = getAuthToken();
+  if (token) h["Authorization"] = `Bearer ${token}`;
+  return h;
+}
+
 async function fetchCart(): Promise<CartResponse> {
-  const res = await fetch(`${BASE}/api/cart?sessionId=${getSessionId()}`);
+  const res = await fetch(`${BASE}/api/cart?sessionId=${getSessionId()}`, {
+    headers: cartHeaders(),
+  });
   if (!res.ok) throw new Error(`Failed to fetch cart: ${res.status}`);
   return res.json();
 }
@@ -143,7 +156,7 @@ export function useAddToCart() {
     mutationFn: async ({ productId, data }) => {
       const res = await fetch(`${BASE}/api/cart?sessionId=${getSessionId()}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: cartHeaders(),
         body: JSON.stringify({ productId, quantity: data?.quantity ?? 1 }),
       });
       if (!res.ok) throw new Error(`Failed to add to cart: ${res.status}`);
@@ -161,7 +174,7 @@ export function useUpdateCartItem() {
     mutationFn: async ({ productId, data }) => {
       const res = await fetch(`${BASE}/api/cart/${productId}?sessionId=${getSessionId()}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: cartHeaders(),
         body: JSON.stringify({ quantity: data.quantity }),
       });
       if (!res.ok) throw new Error(`Failed to update cart: ${res.status}`);
@@ -179,6 +192,7 @@ export function useRemoveFromCart() {
     mutationFn: async ({ productId }) => {
       const res = await fetch(`${BASE}/api/cart/${productId}?sessionId=${getSessionId()}`, {
         method: "DELETE",
+        headers: cartHeaders(),
       });
       if (!res.ok) throw new Error(`Failed to remove from cart: ${res.status}`);
       return res.json();

@@ -36,9 +36,30 @@ import { z } from "zod";
 
 const router = Router();
 
+// ─── In-memory payment notification store ────────────────────────────────────
+interface PaymentNotification {
+  id: string;
+  orderId: number;
+  customerEmail: string;
+  amount: string;
+  method: string;
+  ts: number;
+  read: boolean;
+}
+const _notifications: PaymentNotification[] = [];
+function addPaymentNotification(n: Omit<PaymentNotification, "id" | "ts" | "read">) {
+  _notifications.unshift({ ...n, id: Math.random().toString(36).slice(2), ts: Date.now(), read: false });
+  if (_notifications.length > 50) _notifications.length = 50;
+}
+
 const USD_TO_KES = 130;
 
 const JWT_SECRET = process.env.JWT_SECRET || "gsm-africa-jwt-secret-CHANGE-IN-PRODUCTION";
+
+function generateOrderCode(): string {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  return Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+}
 
 const CreateCheckoutBody = z.object({
   customerEmail: z.string().email(),
@@ -48,10 +69,12 @@ const CreateCheckoutBody = z.object({
   payCurrency: z.string().optional(),
   sessionId: z.string().optional(),
   deviceIdentifier: z.string().optional(),
+  resellerSlug: z.string().max(30).optional(),
 });
 
 const CreateCheckoutResponse = z.object({
   orderId: z.number(),
+  orderCode: z.string().nullable().optional(),
   paymentMethod: z.string(),
   status: z.string(),
   total: z.number(),
@@ -104,7 +127,7 @@ router.post("/checkout", async (req, res) => {
       return;
     }
 
-    const { customerEmail, customerPhone, customerName, paymentMethod, deviceIdentifier } = parsed.data;
+    const { customerEmail, customerPhone, customerName, paymentMethod, deviceIdentifier, resellerSlug } = parsed.data;
 
     const sessionId = resolveSessionId(req);
 
@@ -134,9 +157,12 @@ router.post("/checkout", async (req, res) => {
       0
     );
 
+    const orderCode = generateOrderCode();
+
     const [order] = await db
       .insert(ordersTable)
       .values({
+        orderCode,
         sessionId,
         customerEmail: customerEmail.toLowerCase(),
         customerPhone: customerPhone ?? null,
@@ -146,6 +172,7 @@ router.post("/checkout", async (req, res) => {
         total: String(total),
         currency: "USD",
         deviceIdentifier: deviceIdentifier ?? null,
+        resellerSlug: resellerSlug ?? null,
       })
       .returning();
 
@@ -185,11 +212,13 @@ router.post("/checkout", async (req, res) => {
         .set({ paymentStatus: "paid" })
         .where(eq(ordersTable.id, order.id));
       await db.delete(cartItemsTable).where(eq(cartItemsTable.sessionId, sessionId));
+      addPaymentNotification({ orderId: order.id, customerEmail, amount: total.toFixed(2), method: "wallet" });
       // Send payment confirmed email for wallet payments
       sendEmail({
         to: customerEmail,
         ...paymentConfirmedEmail({
           orderId: order.id,
+          orderCode: order.orderCode,
           customerName: customerName ?? null,
           amount: String(total),
           paymentMethod: "wallet",
@@ -254,7 +283,7 @@ router.post("/checkout", async (req, res) => {
         walletAddress,
         network: network ?? "TRC20",
         amountUsdt: parseFloat(total.toFixed(2)),
-        memo: `ORDER-${order.id}`,
+        memo: `ORDER-${order.orderCode ?? order.id}`,
       };
     } else if (paymentMethod === "nowpayments") {
       const payCurrency = parsed.data.payCurrency ?? "usdttrc20";
@@ -305,15 +334,15 @@ router.post("/checkout", async (req, res) => {
         amount: String(total),
         currency: "USD",
         status: "pending",
-        rawResponse: { binanceId, reference: `ORDER-${order.id}` } as Record<string, unknown>,
+        rawResponse: { binanceId, reference: `ORDER-${order.orderCode ?? order.id}` } as Record<string, unknown>,
       });
       await db.delete(cartItemsTable).where(eq(cartItemsTable.sessionId, sessionId));
-      customData = { method: "binance_pay", binanceId, amount: total, reference: `ORDER-${order.id}` };
+      customData = { method: "binance_pay", binanceId, amount: total, reference: `ORDER-${order.orderCode ?? order.id}` };
       responseStatus = "pending_payment_confirmation";
       // Send pending payment email
       sendEmail({
         to: customerEmail,
-        ...pendingManualPaymentEmail({ orderId: order.id, customerName, paymentMethod: "binance_pay", total: String(total), binanceId }),
+        ...pendingManualPaymentEmail({ orderId: order.id, orderCode: order.orderCode, customerName, paymentMethod: "binance_pay", total: String(total), binanceId }),
       }).catch((err) => logger.error({ err }, "Failed to send pending payment email"));
     } else if (paymentMethod === "usdt_manual") {
       // Manual USDT TRC20 — admin verifies payment
@@ -329,16 +358,30 @@ router.post("/checkout", async (req, res) => {
         amount: String(total),
         currency: "USDT",
         status: "pending",
-        rawResponse: { address: usdtManualAddress, network: usdtManualNetwork, reference: `ORDER-${order.id}` } as Record<string, unknown>,
+        rawResponse: { address: usdtManualAddress, network: usdtManualNetwork, reference: `ORDER-${order.orderCode ?? order.id}` } as Record<string, unknown>,
       });
       await db.delete(cartItemsTable).where(eq(cartItemsTable.sessionId, sessionId));
-      customData = { method: "usdt_manual", address: usdtManualAddress, network: usdtManualNetwork, amount: total, reference: `ORDER-${order.id}` };
+      customData = { method: "usdt_manual", address: usdtManualAddress, network: usdtManualNetwork, amount: total, reference: `ORDER-${order.orderCode ?? order.id}` };
       responseStatus = "pending_payment_confirmation";
       // Send pending payment email
       sendEmail({
         to: customerEmail,
-        ...pendingManualPaymentEmail({ orderId: order.id, customerName, paymentMethod: "usdt_manual", total: String(total), usdtAddress: usdtManualAddress }),
+        ...pendingManualPaymentEmail({ orderId: order.id, orderCode: order.orderCode, customerName, paymentMethod: "usdt_manual", total: String(total), usdtAddress: usdtManualAddress }),
       }).catch((err) => logger.error({ err }, "Failed to send pending payment email"));
+    } else if (paymentMethod === "stripe_card") {
+      // Stripe Checkout — order stays pending until the client redirects to Stripe,
+      // pays, and calls /api/payments/stripe/verify-order on return.
+      await db.insert(paymentTransactionsTable).values({
+        orderId: order.id,
+        provider: "stripe_card",
+        providerReference: null,
+        amount: String(total),
+        currency: "USD",
+        status: "pending",
+        rawResponse: {} as Record<string, unknown>,
+      });
+      // Cart is cleared only after successful payment verification.
+      responseStatus = "pending";
     } else {
       const methods = await getPaymentMethods();
       const selected = methods.find(
@@ -360,6 +403,7 @@ router.post("/checkout", async (req, res) => {
 
     const response = CreateCheckoutResponse.parse({
       orderId: order.id,
+      orderCode: order.orderCode,
       paymentMethod,
       status: responseStatus,
       total,
@@ -379,7 +423,7 @@ router.post("/checkout", async (req, res) => {
     if (paymentMethod !== "binance_pay" && paymentMethod !== "usdt_manual") {
       sendEmail({
         to: customerEmail,
-        ...orderSubmittedEmail({ orderId: order.id, customerName, items: itemsForEmail, total: String(total), paymentMethod }),
+        ...orderSubmittedEmail({ orderId: order.id, orderCode: order.orderCode, customerName, items: itemsForEmail, total: String(total), paymentMethod }),
       }).catch((err) => logger.error({ err }, "Failed to send order confirmation email"));
     }
 
@@ -392,6 +436,7 @@ router.post("/checkout", async (req, res) => {
           to: adminEmail,
           ...adminNewOrderAlertEmail({
             orderId: order.id,
+            orderCode: order.orderCode,
             orderType: "Store Order",
             customerEmail,
             customerName,
@@ -407,6 +452,120 @@ router.post("/checkout", async (req, res) => {
   } catch (err) {
     logger.error({ err }, "Checkout failed");
     res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ── Stripe helpers ────────────────────────────────────────────────────────────
+
+function getAppOrigin(req: import("express").Request): string {
+  const proto = (req.headers["x-forwarded-proto"] as string | undefined) || "https";
+  const host =
+    (req.headers["x-forwarded-host"] as string | undefined) ||
+    (req.headers.host as string | undefined) ||
+    "gsmworld.vercel.app";
+  return `${proto}://${host}`;
+}
+
+// ── Stripe card: create checkout session for an existing order ────────────────
+// Called by the frontend after createCheckout returns stripe_card/pending.
+router.post("/payments/stripe/create-session", async (req, res) => {
+  const authHeader = req.headers.authorization as string | undefined;
+  let loggedInUserId: number | null = null;
+  if (authHeader?.startsWith("Bearer ")) {
+    try {
+      const p = jwt.verify(authHeader.slice(7), JWT_SECRET) as { userId: number };
+      loggedInUserId = p.userId;
+    } catch { /* guest checkout is fine */ }
+  }
+
+  const { orderId } = req.body || {};
+  if (!orderId) { res.status(400).json({ error: "orderId required" }); return; }
+
+  const secretKey = process.env.STRIPE_SECRET_KEY;
+  if (!secretKey) { res.status(503).json({ error: "Card payment not configured" }); return; }
+
+  try {
+    const orderRows = await db.select().from(ordersTable).where(eq(ordersTable.id, Number(orderId))).limit(1);
+    const order = orderRows[0];
+    if (!order) { res.status(404).json({ error: "Order not found" }); return; }
+    if (order.paymentStatus === "paid") { res.json({ alreadyPaid: true }); return; }
+
+    const { default: Stripe } = await import("stripe");
+    const stripe = new Stripe(secretKey);
+    const origin = getAppOrigin(req);
+    const amountCents = Math.round(Number(order.total) * 100);
+
+    const session = await stripe.checkout.sessions.create({
+      mode: "payment",
+      line_items: [{
+        price_data: {
+          currency: "usd",
+          product_data: { name: `GSM World Order #${order.orderCode ?? order.id}` },
+          unit_amount: amountCents,
+        },
+        quantity: 1,
+      }],
+      customer_email: order.customerEmail || undefined,
+      // {CHECKOUT_SESSION_ID} is the Stripe placeholder — replaced at runtime.
+      success_url: `${origin}/checkout?s_os={CHECKOUT_SESSION_ID}&s_oid=${order.id}`,
+      cancel_url: `${origin}/checkout`,
+      metadata: {
+        orderId: String(order.id),
+        orderCode: order.orderCode ?? "",
+        ...(loggedInUserId ? { userId: String(loggedInUserId) } : {}),
+      },
+    });
+
+    res.json({ url: session.url });
+  } catch (err) {
+    logger.error({ err }, "Stripe order session create failed");
+    res.status(500).json({ error: "Could not create payment session." });
+  }
+});
+
+// ── Stripe card: verify order payment ────────────────────────────────────────
+router.post("/payments/stripe/verify-order", async (req, res) => {
+  const { sessionId, orderId } = req.body || {};
+  if (!sessionId || !orderId) { res.status(400).json({ error: "sessionId and orderId required" }); return; }
+
+  const secretKey = process.env.STRIPE_SECRET_KEY;
+  if (!secretKey) { res.status(503).json({ error: "Card payment not configured" }); return; }
+
+  try {
+    const { default: Stripe } = await import("stripe");
+    const stripe = new Stripe(secretKey);
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
+
+    if (session.payment_status !== "paid") {
+      res.status(400).json({ error: "Payment not confirmed by Stripe" }); return;
+    }
+
+    if (String(session.metadata?.orderId) !== String(orderId)) {
+      res.status(400).json({ error: "Session/order mismatch" }); return;
+    }
+
+    const orderRows = await db.select().from(ordersTable).where(eq(ordersTable.id, Number(orderId))).limit(1);
+    const order = orderRows[0];
+    if (!order) { res.status(404).json({ error: "Order not found" }); return; }
+    if (order.paymentStatus === "paid") { res.json({ success: true, alreadyPaid: true }); return; }
+
+    await db.update(ordersTable).set({ paymentStatus: "paid" }).where(eq(ordersTable.id, order.id));
+    await db.update(paymentTransactionsTable)
+      .set({ status: "paid", providerReference: sessionId })
+      .where(and(eq(paymentTransactionsTable.orderId, order.id), eq(paymentTransactionsTable.provider, "stripe_card")));
+    await db.delete(cartItemsTable).where(eq(cartItemsTable.sessionId, order.sessionId));
+
+    addPaymentNotification({ orderId: order.id, customerEmail: order.customerEmail, amount: order.total, method: "stripe_card" });
+    sendEmail({
+      to: order.customerEmail,
+      ...paymentConfirmedEmail({ orderId: order.id, orderCode: order.orderCode, customerName: order.customerName ?? null, amount: order.total, paymentMethod: "card" }),
+    }).catch((err) => logger.error({ err }, "Failed to send card payment confirmed email"));
+
+    logger.info({ orderId: order.id, sessionId }, "Order paid via Stripe card");
+    res.json({ success: true });
+  } catch (err) {
+    logger.error({ err }, "Stripe verify-order failed");
+    res.status(500).json({ error: "Payment verification failed. Contact support." });
   }
 });
 
@@ -463,6 +622,7 @@ router.post("/payments/nowpayments/query", async (req, res) => {
           });
         }
 
+        addPaymentNotification({ orderId, customerEmail: orderRows[0]?.customerEmail ?? "", amount: String(orderRows[0] ? parseFloat(orderRows[0].total).toFixed(2) : "0"), method: "nowpayments" });
         res.json({ paymentStatus: "paid" });
       } else if (failedStatuses.includes(status.payment_status)) {
         await db.update(paymentTransactionsTable).set({ status: "failed" }).where(eq(paymentTransactionsTable.orderId, orderId));
@@ -561,6 +721,7 @@ router.post("/payments/mpesa/query", async (req, res) => {
           });
         }
 
+        addPaymentNotification({ orderId, customerEmail: orderRows[0]?.customerEmail ?? "", amount: String(orderRows[0] ? parseFloat(orderRows[0].total).toFixed(2) : "0"), method: "mpesa" });
         res.json({ paymentStatus: "paid", message: "Payment confirmed" });
       } else if (resultCode !== undefined) {
         await db.update(paymentTransactionsTable)
@@ -637,6 +798,7 @@ router.post("/payments/mpesa/callback", async (req, res) => {
             html: `<div style="font-family:Arial,sans-serif;background:#f8fafc;padding:24px"><div style="max-width:560px;margin:0 auto;background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:24px"><h2 style="margin:0 0 4px;color:#1a2332">Payment Confirmed ✅</h2><p style="color:#64748b;margin:0 0 20px">Hi ${customerName ?? "Customer"}, your M-Pesa payment for Order <strong>#${orderId}</strong> has been received.</p><table style="width:100%;border-collapse:collapse;font-size:14px"><thead><tr style="background:#f1f5f9"><th style="padding:6px 8px;text-align:left">Item</th><th style="padding:6px 8px;text-align:center">Qty</th><th style="padding:6px 8px;text-align:right">Amount</th></tr></thead><tbody>${htmlItems}</tbody><tfoot><tr><td colspan="2" style="padding:8px;font-weight:bold;text-align:right">Total</td><td style="padding:8px;font-weight:bold;text-align:right">$${parseFloat(total).toFixed(2)}</td></tr></tfoot></table><a href="${appUrl(`/orders/${orderId}`)}" style="display:inline-block;margin-top:20px;background:#1e3a5f;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:bold">View Order</a><p style="margin-top:24px;color:#64748b;font-size:12px">GSM World</p></div></div>`,
           });
 
+          addPaymentNotification({ orderId, customerEmail, amount: parseFloat(total).toFixed(2), method: "mpesa" });
           logger.info({ orderId, customerEmail }, "M-Pesa payment confirmed — confirmation email sent");
         }
       }
@@ -702,6 +864,15 @@ router.post("/payments/nowpayments/retry", async (req, res) => {
     logger.error({ err }, "NOWPayments retry failed");
     res.status(500).json({ error: "Could not create new payment address. Please try again." });
   }
+});
+
+router.get("/admin/notifications", (_req, res) => {
+  res.json({ notifications: _notifications });
+});
+
+router.post("/admin/notifications/mark-read", (_req, res) => {
+  _notifications.forEach(n => { n.read = true; });
+  res.json({ ok: true });
 });
 
 export default router;

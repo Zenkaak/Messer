@@ -1,3 +1,74 @@
-<svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
-<rect width="180" height="180" rx="36" fill="#FF3C00"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0a1628"/>
+      <stop offset="100%" stop-color="#0f2a48"/>
+    </linearGradient>
+    <linearGradient id="glow" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#00e5f5" stop-opacity="0.22"/>
+      <stop offset="100%" stop-color="#0086b3" stop-opacity="0.06"/>
+    </linearGradient>
+    <linearGradient id="teal" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#00e0f4"/>
+      <stop offset="100%" stop-color="#0099cc"/>
+    </linearGradient>
+    <clipPath id="circle-clip">
+      <circle cx="234" cy="242" r="152"/>
+    </clipPath>
+  </defs>
+
+  <!-- App icon background -->
+  <rect width="512" height="512" rx="108" fill="url(#bg)"/>
+
+  <!-- Subtle background glow -->
+  <circle cx="234" cy="242" r="200" fill="url(#glow)"/>
+
+  <!-- Globe outer ring -->
+  <circle cx="234" cy="242" r="152" fill="none" stroke="url(#teal)" stroke-width="13" opacity="0.9"/>
+
+  <!-- Globe inner fill (faint) -->
+  <circle cx="234" cy="242" r="152" fill="#00c8e0" opacity="0.06"/>
+
+  <!-- Clipped geography lines -->
+  <g clip-path="url(#circle-clip)" opacity="0.75">
+    <!-- Equator -->
+    <line x1="82" y1="242" x2="386" y2="242" stroke="#00d8f0" stroke-width="8"/>
+    <!-- Upper tropic -->
+    <path d="M 116 190 Q 234 175 352 190" stroke="#00d8f0" stroke-width="6" fill="none"/>
+    <!-- Lower tropic -->
+    <path d="M 116 294 Q 234 309 352 294" stroke="#00d8f0" stroke-width="6" fill="none"/>
+    <!-- Arctic circle -->
+    <path d="M 155 148 Q 234 138 313 148" stroke="#00d8f0" stroke-width="5" fill="none" opacity="0.6"/>
+    <!-- Antarctic circle -->
+    <path d="M 155 336 Q 234 346 313 336" stroke="#00d8f0" stroke-width="5" fill="none" opacity="0.6"/>
+
+    <!-- Prime meridian -->
+    <line x1="234" y1="90" x2="234" y2="394" stroke="#00d8f0" stroke-width="8"/>
+    <!-- Left meridian -->
+    <path d="M 193 90 Q 155 242 193 394" stroke="#00d8f0" stroke-width="6" fill="none"/>
+    <!-- Far-left meridian -->
+    <path d="M 148 118 Q 118 242 148 366" stroke="#00d8f0" stroke-width="5" fill="none" opacity="0.5"/>
+    <!-- Right meridian -->
+    <path d="M 275 90 Q 313 242 275 394" stroke="#00d8f0" stroke-width="6" fill="none"/>
+    <!-- Far-right meridian -->
+    <path d="M 320 118 Q 350 242 320 366" stroke="#00d8f0" stroke-width="5" fill="none" opacity="0.5"/>
+  </g>
+
+  <!-- Open padlock badge (bottom-right) -->
+  <!-- Lock body -->
+  <rect x="312" y="330" width="86" height="70" rx="16" fill="#00cce4" opacity="0.97"/>
+  <!-- Shackle arc (open — swung left) -->
+  <path d="M 324 330 L 324 294 Q 324 264 351 264 Q 378 264 378 294 L 378 312"
+        stroke="#00cce4" stroke-width="15" fill="none" stroke-linecap="round" opacity="0.97"/>
+  <!-- Lock body inner dark -->
+  <rect x="320" y="337" width="70" height="56" rx="12" fill="#0a1628"/>
+  <!-- Keyhole circle -->
+  <circle cx="355" cy="360" r="11" fill="#00cce4"/>
+  <!-- Keyhole stem -->
+  <rect x="349" y="360" width="12" height="14" rx="4" fill="#00cce4"/>
+
+  <!-- "GSM" text label — crisp, tight -->
+  <text x="234" y="476" font-family="'Arial Black', Arial, sans-serif"
+        font-size="58" font-weight="900" text-anchor="middle"
+        fill="#00cce4" letter-spacing="6" opacity="0.92">GSM</text>
 </svg>

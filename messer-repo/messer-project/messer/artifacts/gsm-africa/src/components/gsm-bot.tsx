@@ -5,6 +5,7 @@ import {
   ExternalLink, CheckCircle, Clock, XCircle, AlertCircle,
   Package, ShoppingCart, Tag, Paperclip, UserCheck, ArrowLeft,
   Headphones, WifiOff, Mail, Copy, Shield, Upload, Smartphone, Wallet,
+  History, Trash2, ChevronRight,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -71,6 +72,7 @@ interface ChatMessage {
   checkoutDoneData?: CheckoutDoneData;
   cartAddedData?: CartAddedData;
   loginSuccessData?: LoginSuccessData;
+  passwordLoginData?: { email: string };
   passwordResetDone?: boolean;
   walletTopUpMpesaData?: WalletTopUpMpesaData;
   walletTopUpNowpaymentsData?: WalletTopUpNowpaymentsData;
@@ -108,6 +110,51 @@ function getVisitorId(): string {
   } catch {
     return "visitor-" + Math.random().toString(36).slice(2);
   }
+}
+
+// ─── Chat history helpers ─────────────────────────────────────────────────────
+interface SavedConversation {
+  id: string;
+  title: string;
+  date: string;
+  messages: Array<{ role: string; content: string }>;
+}
+
+const HISTORY_KEY = "gsm_saved_conversations";
+const MAX_HISTORY = 20;
+
+function getSavedConversations(): SavedConversation[] {
+  try {
+    const raw = localStorage.getItem(HISTORY_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as SavedConversation[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch { return []; }
+}
+
+function persistConversation(msgs: ChatMessage[]) {
+  try {
+    const userMsgs = msgs.filter(m => m.role === "user");
+    if (userMsgs.length === 0) return;
+    const title = userMsgs[0].content.slice(0, 60) + (userMsgs[0].content.length > 60 ? "…" : "");
+    const existing = getSavedConversations();
+    const id = `conv-${Date.now()}`;
+    const entry: SavedConversation = {
+      id,
+      title,
+      date: new Date().toISOString(),
+      messages: msgs.map(m => ({ role: m.role, content: m.content })),
+    };
+    const updated = [entry, ...existing].slice(0, MAX_HISTORY);
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(updated));
+  } catch { /* ignore */ }
+}
+
+function deleteConversationById(id: string) {
+  try {
+    const existing = getSavedConversations().filter(c => c.id !== id);
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(existing));
+  } catch { /* ignore */ }
 }
 
 // ─── Suggestion chips ────────────────────────────────────────────────────────
@@ -150,7 +197,7 @@ function StatusIcon({ status }: { status: string }) {
 }
 
 // ─── Widgets ─────────────────────────────────────────────────────────────────
-function OrderCardWidget({ card }: { card: OrderCard }) {
+function OrderCardWidget({ card, onClose }: { card: OrderCard; onClose?: () => void }) {
   const base = apiBase();
   return (
     <div className="mt-2 rounded-xl border border-slate-200 bg-white overflow-hidden text-xs shadow-sm">
@@ -175,7 +222,7 @@ function OrderCardWidget({ card }: { card: OrderCard }) {
         </div>
       </div>
       <div className="px-3 py-2 border-t border-slate-100">
-        <Link href={`${base}/orders/${card.id}`} className="flex items-center gap-1 text-blue-600 font-semibold text-[11px] hover:underline">
+        <Link href={`${base}/orders/${card.id}`} onClick={() => onClose?.()} className="flex items-center gap-1 text-blue-600 font-semibold text-[11px] hover:underline">
           <ExternalLink size={10} /> View full order details
         </Link>
       </div>
@@ -183,11 +230,11 @@ function OrderCardWidget({ card }: { card: OrderCard }) {
   );
 }
 
-function ProductCard({ p, number, onSelect }: { p: ProductResult; number?: number; onSelect?: (p: ProductResult) => void }) {
+function ProductCard({ p, number, onSelect, onClose }: { p: ProductResult; number?: number; onSelect?: (p: ProductResult) => void; onClose?: () => void }) {
   const base = apiBase();
   return (
     <Link href={`${base}/products/${p.id}`}
-      onClick={onSelect ? (e) => { e.preventDefault(); onSelect(p); } : undefined}
+      onClick={onSelect ? (e) => { e.preventDefault(); onSelect(p); } : () => onClose?.()}
       className="flex items-start gap-2 py-1.5 border-b border-slate-100 last:border-0 hover:bg-blue-50/40 rounded-lg px-1 -mx-1 transition-colors cursor-pointer group">
       {number != null && (
         <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">{number}</span>
@@ -206,7 +253,7 @@ function ProductCard({ p, number, onSelect }: { p: ProductResult; number?: numbe
   );
 }
 
-function ProductsWidget({ products, onSelect }: { products: ProductResult[]; onSelect?: (p: ProductResult) => void }) {
+function ProductsWidget({ products, onSelect, onClose }: { products: ProductResult[]; onSelect?: (p: ProductResult) => void; onClose?: () => void }) {
   const [showAll, setShowAll] = useState(false);
   const visible = showAll ? products : products.slice(0, 5);
   const base = apiBase();
@@ -218,7 +265,7 @@ function ProductsWidget({ products, onSelect }: { products: ProductResult[]; onS
         <span className="ml-auto text-[10px] text-slate-400">Reply with # to select</span>
       </div>
       <div className="px-3 py-1">
-        {visible.map((p, i) => <ProductCard key={p.id} p={p} number={i + 1} onSelect={onSelect} />)}
+        {visible.map((p, i) => <ProductCard key={p.id} p={p} number={i + 1} onSelect={onSelect} onClose={onClose} />)}
       </div>
       {products.length > 5 && (
         <button onClick={() => setShowAll(s => !s)}
@@ -227,7 +274,7 @@ function ProductsWidget({ products, onSelect }: { products: ProductResult[]; onS
         </button>
       )}
       <div className="px-3 py-2 border-t border-slate-100">
-        <Link href={`${base}/products`} className="flex items-center gap-1 text-blue-600 font-semibold text-[11px] hover:underline">
+        <Link href={`${base}/products`} onClick={() => onClose?.()} className="flex items-center gap-1 text-blue-600 font-semibold text-[11px] hover:underline">
           <ShoppingCart size={10} /> Browse full store
         </Link>
       </div>
@@ -509,7 +556,7 @@ function OtpVerifyWidget({ email, base, onVerified, onCancel }: {
 }
 
 // ─── Cart added widget ────────────────────────────────────────────────────────
-function CartAddedWidget({ data }: { data: CartAddedData }) {
+function CartAddedWidget({ data, onClose }: { data: CartAddedData; onClose?: () => void }) {
   const base = apiBase();
   return (
     <div className="mt-2 rounded-xl border border-emerald-200 bg-white overflow-hidden text-xs shadow-sm">
@@ -522,7 +569,7 @@ function CartAddedWidget({ data }: { data: CartAddedData }) {
           <span className="font-semibold truncate">{data.quantity > 1 ? `${data.quantity}× ` : ""}{data.productName}</span>
           <span className="font-bold ml-2 shrink-0">{data.price}</span>
         </div>
-        <Link href={`${base}/cart`}
+        <Link href={`${base}/cart`} onClick={() => onClose?.()}
           className="mt-1.5 flex items-center gap-1 text-[11px] font-bold text-emerald-700 hover:underline">
           <ShoppingCart size={10} /> View Cart & Checkout →
         </Link>
@@ -543,6 +590,103 @@ function LoginSuccessWidget({ data }: { data: LoginSuccessData }) {
         <p className="text-green-600 text-[10px]">{data.user.email}</p>
       </div>
     </div>
+  );
+}
+
+// ─── Secure password login card ───────────────────────────────────────────────
+function PasswordLoginCard({
+  email: initialEmail,
+  onSuccess,
+}: {
+  email: string;
+  onSuccess: (token: string, user: { id: number; email: string; name: string | null }) => void;
+}) {
+  const [email, setEmail] = useState(initialEmail);
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [done, setDone] = useState(false);
+
+  async function handleLogin(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+    try {
+      const base = apiBase();
+      const r = await fetch(`${base}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.toLowerCase().trim(), password }),
+      });
+      const data = await r.json() as {
+        token?: string;
+        user?: { id: number; email: string; name: string | null };
+        error?: string;
+      };
+      if (r.ok && data.token && data.user) {
+        setDone(true);
+        onSuccess(data.token, data.user);
+      } else {
+        setError(data.error ?? "Invalid email or password. Try OTP login instead.");
+      }
+    } catch {
+      setError("Could not connect — please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (done) {
+    return (
+      <div className="mt-2 flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-3 py-2">
+        <CheckCircle size={14} className="text-green-600 shrink-0" />
+        <p className="text-green-700 text-[11px] font-semibold">Logged in successfully!</p>
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={handleLogin} className="mt-2 rounded-xl border border-slate-200 bg-white overflow-hidden text-xs shadow-sm">
+      <div className="flex items-center gap-1.5 px-3 py-2 bg-slate-50 border-b border-slate-100">
+        <Shield size={11} className="text-blue-500" />
+        <span className="font-bold text-slate-700 text-[11px]">Secure Login</span>
+        <span className="ml-auto text-[9px] text-slate-400 font-medium">Password is hidden</span>
+      </div>
+      <div className="px-3 py-3 space-y-2.5">
+        <div>
+          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Email</label>
+          <input
+            type="email"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            placeholder="your@email.com"
+            className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs mt-1 focus:outline-none focus:border-blue-400 bg-white"
+            required
+          />
+        </div>
+        <div>
+          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Password</label>
+          <input
+            type="password"
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+            placeholder="••••••••"
+            className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs mt-1 focus:outline-none focus:border-blue-400 bg-white"
+            required
+          />
+        </div>
+        {error && <p className="text-red-500 text-[10px] font-medium">{error}</p>}
+        <button
+          type="submit"
+          disabled={loading || !email || !password}
+          className="w-full py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold rounded-lg flex items-center justify-center gap-1.5 transition-colors text-[11px]"
+        >
+          {loading
+            ? <div className="w-3.5 h-3.5 border-2 border-white/50 border-t-white rounded-full animate-spin" />
+            : <><UserCheck size={12} /> Sign In</>}
+        </button>
+      </div>
+    </form>
   );
 }
 
@@ -1101,6 +1245,47 @@ function WalletInsufficientFundsWidget({ data, onSendMessage }: { data: WalletIn
   );
 }
 
+// ─── Link renderer ────────────────────────────────────────────────────────────
+// Converts [label](url) markdown links and bare https:// URLs in bot messages
+// into clickable <a> tags that also close the chatbox when clicked.
+function renderContent(text: string, onLinkClick: () => void): React.ReactNode {
+  const pattern = /\[([^\]]+)\]\((https?:\/\/[^)]+)\)|(https?:\/\/\S+)/g;
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  let key = 0;
+
+  while ((match = pattern.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index));
+    }
+    if (match[1] && match[2]) {
+      parts.push(
+        <a key={key++} href={match[2]} target="_blank" rel="noopener noreferrer"
+          onClick={onLinkClick}
+          className="underline text-blue-600 hover:text-blue-800 break-all">
+          {match[1]}
+        </a>
+      );
+    } else if (match[3]) {
+      parts.push(
+        <a key={key++} href={match[3]} target="_blank" rel="noopener noreferrer"
+          onClick={onLinkClick}
+          className="underline text-blue-600 hover:text-blue-800 break-all">
+          {match[3]}
+        </a>
+      );
+    }
+    lastIndex = pattern.lastIndex;
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex));
+  }
+
+  return parts.length === 1 && typeof parts[0] === "string" ? parts[0] : <>{parts}</>;
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 export function GsmBot() {
   const { user, isAuthenticated, login } = useAuth();
@@ -1120,6 +1305,11 @@ export function GsmBot() {
   });
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [savedConversations, setSavedConversations] = useState<SavedConversation[]>(() => {
+    if (typeof window === "undefined") return [];
+    return getSavedConversations();
+  });
   // Track last product list for number-selection
   const lastProductsRef = useRef<ProductResult[]>([]);
   // Human chat state
@@ -1151,10 +1341,47 @@ export function GsmBot() {
     } catch { /* ignore */ }
   }, [messages]);
 
+  // Clear all chat state whenever the user logs in or out
+  const prevAuthRef = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (prevAuthRef.current === null) {
+      // First mount — just record the current state, don't wipe
+      prevAuthRef.current = isAuthenticated;
+      return;
+    }
+    if (prevAuthRef.current === isAuthenticated) return;
+    prevAuthRef.current = isAuthenticated;
+    // Auth changed — wipe messages, saved history and current chat from storage
+    try { localStorage.removeItem("gsm_chat_history"); } catch { /* ignore */ }
+    try { localStorage.removeItem("gsm_saved_conversations"); } catch { /* ignore */ }
+    setMessages([WELCOME]);
+    setSavedConversations([]);
+    setShowHistory(false);
+  }, [isAuthenticated]);
+
   function startNewChat() {
+    const hasUser = messages.some(m => m.role === "user");
+    if (hasUser) {
+      persistConversation(messages);
+      setSavedConversations(getSavedConversations());
+    }
     try { localStorage.removeItem("gsm_chat_history"); } catch { /* ignore */ }
     setMessages([WELCOME]);
     setInput("");
+    setShowHistory(false);
+  }
+
+  function loadConversation(session: SavedConversation) {
+    const hasUser = messages.some(m => m.role === "user");
+    if (hasUser) persistConversation(messages);
+    setMessages(session.messages.map(m => ({ role: m.role as "user" | "assistant", content: m.content })));
+    setInput("");
+    setShowHistory(false);
+  }
+
+  function removeConversation(id: string) {
+    deleteConversationById(id);
+    setSavedConversations(getSavedConversations());
   }
 
   useEffect(() => {
@@ -1247,7 +1474,7 @@ export function GsmBot() {
           messages: next.map(m => ({ role: m.role, content: m.content })),
           userEmail: isAuthenticated && user?.email ? user.email : undefined,
           isAuthenticated: isAuthenticated && !!user?.email,
-          sessionId: cartSessionId,
+          sessionId: cartSessionId ?? visitorId.current,
           botToken,
         }),
       });
@@ -1330,6 +1557,8 @@ export function GsmBot() {
         msg.loginSuccessData = ld;
         // Persist token and log user in via auth context
         login(ld.token, ld.user);
+      } else if (finalAction === "show_password_login" && finalActionData) {
+        msg.passwordLoginData = finalActionData as unknown as { email: string };
       } else if (finalAction === "password_reset_done") {
         msg.passwordResetDone = true;
       } else if (finalAction === "show_nowpayments" && finalActionData) {
@@ -1353,7 +1582,11 @@ export function GsmBot() {
       setMessages(prev => [...prev.slice(0, -1), msg]);
 
     } catch {
-      setMessages(prev => [...prev.slice(0, -1), { role: "assistant", content: "Sorry, I'm having trouble connecting. Please try again." }]);
+      setMessages(prev => [...prev.slice(0, -1), {
+        role: "assistant",
+        content: "Sorry, I couldn't reach the server. Please check your connection and try again, or tap \"Talk to a human agent\" below for immediate help.",
+        showHumanButton: true,
+      }]);
     } finally {
       setLoading(false);
     }
@@ -1395,7 +1628,11 @@ export function GsmBot() {
         await pollHumanMessages(sid);
       }
     } catch {
-      setMessages(prev => [...prev, { role: "assistant", content: "Please contact our support team on WhatsApp at +254756816951 for immediate help." }]);
+      // API unreachable — still enter human mode with a clear message
+      setMessages(prev => [...prev, { role: "assistant", content: "🔗 Connecting you to a human agent now...\n\nOur support team has been notified and will respond here shortly. While you wait, you can also reach us on:\n• **WhatsApp:** [+254112628799](https://wa.me/254112628799)\n• **Telegram:** [t.me/markjsbb](https://t.me/markjsbb)" }]);
+      setHumanMode(true);
+      setSessionStatus("waiting");
+      setHumanEmailStep(false);
     } finally {
       setLoading(false);
     }
@@ -1489,8 +1726,15 @@ export function GsmBot() {
   return (
     <>
       {open && (
-        <div className="fixed right-4 md:right-6 z-[300] w-[340px] bg-white rounded-3xl shadow-2xl border border-gray-100 flex flex-col overflow-hidden"
-          style={{ bottom: "calc(5.5rem + 4.5rem)", maxWidth: "calc(100vw - 2rem)", height: "min(560px, calc(100vh - 14rem))" }}>
+        <div
+          className="fixed inset-0 z-[299] bg-black/40 backdrop-blur-sm"
+          onClick={() => setOpen(false)}
+        />
+      )}
+      {open && (
+        <div className="fixed inset-0 md:inset-6 z-[300] bg-white md:rounded-3xl shadow-2xl flex flex-col overflow-hidden"
+          style={{}}>
+
 
           {/* ── HEADER ── */}
           {humanMode ? (
@@ -1534,10 +1778,16 @@ export function GsmBot() {
                   <span className="text-blue-300 text-[11px]">Full store knowledge · Orders · Payments</span>
                 </div>
               </div>
+              <button
+                onClick={() => { setShowHistory(h => !h); setSavedConversations(getSavedConversations()); }}
+                title="Chat history"
+                className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors ${showHistory ? "bg-white/20 text-white" : "bg-white/10 text-white/60 hover:text-white hover:bg-white/20"}`}>
+                <History size={14} />
+              </button>
               <button onClick={startNewChat}
                 title="Start new chat"
                 className="text-[10px] font-bold text-white/60 hover:text-white/90 border border-white/20 rounded-lg px-2 py-1 transition-colors hover:bg-white/10">
-                New Chat
+                New
               </button>
               <button onClick={() => setOpen(false)}
                 className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-white/70 hover:text-white hover:bg-white/20 transition-colors">
@@ -1668,6 +1918,70 @@ export function GsmBot() {
                 </div>
               )}
             </>
+          ) : showHistory ? (
+            /* ── HISTORY PANEL ── */
+            <div className="flex flex-col flex-1 overflow-hidden">
+              <div className="px-3 py-2.5 border-b border-gray-100 shrink-0 flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <History size={13} className="text-blue-500" />
+                  <span className="font-bold text-slate-700 text-sm">Chat History</span>
+                  {savedConversations.length > 0 && (
+                    <span className="bg-blue-100 text-blue-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full">{savedConversations.length}</span>
+                  )}
+                </div>
+                <button onClick={startNewChat}
+                  className="text-[11px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1">
+                  + New Chat
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto">
+                {savedConversations.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full gap-2 py-10 text-center px-4">
+                    <History size={28} className="text-gray-300" />
+                    <p className="text-sm font-semibold text-gray-400">No saved chats yet</p>
+                    <p className="text-[11px] text-gray-400">Start a new chat and your conversations will appear here.</p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-gray-50">
+                    {savedConversations.map(session => {
+                      const date = new Date(session.date);
+                      const now = new Date();
+                      const isToday = date.toDateString() === now.toDateString();
+                      const dateStr = isToday
+                        ? date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })
+                        : date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+                      const msgCount = session.messages.filter(m => m.role === "user").length;
+                      return (
+                        <div key={session.id} className="flex items-center gap-2 px-3 py-2.5 hover:bg-blue-50/50 group transition-colors">
+                          <button
+                            onClick={() => loadConversation(session)}
+                            className="flex-1 text-left min-w-0">
+                            <p className="text-[12px] font-semibold text-slate-700 truncate leading-tight group-hover:text-blue-700">{session.title}</p>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className="text-[10px] text-slate-400">{dateStr}</span>
+                              <span className="text-[10px] text-slate-300">·</span>
+                              <span className="text-[10px] text-slate-400">{msgCount} message{msgCount !== 1 ? "s" : ""}</span>
+                            </div>
+                          </button>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              onClick={() => loadConversation(session)}
+                              className="opacity-0 group-hover:opacity-100 transition-opacity w-6 h-6 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center hover:bg-blue-200">
+                              <ChevronRight size={11} />
+                            </button>
+                            <button
+                              onClick={() => removeConversation(session.id)}
+                              className="opacity-0 group-hover:opacity-100 transition-opacity w-6 h-6 rounded-lg bg-red-50 text-red-400 flex items-center justify-center hover:bg-red-100">
+                              <Trash2 size={10} />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
           ) : (
             <>
               {/* ── BOT CHAT BODY ── */}
@@ -1685,16 +1999,18 @@ export function GsmBot() {
                           ? "bg-[#1a2332] text-white rounded-br-sm"
                           : "bg-gray-100 text-gray-800 rounded-bl-sm"
                       }`}>
-                        {m.content}
+                        {m.role === "assistant"
+                          ? renderContent(m.content, () => setOpen(false))
+                          : m.content}
                       </div>
-                      {m.orderCard && <OrderCardWidget card={m.orderCard} />}
+                      {m.orderCard && <OrderCardWidget card={m.orderCard} onClose={() => setOpen(false)} />}
                       {m.orderCancelled && (
                         <div className="mt-2 flex items-center gap-1.5 text-[11px] font-semibold text-green-600 bg-green-50 border border-green-200 rounded-xl px-3 py-2">
                           <CheckCircle size={12} /> Order cancelled successfully
                         </div>
                       )}
                       {m.products && m.products.length > 0 && (
-                        <ProductsWidget products={m.products} onSelect={handleProductSelect} />
+                        <ProductsWidget products={m.products} onSelect={handleProductSelect} onClose={() => setOpen(false)} />
                       )}
                       {m.navAction && <NavButton action={m.navAction} onClose={() => setOpen(false)} />}
                       {m.paymentData?.method === "mpesa" && (
@@ -1709,8 +2025,16 @@ export function GsmBot() {
                       {m.paymentData?.method === "usdt" && (
                         <UsdtPaymentWidget data={m.paymentData} />
                       )}
-                      {m.cartAddedData && <CartAddedWidget data={m.cartAddedData} />}
+                      {m.cartAddedData && <CartAddedWidget data={m.cartAddedData} onClose={() => setOpen(false)} />}
                       {m.loginSuccessData && <LoginSuccessWidget data={m.loginSuccessData} />}
+                      {m.passwordLoginData && (
+                        <PasswordLoginCard
+                          email={m.passwordLoginData.email}
+                          onSuccess={(token, user) => {
+                            login(token, user);
+                          }}
+                        />
+                      )}
                       {m.passwordResetDone && <PasswordResetDoneWidget />}
                       {m.nowpaymentsData && <NowPaymentsWidget data={m.nowpaymentsData} />}
                       {m.mpesaPendingData && <MpesaPendingWidget data={m.mpesaPendingData} />}
@@ -1830,12 +2154,12 @@ export function GsmBot() {
       )}
 
       {/* ── Floating chat button with tooltip ── */}
-      <div className="fixed z-40 bottom-[5.5rem] right-4 md:bottom-6 md:right-6 flex flex-col items-end gap-2">
+      <div className="fixed z-[400] bottom-[5.5rem] right-4 md:bottom-6 md:right-6 flex flex-col items-end gap-2">
         {!open && tooltipVisible && (
           <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-2xl px-3.5 py-2 shadow-lg animate-fade-in"
             style={{ animationDuration: "0.3s" }}>
             <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse shrink-0" />
-            <span className="text-[12px] font-semibold text-slate-700 whitespace-nowrap">We're here to help 😊</span>
+            <span className="text-[12px] font-semibold text-red-600 whitespace-nowrap">We're here to help 😊</span>
             <button onClick={() => setTooltipVisible(false)}
               className="ml-1 text-gray-300 hover:text-gray-500 transition-colors">
               <X size={11} />
@@ -1846,7 +2170,7 @@ export function GsmBot() {
           onClick={() => setOpen(o => !o)}
           aria-label={open ? "Close GSMBot" : "Open GSMBot"}
           className="w-14 h-14 rounded-full shadow-xl flex items-center justify-center transition-all hover:scale-110 active:scale-95"
-          style={{ background: "linear-gradient(135deg,#1a2332 0%,#1e3a5f 100%)" }}>
+          style={{ background: "linear-gradient(135deg,#f97316 0%,#ea580c 100%)" }}>
           {open ? <X size={22} className="text-white" /> : <MessageSquare size={24} className="text-white" />}
         </button>
       </div>

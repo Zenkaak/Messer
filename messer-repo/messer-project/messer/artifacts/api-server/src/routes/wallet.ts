@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import jwt from "jsonwebtoken";
-import { db, usersTable } from "@workspace/db";
+import { db, usersTable, adminSettingsTable } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { initiateSTKPush } from "../lib/mpesa";
@@ -245,6 +245,145 @@ router.post("/wallet/add-fund/nowpayments/ipn", async (req, res) => {
     logger.error({ err }, "NOWPayments IPN error");
   }
   res.status(200).json({ ok: true });
+});
+
+// ── Stripe card payment ───────────────────────────────────────────────────────
+
+function getAppOrigin(req: import("express").Request): string {
+  const proto = (req.headers["x-forwarded-proto"] as string | undefined) || "https";
+  const host =
+    (req.headers["x-forwarded-host"] as string | undefined) ||
+    (req.headers.host as string | undefined) ||
+    "gsmworld.vercel.app";
+  return `${proto}://${host}`;
+}
+
+// Create a Stripe Checkout session for a wallet top-up.
+// The client redirects to session.url; on success Stripe redirects back to
+// /account?s_ws={CHECKOUT_SESSION_ID}&s_amt={amount}  where the frontend
+// calls /api/wallet/add-fund/stripe/verify to credit the wallet.
+router.post("/wallet/add-fund/stripe/session", async (req, res) => {
+  const payload = getUser(req.headers.authorization);
+  if (!payload) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { amount } = req.body || {};
+  if (!amount || Number(amount) < 1) {
+    res.status(400).json({ error: "Minimum $1 required" }); return;
+  }
+
+  const secretKey = process.env.STRIPE_SECRET_KEY;
+  if (!secretKey) {
+    res.status(503).json({ error: "Card payment is not configured. Contact support." }); return;
+  }
+
+  try {
+    const { default: Stripe } = await import("stripe");
+    const stripe = new Stripe(secretKey);
+    const amountCents = Math.round(Number(amount) * 100);
+    const origin = getAppOrigin(req);
+
+    const session = await stripe.checkout.sessions.create({
+      mode: "payment",
+      line_items: [{
+        price_data: {
+          currency: "usd",
+          product_data: { name: "GSM World Wallet Top-Up" },
+          unit_amount: amountCents,
+        },
+        quantity: 1,
+      }],
+      // {CHECKOUT_SESSION_ID} is replaced by Stripe with the actual session id.
+      success_url: `${origin}/account?s_ws={CHECKOUT_SESSION_ID}&s_amt=${Number(amount).toFixed(2)}`,
+      cancel_url: `${origin}/account`,
+      metadata: {
+        userId: String(payload.userId),
+        amountUsd: Number(amount).toFixed(2),
+      },
+    });
+
+    res.json({ url: session.url });
+  } catch (err) {
+    logger.error({ err }, "Stripe wallet session create failed");
+    res.status(500).json({ error: "Could not create payment session. Try again or contact support." });
+  }
+});
+
+// Verify a completed Stripe Checkout session and credit the wallet.
+// Idempotent: calling it twice with the same session id is safe.
+router.post("/wallet/add-fund/stripe/verify", async (req, res) => {
+  const payload = getUser(req.headers.authorization);
+  if (!payload) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { sessionId } = req.body || {};
+  if (!sessionId || typeof sessionId !== "string") {
+    res.status(400).json({ error: "sessionId is required" }); return;
+  }
+
+  const secretKey = process.env.STRIPE_SECRET_KEY;
+  if (!secretKey) { res.status(503).json({ error: "Card payment not configured." }); return; }
+
+  try {
+    // Prevent double-crediting by checking if this session was already processed.
+    const dedupKey = `stripe_wallet:${sessionId}`;
+    const existing = await db
+      .select({ value: adminSettingsTable.value })
+      .from(adminSettingsTable)
+      .where(eq(adminSettingsTable.key, dedupKey))
+      .limit(1);
+    if (existing.length > 0) {
+      res.json({ success: true, alreadyProcessed: true }); return;
+    }
+
+    const { default: Stripe } = await import("stripe");
+    const stripe = new Stripe(secretKey);
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
+
+    if (session.payment_status !== "paid") {
+      res.status(400).json({ error: "Payment not completed yet." }); return;
+    }
+
+    const expectedUserId = Number(session.metadata?.userId);
+    if (expectedUserId !== payload.userId) {
+      res.status(403).json({ error: "Session does not belong to this user." }); return;
+    }
+
+    const amountUsd = Number(session.metadata?.amountUsd);
+    if (!amountUsd || amountUsd <= 0) {
+      res.status(400).json({ error: "Invalid session amount." }); return;
+    }
+
+    await db.update(usersTable)
+      .set({ walletBalance: sql`wallet_balance + ${amountUsd.toFixed(2)}` })
+      .where(eq(usersTable.id, payload.userId));
+
+    // Mark session as processed (idempotency guard).
+    await db.insert(adminSettingsTable)
+      .values({ key: dedupKey, value: "1" })
+      .onConflictDoUpdate({
+        target: adminSettingsTable.key,
+        set: { value: "1", updatedAt: new Date() },
+      });
+
+    logger.info({ userId: payload.userId, sessionId, amountUsd }, "Wallet credited via Stripe card");
+
+    const userRows = await db
+      .select({ email: usersTable.email })
+      .from(usersTable)
+      .where(eq(usersTable.id, payload.userId))
+      .limit(1);
+    if (userRows[0]?.email) {
+      sendEmail({
+        to: userRows[0].email,
+        subject: "Wallet top-up confirmed",
+        text: `Your wallet has been credited with $${amountUsd.toFixed(2)} via card payment. Thank you!`,
+      }).catch(() => null);
+    }
+
+    res.json({ success: true, amountUsd });
+  } catch (err) {
+    logger.error({ err }, "Stripe wallet verify failed");
+    res.status(500).json({ error: "Payment verification failed. Contact support with your session ID." });
+  }
 });
 
 router.post("/wallet/credit", async (req, res) => {

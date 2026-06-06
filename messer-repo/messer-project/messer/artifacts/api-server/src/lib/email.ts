@@ -252,6 +252,22 @@ export async function sendEmail(message: EmailMessage) {
   const unsubscribeUrl = buildUnsubUrl(message.to);
   const processedHtml = message.html?.replace(/\{\{UNSUB_URL\}\}/g, unsubscribeUrl);
 
+  // Derive the sending domain from emailFrom so Message-ID / List-Unsubscribe
+  // always match the verified sender domain (mismatches are a top spam trigger).
+  const sendingDomain = emailFrom?.split("@")[1] ?? "gsmworld.co.ke";
+  const msgId = `<${Date.now()}.${Math.random().toString(36).slice(2, 10)}@${sendingDomain}>`;
+  const entityRef = `gsm-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const sharedHeaders: Record<string, string> = {
+    "Message-ID": msgId,
+    "X-Entity-Ref-ID": entityRef,
+    "MIME-Version": "1.0",
+    "Precedence": "transactional",
+    "X-Mailer": "GSM World Mailer/2.0",
+    "List-Unsubscribe": `<${unsubscribeUrl}>, <mailto:unsubscribe@${sendingDomain}?subject=unsubscribe>`,
+    "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+    "Feedback-ID": `gsm-world:transactional:${sendingDomain}`,
+  };
+
   // ── Try Resend first (HTTP-based; works on Vercel/serverless — no SMTP port blocking) ──
   if (resendApiKey && fromAddress) {
     try {
@@ -268,11 +284,7 @@ export async function sendEmail(message: EmailMessage) {
           subject: message.subject,
           html: processedHtml,
           text: message.text,
-          headers: {
-            "X-Entity-Ref-ID": `gsm-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-            "List-Unsubscribe": `<${unsubscribeUrl}>, <mailto:unsubscribe@gsmworld.vercel.app?subject=unsubscribe>`,
-            "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
-          },
+          headers: sharedHeaders,
         }),
       });
       if (resp.ok) {
@@ -330,11 +342,7 @@ export async function sendEmail(message: EmailMessage) {
       subject: message.subject,
       text: message.text,
       html: processedHtml,
-      headers: {
-        "X-Entity-Ref-ID": `gsm-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        "List-Unsubscribe": `<${unsubscribeUrl}>, <mailto:unsubscribe@gsmworld.vercel.app?subject=unsubscribe>`,
-        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
-      },
+      headers: sharedHeaders,
     });
     logger.info({ to: message.to, subject: message.subject, host: smtpHost, port, secure }, "Email sent via SMTP");
     return { sent: true, provider: "smtp" };
@@ -408,11 +416,13 @@ export function loginNotificationEmail(name: string | null, meta?: { ip?: string
 
 export function orderSubmittedEmail(params: {
   orderId: number;
+  orderCode?: string | null;
   customerName?: string | null;
   items: Array<{ productName: string; quantity: number; price: string }>;
   total: string;
   paymentMethod: string;
 }) {
+  const ref = params.orderCode || String(params.orderId);
   const name = params.customerName || "Valued Customer";
   const orderUrl = appUrl(`/orders/${params.orderId}`);
   const payLabel: Record<string, string> = {
@@ -427,7 +437,7 @@ export function orderSubmittedEmail(params: {
 
   const h = header(
     "linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%)",
-    `Order #${params.orderId} Confirmed`,
+    `Order #${ref} Confirmed`,
     "Thank you for your purchase — your order is being reviewed"
   );
   const body = `
@@ -435,22 +445,22 @@ export function orderSubmittedEmail(params: {
     <p style="margin:0 0 20px;font-size:15px;color:#475569;">We have received your order and it is currently under review. Below is a summary of your purchase:</p>
     ${orderItemsTable(params.items, params.total)}
     ${infoTable([
-      ["Order Reference", `#${params.orderId}`],
+      ["Order Reference", `#${ref}`],
       ["Payment Method", pmLabel],
       ["Status", "Pending Review"],
     ])}
     <p style="margin:0 0 20px;font-size:14px;color:#475569;">Our team will review and process your order. You will receive a follow-up email once your order status changes. Estimated processing time is <strong style="color:#0f172a;">10 – 30 minutes</strong>.</p>
     ${btn("Track Your Order", orderUrl)}
     <div style="margin-top:32px;padding-top:20px;border-top:1px solid #f1f5f9;">
-      <p style="margin:0;font-size:13px;color:#64748b;">Please keep your order reference handy: <strong style="color:#0f172a;">Order #${params.orderId}</strong></p>
+      <p style="margin:0;font-size:13px;color:#64748b;">Please keep your order reference handy: <strong style="color:#0f172a;">Order #${ref}</strong></p>
       <p style="margin:12px 0 0;font-size:14px;color:#475569;">Regards,<br><strong style="color:#0f172a;">GSM World Team</strong></p>
     </div>
   `;
   const textItems = params.items.map(i => `  - ${i.productName} × ${i.quantity}  ($${(parseFloat(i.price) * i.quantity).toFixed(2)})`).join("\n");
   return {
-    subject: `Order #${params.orderId} Confirmed — GSM World`,
-    text: `Dear ${name},\n\nYour order #${params.orderId} has been received and is under review.\n\nItems:\n${textItems}\n\nTotal: $${parseFloat(params.total).toFixed(2)}\nPayment: ${pmLabel}\n\nTrack your order: ${orderUrl}\n\nEstimated processing: 10–30 minutes.\n\n— GSM World Team`,
-    html: layout(`Order #${params.orderId} received — we are processing your request.`, "#0ea5e9", h, body),
+    subject: `Order #${ref} Confirmed — GSM World`,
+    text: `Dear ${name},\n\nYour order #${ref} has been received and is under review.\n\nItems:\n${textItems}\n\nTotal: $${parseFloat(params.total).toFixed(2)}\nPayment: ${pmLabel}\n\nTrack your order: ${orderUrl}\n\nEstimated processing: 10–30 minutes.\n\n— GSM World Team`,
+    html: layout(`Order #${ref} received — we are processing your request.`, "#0ea5e9", h, body),
   };
 }
 
@@ -458,11 +468,13 @@ export function orderSubmittedEmail(params: {
 
 export function paymentConfirmedEmail(params: {
   orderId: number;
+  orderCode?: string | null;
   customerName?: string | null;
   amount: string;
   paymentMethod: string;
   transactionRef?: string | null;
 }) {
+  const ref = params.orderCode || String(params.orderId);
   const name = params.customerName || "Valued Customer";
   const orderUrl = appUrl(`/orders/${params.orderId}`);
   const payLabel: Record<string, string> = {
@@ -478,10 +490,10 @@ export function paymentConfirmedEmail(params: {
   const h = header(
     "linear-gradient(135deg,#064e3b 0%,#059669 100%)",
     "Payment Successfully Confirmed",
-    `Your payment for Order #${params.orderId} has been verified`
+    `Your payment for Order #${ref} has been verified`
   );
   const rows: Array<[string, string]> = [
-    ["Order Reference", `#${params.orderId}`],
+    ["Order Reference", `#${ref}`],
     ["Amount Paid", `$${parseFloat(params.amount).toFixed(2)} USD`],
     ["Payment Method", pmLabel],
     ["Confirmed At", paidAt],
@@ -496,14 +508,14 @@ export function paymentConfirmedEmail(params: {
     <p style="margin:0 0 20px;font-size:14px;color:#475569;">Our team is now working on your order. You will receive another notification once it is completed, typically within <strong style="color:#0f172a;">10 – 30 minutes</strong>.</p>
     ${btn("View Your Order", orderUrl, "#059669")}
     <div style="margin-top:32px;padding-top:20px;border-top:1px solid #f1f5f9;">
-      <p style="margin:0;font-size:13px;color:#64748b;">Please retain this email as your payment confirmation. Reference: ORDER-${params.orderId}</p>
+      <p style="margin:0;font-size:13px;color:#64748b;">Please retain this email as your payment confirmation. Reference: ORDER-${ref}</p>
       <p style="margin:12px 0 0;font-size:14px;color:#475569;">Regards,<br><strong style="color:#0f172a;">GSM World Team</strong></p>
     </div>
   `;
   return {
-    subject: `Payment Confirmed — Order #${params.orderId} | GSM World`,
-    text: `Dear ${name},\n\nYour payment of $${parseFloat(params.amount).toFixed(2)} for Order #${params.orderId} has been confirmed via ${pmLabel} at ${paidAt}.\n\nYour order is now being processed. Track it here: ${orderUrl}\n\n— GSM World Team`,
-    html: layout(`Payment confirmed for Order #${params.orderId}.`, "#059669", h, body),
+    subject: `Payment Confirmed — Order #${ref} | GSM World`,
+    text: `Dear ${name},\n\nYour payment of $${parseFloat(params.amount).toFixed(2)} for Order #${ref} has been confirmed via ${pmLabel} at ${paidAt}.\n\nYour order is now being processed. Track it here: ${orderUrl}\n\n— GSM World Team`,
+    html: layout(`Payment confirmed for Order #${ref}.`, "#059669", h, body),
   };
 }
 
@@ -662,6 +674,7 @@ export function walletTopUpEmail(params: {
 
 export function adminNewOrderAlertEmail(params: {
   orderId: number;
+  orderCode?: string | null;
   orderType: string;
   customerEmail: string;
   customerName?: string | null;
@@ -669,6 +682,7 @@ export function adminNewOrderAlertEmail(params: {
   total: string;
   paymentMethod: string;
 }) {
+  const ref = params.orderCode || String(params.orderId);
   const adminUrl = appUrl("/admin");
   const payLabel: Record<string, string> = {
     mpesa: "M-Pesa (STK Push)", wallet: "GSM World Wallet",
@@ -678,13 +692,13 @@ export function adminNewOrderAlertEmail(params: {
   const pmLabel = payLabel[params.paymentMethod] ?? params.paymentMethod;
   const h = header(
     "linear-gradient(135deg,#1e3a5f 0%,#0f172a 100%)",
-    `🛒 New ${params.orderType} — Order #${params.orderId}`,
+    `🛒 New ${params.orderType} — Order #${ref}`,
     `A new order has been placed on GSM World`
   );
   const body = `
     <p style="margin:0 0 16px;font-size:15px;color:#475569;">A new order has just been placed and requires your attention.</p>
     ${infoTable([
-      ["Order #", String(params.orderId)],
+      ["Order #", ref],
       ["Type", params.orderType],
       ["Customer", params.customerEmail],
       ["Item(s)", params.items],
@@ -694,9 +708,9 @@ export function adminNewOrderAlertEmail(params: {
     ${btn("View in Admin Dashboard", adminUrl, "#1e3a5f")}
   `;
   return {
-    subject: `[GSM World] New Order #${params.orderId} — ${params.orderType} ($${parseFloat(params.total).toFixed(2)})`,
-    text: `New ${params.orderType} — Order #${params.orderId}\n\nCustomer: ${params.customerEmail}\nItem(s): ${params.items}\nTotal: $${parseFloat(params.total).toFixed(2)}\nPayment: ${pmLabel}\n\nAdmin dashboard: ${adminUrl}`,
-    html: layout(`New ${params.orderType} — Order #${params.orderId} placed by ${params.customerEmail}.`, "#0ea5e9", h, body),
+    subject: `[GSM World] New Order #${ref} — ${params.orderType} ($${parseFloat(params.total).toFixed(2)})`,
+    text: `New ${params.orderType} — Order #${ref}\n\nCustomer: ${params.customerEmail}\nItem(s): ${params.items}\nTotal: $${parseFloat(params.total).toFixed(2)}\nPayment: ${pmLabel}\n\nAdmin dashboard: ${adminUrl}`,
+    html: layout(`New ${params.orderType} — Order #${ref} placed by ${params.customerEmail}.`, "#0ea5e9", h, body),
   };
 }
 
@@ -704,12 +718,14 @@ export function adminNewOrderAlertEmail(params: {
 
 export function pendingManualPaymentEmail(params: {
   orderId: number;
+  orderCode?: string | null;
   customerName?: string | null;
   paymentMethod: string;
   total: string;
   binanceId?: string | null;
   usdtAddress?: string | null;
 }) {
+  const ref = params.orderCode || String(params.orderId);
   const name = params.customerName || "Valued Customer";
   const orderUrl = appUrl(`/orders/${params.orderId}`);
   const isBinance = params.paymentMethod === "binance_pay";
@@ -720,11 +736,11 @@ export function pendingManualPaymentEmail(params: {
   const h = header(
     "linear-gradient(135deg,#1e1b4b 0%,#4338ca 100%)",
     "Complete Your Payment",
-    `Manual payment instructions for Order #${params.orderId}`
+    `Manual payment instructions for Order #${ref}`
   );
 
   const paymentRows: Array<[string, string]> = [
-    ["Order Reference", `#${params.orderId}`],
+    ["Order Reference", `#${ref}`],
     ["Amount Due", `$${parseFloat(params.total).toFixed(2)} USD`],
     ["Payment Method", methodLabel],
   ];
@@ -740,7 +756,7 @@ export function pendingManualPaymentEmail(params: {
     ${infoTable(paymentRows)}
     ${alertBox(
       "Important",
-      `Send exactly $${parseFloat(params.total).toFixed(2)} USD. Always include your order reference ORDER-${params.orderId} in the payment note or screenshot so we can match your payment quickly.`,
+      `Send exactly $${parseFloat(params.total).toFixed(2)} USD. Always include your order reference ORDER-${ref} in the payment note or screenshot so we can match your payment quickly.`,
       "#4338ca",
       "#eef2ff"
     )}
@@ -752,8 +768,8 @@ export function pendingManualPaymentEmail(params: {
     </div>
   `;
   return {
-    subject: `Payment Instructions — Order #${params.orderId} | GSM World`,
-    text: `Dear ${name},\n\nPlease complete your payment for Order #${params.orderId}.\n\nAmount Due: $${parseFloat(params.total).toFixed(2)} USD\nMethod: ${methodLabel}${isBinance && params.binanceId ? `\nBinance Pay ID: ${params.binanceId}` : ""}${isUsdt && params.usdtAddress ? `\nWallet Address: ${params.usdtAddress}\nNetwork: Tron Network` : ""}\n\nAfter sending, upload your payment screenshot: ${orderUrl}\n\n— GSM World Team`,
-    html: layout(`Payment instructions for Order #${params.orderId} — please complete your transfer.`, "#4338ca", h, body),
+    subject: `Payment Instructions — Order #${ref} | GSM World`,
+    text: `Dear ${name},\n\nPlease complete your payment for Order #${ref}.\n\nAmount Due: $${parseFloat(params.total).toFixed(2)} USD\nMethod: ${methodLabel}${isBinance && params.binanceId ? `\nBinance Pay ID: ${params.binanceId}` : ""}${isUsdt && params.usdtAddress ? `\nWallet Address: ${params.usdtAddress}\nNetwork: Tron Network` : ""}\n\nAfter sending, upload your payment screenshot: ${orderUrl}\n\n— GSM World Team`,
+    html: layout(`Payment instructions for Order #${ref} — please complete your transfer.`, "#4338ca", h, body),
   };
 }

@@ -15,9 +15,14 @@ import notificationsRouter from "./notifications";
 import unlockRentalsRouter from "./unlock-rentals";
 import unsubscribeRouter from "./unsubscribe";
 import chatRouter from "./chat";
+import resellerRouter from "./reseller";
+import downloadRouter from "./download";
+import versionRouter from "./version";
+import imeiRouter from "./imei";
 
 const router: IRouter = Router();
 
+router.use(versionRouter);
 router.use(unsubscribeRouter);
 router.use(healthRouter);
 router.use(authRouter);
@@ -34,5 +39,8 @@ router.use(activationsRouter);
 router.use(uploadsRouter);
 router.use(notificationsRouter);
 router.use(unlockRentalsRouter);
+router.use(resellerRouter);
+router.use(downloadRouter);
+router.use(imeiRouter);
 
 export default router;

@@ -1,11 +1,11 @@
 import { Router, type IRouter } from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { db, usersTable, adminSettingsTable } from "@workspace/db";
+import { db, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { getGoogleCredentials } from "../lib/admin-settings";
-import { sendEmail, otpEmail, loginNotificationEmail } from "../lib/email";
+import { sendEmail, otpEmail, signInNotificationEmail } from "../lib/email";
 
 const router: IRouter = Router();
 
@@ -19,27 +19,7 @@ const NEON_AUTH_URL =
   process.env.NEON_AUTH_URL ||
   "https://ep-young-frost-am13gy4v.neonauth.c-5.us-east-1.aws.neon.tech/neondb/auth";
 
-// ─── DB-backed OTP store (survives restarts) ──────────────────────────────────
-async function setOtp(key: string, code: string, ttlMs: number) {
-  const val = JSON.stringify({ code, expiresAt: Date.now() + ttlMs });
-  await db.insert(adminSettingsTable)
-    .values({ key: `otp:${key}`, value: val })
-    .onConflictDoUpdate({ target: adminSettingsTable.key, set: { value: val, updatedAt: new Date() } });
-}
-
-async function getOtp(key: string): Promise<{ code: string; expiresAt: number } | null> {
-  const rows = await db.select({ value: adminSettingsTable.value })
-    .from(adminSettingsTable)
-    .where(eq(adminSettingsTable.key, `otp:${key}`))
-    .limit(1);
-  if (!rows.length || !rows[0].value) return null;
-  try { return JSON.parse(rows[0].value) as { code: string; expiresAt: number }; }
-  catch { return null; }
-}
-
-async function deleteOtp(key: string) {
-  await db.delete(adminSettingsTable).where(eq(adminSettingsTable.key, `otp:${key}`));
-}
+const otpStore = new Map<string, { code: string; expiresAt: number }>();
 
 function makeToken(userId: number, email: string) {
   return jwt.sign({ userId, email }, _jwtSecret, { expiresIn: "30d" });
@@ -50,11 +30,23 @@ function isBlocked(status: string | null) {
 }
 
 function getAppOrigin(req: import("express").Request): string {
+  // 1. Explicitly configured URL wins (e.g. custom domain)
+  if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, "");
+  // 2. Replit sets REPLIT_DOMAINS for deployed apps — always correct
+  if (process.env.REPLIT_DOMAINS) {
+    return `https://${process.env.REPLIT_DOMAINS.split(",")[0]}`;
+  }
+  // 3. Frontend can pass its own origin as a query param — use it if present and valid
+  const qOrigin = (req.query?.origin as string | undefined);
+  if (qOrigin && /^https?:\/\/.+/.test(qOrigin)) return qOrigin.replace(/\/$/, "");
+  // 4. Reconstruct from proxy headers (unreliable behind Replit internal proxy)
   const proto = (req.headers["x-forwarded-proto"] as string | undefined) || "https";
   const host =
     (req.headers["x-forwarded-host"] as string | undefined) ||
     (req.headers.host as string | undefined) ||
-    "gsmworld.vercel.app";
+    "localhost:3000";
+  // Reject obviously-wrong internal service names (single word, no dot, no port)
+  if (/^[a-z]+$/i.test(host)) return `${proto}://localhost:3000`;
   return `${proto}://${host}`;
 }
 
@@ -83,12 +75,11 @@ router.post("/auth/register", async (req, res) => {
     const token = makeToken(user.id, user.email);
     logger.info({ userId: user.id }, "User registered");
     const otp = String(Math.floor(100000 + Math.random() * 900000));
-    await setOtp(user.email, otp, 10 * 60 * 1000);
-    const emailResult = await sendEmail({ to: user.email, ...otpEmail(otp) });
-    if (!emailResult.sent) {
-      logger.error({ reason: emailResult.reason, to: user.email }, "Failed to send signup verification email");
-    }
-    res.status(201).json({ token, user: { id: user.id, email: user.email, name: user.name }, emailSent: emailResult.sent });
+    otpStore.set(user.email, { code: otp, expiresAt: Date.now() + 10 * 60 * 1000 });
+    sendEmail({ to: user.email, ...otpEmail(otp) }).catch((err) => {
+      logger.error({ err }, "Failed to send welcome OTP email");
+    });
+    res.status(201).json({ token, user: { id: user.id, email: user.email, name: user.name } });
   } catch (err) {
     req.log.error({ err }, "Registration failed");
     res.status(500).json({ error: "Internal server error" });
@@ -99,14 +90,14 @@ router.post("/auth/verify-otp", async (req, res) => {
   try {
     const { email, code } = req.body || {};
     if (!email || !code) { res.status(400).json({ error: "Email and code are required" }); return; }
-    const entry = await getOtp(email.toLowerCase());
+    const entry = otpStore.get(email.toLowerCase());
     if (!entry || entry.code !== String(code)) { res.status(400).json({ error: "Invalid or expired code" }); return; }
     if (Date.now() > entry.expiresAt) {
-      await deleteOtp(email.toLowerCase());
+      otpStore.delete(email.toLowerCase());
       res.status(400).json({ error: "Code has expired. Please request a new one." });
       return;
     }
-    await deleteOtp(email.toLowerCase());
+    otpStore.delete(email.toLowerCase());
     res.json({ success: true });
   } catch (err) {
     req.log.error({ err }, "OTP verification failed");
@@ -128,10 +119,10 @@ router.post("/auth/login", async (req, res) => {
     const valid = await bcrypt.compare(password, user.passwordHash);
     if (!valid) { res.status(401).json({ error: "Invalid email or password" }); return; }
     const token = makeToken(user.id, user.email);
-    // Send login notification email (fire-and-forget)
-    sendEmail({ to: user.email, ...loginNotificationEmail(user.name) }).catch((err) => {
-      logger.error({ err }, "Failed to send login notification email");
-    });
+    const now = new Date().toUTCString();
+    const ipHint = (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() || req.socket.remoteAddress || undefined;
+    sendEmail({ to: user.email, ...signInNotificationEmail({ name: user.name, email: user.email, time: now, ipHint }) })
+      .catch((e) => logger.error({ e }, "Sign-in notification email failed"));
     res.json({ token, user: { id: user.id, email: user.email, name: user.name } });
   } catch (err) {
     req.log.error({ err }, "Login failed");
@@ -159,26 +150,6 @@ router.get("/auth/me", async (req, res) => {
   }
 });
 
-// Resend signup OTP (uses the same key as registration — NOT the login: prefix)
-router.post("/auth/resend-signup-otp", async (req, res) => {
-  try {
-    const { email } = req.body || {};
-    if (!email || typeof email !== "string") { res.status(400).json({ error: "Email is required" }); return; }
-    const otp = String(Math.floor(100000 + Math.random() * 900000));
-    await setOtp(email.toLowerCase(), otp, 10 * 60 * 1000);
-    const emailResult = await sendEmail({ to: email.toLowerCase(), ...otpEmail(otp) });
-    if (!emailResult.sent) {
-      logger.error({ reason: emailResult.reason, to: email }, "Failed to resend signup OTP email");
-      res.status(500).json({ error: `Email delivery failed: ${emailResult.reason ?? "unknown error"}. Check your SMTP settings in Admin.` });
-      return;
-    }
-    res.json({ success: true });
-  } catch (err) {
-    req.log.error({ err }, "Resend signup OTP failed");
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
-
 router.post("/auth/otp-login/send", async (req, res) => {
   try {
     const { email } = req.body || {};
@@ -192,13 +163,12 @@ router.post("/auth/otp-login/send", async (req, res) => {
       return;
     }
     const otp = String(Math.floor(100000 + Math.random() * 900000));
-    await setOtp(`login:${email.toLowerCase()}`, otp, 10 * 60 * 1000);
-    const emailResult = await sendEmail({ to: email.toLowerCase(), ...otpEmail(otp) });
-    if (!emailResult.sent) {
-      logger.error({ reason: emailResult.reason, to: email }, "OTP login email delivery failed");
-      res.status(500).json({ error: `Could not send verification code: ${emailResult.reason ?? "email delivery failed"}. Please check Admin email settings or try again.` });
-      return;
-    }
+    otpStore.set(`login:${email.toLowerCase()}`, { code: otp, expiresAt: Date.now() + 10 * 60 * 1000 });
+    sendEmail({
+      to: email.toLowerCase(),
+      subject: "Your GSM World Login Code",
+      text: `Your login code is: ${otp}\n\nThis code expires in 10 minutes. Do not share it with anyone.`,
+    }).catch((err) => logger.error({ err }, "Failed to send OTP login email"));
     res.json({ success: true });
   } catch (err) {
     req.log.error({ err }, "OTP login send failed");
@@ -211,14 +181,14 @@ router.post("/auth/otp-login/verify", async (req, res) => {
     const { email, code } = req.body || {};
     if (!email || !code) { res.status(400).json({ error: "Email and code are required" }); return; }
     const key = `login:${email.toLowerCase()}`;
-    const entry = await getOtp(key);
+    const entry = otpStore.get(key);
     if (!entry || entry.code !== String(code)) { res.status(400).json({ error: "Invalid or expired code" }); return; }
     if (Date.now() > entry.expiresAt) {
-      await deleteOtp(key);
+      otpStore.delete(key);
       res.status(400).json({ error: "Code has expired. Please request a new one." });
       return;
     }
-    await deleteOtp(key);
+    otpStore.delete(key);
     const rows = await db
       .select({ id: usersTable.id, email: usersTable.email, name: usersTable.name, status: usersTable.status })
       .from(usersTable).where(eq(usersTable.email, email.toLowerCase())).limit(1);
@@ -229,6 +199,9 @@ router.post("/auth/otp-login/verify", async (req, res) => {
       return;
     }
     const token = makeToken(user.id, user.email);
+    const now = new Date().toUTCString();
+    sendEmail({ to: user.email, ...signInNotificationEmail({ name: user.name, email: user.email, time: now }) })
+      .catch((e) => logger.error({ e }, "OTP sign-in notification email failed"));
     res.json({ token, user: { id: user.id, email: user.email, name: user.name } });
   } catch (err) {
     req.log.error({ err }, "OTP login verify failed");
@@ -236,7 +209,7 @@ router.post("/auth/otp-login/verify", async (req, res) => {
   }
 });
 
-// Google / Neon Auth sign-in
+// Google / Neon Auth sign-in — verifies session token with Neon Auth server-side, then issues our JWT
 router.post("/auth/google", async (req, res) => {
   try {
     const { token: neonToken } = req.body || {};
@@ -244,6 +217,7 @@ router.post("/auth/google", async (req, res) => {
       res.status(400).json({ error: "Neon Auth session token required" });
       return;
     }
+    // Verify Better Auth session token via Neon Auth get-session endpoint
     const sessionRes = await fetch(`${NEON_AUTH_URL}/api/auth/get-session`, {
       headers: { Authorization: `Bearer ${neonToken}` },
     });
@@ -290,24 +264,36 @@ router.post("/auth/google", async (req, res) => {
   }
 });
 
-// Google OAuth — backend-driven flow
+// Google OAuth — backend-driven flow (avoids cross-domain cookie issues)
+// Step 1: redirect browser to Google
 router.get("/auth/google/redirect", async (req, res) => {
+  const origin = getAppOrigin(req);
   const { clientId } = await getGoogleCredentials();
   if (!clientId) {
-    const origin = getAppOrigin(req);
     res.redirect(`${origin}/auth/google-callback?error=${encodeURIComponent("Google OAuth not configured. Please contact support.")}`);
     return;
   }
-  const origin = getAppOrigin(req);
   const redirectUri = encodeURIComponent(`${origin}/api/auth/google/callback`);
   const scope = encodeURIComponent("openid email profile");
-  const state = Buffer.from(String(Date.now())).toString("base64url");
+  // Encode origin in state so callback can use the same origin for redirect
+  const state = Buffer.from(JSON.stringify({ ts: Date.now(), origin })).toString("base64url");
   const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=${scope}&state=${state}&access_type=offline&prompt=select_account`;
   res.redirect(url);
 });
 
+// Step 2: Google redirects here with ?code=, exchange for JWT, send to frontend via URL param
 router.get("/auth/google/callback", async (req, res) => {
-  const origin = getAppOrigin(req);
+  // Recover origin from the state parameter (encoded in Step 1) — most reliable
+  let origin = getAppOrigin(req);
+  try {
+    const rawState = req.query.state as string | undefined;
+    if (rawState) {
+      const parsed = JSON.parse(Buffer.from(rawState, "base64url").toString()) as { ts?: number; origin?: string };
+      if (parsed.origin && /^https?:\/\/.+/.test(parsed.origin)) {
+        origin = parsed.origin.replace(/\/$/, "");
+      }
+    }
+  } catch { /* ignore malformed state — fall back to getAppOrigin */ }
   try {
     const { code, error: authError } = req.query;
     if (authError || !code) {
@@ -381,6 +367,66 @@ router.get("/auth/google/callback", async (req, res) => {
   } catch (err) {
     req.log.error({ err }, "Google OAuth callback failed");
     res.redirect(`${origin}/auth/google-callback?error=${encodeURIComponent("Authentication failed. Please try again.")}`);
+  }
+});
+
+// Cart migration: merge guest cart into user cart after login
+router.post("/auth/cart-migrate", async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith("Bearer ")) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    const payload = jwt.verify(authHeader.slice(7), _jwtSecret) as { userId: number };
+    const userSessionId = `user:${payload.userId}`;
+
+    const { guestSessionId } = req.body || {};
+    if (!guestSessionId || typeof guestSessionId !== "string" || !guestSessionId.trim()) {
+      res.json({ merged: 0 });
+      return;
+    }
+
+    const { db, cartItemsTable, productsTable } = await import("@workspace/db");
+    const { eq, and } = await import("drizzle-orm");
+
+    const guestItems = await db
+      .select({ cartItem: cartItemsTable, product: productsTable })
+      .from(cartItemsTable)
+      .innerJoin(productsTable, eq(cartItemsTable.productId, productsTable.id))
+      .where(eq(cartItemsTable.sessionId, guestSessionId));
+
+    let merged = 0;
+    for (const { cartItem } of guestItems) {
+      const existing = await db
+        .select()
+        .from(cartItemsTable)
+        .where(and(eq(cartItemsTable.sessionId, userSessionId), eq(cartItemsTable.productId, cartItem.productId)));
+
+      if (existing.length > 0) {
+        await db
+          .update(cartItemsTable)
+          .set({ quantity: existing[0].quantity + cartItem.quantity })
+          .where(and(eq(cartItemsTable.sessionId, userSessionId), eq(cartItemsTable.productId, cartItem.productId)));
+      } else {
+        await db.insert(cartItemsTable).values({
+          sessionId: userSessionId,
+          productId: cartItem.productId,
+          quantity: cartItem.quantity,
+          priceAtAdd: cartItem.priceAtAdd,
+        });
+      }
+      merged++;
+    }
+
+    if (merged > 0) {
+      await db.delete(cartItemsTable).where(eq(cartItemsTable.sessionId, guestSessionId));
+    }
+
+    res.json({ merged });
+  } catch (err) {
+    req.log.error({ err }, "Cart migration failed");
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 

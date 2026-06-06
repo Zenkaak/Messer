@@ -18,6 +18,15 @@ async function runStartupMigrations() {
       ALTER TABLE live_chat_messages
         ADD COLUMN IF NOT EXISTS read_at TIMESTAMP;
     `);
+    await db.execute(sql`
+      ALTER TABLE orders
+        ADD COLUMN IF NOT EXISTS order_code TEXT;
+    `);
+    await db.execute(sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS orders_order_code_unique
+        ON orders (order_code)
+        WHERE order_code IS NOT NULL;
+    `);
     logger.info("Startup migrations OK");
   } catch (err) {
     logger.warn({ err }, "Startup migration warning (non-fatal)");

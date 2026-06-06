@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import {
   Shield, LayoutDashboard, ShoppingBag, Package, Users, Settings,
@@ -6,10 +7,21 @@ import {
   ChevronLeft, ChevronRight, CheckCircle2, Clock, XCircle, AlertCircle,
   ToggleLeft, ToggleRight, KeyRound, AlertTriangle, X, ArrowUpRight,
   Smartphone, Zap, Ban, Trash2, UserCheck, MoreVertical,
-  MessageSquare, Send, Cpu, UserPlus, Phone, Headphones, WifiOff,
+  MessageSquare, Send, Cpu, UserPlus, Phone, Headphones, WifiOff, Bell,
+  Store, ExternalLink, Image,
 } from "lucide-react";
 
 // ─── types ────────────────────────────────────────────────────────────────────
+interface PaymentNotification {
+  id: string;
+  orderId: number;
+  customerEmail: string;
+  amount: string;
+  method: string;
+  ts: number;
+  read: boolean;
+}
+
 interface AdminSettings {
   mpesaEnabled: boolean;
   mpesaShortcode: string | null;
@@ -42,6 +54,8 @@ interface AdminSettings {
   otsSenderId?: string | null;
   otsAdminPhone?: string | null;
   openaiApiKey?: string | null;
+  imeiInfoApiToken?: string | null;
+  botSystemPromptOverride?: string | null;
 }
 interface Stats {
   orders: { total: number };
@@ -92,8 +106,10 @@ const NAV = [
   { id: "orders",     label: "Orders",    icon: ShoppingBag },
   { id: "products",   label: "Products",  icon: Package },
   { id: "users",      label: "Users",     icon: Users },
+  { id: "resellers",  label: "Resellers", icon: Store },
   { id: "payments",   label: "Payments",  icon: Settings },
   { id: "live_chat",  label: "Live Chat", icon: Headphones },
+  { id: "imei_logs",  label: "IMEI Logs", icon: Smartphone },
 ] as const;
 type Tab = typeof NAV[number]["id"];
 
@@ -427,25 +443,29 @@ function OverviewPanel({ pwd, onNavigate }: { pwd: string; onNavigate: (tab: Tab
               </div>
               <div className="bg-white rounded-2xl border border-slate-100 shadow-sm divide-y divide-slate-50 overflow-hidden">
                 {(stats!.recentOrders ?? []).map(o => (
-                  <div key={o.id} className="flex items-center gap-3 px-4 py-3">
-                    <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
-                      <ShoppingBag size={13} className="text-slate-400" />
+                  <button key={o.id} onClick={() => onNavigate("orders")}
+                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 active:bg-slate-100 transition-colors text-left group">
+                    <div className="w-7 h-7 rounded-lg bg-slate-100 group-hover:bg-blue-100 flex items-center justify-center shrink-0 transition-colors">
+                      <ShoppingBag size={13} className="text-slate-400 group-hover:text-blue-600 transition-colors" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-bold text-slate-800 leading-tight truncate">
+                      <p className="text-xs font-bold text-slate-800 leading-tight truncate group-hover:text-blue-700 transition-colors">
                         {o.customerEmail ?? o.customerName ?? `Order #${o.id}`}
                       </p>
                       <p className="text-[10px] text-slate-400 mt-0.5">
                         #{o.id} · {o.paymentMethod ?? "—"} · {new Date(o.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                       </p>
                     </div>
-                    <div className="text-right shrink-0">
-                      <p className="text-xs font-black text-slate-900">${parseFloat(o.total).toFixed(2)}</p>
-                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${statusColor(o.paymentStatus)}`}>
-                        {o.paymentStatus}
-                      </span>
+                    <div className="text-right shrink-0 flex items-center gap-2">
+                      <div>
+                        <p className="text-xs font-black text-slate-900">${parseFloat(o.total).toFixed(2)}</p>
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${statusColor(o.paymentStatus)}`}>
+                          {o.paymentStatus}
+                        </span>
+                      </div>
+                      <ArrowUpRight size={12} className="text-slate-300 group-hover:text-blue-500 transition-colors shrink-0" />
                     </div>
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>
@@ -1092,6 +1112,58 @@ function ProductsPanel({ pwd }: { pwd: string }) {
 
   const pages = Math.ceil(total / PER);
 
+  const IMAGE_MAP: Array<{ keywords: string[]; url: string }> = [
+    { keywords: ["iphone 15", "iphone15"], url: "https://images.unsplash.com/photo-1695048133142-1a20484d2569?w=300&q=80" },
+    { keywords: ["iphone 14", "iphone14"], url: "https://images.unsplash.com/photo-1663499482523-1c0c1bae4ce1?w=300&q=80" },
+    { keywords: ["iphone 13", "iphone13"], url: "https://images.unsplash.com/photo-1632661674596-df8be070a5c5?w=300&q=80" },
+    { keywords: ["iphone 12", "iphone12"], url: "https://images.unsplash.com/photo-1602524816984-c6f8f4cc4a7a?w=300&q=80" },
+    { keywords: ["iphone 11", "iphone11"], url: "https://images.unsplash.com/photo-1574755393849-623942496936?w=300&q=80" },
+    { keywords: ["iphone x", "iphonex", "iphone xs", "iphone xr"], url: "https://images.unsplash.com/photo-1510557880182-3d4d3cba35a5?w=300&q=80" },
+    { keywords: ["iphone"], url: "https://images.unsplash.com/photo-1592750475338-74b7b21085ab?w=300&q=80" },
+    { keywords: ["samsung galaxy", "samsung s", "samsung note", "samsung a"], url: "https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?w=300&q=80" },
+    { keywords: ["samsung"], url: "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=300&q=80" },
+    { keywords: ["huawei"], url: "https://images.unsplash.com/photo-1551817958-d9d86fb29431?w=300&q=80" },
+    { keywords: ["motorola", "moto"], url: "https://images.unsplash.com/photo-1567581935884-3349723552ca?w=300&q=80" },
+    { keywords: ["sony xperia", "sony"], url: "https://images.unsplash.com/photo-1565536421961-3d5ee59c1e0a?w=300&q=80" },
+    { keywords: ["xiaomi", "redmi", "poco"], url: "https://images.unsplash.com/photo-1591337676887-a217a6970a8a?w=300&q=80" },
+    { keywords: ["lg ", "lg-", "lg v", "lg g"], url: "https://images.unsplash.com/photo-1586917049952-4c9a0e5b2e16?w=300&q=80" },
+    { keywords: ["frp bypass", "frp remove", "frp unlock", "bypass frp", "remove frp"], url: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=300&q=80" },
+    { keywords: ["imei check", "imei unlock", "imei lookup"], url: "https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?w=300&q=80" },
+    { keywords: ["server credit", "server package", "server plan"], url: "https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=300&q=80" },
+    { keywords: ["tool activation", "license", "activate", "activation"], url: "https://images.unsplash.com/photo-1555949963-ff9fe0c870eb?w=300&q=80" },
+    { keywords: ["android unlock", "android remove"], url: "https://images.unsplash.com/photo-1585060544812-6b45742d762f?w=300&q=80" },
+    { keywords: ["pattern remove", "screen lock", "screen unlock", "pin remove"], url: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=300&q=80" },
+    { keywords: ["nokia"], url: "https://images.unsplash.com/photo-1567581935884-3349723552ca?w=300&q=80" },
+    { keywords: ["blackberry"], url: "https://images.unsplash.com/photo-1586464395186-dfe2e14a8cc5?w=300&q=80" },
+    { keywords: ["credits", "credit"], url: "https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=300&q=80" },
+  ];
+
+  function getSmartImage(name: string): string | null {
+    const lower = name.toLowerCase();
+    for (const entry of IMAGE_MAP) {
+      if (entry.keywords.some(kw => lower.includes(kw))) return entry.url;
+    }
+    return null;
+  }
+
+  async function smartUpdateImages() {
+    const toUpdate = products.filter(p => !p.imageUrl);
+    if (toUpdate.length === 0) {
+      toast({ title: "All products already have images" }); return;
+    }
+    let updated = 0;
+    for (const p of toUpdate) {
+      const url = getSmartImage(p.name);
+      if (!url) continue;
+      const r = await adminFetch(apiPath(`/api/admin/products/${p.id}`), pwd, {
+        method: "PATCH", body: JSON.stringify({ imageUrl: url }),
+      });
+      if (r.ok) updated++;
+    }
+    toast({ title: `Updated ${updated} products with images` });
+    void load(page, search);
+  }
+
   return (
     <div className="p-4 pb-6 space-y-3">
       <div className="flex items-center justify-between">
@@ -1099,10 +1171,17 @@ function ProductsPanel({ pwd }: { pwd: string }) {
           <p className="text-xs text-slate-400 font-medium">{total} total</p>
           <h2 className="text-xl font-black text-slate-900">Products</h2>
         </div>
-        <button onClick={() => load(page, search)}
-          className={`w-9 h-9 rounded-full border border-slate-200 flex items-center justify-center text-slate-400 hover:text-blue-600 hover:border-blue-300 transition-colors ${loading ? "animate-spin" : ""}`}>
-          <RefreshCw size={15} />
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => void smartUpdateImages()}
+            title="Auto-assign images to products without images"
+            className="flex items-center gap-1.5 px-3 h-9 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition-colors">
+            <Image size={13} /> Smart Images
+          </button>
+          <button onClick={() => load(page, search)}
+            className={`w-9 h-9 rounded-full border border-slate-200 flex items-center justify-center text-slate-400 hover:text-blue-600 hover:border-blue-300 transition-colors ${loading ? "animate-spin" : ""}`}>
+            <RefreshCw size={15} />
+          </button>
+        </div>
       </div>
 
       {/* search */}
@@ -1193,6 +1272,406 @@ function ProductsPanel({ pwd }: { pwd: string }) {
             <div className="flex gap-2 pt-1">
               <button onClick={() => setEditModal(null)} className="flex-1 py-3 border border-slate-200 text-slate-600 font-bold rounded-2xl text-sm">Cancel</button>
               <button onClick={saveProduct} disabled={saving} className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-2xl text-sm disabled:opacity-60">{saving ? "Saving…" : "Save Changes"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── resellers ────────────────────────────────────────────────────────────────
+interface AdminReseller {
+  id: number; userId: number; email: string; storeName: string | null;
+  storeSlug: string; status: string; securityFeePaid: boolean;
+  paymentMethod: string | null; paymentReference: string | null;
+  commissionRate: string; totalEarned: string; totalOrders: number;
+  rejectionReason: string | null; createdAt: string; approvedAt: string | null;
+  ownerName: string | null;
+}
+
+interface AdminWithdrawal {
+  id: number; resellerId: number; amount: string; status: string;
+  paymentMethod: string; paymentAddress: string;
+  notes: string | null; adminNotes: string | null;
+  createdAt: string; processedAt: string | null;
+  storeName: string | null; storeSlug: string;
+  ownerName: string | null; ownerEmail: string;
+}
+
+function ResellerStatusBadge({ status }: { status: string }) {
+  const map: Record<string, string> = {
+    pending_payment: "bg-orange-50 text-orange-700 border border-orange-200",
+    pending_approval: "bg-amber-50 text-amber-700 border border-amber-200",
+    approved: "bg-emerald-50 text-emerald-700 border border-emerald-200",
+    rejected: "bg-red-50 text-red-700 border border-red-200",
+  };
+  const label: Record<string, string> = {
+    pending_payment: "Pending Payment",
+    pending_approval: "Under Review",
+    approved: "Approved",
+    rejected: "Rejected",
+  };
+  return (
+    <span className={`inline-flex text-[9px] font-bold px-2 py-0.5 rounded-full ${map[status] ?? "bg-slate-100 text-slate-600"}`}>
+      {label[status] ?? status}
+    </span>
+  );
+}
+
+function WithdrawalBadge({ status }: { status: string }) {
+  if (status === "approved") return (
+    <span className="inline-flex text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">Paid</span>
+  );
+  if (status === "rejected") return (
+    <span className="inline-flex text-[9px] font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-200">Rejected</span>
+  );
+  return (
+    <span className="inline-flex text-[9px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">Pending</span>
+  );
+}
+
+function ResellersPanel({ pwd }: { pwd: string }) {
+  const [activeTab, setActiveTab] = useState<"applications" | "withdrawals">("applications");
+  const [resellers, setResellers] = useState<AdminReseller[]>([]);
+  const [withdrawals, setWithdrawals] = useState<AdminWithdrawal[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [wLoading, setWLoading] = useState(true);
+  const [rejectModal, setRejectModal] = useState<AdminReseller | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [actingId, setActingId] = useState<number | null>(null);
+  const [wActingId, setWActingId] = useState<number | null>(null);
+  const [wNotes, setWNotes] = useState("");
+  const [wActionModal, setWActionModal] = useState<{ w: AdminWithdrawal; action: "approve" | "reject" } | null>(null);
+  const { toast } = useToast();
+  const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await adminFetch(apiPath("/api/admin/resellers"), pwd);
+      if (r.ok) { const d = await r.json() as { resellers: AdminReseller[] }; setResellers(d.resellers); }
+    } finally { setLoading(false); }
+  }, [pwd]);
+
+  const loadWithdrawals = useCallback(async () => {
+    setWLoading(true);
+    try {
+      const r = await adminFetch(apiPath("/api/admin/resellers/withdrawals"), pwd);
+      if (r.ok) { const d = await r.json() as { withdrawals: AdminWithdrawal[] }; setWithdrawals(d.withdrawals); }
+    } finally { setWLoading(false); }
+  }, [pwd]);
+
+  useEffect(() => { void load(); void loadWithdrawals(); }, [load, loadWithdrawals]);
+
+  async function approve(id: number) {
+    setActingId(id);
+    try {
+      const r = await adminFetch(apiPath(`/api/admin/resellers/${id}/approve`), pwd, { method: "POST" });
+      if (r.ok) { toast({ title: "Reseller approved" }); void load(); }
+      else toast({ variant: "destructive", title: "Failed to approve" });
+    } finally { setActingId(null); }
+  }
+
+  async function confirmPayment(id: number) {
+    setActingId(id);
+    try {
+      const r = await adminFetch(apiPath(`/api/admin/resellers/${id}/confirm-payment`), pwd, { method: "POST" });
+      if (r.ok) { toast({ title: "Payment confirmed, reseller approved" }); void load(); }
+      else toast({ variant: "destructive", title: "Failed" });
+    } finally { setActingId(null); }
+  }
+
+  async function submitReject() {
+    if (!rejectModal) return;
+    setActingId(rejectModal.id);
+    try {
+      const r = await adminFetch(apiPath(`/api/admin/resellers/${rejectModal.id}/reject`), pwd, {
+        method: "POST", body: JSON.stringify({ reason: rejectReason }),
+      });
+      if (r.ok) { toast({ title: "Application rejected" }); setRejectModal(null); void load(); }
+      else toast({ variant: "destructive", title: "Failed to reject" });
+    } finally { setActingId(null); }
+  }
+
+  async function processWithdrawal(id: number, action: "approve" | "reject", notes: string) {
+    setWActingId(id);
+    try {
+      const r = await adminFetch(apiPath(`/api/admin/resellers/withdrawals/${id}/${action}`), pwd, {
+        method: "POST", body: JSON.stringify({ adminNotes: notes }),
+      });
+      if (r.ok) {
+        toast({ title: action === "approve" ? "Withdrawal marked as paid" : "Withdrawal rejected" });
+        setWActionModal(null);
+        void loadWithdrawals();
+        void load();
+      } else toast({ variant: "destructive", title: "Failed" });
+    } finally { setWActingId(null); }
+  }
+
+  const stats = {
+    total: resellers.length,
+    approved: resellers.filter(r => r.status === "approved").length,
+    pending: resellers.filter(r => r.status === "pending_approval").length,
+    pendingPayment: resellers.filter(r => r.status === "pending_payment").length,
+  };
+
+  const pendingW = withdrawals.filter(w => w.status === "pending").length;
+
+  return (
+    <div className="px-4 md:px-6 py-5 space-y-5">
+      <div className="flex items-center justify-between">
+        <h2 className="font-black text-slate-900 text-xl">Resellers</h2>
+        <button onClick={() => { void load(); void loadWithdrawals(); }} className="w-8 h-8 rounded-xl border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50">
+          <RefreshCw size={13} />
+        </button>
+      </div>
+
+      {/* Sub-tabs */}
+      <div className="flex gap-1 bg-slate-100 rounded-xl p-1">
+        <button onClick={() => setActiveTab("applications")}
+          className={`flex-1 py-2 text-xs font-bold rounded-lg transition-colors ${
+            activeTab === "applications" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500"
+          }`}>
+          Applications ({resellers.length})
+        </button>
+        <button onClick={() => setActiveTab("withdrawals")}
+          className={`flex-1 py-2 text-xs font-bold rounded-lg transition-colors relative ${
+            activeTab === "withdrawals" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500"
+          }`}>
+          Withdrawals {pendingW > 0 && (
+            <span className="ml-1 inline-flex w-4 h-4 items-center justify-center text-[9px] bg-amber-500 text-white rounded-full">{pendingW}</span>
+          )}
+        </button>
+      </div>
+
+      {/* ── APPLICATIONS TAB ─────────────────────────────────────────── */}
+      {activeTab === "applications" && (
+        <>
+          <div className="grid grid-cols-4 gap-2">
+            {[
+              { label: "Total", value: stats.total, cls: "text-slate-700" },
+              { label: "Approved", value: stats.approved, cls: "text-emerald-600" },
+              { label: "Reviewing", value: stats.pending, cls: "text-amber-600" },
+              { label: "Awaiting Pay", value: stats.pendingPayment, cls: "text-orange-600" },
+            ].map(s => (
+              <div key={s.label} className="bg-white border border-slate-200 rounded-2xl p-3 text-center">
+                <p className={`text-xl font-black ${s.cls}`}>{s.value}</p>
+                <p className="text-[9px] text-slate-400 font-semibold mt-0.5">{s.label}</p>
+              </div>
+            ))}
+          </div>
+
+          {loading ? (
+            <div className="space-y-2">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} />)}</div>
+          ) : resellers.length === 0 ? (
+            <div className="flex flex-col items-center py-16 text-slate-400">
+              <Store size={32} className="mb-3 opacity-40" />
+              <p className="font-semibold text-sm">No reseller applications yet</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {resellers.map(r => (
+                <div key={r.id} className="bg-white border border-slate-200 rounded-2xl p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center shrink-0">
+                      <Store size={16} className="text-slate-500" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-bold text-slate-800 text-sm">{r.storeName ?? r.storeSlug}</p>
+                        <ResellerStatusBadge status={r.status} />
+                      </div>
+                      <p className="text-xs text-slate-400 mt-0.5">{r.ownerName ?? r.email} · {r.email}</p>
+                      <div className="flex items-center gap-3 mt-1.5 flex-wrap text-xs text-slate-500">
+                        <span className="font-mono bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 text-[10px]">/store/{r.storeSlug}</span>
+                        {r.status === "approved" && (
+                          <a href={`${base}/store/${r.storeSlug}`} target="_blank" rel="noopener noreferrer"
+                            className="flex items-center gap-0.5 text-blue-500 hover:underline text-[10px]">
+                            <ExternalLink size={9} /> View Store
+                          </a>
+                        )}
+                        <span>{r.commissionRate}% commission</span>
+                        <span>Earned: ${parseFloat(r.totalEarned).toFixed(2)}</span>
+                      </div>
+                      {(r.paymentMethod || r.paymentReference) && (
+                        <div className="mt-2 bg-blue-50 border border-blue-100 rounded-xl px-3 py-1.5 text-[11px] text-blue-700">
+                          <span className="font-bold">Payment: </span>
+                          {r.paymentMethod} — Ref: <span className="font-mono">{r.paymentReference}</span>
+                        </div>
+                      )}
+                      {r.rejectionReason && (
+                        <p className="text-[11px] text-red-500 mt-1">Rejected: {r.rejectionReason}</p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex gap-2 mt-3 flex-wrap">
+                    {r.status === "pending_approval" && (
+                      <>
+                        <button onClick={() => approve(r.id)} disabled={actingId === r.id}
+                          className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl disabled:opacity-50">
+                          <CheckCircle2 size={11} /> Approve
+                        </button>
+                        <button onClick={() => { setRejectModal(r); setRejectReason(""); }}
+                          className="flex items-center gap-1.5 px-3 py-2 bg-red-50 border border-red-200 text-red-600 text-xs font-bold rounded-xl">
+                          <XCircle size={11} /> Reject
+                        </button>
+                      </>
+                    )}
+                    {r.status === "pending_payment" && (
+                      <>
+                        <button onClick={() => confirmPayment(r.id)} disabled={actingId === r.id}
+                          className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl disabled:opacity-50">
+                          <CheckCircle2 size={11} /> Confirm Payment
+                        </button>
+                        <button onClick={() => { setRejectModal(r); setRejectReason(""); }}
+                          className="flex items-center gap-1.5 px-3 py-2 bg-red-50 border border-red-200 text-red-600 text-xs font-bold rounded-xl">
+                          <XCircle size={11} /> Reject
+                        </button>
+                      </>
+                    )}
+                    {r.status === "rejected" && (
+                      <button onClick={() => approve(r.id)} disabled={actingId === r.id}
+                        className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 border border-emerald-200 text-emerald-600 text-xs font-bold rounded-xl disabled:opacity-50">
+                        <CheckCircle2 size={11} /> Approve Anyway
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ── WITHDRAWALS TAB ──────────────────────────────────────────── */}
+      {activeTab === "withdrawals" && (
+        <>
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { label: "Total", value: withdrawals.length, cls: "text-slate-700" },
+              { label: "Pending", value: withdrawals.filter(w => w.status === "pending").length, cls: "text-amber-600" },
+              { label: "Paid Out", value: withdrawals.filter(w => w.status === "approved").reduce((s, w) => s + parseFloat(w.amount), 0).toFixed(2), prefix: "$", cls: "text-emerald-600" },
+            ].map(s => (
+              <div key={s.label} className="bg-white border border-slate-200 rounded-2xl p-3 text-center">
+                <p className={`text-lg font-black ${s.cls}`}>{s.prefix ?? ""}{s.value}</p>
+                <p className="text-[9px] text-slate-400 font-semibold mt-0.5">{s.label}</p>
+              </div>
+            ))}
+          </div>
+
+          {wLoading ? (
+            <div className="space-y-2">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} />)}</div>
+          ) : withdrawals.length === 0 ? (
+            <div className="flex flex-col items-center py-16 text-slate-400">
+              <DollarSign size={32} className="mb-3 opacity-40" />
+              <p className="font-semibold text-sm">No withdrawal requests yet</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {withdrawals.map(w => (
+                <div key={w.id} className="bg-white border border-slate-200 rounded-2xl p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center shrink-0">
+                      <DollarSign size={16} className="text-slate-500" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-black text-slate-800 text-base">${parseFloat(w.amount).toFixed(2)}</p>
+                        <WithdrawalBadge status={w.status} />
+                      </div>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        {w.ownerName ?? w.ownerEmail} · {w.storeName ?? w.storeSlug}
+                      </p>
+                      <div className="mt-1.5 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-[11px] text-slate-600">
+                        <span className="font-bold">{w.paymentMethod}: </span>
+                        <span className="font-mono break-all">{w.paymentAddress}</span>
+                      </div>
+                      {w.notes && <p className="text-[11px] text-slate-400 mt-1">Note: {w.notes}</p>}
+                      {w.adminNotes && <p className="text-[11px] text-blue-500 mt-1">Admin note: {w.adminNotes}</p>}
+                      <p className="text-[10px] text-slate-300 mt-1">
+                        {new Date(w.createdAt).toLocaleDateString()}
+                        {w.processedAt && ` · Processed ${new Date(w.processedAt).toLocaleDateString()}`}
+                      </p>
+                    </div>
+                  </div>
+                  {w.status === "pending" && (
+                    <div className="flex gap-2 mt-3">
+                      <button
+                        onClick={() => { setWActionModal({ w, action: "approve" }); setWNotes(""); }}
+                        disabled={wActingId === w.id}
+                        className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl disabled:opacity-50">
+                        <CheckCircle2 size={11} /> Mark Paid
+                      </button>
+                      <button
+                        onClick={() => { setWActionModal({ w, action: "reject" }); setWNotes(""); }}
+                        disabled={wActingId === w.id}
+                        className="flex items-center gap-1.5 px-3 py-2 bg-red-50 border border-red-200 text-red-600 text-xs font-bold rounded-xl">
+                        <XCircle size={11} /> Reject
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Reject application modal */}
+      {rejectModal && (
+        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.4)" }}>
+          <div className="bg-white w-full max-w-sm rounded-3xl p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-black text-slate-900">Reject Application</h3>
+              <button onClick={() => setRejectModal(null)} className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 text-sm">✕</button>
+            </div>
+            <p className="text-sm text-slate-500">Rejecting <strong>{rejectModal.storeName ?? rejectModal.storeSlug}</strong></p>
+            <textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)}
+              placeholder="Reason for rejection (optional)..."
+              rows={3} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-400 resize-none" />
+            <div className="flex gap-2">
+              <button onClick={() => setRejectModal(null)} className="flex-1 py-3 border border-slate-200 text-slate-600 font-bold rounded-2xl text-sm">Cancel</button>
+              <button onClick={() => void submitReject()} disabled={actingId === rejectModal.id}
+                className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white font-black rounded-2xl text-sm disabled:opacity-60">
+                {actingId === rejectModal.id ? "Rejecting…" : "Confirm Reject"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Withdrawal action modal */}
+      {wActionModal && (
+        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.4)" }}>
+          <div className="bg-white w-full max-w-sm rounded-3xl p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-black text-slate-900">
+                {wActionModal.action === "approve" ? "Mark as Paid" : "Reject Withdrawal"}
+              </h3>
+              <button onClick={() => setWActionModal(null)} className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 text-sm">✕</button>
+            </div>
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm">
+              <p className="font-bold text-slate-800">${parseFloat(wActionModal.w.amount).toFixed(2)} → {wActionModal.w.paymentMethod}</p>
+              <p className="font-mono text-xs text-slate-500 mt-0.5 break-all">{wActionModal.w.paymentAddress}</p>
+              <p className="text-xs text-slate-400 mt-1">{wActionModal.w.ownerName ?? wActionModal.w.ownerEmail} · {wActionModal.w.storeName}</p>
+            </div>
+            <div>
+              <label className="text-xs font-bold text-slate-500 block mb-1.5">Admin note (optional)</label>
+              <input value={wNotes} onChange={e => setWNotes(e.target.value)}
+                placeholder={wActionModal.action === "approve" ? "e.g. Sent via M-Pesa" : "Reason for rejection..."}
+                className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => setWActionModal(null)} className="flex-1 py-3 border border-slate-200 text-slate-600 font-bold rounded-2xl text-sm">Cancel</button>
+              <button
+                onClick={() => void processWithdrawal(wActionModal.w.id, wActionModal.action, wNotes)}
+                disabled={wActingId === wActionModal.w.id}
+                className={`flex-1 py-3 text-white font-black rounded-2xl text-sm disabled:opacity-60 ${
+                  wActionModal.action === "approve" ? "bg-emerald-600 hover:bg-emerald-700" : "bg-red-600 hover:bg-red-700"
+                }`}>
+                {wActingId === wActionModal.w.id ? "Processing…" : wActionModal.action === "approve" ? "Confirm Paid" : "Confirm Reject"}
+              </button>
             </div>
           </div>
         </div>
@@ -1653,6 +2132,8 @@ function PaymentsPanel({ pwd }: { pwd: string }) {
     otsSenderId: "",
     otsAdminPhone: "",
     openaiApiKey: "",
+    imeiInfoApiToken: "",
+    botSystemPrompt: "",
   });
   const [testingOts, setTestingOts] = useState(false);
 
@@ -1693,6 +2174,8 @@ function PaymentsPanel({ pwd }: { pwd: string }) {
           otsSenderId: d.otsSenderId ?? "",
           otsAdminPhone: d.otsAdminPhone ?? "",
           openaiApiKey: "",
+          imeiInfoApiToken: "",
+          botSystemPrompt: d.botSystemPromptOverride ?? "",
         });
         setLoading(false);
       })
@@ -1736,6 +2219,8 @@ function PaymentsPanel({ pwd }: { pwd: string }) {
       if (form.otsSenderId) body.otsSenderId = form.otsSenderId;
       if (form.otsAdminPhone) body.otsAdminPhone = form.otsAdminPhone;
       if (form.openaiApiKey) body.openaiApiKey = form.openaiApiKey;
+      if (form.imeiInfoApiToken) body.imeiInfoApiToken = form.imeiInfoApiToken;
+      body.botSystemPromptOverride = form.botSystemPrompt;
 
       const r = await adminFetch(apiPath("/api/admin/settings/update"), pwd, { method: "POST", body: JSON.stringify(body) });
       if (!r.ok) throw new Error();
@@ -1747,7 +2232,7 @@ function PaymentsPanel({ pwd }: { pwd: string }) {
         nowpaymentsApiKey: "", coingateApiKey: "",
         smtpPass: "", resendApiKey: "",
         googleClientId: "", googleClientSecret: "",
-        otsApiToken: "", openaiApiKey: "",
+        otsApiToken: "", openaiApiKey: "", imeiInfoApiToken: "", botSystemPrompt: f.botSystemPrompt,
         paymentMethods: updated.paymentMethods?.length
           ? updated.paymentMethods.map(m => ({ method: m.method, walletAddress: m.walletAddress, network: m.network ?? "", label: m.label ?? "", enabled: m.enabled !== false }))
           : f.paymentMethods,
@@ -1987,6 +2472,53 @@ function PaymentsPanel({ pwd }: { pwd: string }) {
             GSMBot is active
           </div>
         )}
+        <div className="space-y-1.5 pt-1">
+          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Custom System Prompt Instructions</label>
+          <p className="text-[10px] text-slate-400">Optional extra instructions appended to the bot's system prompt. Use this to override behaviour, add product notes, or set custom tone.</p>
+          <textarea
+            value={form.botSystemPrompt}
+            onChange={e => setForm(f => ({ ...f, botSystemPrompt: e.target.value }))}
+            rows={5}
+            placeholder={"e.g. Always greet users in Swahili.\nAlways recommend the Express Order for urgent requests.\nOur newest service is XYZ — mention it proactively."}
+            className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-y font-mono text-slate-700 placeholder:text-slate-300 placeholder:font-sans"
+          />
+          {settings?.botSystemPromptOverride && (
+            <p className="text-[10px] text-emerald-600 font-semibold">Custom instructions saved ✓</p>
+          )}
+        </div>
+      </div>
+
+      {/* ── IMEI.info API Token ── */}
+      <div className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm p-4 space-y-3">
+        <div>
+          <p className="text-sm font-bold text-slate-800">IMEI Check — SimLock API</p>
+          <p className="text-[10px] font-semibold text-slate-400">
+            Enables real SimLock status, carrier network, and blacklist data on the free IMEI checker.
+            Without this key the checker still works — device info from the free TAC database is always shown.
+          </p>
+        </div>
+        <div className="bg-emerald-50 border border-emerald-100 rounded-xl px-3.5 py-2.5 text-[11px] text-emerald-700 leading-relaxed">
+          Get a token at{" "}
+          <a href="https://imei.info/imei-api/" target="_blank" rel="noreferrer" className="font-bold underline">imei.info/imei-api</a>
+          {" "}→ register → copy your API token. Paste it below and save. SimLock, carrier &amp; blacklist will appear instantly on every check.
+        </div>
+        <MaskedInput
+          label="IMEI.info API Token"
+          value={form.imeiInfoApiToken ?? ""}
+          onChange={v => setForm(f => ({ ...f, imeiInfoApiToken: v }))}
+          placeholder={saved(settings?.imeiInfoApiToken ?? null) ? "Saved — enter new to replace" : "Paste your IMEI.info API token…"}
+        />
+        {settings?.imeiInfoApiToken ? (
+          <div className="flex items-center gap-1.5 text-[11px] text-emerald-600 font-semibold">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+            Enhanced SimLock check active — real unlock &amp; blacklist status will show
+          </div>
+        ) : (
+          <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-semibold">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+            Basic mode — device info only, no SimLock data
+          </div>
+        )}
       </div>
 
       {/* Resend API – recommended for Vercel (HTTP-based, no SMTP port blocking) */}
@@ -2162,6 +2694,7 @@ function LiveChatsPanel({ pwd }: { pwd: string }) {
   const [reply, setReply] = useState("");
   const [sending, setSending] = useState(false);
   const [showClosed, setShowClosed] = useState(false);
+  const [mobileView, setMobileView] = useState<"list" | "chat">("list");
   const bottomRef = useRef<HTMLDivElement>(null);
   // Refs to always have the latest values inside setInterval without recreating it
   const selectedRef = useRef(selected);
@@ -2278,10 +2811,10 @@ function LiveChatsPanel({ pwd }: { pwd: string }) {
       )}
 
       <div className="grid gap-3 md:grid-cols-2">
-        {/* Session list */}
-        <div className="space-y-2">
+        {/* Session list — hidden on mobile when chat is open */}
+        <div className={`space-y-2 ${mobileView === "chat" ? "hidden md:block" : "block"}`}>
           {sessions.map(sess => (
-            <button key={sess.id} onClick={() => setSelected(sess)}
+            <button key={sess.id} onClick={() => { setSelected(sess); setMobileView("chat"); }}
               className={`w-full text-left bg-white rounded-2xl border p-3.5 transition-colors hover:border-blue-300 ${selected?.id === sess.id ? "border-blue-400 shadow-sm" : "border-slate-100"}`}>
               <div className="flex items-center justify-between mb-1.5">
                 <div className="flex items-center gap-2">
@@ -2313,12 +2846,19 @@ function LiveChatsPanel({ pwd }: { pwd: string }) {
 
         {/* Selected session */}
         {selected ? (
-          <div className="bg-white rounded-2xl border border-slate-100 flex flex-col" style={{ maxHeight: "500px" }}>
+          <div className={`bg-white rounded-2xl border border-slate-100 flex flex-col ${mobileView === "list" ? "hidden md:flex" : "flex"}`} style={{ maxHeight: "500px" }}>
             {/* Chat header */}
             <div className="flex items-center justify-between px-3 py-2.5 border-b border-slate-100 shrink-0">
-              <div>
-                <p className="text-xs font-black text-slate-800">{selected.visitorName || `Visitor #${selected.id}`}</p>
-                <p className="text-[10px] text-slate-400">{selected.visitorId.slice(0, 12)}…</p>
+              <div className="flex items-center gap-2">
+                {/* Back button — mobile only */}
+                <button onClick={() => setMobileView("list")}
+                  className="md:hidden w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition-colors shrink-0">
+                  <ChevronLeft size={14} />
+                </button>
+                <div>
+                  <p className="text-xs font-black text-slate-800">{selected.visitorName || `Visitor #${selected.id}`}</p>
+                  <p className="text-[10px] text-slate-400">{selected.visitorId.slice(0, 12)}…</p>
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${statusColor(selected.status)}`}>{selected.status}</span>
@@ -2421,6 +2961,136 @@ function LiveChatsPanel({ pwd }: { pwd: string }) {
   );
 }
 
+// ─── IMEI Logs Panel ──────────────────────────────────────────────────────────
+interface ImeiLog {
+  id: number;
+  imei: string;
+  brand: string | null;
+  model: string | null;
+  marketingName: string | null;
+  simLock: string | null;
+  carrier: string | null;
+  blacklist: string | null;
+  enhanced: boolean;
+  source: string | null;
+  checkedAt: string;
+}
+
+function ImeiLogsPanel({ pwd }: { pwd: string }) {
+  const [logs, setLogs] = useState<ImeiLog[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const { toast } = useToast();
+
+  useEffect(() => {
+    adminFetch(apiPath("/api/admin/imei-logs"), pwd)
+      .then(r => r.json())
+      .then((d: ImeiLog[]) => { setLogs(d); setLoading(false); })
+      .catch(() => { toast({ variant: "destructive", title: "Failed to load IMEI logs" }); setLoading(false); });
+  }, [pwd, toast]);
+
+  const filtered = search.trim()
+    ? logs.filter(l =>
+        l.imei.includes(search) ||
+        (l.brand ?? "").toLowerCase().includes(search.toLowerCase()) ||
+        (l.marketingName ?? "").toLowerCase().includes(search.toLowerCase()) ||
+        (l.carrier ?? "").toLowerCase().includes(search.toLowerCase())
+      )
+    : logs;
+
+  function simLockColor(v: string | null) {
+    if (!v) return "text-slate-400";
+    const lc = v.toLowerCase();
+    if (lc.includes("unlock") || lc.includes("clean")) return "text-emerald-600";
+    if (lc.includes("lock") || lc.includes("black")) return "text-red-500";
+    return "text-amber-500";
+  }
+
+  return (
+    <div className="p-4 space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-bold text-slate-800">IMEI Lookup History</p>
+          <p className="text-[11px] text-slate-400">{logs.length} check{logs.length !== 1 ? "s" : ""} recorded</p>
+        </div>
+        <div className="relative">
+          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search IMEI, brand, carrier…"
+            className="pl-8 pr-3 py-2 text-xs border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 w-52"
+          />
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="space-y-2">{[1,2,3,4,5].map(i => <div key={i} className="h-12 bg-slate-100 rounded-xl animate-pulse" />)}</div>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-16 text-slate-400">
+          <Smartphone size={32} className="mx-auto mb-3 opacity-30" />
+          <p className="text-sm font-semibold">{search ? "No matches found" : "No IMEI checks yet"}</p>
+          <p className="text-[11px] mt-1">{search ? "Try a different search term" : "Checks will appear here as users use the IMEI checker"}</p>
+        </div>
+      ) : (
+        <div className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-100">
+                  <th className="text-left px-4 py-2.5 font-semibold text-slate-500">IMEI</th>
+                  <th className="text-left px-4 py-2.5 font-semibold text-slate-500">Device</th>
+                  <th className="text-left px-4 py-2.5 font-semibold text-slate-500">SimLock</th>
+                  <th className="text-left px-4 py-2.5 font-semibold text-slate-500">Carrier</th>
+                  <th className="text-left px-4 py-2.5 font-semibold text-slate-500">Blacklist</th>
+                  <th className="text-left px-4 py-2.5 font-semibold text-slate-500">Checked</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {filtered.map(log => (
+                  <tr key={log.id} className="hover:bg-slate-50/60 transition-colors">
+                    <td className="px-4 py-2.5 font-mono text-[11px] text-slate-700 whitespace-nowrap">{log.imei}</td>
+                    <td className="px-4 py-2.5 whitespace-nowrap">
+                      <p className="font-semibold text-slate-800">{log.brand ?? "—"}</p>
+                      <p className="text-slate-400 text-[10px]">{log.marketingName ?? log.model ?? ""}</p>
+                    </td>
+                    <td className="px-4 py-2.5 whitespace-nowrap">
+                      {log.simLock ? (
+                        <span className={`font-bold ${simLockColor(log.simLock)}`}>{log.simLock}</span>
+                      ) : (
+                        <span className="text-slate-300">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2.5 whitespace-nowrap text-slate-600">{log.carrier ?? "—"}</td>
+                    <td className="px-4 py-2.5 whitespace-nowrap">
+                      {log.blacklist ? (
+                        <span className={`font-semibold ${log.blacklist.toLowerCase().includes("clean") || log.blacklist === "0" || log.blacklist.toLowerCase() === "no" ? "text-emerald-600" : "text-red-500"}`}>
+                          {log.blacklist}
+                        </span>
+                      ) : (
+                        <span className="text-slate-300">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2.5 whitespace-nowrap text-slate-400">
+                      {new Date(log.checkedAt).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {filtered.length === 500 && (
+            <div className="border-t border-slate-100 px-4 py-2 text-[11px] text-slate-400 text-center">
+              Showing last 500 checks
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function AdminPage() {
   const ADMIN_KEY = "gsm_admin_session";
   const [pwd, setPwd] = useState(() => {
@@ -2429,9 +3099,40 @@ export function AdminPage() {
   const [authed, setAuthed] = useState(() => {
     try { return sessionStorage.getItem(ADMIN_KEY + "_ok") === "1"; } catch { return false; }
   });
-  const [tab, setTab] = useState<Tab>("overview");
+  const [location, navigate] = useLocation();
+  const tabFromUrl = location.match(/^\/admin\/([^/]+)/)?.[1] ?? "overview";
+  const tab = (NAV.find(n => n.id === tabFromUrl)?.id ?? "overview") as Tab;
+  function setTab(newTab: Tab) { navigate(`/admin/${newTab}`); }
   const [showChangePwd, setShowChangePwd] = useState(false);
   const [isDefaultWarn, setIsDefaultWarn] = useState(false);
+  const [paymentUnread, setPaymentUnread] = useState(0);
+  const lastNotifTs = useRef(0);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    if (!authed) return;
+    const poll = async () => {
+      try {
+        const r = await fetch("/api/admin/notifications");
+        if (!r.ok) return;
+        const data = await r.json() as { notifications: PaymentNotification[] };
+        const newOnes = data.notifications.filter(n => !n.read && n.ts > lastNotifTs.current);
+        if (newOnes.length > 0) {
+          lastNotifTs.current = Math.max(...newOnes.map(n => n.ts));
+          setPaymentUnread(prev => prev + newOnes.length);
+          newOnes.forEach(n => {
+            toast({
+              title: "💰 Payment confirmed",
+              description: `Order #${n.orderId} · $${n.amount} via ${n.method} · ${n.customerEmail}`,
+            });
+          });
+        }
+      } catch { /* non-fatal */ }
+    };
+    poll();
+    const id = setInterval(poll, 8000);
+    return () => clearInterval(id);
+  }, [authed, toast]);
 
   function handleLogin(password: string, isDefault: boolean) {
     setPwd(password);
@@ -2445,7 +3146,7 @@ export function AdminPage() {
   const pageTitle: Record<Tab, string> = {
     overview: "Dashboard", orders: "Orders",
     products: "Products", users: "Users", payments: "Payments",
-    live_chat: "Live Chat",
+    live_chat: "Live Chat", resellers: "Resellers", imei_logs: "IMEI Logs",
   };
 
   return (
@@ -2522,6 +3223,16 @@ export function AdminPage() {
                 </div>
               </div>
               <div className="flex items-center gap-1">
+                <button
+                  onClick={async () => { setPaymentUnread(0); await fetch("/api/admin/notifications/mark-read", { method: "POST" }).catch(() => {}); }}
+                  className="relative w-8 h-8 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-emerald-400 transition-colors">
+                  <Bell size={13} />
+                  {paymentUnread > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-emerald-500 rounded-full text-[9px] font-bold text-white flex items-center justify-center">
+                      {paymentUnread > 9 ? "9+" : paymentUnread}
+                    </span>
+                  )}
+                </button>
                 <button onClick={() => { setShowChangePwd(true); setIsDefaultWarn(false); }}
                   className="w-8 h-8 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-colors">
                   <KeyRound size={13} />
@@ -2538,6 +3249,16 @@ export function AdminPage() {
               <h1 className="text-white font-black text-lg">{pageTitle[tab]}</h1>
               {/* Desktop: actions in header */}
               <div className="hidden md:flex items-center gap-1">
+                <button
+                  onClick={async () => { setPaymentUnread(0); await fetch("/api/admin/notifications/mark-read", { method: "POST" }).catch(() => {}); }}
+                  className="relative w-8 h-8 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-emerald-400 transition-colors">
+                  <Bell size={13} />
+                  {paymentUnread > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-emerald-500 rounded-full text-[9px] font-bold text-white flex items-center justify-center">
+                      {paymentUnread > 9 ? "9+" : paymentUnread}
+                    </span>
+                  )}
+                </button>
                 <button onClick={() => { setShowChangePwd(true); setIsDefaultWarn(false); }}
                   className="w-8 h-8 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-colors">
                   <KeyRound size={13} />
@@ -2557,8 +3278,10 @@ export function AdminPage() {
             {tab === "orders"     && <OrdersPanel     pwd={pwd} />}
             {tab === "products"   && <ProductsPanel   pwd={pwd} />}
             {tab === "users"      && <UsersPanel      pwd={pwd} />}
+            {tab === "resellers"  && <ResellersPanel  pwd={pwd} />}
             {tab === "payments"   && <PaymentsPanel   pwd={pwd} />}
             {tab === "live_chat"  && <LiveChatsPanel  pwd={pwd} />}
+            {tab === "imei_logs"  && <ImeiLogsPanel   pwd={pwd} />}
           </main>
 
           {/* ── Mobile bottom nav — fixed so it never scrolls away ── */}

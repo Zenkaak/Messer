@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
-import { Home, Grid, ShoppingCart, User, Search, Menu, Tag, X, Phone, Cpu, Lock, Server, Zap, Gift, Wallet, ChevronRight } from "lucide-react";
+import { Home, Grid, ShoppingCart, User, Search, Menu, Tag, X, Phone, Cpu, Lock, Server, Zap, Gift, Wallet, ChevronRight, Wrench, ChevronDown, Store, Download } from "lucide-react";
 import { useGetCart, getGetCartQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
+import { useToast } from "@/hooks/use-toast";
 import { NotificationBell } from "@/components/notification-bell";
+import { GsmBot } from "@/components/gsm-bot";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
@@ -12,9 +14,47 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const { data: cart } = useGetCart();
   const { isAuthenticated } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [toolsExpanded, setToolsExpanded] = useState(false);
   const cartItemCount = cart?.itemCount || 0;
   const queryClient = useQueryClient();
   const prevAuthRef = useRef(isAuthenticated);
+
+  const { toast } = useToast();
+  const APP_VERSION = "1.0.2";
+
+  // Version check → Update Available (native Capacitor only) + Get the App (browser mobile only)
+  useEffect(() => {
+    const isNativeApp = !!(window as any).Capacitor?.isNativePlatform?.();
+    const stored = localStorage.getItem("gsm_app_version");
+    if (isNativeApp && stored && stored !== APP_VERSION) {
+      toast({ title: "🚀 Update Available", description: `v${APP_VERSION} is ready — update from the Play Store.` });
+    }
+    localStorage.setItem("gsm_app_version", APP_VERSION);
+    if (!isNativeApp) {
+      const isMobile = window.innerWidth < 768;
+      const lastPrompt = Number(localStorage.getItem("gsm_download_prompt") || "0");
+      const weekMs = 7 * 24 * 60 * 60 * 1000;
+      if (isMobile && Date.now() - lastPrompt > weekMs) {
+        setTimeout(() => {
+          toast({
+            title: "📱 Get the GSM World App",
+            description: "Download our Android app — faster, offline-ready & instant notifications.",
+            action: (
+              <a
+                href="https://github.com/Zenkaak/Messer/releases/latest/download/app-debug.apk"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors shrink-0"
+              >
+                Download
+              </a>
+            ) as unknown as React.ReactElement,
+          });
+          localStorage.setItem("gsm_download_prompt", String(Date.now()));
+        }, 5000);
+      }
+    }
+  }, []);
 
   // Invalidate cart cache when user logs in so guest cart items appear immediately
   useEffect(() => {
@@ -95,15 +135,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 iconBg="bg-yellow-100 text-yellow-700"
               />
               <SideLink
-                href={`${basePath}/iphone-unlock`} icon={<Phone size={16} />} label="iPhone / iCloud Unlock"
-                onClick={() => setSidebarOpen(false)} active={location === "/iphone-unlock"}
-                iconBg="bg-gray-200 text-gray-700"
-                badge="🍎"
-              />
-              <SideLink
-                href={`${basePath}/android-unlock`} icon={<Cpu size={16} />} label="Android Unlock"
-                onClick={() => setSidebarOpen(false)} active={location === "/android-unlock"}
-                iconBg="bg-green-100 text-green-700"
+                href={`${basePath}/direct-unlock`} icon={<Phone size={16} />} label="iPhone / Android Unlock"
+                onClick={() => setSidebarOpen(false)} active={location === "/direct-unlock" || location === "/iphone-unlock" || location === "/android-unlock"}
+                iconBg="bg-teal-100 text-teal-700"
+                badge="HOT"
               />
               <SideLink
                 href={`${basePath}/frp`} icon={<Lock size={16} />} label="FRP Bypass"
@@ -115,11 +150,86 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 onClick={() => setSidebarOpen(false)} active={location === "/imei"}
                 iconBg="bg-orange-100 text-orange-600"
               />
+
+              {/* Unlock Tool Rentals section */}
+              <p className="px-2 pt-4 pb-1 text-[9px] font-black text-gray-400 uppercase tracking-[0.15em]">Unlock Tool Rentals</p>
+              <div className={`flex items-center gap-0 rounded-xl transition-colors ${location.startsWith("/unlock-tools") ? "bg-[#1a2332]/10 text-[#1a2332]" : "text-gray-700 hover:bg-gray-100"}`}>
+                <Link
+                  href={`${basePath}/unlock-tools`}
+                  onClick={() => setSidebarOpen(false)}
+                  className="flex-1 flex items-center gap-2.5 px-3 py-2.5 text-left"
+                >
+                  <div className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
+                    <Wrench size={14} />
+                  </div>
+                  <span className="flex-1 text-[12.5px] font-bold">All Unlock Tools</span>
+                  <span className="text-[9px] font-black bg-green-500 text-white px-1.5 py-0.5 rounded-full">26</span>
+                </Link>
+                <button
+                  onClick={() => setToolsExpanded((v) => !v)}
+                  className="px-2 py-2.5 hover:bg-gray-200 rounded-r-xl"
+                  aria-label="Expand tools list"
+                >
+                  <ChevronDown size={13} className={`text-gray-400 transition-transform ${toolsExpanded ? "rotate-180" : ""}`} />
+                </button>
+              </div>
+
+              {toolsExpanded && (
+                <div className="ml-3 pl-3 border-l-2 border-indigo-100 space-y-0 mt-0.5">
+                  {[
+                    { id: "ultra-tool", name: "Ultra Tool", cat: "Samsung" },
+                    { id: "z3x-samsung", name: "Z3X Samsung Tool Pro", cat: "Samsung" },
+                    { id: "chimera-tool", name: "Chimera Tool", cat: "Samsung" },
+                    { id: "octoplus-samsung", name: "Octoplus Samsung", cat: "Samsung" },
+                    { id: "locksmith-pro", name: "LockSmith Pro", cat: "Samsung" },
+                    { id: "bmt-pro", name: "BMT Pro", cat: "Samsung" },
+                    { id: "gsm-flasher", name: "GSM Flasher Tool", cat: "Samsung" },
+                    { id: "samkey-tmf", name: "SamKey TMF", cat: "Samsung" },
+                    { id: "nc-auth", name: "NC Auth Server", cat: "iPhone" },
+                    { id: "iremoval-pro", name: "iRemoval Pro", cat: "iPhone" },
+                    { id: "iactivate-server", name: "iActivate Server", cat: "iPhone" },
+                    { id: "3utools", name: "3uTools", cat: "iPhone" },
+                    { id: "passfab-activation", name: "PassFab Unlocker", cat: "iPhone" },
+                    { id: "4ukey", name: "Tenorshare 4uKey", cat: "iPhone" },
+                    { id: "unlockgo", name: "UnlockGo", cat: "iPhone" },
+                    { id: "multiunlock", name: "Multiunlock Server", cat: "Android" },
+                    { id: "eft-pro", name: "EFT Pro", cat: "Android" },
+                    { id: "sigma-software", name: "Sigma Software", cat: "Android" },
+                    { id: "dr-fone-unlock", name: "Dr.Fone Unlock", cat: "Android" },
+                    { id: "fonegeek", name: "FoneGeek Unlock", cat: "Android" },
+                    { id: "imyfone-lockwiper", name: "iMyFone LockWiper", cat: "Android" },
+                    { id: "xiaomi-unlock", name: "Xiaomi Unlock Server", cat: "Android" },
+                    { id: "huawei-server", name: "Huawei Unlock Server", cat: "Android" },
+                    { id: "frp-tool-pro", name: "FRP Tool Pro", cat: "FRP" },
+                    { id: "easy-frp", name: "Easy FRP Bypass", cat: "FRP" },
+                    { id: "android-mdm", name: "Android MDM Bypass", cat: "FRP" },
+                  ].map((tool) => (
+                    <Link
+                      key={tool.id}
+                      href={`${basePath}/unlock-tools?tool=${tool.id}`}
+                      onClick={() => setSidebarOpen(false)}
+                      className={`flex items-center gap-2 px-2 py-1.5 rounded-lg transition-colors text-left w-full group ${location === "/unlock-tools" ? "text-indigo-700" : "text-gray-600 hover:bg-gray-100 hover:text-gray-800"}`}
+                    >
+                      <span className={`text-[8px] font-black px-1 py-0.5 rounded leading-none shrink-0 ${
+                        tool.cat === "Samsung" ? "bg-blue-100 text-blue-600" :
+                        tool.cat === "iPhone" ? "bg-gray-100 text-gray-600" :
+                        tool.cat === "Android" ? "bg-green-100 text-green-700" :
+                        "bg-red-100 text-red-600"
+                      }`}>{tool.cat}</span>
+                      <span className="text-[11px] font-semibold truncate">{tool.name}</span>
+                      <span className="ml-auto text-[8px] text-green-600 font-bold shrink-0">$3+</span>
+                    </Link>
+                  ))}
+                </div>
+              )}
+
+              {/* Earn section */}
+              <p className="px-2 pt-4 pb-1 text-[9px] font-black text-gray-400 uppercase tracking-[0.15em]">Earn</p>
               <SideLink
-                href={`${basePath}/direct-unlock`} icon={<Zap size={16} />} label="Direct Unlock (IMEI)"
-                onClick={() => setSidebarOpen(false)} active={location === "/direct-unlock"}
+                href={`${basePath}/reseller`} icon={<Store size={16} />} label="Reseller Program"
+                onClick={() => setSidebarOpen(false)} active={location === "/reseller"}
                 iconBg="bg-teal-100 text-teal-700"
-                badge="HOT"
+                badge="10%"
               />
 
               {/* Account section */}
@@ -144,6 +254,22 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   iconBg="bg-blue-100 text-blue-600"
                 />
               )}
+
+              {/* App Download */}
+              <p className="px-2 pt-4 pb-1 text-[9px] font-black text-gray-400 uppercase tracking-[0.15em]">Mobile App</p>
+              <a
+                href="https://github.com/Zenkaak/Messer/releases/latest/download/app-debug.apk"
+                target="_blank"
+                rel="noreferrer"
+                onClick={() => setSidebarOpen(false)}
+                className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-gray-700 hover:bg-gray-100 transition-colors"
+              >
+                <div className="w-7 h-7 rounded-lg bg-green-100 text-green-700 flex items-center justify-center shrink-0">
+                  <Download size={14} />
+                </div>
+                <span className="flex-1 text-[12.5px] font-bold">Download GSM World APK</span>
+                <span className="text-[9px] font-black bg-green-500 text-white px-1.5 py-0.5 rounded-full">NEW</span>
+              </a>
             </nav>
 
             {/* Cart quick-link */}
@@ -203,12 +329,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
             <DesktopNavLink href={`${basePath}/credits`} label="Credits" active={location === "/credits"} />
             <DesktopNavLink href={`${basePath}/activate`} label="Activation" active={location === "/activate"} />
-            <DesktopNavLink href={`${basePath}/iphone-unlock`} label="iPhone Unlock" active={location === "/iphone-unlock"} />
-            <DesktopNavLink href={`${basePath}/android-unlock`} label="Android" active={location === "/android-unlock"} />
+            <DesktopNavLink href={`${basePath}/direct-unlock`} label="Unlock" active={location === "/direct-unlock" || location === "/iphone-unlock" || location === "/android-unlock"} />
             <DesktopNavLink href={`${basePath}/frp`} label="FRP" active={location === "/frp"} />
             <DesktopNavLink href={`${basePath}/imei`} label="IMEI" active={location === "/imei"} />
-            <DesktopNavLink href={`${basePath}/direct-unlock`} label="Direct Unlock" active={location === "/direct-unlock"} />
             <DesktopNavLink href={`${basePath}/gift-cards`} label="Gift Cards" active={location === "/gift-cards"} />
+            <DesktopNavLink href={`${basePath}/unlock-tools`} label="Rentals" active={location.startsWith("/unlock-tools")} />
           </nav>
 
           <div className="flex items-center gap-2">
@@ -332,31 +457,24 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </div>
       </footer>
 
-      {/* ── Floating WhatsApp ── */}
-      <a
-        href="https://wa.me/254756816951"
-        target="_blank"
-        rel="noreferrer"
-        aria-label="Chat on WhatsApp"
-        className="fixed z-40 bottom-[5.5rem] right-4 md:bottom-6 md:right-6 w-14 h-14 bg-[#25D366] hover:bg-[#20ba5a] rounded-full shadow-lg flex items-center justify-center transition-transform hover:scale-110 active:scale-95"
-      >
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="white">
-          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
-        </svg>
-      </a>
+      {/* ── GSMBot AI Chat Widget ── */}
+      <GsmBot />
 
       {/* ── Mobile Bottom Nav ── */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-border flex justify-between items-center px-2 py-2 z-50 pb-[max(0.5rem,env(safe-area-inset-bottom))] md:hidden">
-        <NavItem href={`${basePath}/`} icon={<Home size={22} />} label="Home" active={location === "/"} />
-        <NavItem href={`${basePath}/categories`} icon={<Grid size={22} />} label="Categories" active={location === "/categories"} />
-        <NavItem href={`${basePath}/products`} icon={<Tag size={22} />} label="Store" active={location.startsWith("/products")} />
-        <NavItem href={`${basePath}/cart`} icon={<ShoppingCart size={22} />} label="Cart" active={location === "/cart"} badge={cartItemCount} />
-        <NavItem
-          href={isAuthenticated ? `${basePath}/account` : `${basePath}/login`}
-          icon={<User size={22} />}
-          label={isAuthenticated ? "Account" : "Sign In"}
-          active={location === "/account" || location === "/login" || location === "/signup"}
-        />
+      <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden"
+        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
+        <div className="mx-3 mb-2 bg-[#1a2332] rounded-2xl shadow-2xl flex items-center justify-between px-1 py-1">
+          <NavItem href={`${basePath}/`} icon={<Home size={20} />} label="Home" active={location === "/"} />
+          <NavItem href={`${basePath}/categories`} icon={<Grid size={20} />} label="Browse" active={location === "/categories"} />
+          <NavItem href={`${basePath}/products`} icon={<Tag size={20} />} label="Store" active={location.startsWith("/products")} />
+          <NavItem href={`${basePath}/cart`} icon={<ShoppingCart size={20} />} label="Cart" active={location === "/cart"} badge={cartItemCount} />
+          <NavItem
+            href={isAuthenticated ? `${basePath}/account` : `${basePath}/login`}
+            icon={<User size={20} />}
+            label={isAuthenticated ? "Account" : "Sign In"}
+            active={location === "/account" || location === "/login" || location === "/signup"}
+          />
+        </div>
       </nav>
     </div>
   );
@@ -409,16 +527,22 @@ function SideLink({
 
 function NavItem({ href, icon, label, active, badge }: { href: string; icon: React.ReactNode; label: string; active: boolean; badge?: number }) {
   return (
-    <Link href={href} className={`flex flex-col items-center justify-center w-full py-1 gap-1 relative transition-colors ${active ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}>
+    <Link href={href}
+      className={`flex flex-col items-center justify-center flex-1 py-2 px-1 gap-1 rounded-xl relative transition-all ${
+        active ? "bg-white/15 text-white" : "text-white/50 hover:text-white/80 hover:bg-white/8"
+      }`}>
       <div className="relative">
-        {icon}
+        <div className={`transition-transform ${active ? "scale-110" : ""}`}>
+          {icon}
+        </div>
         {badge !== undefined && badge > 0 && (
-          <span className="absolute -top-1.5 -right-2 bg-destructive text-destructive-foreground text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full border border-white">
+          <span className="absolute -top-1.5 -right-2 bg-red-500 text-white text-[9px] font-bold w-4 h-4 flex items-center justify-center rounded-full border border-[#1a2332]">
             {badge > 9 ? '9+' : badge}
           </span>
         )}
       </div>
-      <span className="text-[10px] font-medium">{label}</span>
+      <span className={`text-[9px] font-bold tracking-wide ${active ? "text-white" : "text-white/50"}`}>{label}</span>
+      {active && <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-teal-400" />}
     </Link>
   );
 }

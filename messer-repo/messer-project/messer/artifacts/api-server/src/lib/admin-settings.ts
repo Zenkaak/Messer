@@ -38,17 +38,23 @@ const SETTING_KEYS = [
   "ots_admin_phone",
   "openai_api_key",
   "openai_api_url",
+  "imei_info_api_token",
+  "bot_system_prompt",
 ] as const;
 
 type SettingKey = (typeof SETTING_KEYS)[number];
 
 async function getSetting(key: SettingKey): Promise<string | null> {
-  const rows = await db
-    .select()
-    .from(adminSettingsTable)
-    .where(eq(adminSettingsTable.key, key))
-    .limit(1);
-  if (rows[0]?.value) return rows[0].value;
+  try {
+    const rows = await db
+      .select()
+      .from(adminSettingsTable)
+      .where(eq(adminSettingsTable.key, key))
+      .limit(1);
+    if (rows[0]?.value) return rows[0].value;
+  } catch {
+    // admin_settings table may not exist yet — fall through to env-var fallback
+  }
 
   // fallback to env vars
   const envFallback: Partial<Record<SettingKey, string | undefined>> = {
@@ -80,7 +86,12 @@ async function deleteSetting(key: SettingKey): Promise<void> {
 }
 
 export async function getAllSettings() {
-  const rows = await db.select().from(adminSettingsTable);
+  let rows: { key: string; value: string | null }[] = [];
+  try {
+    rows = await db.select().from(adminSettingsTable);
+  } catch {
+    // admin_settings table may not exist yet — return safe defaults
+  }
   const map: Record<string, string | null> = {};
   for (const row of rows) map[row.key] = row.value;
 
@@ -119,6 +130,8 @@ export async function getAllSettings() {
     otsSenderId: map["ots_sender_id"] || process.env.SENDER_ID || null,
     otsAdminPhone: map["ots_admin_phone"] || process.env.ADMIN_PHONE || null,
     openaiApiKey: (map["openai_api_key"] || process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY) ? "***" : null,
+    imeiInfoApiToken: (map["imei_info_api_token"] || process.env.IMEI_INFO_API_TOKEN) ? "***" : null,
+    botSystemPromptOverride: map["bot_system_prompt"] || null,
   };
 }
 
@@ -158,6 +171,8 @@ export async function updateSettings(updates: Record<string, unknown>) {
     otsSenderId: "ots_sender_id",
     otsAdminPhone: "ots_admin_phone",
     openaiApiKey: "openai_api_key",
+    imeiInfoApiToken: "imei_info_api_token",
+    botSystemPromptOverride: "bot_system_prompt",
   };
 
   for (const [jsKey, dbKey] of Object.entries(allowedUpdates)) {
@@ -325,4 +340,12 @@ export async function getOpenAiKey(): Promise<string | null> {
 
 export async function getOpenAiBaseUrl(): Promise<string> {
   return (await getSetting("openai_api_url")) || "https://api.openai.com";
+}
+
+export async function getBotSystemPromptOverride(): Promise<string | null> {
+  return getSetting("bot_system_prompt");
+}
+
+export async function getImeiInfoApiToken(): Promise<string | null> {
+  return (await getSetting("imei_info_api_token")) || process.env.IMEI_INFO_API_TOKEN || null;
 }

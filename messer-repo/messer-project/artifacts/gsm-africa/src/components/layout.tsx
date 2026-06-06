@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
-import { Home, Grid, ShoppingCart, User, Search, Menu, Tag, X, Phone, Cpu, Lock, Server, Zap, Gift, Wallet, ChevronRight, Wrench, ChevronDown } from "lucide-react";
+import { Home, Grid, ShoppingCart, User, Search, Menu, Tag, X, Phone, Cpu, Lock, Server, Zap, Gift, Wallet, ChevronRight, Wrench, ChevronDown, Store, Download } from "lucide-react";
 import { useGetCart, getGetCartQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
+import { useToast } from "@/hooks/use-toast";
 import { NotificationBell } from "@/components/notification-bell";
 import { GsmBot } from "@/components/gsm-bot";
 
@@ -17,6 +18,43 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const cartItemCount = cart?.itemCount || 0;
   const queryClient = useQueryClient();
   const prevAuthRef = useRef(isAuthenticated);
+
+  const { toast } = useToast();
+  const APP_VERSION = "1.0.2";
+
+  // Version check → Update Available (native Capacitor only) + Get the App (browser mobile only)
+  useEffect(() => {
+    const isNativeApp = !!(window as any).Capacitor?.isNativePlatform?.();
+    const stored = localStorage.getItem("gsm_app_version");
+    if (isNativeApp && stored && stored !== APP_VERSION) {
+      toast({ title: "🚀 Update Available", description: `v${APP_VERSION} is ready — update from the Play Store.` });
+    }
+    localStorage.setItem("gsm_app_version", APP_VERSION);
+    if (!isNativeApp) {
+      const isMobile = window.innerWidth < 768;
+      const lastPrompt = Number(localStorage.getItem("gsm_download_prompt") || "0");
+      const weekMs = 7 * 24 * 60 * 60 * 1000;
+      if (isMobile && Date.now() - lastPrompt > weekMs) {
+        setTimeout(() => {
+          toast({
+            title: "📱 Get the GSM World App",
+            description: "Download our Android app — faster, offline-ready & instant notifications.",
+            action: (
+              <a
+                href="https://github.com/Zenkaak/Messer/releases/latest/download/app-debug.apk"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors shrink-0"
+              >
+                Download
+              </a>
+            ) as unknown as React.ReactElement,
+          });
+          localStorage.setItem("gsm_download_prompt", String(Date.now()));
+        }, 5000);
+      }
+    }
+  }, []);
 
   // Invalidate cart cache when user logs in so guest cart items appear immediately
   useEffect(() => {
@@ -185,6 +223,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 </div>
               )}
 
+              {/* Earn section */}
+              <p className="px-2 pt-4 pb-1 text-[9px] font-black text-gray-400 uppercase tracking-[0.15em]">Earn</p>
+              <SideLink
+                href={`${basePath}/reseller`} icon={<Store size={16} />} label="Reseller Program"
+                onClick={() => setSidebarOpen(false)} active={location === "/reseller"}
+                iconBg="bg-teal-100 text-teal-700"
+                badge="10%"
+              />
+
               {/* Account section */}
               <p className="px-2 pt-4 pb-1 text-[9px] font-black text-gray-400 uppercase tracking-[0.15em]">Account</p>
               {isAuthenticated ? (
@@ -207,6 +254,22 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   iconBg="bg-blue-100 text-blue-600"
                 />
               )}
+
+              {/* App Download */}
+              <p className="px-2 pt-4 pb-1 text-[9px] font-black text-gray-400 uppercase tracking-[0.15em]">Mobile App</p>
+              <a
+                href="https://github.com/Zenkaak/Messer/releases/latest/download/app-debug.apk"
+                target="_blank"
+                rel="noreferrer"
+                onClick={() => setSidebarOpen(false)}
+                className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-gray-700 hover:bg-gray-100 transition-colors"
+              >
+                <div className="w-7 h-7 rounded-lg bg-green-100 text-green-700 flex items-center justify-center shrink-0">
+                  <Download size={14} />
+                </div>
+                <span className="flex-1 text-[12.5px] font-bold">Download GSM World APK</span>
+                <span className="text-[9px] font-black bg-green-500 text-white px-1.5 py-0.5 rounded-full">NEW</span>
+              </a>
             </nav>
 
             {/* Cart quick-link */}
@@ -398,17 +461,20 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <GsmBot />
 
       {/* ── Mobile Bottom Nav ── */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-border flex justify-between items-center px-2 py-2 z-50 pb-[max(0.5rem,env(safe-area-inset-bottom))] md:hidden">
-        <NavItem href={`${basePath}/`} icon={<Home size={22} />} label="Home" active={location === "/"} />
-        <NavItem href={`${basePath}/categories`} icon={<Grid size={22} />} label="Categories" active={location === "/categories"} />
-        <NavItem href={`${basePath}/products`} icon={<Tag size={22} />} label="Store" active={location.startsWith("/products")} />
-        <NavItem href={`${basePath}/cart`} icon={<ShoppingCart size={22} />} label="Cart" active={location === "/cart"} badge={cartItemCount} />
-        <NavItem
-          href={isAuthenticated ? `${basePath}/account` : `${basePath}/login`}
-          icon={<User size={22} />}
-          label={isAuthenticated ? "Account" : "Sign In"}
-          active={location === "/account" || location === "/login" || location === "/signup"}
-        />
+      <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden"
+        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
+        <div className="mx-3 mb-2 bg-[#1a2332] rounded-2xl shadow-2xl flex items-center justify-between px-1 py-1">
+          <NavItem href={`${basePath}/`} icon={<Home size={20} />} label="Home" active={location === "/"} />
+          <NavItem href={`${basePath}/categories`} icon={<Grid size={20} />} label="Browse" active={location === "/categories"} />
+          <NavItem href={`${basePath}/products`} icon={<Tag size={20} />} label="Store" active={location.startsWith("/products")} />
+          <NavItem href={`${basePath}/cart`} icon={<ShoppingCart size={20} />} label="Cart" active={location === "/cart"} badge={cartItemCount} />
+          <NavItem
+            href={isAuthenticated ? `${basePath}/account` : `${basePath}/login`}
+            icon={<User size={20} />}
+            label={isAuthenticated ? "Account" : "Sign In"}
+            active={location === "/account" || location === "/login" || location === "/signup"}
+          />
+        </div>
       </nav>
     </div>
   );
@@ -461,16 +527,22 @@ function SideLink({
 
 function NavItem({ href, icon, label, active, badge }: { href: string; icon: React.ReactNode; label: string; active: boolean; badge?: number }) {
   return (
-    <Link href={href} className={`flex flex-col items-center justify-center w-full py-1 gap-1 relative transition-colors ${active ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}>
+    <Link href={href}
+      className={`flex flex-col items-center justify-center flex-1 py-2 px-1 gap-1 rounded-xl relative transition-all ${
+        active ? "bg-white/15 text-white" : "text-white/50 hover:text-white/80 hover:bg-white/8"
+      }`}>
       <div className="relative">
-        {icon}
+        <div className={`transition-transform ${active ? "scale-110" : ""}`}>
+          {icon}
+        </div>
         {badge !== undefined && badge > 0 && (
-          <span className="absolute -top-1.5 -right-2 bg-destructive text-destructive-foreground text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full border border-white">
+          <span className="absolute -top-1.5 -right-2 bg-red-500 text-white text-[9px] font-bold w-4 h-4 flex items-center justify-center rounded-full border border-[#1a2332]">
             {badge > 9 ? '9+' : badge}
           </span>
         )}
       </div>
-      <span className="text-[10px] font-medium">{label}</span>
+      <span className={`text-[9px] font-bold tracking-wide ${active ? "text-white" : "text-white/50"}`}>{label}</span>
+      {active && <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-teal-400" />}
     </Link>
   );
 }

@@ -5,6 +5,18 @@ import { useToast } from "@/hooks/use-toast";
 import { Eye, EyeOff, Lock, Mail, Hash } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 
+async function migrateGuestCart(token: string) {
+  try {
+    const sessionId = localStorage.getItem("gsm_session_id");
+    if (!sessionId) return;
+    await fetch("/api/auth/cart-migrate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+      body: JSON.stringify({ guestSessionId: sessionId }),
+    });
+  } catch {}
+}
+
 export function LoginPage() {
   const [, navigate] = useLocation();
   const returnTo = new URLSearchParams(window.location.search).get("returnTo") || "/account";
@@ -39,6 +51,7 @@ export function LoginPage() {
         return;
       }
       login(data.token!, data.user!);
+      await migrateGuestCart(data.token!);
       toast({ title: "Welcome back!", description: `Signed in as ${data.user!.email}` });
       navigate(returnTo);
     } catch {
@@ -86,6 +99,7 @@ export function LoginPage() {
         return;
       }
       login(data.token!, data.user!);
+      await migrateGuestCart(data.token!);
       toast({ title: "Welcome!", description: `Signed in as ${data.user!.email}` });
       navigate(returnTo);
     } catch {
@@ -254,7 +268,9 @@ export function LoginPage() {
       <button
         onClick={() => {
           const base = (import.meta.env.BASE_URL as string).replace(/\/$/, "");
-          window.location.href = `${base}/api/auth/google/redirect`;
+          const apiRoot = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, "") ?? `${window.location.origin}${base}`;
+          const origin = encodeURIComponent(window.location.origin);
+          window.location.href = `${apiRoot}/api/auth/google/redirect?origin=${origin}`;
         }}
         className="mt-3 w-full group relative flex items-center gap-0 rounded-xl overflow-hidden border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 bg-white"
         style={{ minHeight: "48px" }}

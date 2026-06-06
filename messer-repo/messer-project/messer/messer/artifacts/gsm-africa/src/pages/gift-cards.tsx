@@ -434,6 +434,20 @@ export function GiftCardsPage() {
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [customUsdPrice, setCustomUsdPrice] = useState<number>(0);
 
+  const FX_TO_USD: Record<string, number> = {
+    GBP: 1.27, EUR: 1.08, AUD: 0.65, CAD: 0.74, JPY: 0.0067,
+    BRL: 0.19,  MXN: 0.058, SAR: 0.267, AED: 0.272, TRY: 0.031,
+    HKD: 0.128, SGD: 0.74,  INR: 0.012, ARS: 0.001, ZAR: 0.054,
+    KRW: 0.00075, CHF: 1.12, NZD: 0.61,
+  };
+
+  useEffect(() => {
+    if (!selectedCard || !selectedDenom) return;
+    if (selectedCard.currency === "USD") { setCustomUsdPrice(0); return; }
+    const rate = FX_TO_USD[selectedCard.currency];
+    if (rate) setCustomUsdPrice(Math.round(selectedDenom * rate * 100) / 100);
+  }, [selectedCard, selectedDenom]);
+
   // Prefill email from logged-in user
   useEffect(() => {
     if (user?.email && !recipientEmail) setRecipientEmail(user.email);
@@ -532,8 +546,8 @@ export function GiftCardsPage() {
       toast({ variant: "destructive", title: "Insufficient wallet balance", description: `You have $${walletBalance.toFixed(2)} but need $${(priceUsd ?? 0).toFixed(2)}.` });
       return;
     }
-    if (payMethod === "nowpayments" && (!priceUsd || priceUsd < 13)) {
-      toast({ variant: "destructive", title: "Amount too low", description: "NOWPayments requires a minimum of $13.00." });
+    if (["nowpayments", "mpesa", "binance_pay", "usdt_manual"].includes(payMethod) && (!priceUsd || priceUsd < 13)) {
+      toast({ variant: "destructive", title: "Amount too low", description: "Minimum payment is $13.00 USD. Please choose a higher denomination." });
       return;
     }
     if (payMethod === "mpesa" && !phone) {

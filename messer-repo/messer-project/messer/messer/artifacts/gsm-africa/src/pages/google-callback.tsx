@@ -12,7 +12,7 @@ export function GoogleCallbackPage() {
   const [, navigate] = useLocation();
   const { login } = useAuth();
   const { toast } = useToast();
-  const [status, setStatus] = useState<"loading" | "error">("loading");
+  const [status, setStatus] = useState<"loading" | "returning" | "error">("loading");
   const [errorMsg, setErrorMsg] = useState("");
 
   useEffect(() => {
@@ -38,26 +38,79 @@ export function GoogleCallbackPage() {
     const decodedEmail = decodeURIComponent(email);
     const decodedName = name ? decodeURIComponent(name) : null;
 
-    // Fetch full user profile to get the real user id
+    // Detect environment
+    const isInApp = navigator.userAgent.includes("GSMWorldApp/1.0");
+    const isAndroid = /android/i.test(navigator.userAgent);
+
+    if (isAndroid && !isInApp) {
+      // Running in Chrome on Android after OAuth — automatically fire the deep
+      // link. MainActivity catches it and loads /auth/google-callback inside the
+      // WebView, which completes the login flow without any user interaction.
+      setStatus("returning");
+      const deepLink =
+        `gsmworld://auth/callback?token=${encodeURIComponent(decodedToken)}` +
+        `&email=${encodeURIComponent(decodedEmail)}` +
+        `&name=${encodeURIComponent(decodedName || "")}`;
+      // Small delay so the "Returning…" screen renders before Chrome switches apps
+      setTimeout(() => { window.location.href = deepLink; }, 350);
+      return;
+    }
+
+    // Web / in-app WebView flow — complete login normally
     fetch(`${apiBase()}/api/auth/me`, {
       headers: { Authorization: `Bearer ${decodedToken}` },
     })
       .then((r) => r.json() as Promise<{ user?: { id: number; email: string; name: string | null } }>)
-      .then((data) => {
-        if (data.user) {
-          login(decodedToken, data.user);
-        } else {
-          login(decodedToken, { id: 0, email: decodedEmail, name: decodedName });
-        }
+      .then(async (data) => {
+        const user = data.user ?? { id: 0, email: decodedEmail, name: decodedName };
+        login(decodedToken, user);
+        try {
+          const sessionId = localStorage.getItem("gsm_session_id");
+          if (sessionId) {
+            await fetch(`${apiBase()}/api/auth/cart-migrate`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${decodedToken}` },
+              body: JSON.stringify({ guestSessionId: sessionId }),
+            });
+          }
+        } catch {}
         toast({ title: "Signed in with Google!", description: `Welcome, ${decodedEmail}` });
         navigate("/account");
       })
-      .catch(() => {
+      .catch(async () => {
         login(decodedToken, { id: 0, email: decodedEmail, name: decodedName });
+        try {
+          const sessionId = localStorage.getItem("gsm_session_id");
+          if (sessionId) {
+            await fetch(`${apiBase()}/api/auth/cart-migrate`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${decodedToken}` },
+              body: JSON.stringify({ guestSessionId: sessionId }),
+            });
+          }
+        } catch {}
         toast({ title: "Signed in with Google!", description: `Welcome, ${decodedEmail}` });
         navigate("/account");
       });
   }, []);
+
+  if (status === "returning") {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[100dvh] gap-5 bg-[#0d1623] px-6 text-center">
+        <div className="w-20 h-20 rounded-3xl bg-white/5 border border-white/10 flex items-center justify-center mb-2 shadow-2xl">
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-green-400">
+            <path d="M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/>
+            <path d="M8 12l2.5 2.5L16 9"/>
+          </svg>
+        </div>
+        <div>
+          <h2 className="text-xl font-black text-white mb-2">Signed in successfully</h2>
+          <p className="text-slate-400 text-sm max-w-[240px]">Returning you to the GSM World app automatically…</p>
+        </div>
+        <div className="w-6 h-6 border-2 border-blue-400/30 border-t-blue-400 rounded-full animate-spin mt-2" />
+      </div>
+    );
+  }
 
   if (status === "loading") {
     return (

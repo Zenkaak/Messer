@@ -1,8 +1,9 @@
-import { pgTable, serial, text, numeric, timestamp, integer } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, numeric, timestamp, integer, unique } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 
 export const ordersTable = pgTable("orders", {
   id: serial("id").primaryKey(),
+  orderCode: text("order_code"),
   sessionId: text("session_id").notNull(),
   userId: integer("user_id"),
   customerEmail: text("customer_email").notNull(),
@@ -15,10 +16,11 @@ export const ordersTable = pgTable("orders", {
   notes: text("notes"),
   deviceIdentifier: text("device_identifier"),
   orderType: text("order_type").notNull().default("product"),
+  resellerSlug: text("reseller_slug"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
   paidAt: timestamp("paid_at"),
-});
+}, (t) => [unique("orders_order_code_key").on(t.orderCode)]);
 
 export const insertOrderSchema = createInsertSchema(ordersTable).omit({ id: true, createdAt: true, updatedAt: true });
 export const selectOrderSchema = createSelectSchema(ordersTable);

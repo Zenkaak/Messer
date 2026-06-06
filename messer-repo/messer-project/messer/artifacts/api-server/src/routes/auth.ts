@@ -339,22 +339,165 @@ router.get("/auth/google/redirect", async (req, res) => {
   const origin = getAppOrigin(req);
   const redirectUri = encodeURIComponent(`${origin}/api/auth/google/callback`);
   const scope = encodeURIComponent("openid email profile");
-  const state = Buffer.from(String(Date.now())).toString("base64url");
-  const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=${scope}&state=${state}&access_type=offline&prompt=select_account`;
-  res.redirect(url);
+  // Detect Android WebView app by user-agent; encode isApp flag + sessionId in state
+  // so the callback can (a) redirect via deep link and (b) store token for polling fallback.
+  const ua = (req.headers["user-agent"] || "") as string;
+  const sessionId = typeof req.query.sessionId === "string" ? req.query.sessionId : undefined;
+  // Detect Android app: either by our custom UA string, OR by the presence of a sessionId
+  // (which is only passed by the Android WebView's login.tsx — the web browser path never adds it).
+  // Chrome's UA won't contain "GSMWorldApp", so the sessionId check is the reliable signal.
+  const isAndroidApp = ua.includes("GSMWorldApp") || !!sessionId;
+  const statePayload = {
+    ts: Date.now(),
+    ...(isAndroidApp ? { isApp: true } : {}),
+    ...(sessionId ? { sessionId } : {}),
+  };
+  const state = Buffer.from(JSON.stringify(statePayload)).toString("base64url");
+  // No &prompt= parameter: if the user already has an active Google session in
+  // this browser the account picker is skipped automatically.  Only adding
+  // prompt=select_account would force re-selection on every visit, which is
+  // exactly the complaint ("browser still prompts for Google account").
+  const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=${scope}&state=${state}&access_type=offline`;
+
+  // Return an HTML page that navigates via JavaScript instead of a server-side 302.
+  // Android WebViews call shouldOverrideUrlLoading for JS-initiated navigations but NOT
+  // for server-side (HTTP 3xx) redirects, so using res.redirect() would silently load
+  // Google inside the WebView where Google blocks OAuth. The JS redirect lets the old APK
+  // intercept the Google URL and open it in Chrome.
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.send(`<!DOCTYPE html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Redirecting...</title>
+<style>body{background:#0d1828;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0}
+.s{width:36px;height:36px;border:3px solid rgba(59,130,246,.25);border-top-color:#3b82f6;border-radius:50%;animation:r .7s linear infinite}
+@keyframes r{to{transform:rotate(360deg)}}</style></head>
+<body><div class="s"></div>
+<script>window.location.href=${JSON.stringify(url)};</script>
+</body></html>`);
+});
+
+function decodeOAuthState(raw: unknown): { isApp?: boolean; sessionId?: string } {
+  if (typeof raw !== "string") return {};
+  try {
+    return JSON.parse(Buffer.from(raw, "base64url").toString("utf8")) as { isApp?: boolean; sessionId?: string };
+  } catch {
+    return {};
+  }
+}
+
+// Poll endpoint — frontend checks this after returning from Chrome OAuth
+router.get("/auth/google/poll", async (req, res) => {
+  const session = req.query.session;
+  if (typeof session !== "string" || !session) {
+    res.status(400).json({ error: "Missing session" });
+    return;
+  }
+  const key = `oauth_session:${session}`;
+  try {
+    const rows = await db.select({ value: adminSettingsTable.value })
+      .from(adminSettingsTable)
+      .where(eq(adminSettingsTable.key, key))
+      .limit(1);
+    if (!rows.length || !rows[0].value) {
+      res.json({ status: "pending" });
+      return;
+    }
+    const data = JSON.parse(rows[0].value) as { params: string; expiresAt: number };
+    if (Date.now() > data.expiresAt) {
+      await db.delete(adminSettingsTable).where(eq(adminSettingsTable.key, key));
+      res.json({ status: "expired" });
+      return;
+    }
+    // One-time use — consume it
+    await db.delete(adminSettingsTable).where(eq(adminSettingsTable.key, key));
+    const urlParams = new URLSearchParams(data.params);
+    const token = urlParams.get("token");
+    const email = urlParams.get("email");
+    const name = urlParams.get("name");
+    const error = urlParams.get("error");
+    if (error) { res.json({ status: "error", error }); return; }
+    res.json({ status: "done", token, email, name });
+  } catch (err) {
+    req.log.error({ err }, "OAuth poll error");
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 router.get("/auth/google/callback", async (req, res) => {
   const origin = getAppOrigin(req);
+  const stateData = decodeOAuthState(req.query.state);
+  const isAppRedirect = stateData.isApp === true;
+  const sessionId = stateData.sessionId;
+
+  // For web browser: standard redirect
+  function webRedirect(params: string) {
+    res.redirect(`${origin}/auth/google-callback?${params}`);
+  }
+
+  // For Android app: store token for polling AND send HTML page that tries the deep link
+  async function appRedirect(params: string) {
+    const deepLink = `gsmworld://auth/callback?${params}`;
+    if (sessionId) {
+      const val = JSON.stringify({ params, expiresAt: Date.now() + 10 * 60 * 1000 });
+      await db.insert(adminSettingsTable)
+        .values({ key: `oauth_session:${sessionId}`, value: val })
+        .onConflictDoUpdate({ target: adminSettingsTable.key, set: { value: val, updatedAt: new Date() } });
+    }
+    // Build an intent:// URL (Chrome Android handles these natively — no gesture required)
+    const intentParams = params.replace(/&/g, "&amp;");
+    const intentLink = `intent://auth/callback?${params}#Intent;scheme=gsmworld;package=com.gsmworld.app;S.browser_fallback_url=https%3A%2F%2Fgsmworld.vercel.app;end`;
+
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Signed In</title>
+<style>body{font-family:-apple-system,sans-serif;background:#0d1828;color:#e2e8f0;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;text-align:center;padding:20px}
+.card{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:20px;padding:32px 24px;max-width:320px;width:100%}
+.check{font-size:48px;margin:0 0 16px}
+h2{margin:0 0 8px;font-size:22px;color:#f8fafc}
+.sub{color:#94a3b8;font-size:14px;line-height:1.6;margin:0 0 24px}
+.hint{color:#475569;font-size:12px;margin:16px 0 0}
+.btn{display:block;background:linear-gradient(135deg,#1e40af,#1e3a5f);border:1px solid rgba(59,130,246,.5);color:#93c5fd;padding:14px 24px;border-radius:14px;text-decoration:none;font-size:15px;font-weight:700;transition:opacity .2s}
+.btn:hover{opacity:.85}
+</style></head>
+<body>
+<div class="card">
+  <div class="check">✅</div>
+  <h2>Sign-in complete!</h2>
+  <p class="sub">Tap the button below to return to GSM World.<br>Your account will be ready immediately.</p>
+  <a id="openBtn" href="${intentLink}" class="btn">Open GSM World</a>
+  <p class="hint">Or press Back on your browser to return.</p>
+</div>
+<script>
+// Auto-click the button immediately — treated as a user gesture in Chrome Android
+// which allows the intent:// URI to open the app without manual interaction.
+window.addEventListener('load', function() {
+  var btn = document.getElementById('openBtn');
+  // Short timeout so Chrome registers the page as loaded first
+  setTimeout(function() {
+    btn.click();
+    // After opening the app, attempt to close this browser tab so the user
+    // is not left stuck on the Google account-picker or callback page.
+    setTimeout(function() {
+      try { window.close(); } catch(e) {}
+      // Fallback: navigate away so the page isn't lingering
+      try { window.location.replace('about:blank'); } catch(e) {}
+    }, 1200);
+  }, 300);
+});
+</script>
+</body></html>`);
+  }
+
   try {
     const { code, error: authError } = req.query;
     if (authError || !code) {
-      res.redirect(`${origin}/auth/google-callback?error=${encodeURIComponent(String(authError || "Google sign-in was cancelled"))}`);
+      const params = `error=${encodeURIComponent(String(authError || "Google sign-in was cancelled"))}`;
+      if (isAppRedirect) { await appRedirect(params); } else { webRedirect(params); }
       return;
     }
     const { clientId, clientSecret } = await getGoogleCredentials();
     if (!clientId || !clientSecret) {
-      res.redirect(`${origin}/auth/google-callback?error=${encodeURIComponent("Google OAuth not configured")}`);
+      const params = `error=${encodeURIComponent("Google OAuth not configured")}`;
+      if (isAppRedirect) { await appRedirect(params); } else { webRedirect(params); }
       return;
     }
     const redirectUri = `${origin}/api/auth/google/callback`;
@@ -372,7 +515,8 @@ router.get("/auth/google/callback", async (req, res) => {
     if (!tokenRes.ok) {
       const errText = await tokenRes.text();
       req.log.error({ errText }, "Google token exchange failed");
-      res.redirect(`${origin}/auth/google-callback?error=${encodeURIComponent("Failed to complete Google sign-in")}`);
+      const params = `error=${encodeURIComponent("Failed to complete Google sign-in")}`;
+      if (isAppRedirect) { await appRedirect(params); } else { webRedirect(params); }
       return;
     }
     const { access_token } = await tokenRes.json() as { access_token: string };
@@ -380,14 +524,16 @@ router.get("/auth/google/callback", async (req, res) => {
       headers: { Authorization: `Bearer ${access_token}` },
     });
     if (!userRes.ok) {
-      res.redirect(`${origin}/auth/google-callback?error=${encodeURIComponent("Failed to get profile from Google")}`);
+      const params = `error=${encodeURIComponent("Failed to get profile from Google")}`;
+      if (isAppRedirect) { await appRedirect(params); } else { webRedirect(params); }
       return;
     }
     const googleUser = await userRes.json() as { email?: string; name?: string };
     const email = googleUser.email;
     const name = googleUser.name;
     if (!email) {
-      res.redirect(`${origin}/auth/google-callback?error=${encodeURIComponent("No email returned from Google")}`);
+      const params = `error=${encodeURIComponent("No email returned from Google")}`;
+      if (isAppRedirect) { await appRedirect(params); } else { webRedirect(params); }
       return;
     }
     const existing = await db.select().from(usersTable).where(eq(usersTable.email, email.toLowerCase())).limit(1);
@@ -395,7 +541,8 @@ router.get("/auth/google/callback", async (req, res) => {
     if (existing.length > 0) {
       const user = existing[0];
       if (isBlocked(user.status)) {
-        res.redirect(`${origin}/auth/google-callback?error=${encodeURIComponent("Account disabled. Contact support.")}`);
+        const params = `error=${encodeURIComponent("Account disabled. Contact support.")}`;
+        if (isAppRedirect) { await appRedirect(params); } else { webRedirect(params); }
         return;
       }
       userId = user.id;
@@ -413,12 +560,11 @@ router.get("/auth/google/callback", async (req, res) => {
       req.log.info({ userId }, "User created via Google OAuth");
     }
     const jwtToken = makeToken(userId, userEmail);
-    res.redirect(
-      `${origin}/auth/google-callback?token=${encodeURIComponent(jwtToken)}&email=${encodeURIComponent(userEmail)}&name=${encodeURIComponent(userName || "")}`
-    );
+    const successParams = `token=${encodeURIComponent(jwtToken)}&email=${encodeURIComponent(userEmail)}&name=${encodeURIComponent(userName || "")}`;
+    if (isAppRedirect) { await appRedirect(successParams); } else { webRedirect(successParams); }
   } catch (err) {
     req.log.error({ err }, "Google OAuth callback failed");
-    res.redirect(`${origin}/auth/google-callback?error=${encodeURIComponent("Authentication failed. Please try again.")}`);
+    appRedirect(`error=${encodeURIComponent("Authentication failed. Please try again.")}`);
   }
 });
 

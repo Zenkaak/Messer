@@ -18,7 +18,12 @@ function getSessionId(req: import("express").Request): string {
   } catch {
     // Invalid or missing token — fall through to guest session
   }
-  return (req.query.sessionId as string | undefined) || "guest-session";
+  // Check body first (bot calls send sessionId in body), then query string (browser sends it as QS)
+  const bodyId = (req.body as Record<string, unknown> | undefined)?.sessionId as string | undefined;
+  if (bodyId && bodyId.trim()) return bodyId.trim();
+  const qsId = req.query.sessionId as string | undefined;
+  if (qsId && qsId.trim()) return qsId.trim();
+  return "guest-session";
 }
 
 async function buildCartResponse(sessionId: string) {

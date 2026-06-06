@@ -19,8 +19,8 @@ type PaymentStep =
   | { type: "done"; orderId: number }
   | { type: "manual_pending"; orderId: number; paymentMethod: string; details: Record<string, unknown>; total: number };
 
-type PayMethod = "wallet" | "nowpayments" | "mpesa" | "binance_pay" | "usdt_manual";
-type CheckoutPaymentMethod = "mpesa" | "usdt" | "wallet" | "nowpayments" | "binance_pay" | "usdt_manual";
+type PayMethod = "wallet" | "nowpayments" | "mpesa" | "binance_pay" | "usdt_manual" | "card";
+type CheckoutPaymentMethod = "mpesa" | "usdt" | "wallet" | "nowpayments" | "binance_pay" | "usdt_manual" | "stripe_card";
 type CheckoutResult = {
   orderId: number;
   paymentMethod: string;
@@ -57,6 +57,35 @@ export function CheckoutPage() {
   const isWalletSelected = payMethod === "wallet";
 
   useEffect(() => { if (user?.email && !email) setEmail(user.email); }, [user]);
+
+  // Handle return from Stripe Checkout (order payment)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const stripeSession = params.get("s_os");
+    const stripeOrderId = params.get("s_oid");
+    if (!stripeSession || !stripeOrderId) return;
+
+    // Clean URL immediately so a page refresh doesn't re-trigger
+    window.history.replaceState({}, "", window.location.pathname);
+
+    const orderId = Number(stripeOrderId);
+    fetch("/api/payments/stripe/verify-order", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body: JSON.stringify({ sessionId: stripeSession, orderId }),
+    })
+      .then((r) => r.json() as Promise<{ success?: boolean; alreadyPaid?: boolean; error?: string }>)
+      .then((data) => {
+        if (data.success || data.alreadyPaid) {
+          queryClient.invalidateQueries({ queryKey: getGetCartQueryKey() });
+          setStep({ type: "done", orderId });
+        } else {
+          toast({ title: data.error || "Payment verification failed. Contact support.", variant: "destructive" });
+        }
+      })
+      .catch(() => toast({ title: "Could not verify payment. Contact support.", variant: "destructive" }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // M-Pesa polling
   useEffect(() => {
@@ -129,11 +158,12 @@ export function CheckoutPage() {
         return;
       }
     }
-    const apiMethodMap: Record<PayMethod, CheckoutPaymentMethod> = { wallet: "wallet", mpesa: "mpesa", nowpayments: "nowpayments", binance_pay: "binance_pay", usdt_manual: "usdt_manual" };
+    const apiMethodMap: Record<PayMethod, CheckoutPaymentMethod> = { wallet: "wallet", mpesa: "mpesa", nowpayments: "nowpayments", binance_pay: "binance_pay", usdt_manual: "usdt_manual", card: "stripe_card" };
     const apiMethod = apiMethodMap[payMethod];
     if (!apiMethod) { toast({ title: "Select a valid payment method", variant: "destructive" }); return; }
     try {
       const guestSessionId = !user ? (localStorage.getItem("gsm_session_id") ?? undefined) : undefined;
+      const resellerRef = sessionStorage.getItem("gsm_reseller_ref") ?? undefined;
       const result = await createCheckout.mutateAsync({ data: {
         customerEmail: email,
         customerPhone: phone || undefined,
@@ -142,8 +172,28 @@ export function CheckoutPage() {
         ...(deviceIdentifier.trim() ? { deviceIdentifier: deviceIdentifier.trim() } : {}),
         ...(payMethod === "nowpayments" ? { payCurrency: npCurrency } : {}),
         ...(guestSessionId ? { sessionId: guestSessionId } : {}),
+        ...(resellerRef ? { resellerSlug: resellerRef } : {}),
       } as Parameters<typeof createCheckout.mutateAsync>[0]["data"] }) as CheckoutResult;
-      if (result.status === "pending_payment_confirmation" && result.custom) {
+      if (result.paymentMethod === "stripe_card" && result.status === "pending") {
+        // Create a Stripe Checkout session for this order and redirect.
+        const orderId = result.orderId;
+        const sessionRes = await fetch("/api/payments/stripe/create-session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          body: JSON.stringify({ orderId }),
+        });
+        const sessionData = await sessionRes.json() as { url?: string; alreadyPaid?: boolean; error?: string };
+        if (sessionData.alreadyPaid) {
+          queryClient.invalidateQueries({ queryKey: getGetCartQueryKey() });
+          setStep({ type: "done", orderId });
+        } else if (sessionData.url) {
+          // Redirect to Stripe-hosted checkout; on completion Stripe sends the
+          // user back to /checkout?s_os=SESSION_ID&s_oid=ORDER_ID
+          window.location.href = sessionData.url;
+        } else {
+          toast({ title: sessionData.error || "Could not start card payment. Try another method.", variant: "destructive" });
+        }
+      } else if (result.status === "pending_payment_confirmation" && result.custom) {
         setStep({ type: "manual_pending", orderId: result.orderId, paymentMethod: result.paymentMethod, details: result.custom as Record<string, unknown>, total: result.total });
       } else if (result.paymentMethod === "wallet" || result.status === "paid") {
         queryClient.invalidateQueries({ queryKey: getGetCartQueryKey() });
@@ -548,7 +598,7 @@ export function CheckoutPage() {
                   </div>
                 )}
 
-                {/* NOWPayments (Crypto) */}
+                {/* Crypto (NOWPayments) — automated */}
                 <PayMethodCard
                   selected={payMethod === "nowpayments"}
                   onSelect={() => setPayMethod("nowpayments")}
@@ -623,6 +673,29 @@ export function CheckoutPage() {
                       <p className="font-mono text-[9px] text-gray-700 break-all bg-white border border-green-200 rounded-lg px-2 py-1.5">TNgDQqmgQo5soUH8pGv6LgB69zCVCS7gq5</p>
                       <p className="text-[10px] font-bold text-green-800">Network: TRON (TRC20) only</p>
                       <p className="text-[10px] text-gray-500">Send exact amount. Team verifies within 10-30 min.</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Flutterwave Card */}
+                <PayMethodCard
+                  selected={payMethod === "card"}
+                  onSelect={() => setPayMethod("card")}
+                  left={
+                    <div className="w-11 h-10 bg-blue-600 rounded-xl flex items-center justify-center shrink-0">
+                      <CreditCard size={18} className="text-white" />
+                    </div>
+                  }
+                  title="Credit / Debit Card"
+                  subtitle="Visa · Mastercard · Worldwide — instant"
+                  badge={<span className="text-[9px] bg-blue-100 text-blue-700 font-bold px-1.5 py-0.5 rounded-full">INSTANT</span>}
+                />
+                {payMethod === "card" && (
+                  <div className="px-3 pb-1">
+                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 space-y-1">
+                      <p className="text-xs font-bold text-blue-800">Secure inline checkout powered by Flutterwave</p>
+                      <p className="text-[10px] text-blue-600">After placing order, a payment popup opens. Your card is charged in USD — your bank converts to local currency automatically.</p>
+                      <p className="text-[10px] text-blue-500">256-bit SSL · PCI DSS compliant</p>
                     </div>
                   </div>
                 )}

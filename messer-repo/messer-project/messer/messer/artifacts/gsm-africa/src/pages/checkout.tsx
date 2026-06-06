@@ -170,36 +170,6 @@ export function CheckoutPage() {
     );
   }
 
-  // ── Login gate ───────────────────────────────────────────────────────────
-  if (!user) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[80vh] bg-gray-50 p-6">
-        <div className="w-full max-w-md bg-white rounded-3xl shadow-xl overflow-hidden">
-          <div style={{ background: "linear-gradient(160deg,#1a2332 0%,#1e3a5f 100%)" }} className="flex flex-col items-center justify-center pt-12 pb-8 px-6 text-center">
-            <div className="w-16 h-16 rounded-full bg-white/10 border border-white/20 flex items-center justify-center mb-4">
-              <Lock size={28} className="text-white/70" />
-            </div>
-            <h2 className="text-2xl font-black text-white mb-1">Sign In to Checkout</h2>
-            <p className="text-blue-300/70 text-sm max-w-[260px]">Create an account or sign in to complete your purchase and track your order.</p>
-          </div>
-          <div className="px-6 py-6 space-y-3">
-            {cart && cart.itemCount > 0 && (
-              <p className="text-center text-sm text-gray-500">{cart.itemCount} item{cart.itemCount !== 1 ? "s" : ""} in your cart — sign in to continue.</p>
-            )}
-            <button onClick={() => navigate("/login?returnTo=/checkout")} className="w-full py-3.5 bg-[#1a2332] text-white font-black text-base rounded-2xl flex items-center justify-center gap-2">
-              Sign In <ArrowRight size={18} />
-            </button>
-            <button onClick={() => navigate("/signup?returnTo=/checkout")} className="w-full py-3.5 border-2 border-gray-200 text-gray-700 font-bold text-base rounded-2xl">
-              Create Account
-            </button>
-            <button onClick={() => navigate("/cart")} className="w-full py-2.5 text-gray-400 text-sm font-medium hover:text-gray-600 transition-colors">
-              ← Back to Cart
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
 
   if (!cart || cart.itemCount === 0) {

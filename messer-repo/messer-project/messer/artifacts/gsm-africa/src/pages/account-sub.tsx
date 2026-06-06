@@ -1,8 +1,8 @@
 import { Link, useParams, useLocation } from "wouter";
-import { ArrowLeft, User, ShieldCheck, Cpu, DollarSign, FileText, BookOpen, ShoppingBag, BarChart2, ShoppingCart, Zap, Copy, Check, Smartphone, KeyRound, Shield, Eye, EyeOff, CheckCircle, RefreshCw, ChevronRight, MessageSquare, Send, Lock, Paperclip, X as XIcon } from "lucide-react";
+import { ArrowLeft, User, ShieldCheck, Cpu, DollarSign, FileText, BookOpen, ShoppingBag, BarChart2, ShoppingCart, Zap, Copy, Check, Smartphone, KeyRound, Shield, Eye, EyeOff, CheckCircle, RefreshCw, ChevronRight, MessageSquare, Send, Lock, Paperclip, X as XIcon, Wallet, Plus, TrendingUp } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useWalletBalance } from "@/hooks/use-wallet";
-import { useState, useEffect, useRef, type ReactNode } from "react";
+import { useState, useEffect, useRef, useCallback, type ReactNode } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { QRCodeSVG } from "qrcode.react";
@@ -46,13 +46,20 @@ export function AccountSubPage() {
   }
 
   return (
-    <div className="flex flex-col min-h-full bg-white">
-      <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-100 bg-white sticky top-0 z-10">
-        <Link href="/account" className="p-1.5 rounded-full hover:bg-gray-100 transition-colors text-gray-600">
-          <ArrowLeft size={18} />
+    <div className="flex flex-col min-h-full bg-[#f2f4f8]">
+      {/* Dark gradient header */}
+      <div className="sticky top-0 z-10 flex items-center gap-3 px-4 py-3.5 shadow-md"
+        style={{ background: "linear-gradient(148deg, #0f172a 0%, #1e3a5f 100%)" }}>
+        <Link href="/account"
+          className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 border border-white/10 flex items-center justify-center text-white transition-colors shrink-0">
+          <ArrowLeft size={16} />
         </Link>
-        <span className="text-gray-500">{page.icon}</span>
-        <h1 className="font-bold text-[15px] text-gray-800">{page.title}</h1>
+        <div className="flex-1 min-w-0">
+          <h1 className="font-black text-[15px] text-white leading-none truncate">{page.title}</h1>
+        </div>
+        <div className="w-8 h-8 rounded-xl bg-white/[0.07] flex items-center justify-center text-blue-300/60 shrink-0">
+          {page.icon}
+        </div>
       </div>
 
       <div className="flex-1 px-4 py-5 pb-24">
@@ -68,6 +75,25 @@ export function AccountSubPage() {
   );
 }
 
+// ── Order status helpers ──────────────────────────────────────────────────────
+const ORDER_STAGES = [
+  { key: "placed",      label: "Order Placed" },
+  { key: "confirming",  label: "Payment Confirming" },
+  { key: "processing",  label: "Processing" },
+  { key: "complete",    label: "Complete" },
+] as const;
+
+function getOrderStage(status: string): number {
+  if (status === "paid" || status === "completed" || status === "delivered") return 3;
+  if (status === "processing" || status === "active") return 2;
+  if (status === "pending_payment_confirmation") return 1;
+  return 0; // pending
+}
+
+function isActiveOrder(status: string): boolean {
+  return !["paid", "completed", "delivered", "cancelled", "refunded"].includes(status);
+}
+
 // ── Dashboard ────────────────────────────────────────────────────────────────
 function DashboardContent({ user }: { user: { name: string | null; email: string } | null }) {
   const { data: balance = 0, isLoading } = useWalletBalance();
@@ -77,154 +103,299 @@ function DashboardContent({ user }: { user: { name: string | null; email: string
     items: Array<{ productName: string; price: string; quantity: number }>;
   }>>([]);
   const [ordersLoading, setOrdersLoading] = useState(true);
+  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const displayName = user?.name || user?.email?.split("@")[0] || "User";
   const initials = displayName.slice(0, 2).toUpperCase();
   const zeroBalance = !isLoading && Number(balance) <= 0;
 
-  useEffect(() => {
+  const fetchOrders = useCallback(() => {
     if (!token) { setOrdersLoading(false); return; }
     fetch("/api/orders/my", { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
-      .then(data => { if (Array.isArray(data)) setOrders(data); })
+      .then(data => { if (Array.isArray(data)) { setOrders(data); setLastRefresh(new Date()); } })
       .catch(() => {})
       .finally(() => setOrdersLoading(false));
   }, [token]);
 
+  useEffect(() => { fetchOrders(); }, [fetchOrders]);
+
+  useEffect(() => {
+    const hasActive = orders.some(o => isActiveOrder(o.paymentStatus));
+    if (!hasActive) return;
+    const t = setInterval(fetchOrders, 10000);
+    return () => clearInterval(t);
+  }, [orders, fetchOrders]);
+
   const totalOrders = orders.length;
-  const pendingOrders = orders.filter(o => o.paymentStatus === "pending").length;
-  const completedOrders = orders.filter(o => o.paymentStatus === "paid").length;
+  const pendingOrders = orders.filter(o => o.paymentStatus === "pending" || o.paymentStatus === "pending_payment_confirmation").length;
+  const completedOrders = orders.filter(o => o.paymentStatus === "paid" || o.paymentStatus === "completed").length;
+  const activeOrders = orders.filter(o => isActiveOrder(o.paymentStatus));
+
+  // Stage colour map (text + bg for badges, gradient for progress/dots)
+  const STAGE_STYLES = [
+    { badge: "bg-yellow-500/20 text-yellow-300 border-yellow-500/30", bar: "from-yellow-400 to-yellow-500", dot: "#eab308" },
+    { badge: "bg-orange-500/20 text-orange-300 border-orange-500/30", bar: "from-orange-400 to-orange-500", dot: "#f97316" },
+    { badge: "bg-blue-500/20  text-blue-300  border-blue-500/30",  bar: "from-blue-400  to-blue-500",  dot: "#3b82f6" },
+    { badge: "bg-green-500/20 text-green-300 border-green-500/30", bar: "from-green-400 to-green-500", dot: "#22c55e" },
+  ] as const;
 
   return (
     <div className="space-y-4 -mx-4 -mt-5">
 
-      {/* Hero header */}
-      <div style={{ background: "linear-gradient(135deg,#1a2332 0%,#1e3a5f 100%)" }} className="px-5 pt-6 pb-8">
-        <div className="flex items-center gap-3 mb-5">
-          <div className="w-12 h-12 rounded-full bg-blue-500 flex items-center justify-center shadow-lg shadow-blue-900/40">
-            <span className="text-white font-black text-base">{initials}</span>
+      {/* ── Hero ──────────────────────────────────────────────────────────── */}
+      <div style={{ background: "linear-gradient(155deg,#0d1623 0%,#0f2744 60%,#0a3260 100%)" }} className="px-5 pt-7 pb-6">
+
+        {/* Avatar row */}
+        <div className="flex items-center gap-4 mb-5">
+          <div className="relative shrink-0">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-400 to-blue-700 flex items-center justify-center shadow-xl shadow-blue-900/50">
+              <span className="text-white font-black text-lg tracking-tight">{initials}</span>
+            </div>
+            <span className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-400 border-2 border-[#0d1623] rounded-full" />
           </div>
-          <div>
-            <p className="text-white font-black text-base leading-tight">{displayName}</p>
-            <p className="text-blue-300/70 text-xs mt-0.5">{user?.email}</p>
+          <div className="flex-1 min-w-0">
+            <p className="text-white font-black text-base leading-tight truncate">{displayName}</p>
+            <p className="text-blue-300/60 text-xs mt-0.5 truncate">{user?.email}</p>
           </div>
-          <div className="ml-auto">
-            <span className="bg-green-500/20 border border-green-500/30 text-green-300 text-[10px] font-bold px-2 py-0.5 rounded-full">Active</span>
-          </div>
+          <span className="shrink-0 bg-green-500/15 border border-green-500/25 text-green-300 text-[10px] font-bold px-2.5 py-1 rounded-full">
+            Active
+          </span>
         </div>
 
-        {/* Wallet card inside hero */}
-        <div className="bg-white/10 border border-white/15 rounded-2xl p-4 backdrop-blur-sm">
-          <div className="flex items-start justify-between mb-3">
+        {/* Wallet card */}
+        <div className="rounded-2xl p-4" style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.10)" }}>
+          <div className="flex items-start justify-between mb-4">
             <div>
-              <p className="text-blue-300/70 text-[10px] font-semibold uppercase tracking-widest">Wallet Balance</p>
-              <p className="text-white font-black text-3xl mt-0.5 leading-none">
-                {isLoading ? <span className="text-xl opacity-50">Loading…</span> : `$${balance.toFixed(2)}`}
+              <p className="text-blue-300/60 text-[10px] font-bold uppercase tracking-[0.12em] mb-1">Wallet Balance</p>
+              <p className="text-white font-black text-3xl leading-none tracking-tight">
+                {isLoading ? <span className="text-xl opacity-40">Loading…</span> : `$${balance.toFixed(2)}`}
               </p>
-              <p className="text-blue-300/50 text-[10px] mt-1">GSM World Wallet · USD</p>
+              <p className="text-blue-300/40 text-[10px] mt-1.5 font-medium">GSM World · USD</p>
             </div>
-            <div className="w-10 h-10 rounded-xl bg-blue-500/30 flex items-center justify-center">
-              <DollarSign size={18} className="text-blue-200" />
+            <div className="w-11 h-11 rounded-2xl bg-blue-500/20 border border-blue-400/20 flex items-center justify-center">
+              <Wallet size={18} className="text-blue-300" />
             </div>
           </div>
           <Link href="/account/add-fund">
-            <button className="w-full bg-blue-500 hover:bg-blue-400 text-white font-bold text-sm py-2.5 rounded-xl transition-colors flex items-center justify-center gap-2">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            <button className="w-full bg-blue-500 hover:bg-blue-400 active:bg-blue-600 text-white font-bold text-sm py-3 rounded-xl transition-colors flex items-center justify-center gap-2 shadow-lg shadow-blue-900/30">
+              <Plus size={14} strokeWidth={2.5} />
               {zeroBalance ? "Add Top Up" : "Add Funds"}
             </button>
           </Link>
           {zeroBalance && (
-            <p className="mt-2 text-[11px] text-blue-200/80 font-medium">Your wallet balance is $0.00. Tap top up to choose a payment option.</p>
+            <p className="mt-2.5 text-[11px] text-blue-200/60 font-medium text-center">
+              Tap Add Top Up to choose a payment option
+            </p>
           )}
         </div>
       </div>
 
-      {/* Stats row */}
-      <div className="px-4 grid grid-cols-3 gap-3">
+      {/* ── Stats row ─────────────────────────────────────────────────────── */}
+      <div className="px-4 grid grid-cols-3 gap-2.5">
         {[
-          { label: "Total Orders", value: ordersLoading ? "…" : String(totalOrders),    icon: <ShoppingBag size={16} />, color: "text-blue-600 bg-blue-50" },
-          { label: "Pending",      value: ordersLoading ? "…" : String(pendingOrders),  icon: <Zap size={16} />,         color: "text-orange-600 bg-orange-50" },
-          { label: "Completed",    value: ordersLoading ? "…" : String(completedOrders), icon: <CheckCircle size={16} />, color: "text-green-600 bg-green-50" },
-        ].map(({ label, value, icon, color }) => (
-          <div key={label} className="bg-white border border-gray-100 rounded-2xl p-3 text-center shadow-sm">
-            <div className={`w-8 h-8 rounded-xl ${color} flex items-center justify-center mx-auto mb-2`}>{icon}</div>
-            <p className="text-xl font-black text-gray-800 leading-none">{value}</p>
-            <p className="text-[10px] text-gray-400 font-medium mt-1 leading-tight">{label}</p>
+          { label: "Total",     value: ordersLoading ? "—" : String(totalOrders),     icon: <ShoppingBag size={15} />, grad: "from-blue-500 to-blue-600" },
+          { label: "Pending",   value: ordersLoading ? "—" : String(pendingOrders),   icon: <Zap size={15} />,         grad: "from-orange-400 to-orange-500" },
+          { label: "Completed", value: ordersLoading ? "—" : String(completedOrders), icon: <CheckCircle size={15} />, grad: "from-emerald-500 to-green-600" },
+        ].map(({ label, value, icon, grad }) => (
+          <div key={label} className="bg-white rounded-2xl p-3 text-center shadow-sm border border-gray-100/80">
+            <div className={`w-8 h-8 rounded-xl bg-gradient-to-br ${grad} flex items-center justify-center mx-auto mb-2 shadow-sm`}>
+              <span className="text-white">{icon}</span>
+            </div>
+            <p className="text-[22px] font-black text-gray-800 leading-none tabular-nums">{value}</p>
+            <p className="text-[10px] text-gray-400 font-semibold mt-1 uppercase tracking-wide">{label}</p>
           </div>
         ))}
       </div>
 
-      {/* Quick actions */}
+      {/* ── Live Order Tracker ────────────────────────────────────────────── */}
       <div className="px-4">
-        <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Quick Actions</p>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Live Tracker</p>
+            {activeOrders.length > 0 && (
+              <span className="flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                <span className="text-[10px] font-semibold text-green-600">{activeOrders.length} active</span>
+              </span>
+            )}
+          </div>
+          <button onClick={fetchOrders}
+            className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-400 hover:text-blue-500 transition-colors">
+            <RefreshCw size={10} />
+            {lastRefresh.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+          </button>
+        </div>
+
+        {ordersLoading ? (
+          <div className="bg-white rounded-2xl border border-gray-100 p-6 flex items-center justify-center gap-2 text-xs text-gray-400">
+            <span className="w-3.5 h-3.5 border-2 border-gray-200 border-t-blue-400 rounded-full animate-spin" />
+            Loading orders…
+          </div>
+        ) : activeOrders.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-gray-100 p-6 text-center">
+            <div className="w-10 h-10 rounded-2xl bg-green-50 flex items-center justify-center mx-auto mb-3">
+              <CheckCircle size={20} className="text-green-400" />
+            </div>
+            <p className="text-sm font-bold text-gray-500">All clear</p>
+            <p className="text-[11px] text-gray-300 mt-0.5">No active orders right now</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {activeOrders.slice(0, 5).map(order => {
+              const stage = getOrderStage(order.paymentStatus);
+              const pct = Math.round((stage / (ORDER_STAGES.length - 1)) * 100);
+              const styles = STAGE_STYLES[stage] ?? STAGE_STYLES[2];
+              return (
+                <Link key={order.id} href={`/orders/${order.id}`} className="block">
+                  <div className="bg-white rounded-2xl border border-gray-100/80 p-4 shadow-sm active:shadow-none active:scale-[0.99] transition-all">
+                    {/* Order header */}
+                    <div className="flex items-start justify-between mb-3.5">
+                      <div className="min-w-0 flex-1 pr-3">
+                        <p className="text-[13px] font-black text-gray-800">Order #{order.id}</p>
+                        <p className="text-[11px] text-gray-400 truncate mt-0.5">
+                          {order.items?.[0]?.productName ?? "Service"}
+                          {(order.items?.length ?? 0) > 1 ? ` +${order.items.length - 1} more` : ""}
+                        </p>
+                      </div>
+                      <span className={`shrink-0 text-[10px] font-bold px-2.5 py-1 rounded-full border ${styles.badge}`}>
+                        {ORDER_STAGES[stage].label}
+                      </span>
+                    </div>
+
+                    {/* Progress bar */}
+                    <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden mb-3">
+                      <div
+                        className={`h-full rounded-full bg-gradient-to-r ${styles.bar} transition-all duration-700`}
+                        style={{ width: `${pct === 0 ? 6 : pct}%` }}
+                      />
+                    </div>
+
+                    {/* Step dots */}
+                    <div className="flex">
+                      {ORDER_STAGES.map((s, i) => {
+                        const done = i < stage;
+                        const active = i === stage;
+                        return (
+                          <div key={s.key} className="flex flex-col items-center gap-1" style={{ width: `${100 / ORDER_STAGES.length}%` }}>
+                            <div
+                              className="w-2.5 h-2.5 rounded-full transition-all"
+                              style={{
+                                background: done || active ? styles.dot : "#e5e7eb",
+                                boxShadow: active ? `0 0 0 3px ${styles.dot}30` : "none",
+                              }}
+                            />
+                            <p className={`text-[8px] font-semibold text-center leading-tight ${i <= stage ? "text-gray-600" : "text-gray-300"}`}>
+                              {s.label}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* ── Quick Actions ──────────────────────────────────────────────────── */}
+      <div className="px-4">
+        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Quick Actions</p>
         <div className="grid grid-cols-2 gap-2.5">
           {[
-            { label: "Browse Store",   icon: <ShoppingBag size={16} />,  href: "/products",       bg: "bg-blue-600 text-white" },
-            { label: "Add Fund",       icon: <DollarSign size={16} />,   href: "/account/add-fund", bg: "bg-green-600 text-white" },
-            { label: "My Orders",      icon: <FileText size={16} />,     href: "/account/orders", bg: "bg-gray-800 text-white" },
-            { label: "Account Security", icon: <ShieldCheck size={16} />, href: "/account/security", bg: "bg-purple-600 text-white" },
-          ].map(({ label, icon, href, bg }) => (
+            { label: "Browse Store",     icon: <ShoppingBag size={15} />, href: "/products",         grad: "from-blue-500 to-blue-700" },
+            { label: "Add Funds",        icon: <DollarSign size={15} />,  href: "/account/add-fund", grad: "from-emerald-500 to-green-700" },
+            { label: "My Orders",        icon: <FileText size={15} />,    href: "/account/orders",   grad: "from-slate-600 to-slate-800" },
+            { label: "Security",         icon: <ShieldCheck size={15} />, href: "/account/security", grad: "from-violet-500 to-purple-700" },
+          ].map(({ label, icon, href, grad }) => (
             <Link href={href} key={label}>
-              <div className={`${bg} rounded-2xl p-4 flex items-center gap-3 hover:opacity-90 transition-opacity shadow-sm`}>
-                <div className="bg-white/20 rounded-lg p-1.5">{icon}</div>
-                <span className="font-bold text-sm">{label}</span>
+              <div className={`bg-gradient-to-br ${grad} rounded-2xl p-4 flex items-center gap-3 active:opacity-80 transition-opacity shadow-sm`}>
+                <div className="w-8 h-8 rounded-xl bg-white/15 flex items-center justify-center shrink-0">
+                  <span className="text-white">{icon}</span>
+                </div>
+                <span className="font-bold text-[13px] text-white leading-tight">{label}</span>
               </div>
             </Link>
           ))}
         </div>
       </div>
 
-      {/* Recent orders */}
-      <div className="px-4 pb-8">
+      {/* ── Recent Orders ─────────────────────────────────────────────────── */}
+      <div className="px-4 pb-10">
         <div className="flex items-center justify-between mb-3">
-          <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Recent Orders</p>
-          <Link href="/account/orders" className="text-blue-600 text-xs font-semibold">View all</Link>
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Recent Orders</p>
+          <Link href="/account/orders" className="text-blue-500 text-xs font-bold">View all</Link>
         </div>
-        <div className="border border-gray-100 rounded-2xl overflow-hidden bg-white">
+
+        <div className="bg-white rounded-2xl border border-gray-100/80 overflow-hidden shadow-sm">
           {ordersLoading ? (
-            <div className="flex items-center justify-center py-8 text-gray-400 text-sm">Loading…</div>
+            <div className="flex items-center justify-center py-10 text-gray-400 text-sm gap-2">
+              <span className="w-3.5 h-3.5 border-2 border-gray-200 border-t-blue-400 rounded-full animate-spin" />
+              Loading…
+            </div>
           ) : orders.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-10 px-4 text-center">
               <div className="w-14 h-14 bg-gray-50 rounded-2xl flex items-center justify-center mb-3 border border-gray-100">
-                <ShoppingBag size={24} className="text-gray-300" />
+                <ShoppingBag size={22} className="text-gray-300" />
               </div>
               <p className="font-bold text-gray-500 text-sm">No orders yet</p>
               <p className="text-gray-400 text-xs mt-1 max-w-[200px]">Place your first order and it will appear here</p>
               <Link href="/products">
-                <button className="mt-4 px-5 py-2 bg-blue-600 text-white text-xs font-black rounded-xl">Shop Now</button>
+                <button className="mt-4 px-6 py-2.5 bg-blue-600 text-white text-xs font-black rounded-xl shadow-sm">
+                  Shop Now
+                </button>
               </Link>
             </div>
           ) : (
             <div className="divide-y divide-gray-50">
-              {orders.slice(0, 5).map(order => (
-                <div key={order.id} className="px-4 py-3">
-                  <div className="flex items-center justify-between mb-1">
-                    <p className="text-xs font-black text-gray-700">Order #{order.id}</p>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                      order.paymentStatus === "paid" ? "bg-green-100 text-green-700"
-                      : order.paymentStatus === "pending" ? "bg-yellow-100 text-yellow-700"
-                      : "bg-red-100 text-red-700"
-                    }`}>{order.paymentStatus}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <p className="text-[11px] text-gray-500 truncate">
-                      {order.items?.[0]?.productName ?? "Item"}
-                      {(order.items?.length ?? 0) > 1 ? ` +${order.items.length - 1} more` : ""}
-                    </p>
-                    <p className="text-xs font-black text-blue-700 ml-2">${parseFloat(order.total).toFixed(2)}</p>
-                  </div>
-                  <p className="text-[10px] text-gray-400 mt-0.5">{new Date(order.createdAt).toLocaleDateString()}</p>
-                </div>
-              ))}
+              {orders.slice(0, 5).map(order => {
+                const statusStyle =
+                  order.paymentStatus === "paid" || order.paymentStatus === "completed"
+                    ? "bg-green-100 text-green-700"
+                    : order.paymentStatus === "pending" || order.paymentStatus === "pending_payment_confirmation"
+                    ? "bg-amber-100 text-amber-700"
+                    : "bg-red-100 text-red-600";
+                return (
+                  <Link key={order.id} href={`/orders/${order.id}`} className="block">
+                    <div className="px-4 py-3.5 hover:bg-gray-50 active:bg-blue-50/40 transition-colors">
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="text-[13px] font-black text-gray-800">Order #{order.id}</p>
+                        <div className="flex items-center gap-1.5">
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${statusStyle}`}>
+                            {order.paymentStatus}
+                          </span>
+                          <ChevronRight size={12} className="text-gray-300" />
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <p className="text-[11px] text-gray-400 truncate max-w-[170px]">
+                          {order.items?.[0]?.productName ?? "Item"}
+                          {(order.items?.length ?? 0) > 1 ? ` +${order.items.length - 1} more` : ""}
+                        </p>
+                        <p className="text-[12px] font-black text-blue-600 ml-2 tabular-nums">
+                          ${parseFloat(order.total).toFixed(2)}
+                        </p>
+                      </div>
+                      <p className="text-[10px] text-gray-300 mt-0.5">
+                        {new Date(order.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+                      </p>
+                    </div>
+                  </Link>
+                );
+              })}
             </div>
           )}
         </div>
 
         {zeroBalance && (
-          <div className="bg-white rounded-2xl border border-blue-100 shadow-sm p-4">
-            <p className="text-sm font-bold text-slate-900">Your wallet balance is $0.00</p>
-            <p className="text-xs text-slate-500 mt-1">Add a top up to view available payment options.</p>
+          <div className="mt-3 bg-white rounded-2xl border border-blue-100 p-4 shadow-sm">
+            <p className="text-sm font-bold text-gray-800">Your wallet is empty</p>
+            <p className="text-xs text-gray-400 mt-1">Add funds to place your next order.</p>
             <Link href="/account/add-fund">
-              <button className="mt-3 w-full rounded-xl bg-blue-600 text-white font-bold text-sm py-3">Add Top Up</button>
+              <button className="mt-3 w-full rounded-xl bg-blue-600 text-white font-bold text-sm py-3 shadow-sm">
+                Add Top Up
+              </button>
             </Link>
           </div>
         )}
@@ -368,6 +539,35 @@ function SecurityContent({ user }: { user: { name: string | null; email: string 
 
   return (
     <div className="space-y-6 pb-4">
+
+      {/* ── Security status overview ── */}
+      <div style={{ background: "linear-gradient(135deg,#1a2332 0%,#1e3a5f 100%)" }} className="rounded-2xl p-4">
+        <div className="flex items-center gap-3 mb-3">
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${twoFaEnabled ? "bg-green-500/20" : "bg-yellow-500/20"}`}>
+            <ShieldCheck size={20} className={twoFaEnabled ? "text-green-400" : "text-yellow-400"} />
+          </div>
+          <div className="flex-1">
+            <p className="text-white font-black text-sm">Account Security</p>
+            <p className={`text-xs font-semibold ${twoFaEnabled ? "text-green-400" : "text-yellow-300"}`}>
+              {twoFaEnabled ? "🔒 Strong — 2FA Active" : "⚠️ Moderate — Enable 2FA for better protection"}
+            </p>
+          </div>
+          <div className={`w-2.5 h-2.5 rounded-full ${twoFaEnabled ? "bg-green-400 animate-pulse" : "bg-yellow-400"}`} />
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            { label: "Password", ok: true, icon: "🔑" },
+            { label: "2FA", ok: twoFaEnabled, icon: "🛡️" },
+            { label: "Email", ok: !!user?.email, icon: "📧" },
+          ].map(({ label, ok, icon }) => (
+            <div key={label} className="bg-white/10 rounded-xl px-2 py-2 text-center">
+              <p className="text-base leading-none mb-1">{icon}</p>
+              <p className={`text-[10px] font-black ${ok ? "text-green-400" : "text-red-400"}`}>{ok ? "Active" : "Off"}</p>
+              <p className="text-blue-300/60 text-[9px] font-medium mt-0.5">{label}</p>
+            </div>
+          ))}
+        </div>
+      </div>
 
       {/* ── 2FA section ── */}
       <div className="border border-gray-200 rounded-xl overflow-hidden">
@@ -513,44 +713,84 @@ function SecurityContent({ user }: { user: { name: string | null; email: string 
         </div>
       </div>
 
-      {/* ── Change Password section ── */}
+      {/* ── Password Change ── */}
       <div className="border border-gray-200 rounded-xl overflow-hidden">
         <div className="flex items-center gap-3 px-4 py-3 bg-gray-50 border-b border-gray-100">
           <KeyRound size={18} className="text-gray-500" />
           <div>
             <p className="font-bold text-sm text-gray-800">Change Password</p>
-            <p className="text-xs text-gray-500">Update your account password</p>
+            <p className="text-xs text-gray-500">Use a strong password at least 8 characters</p>
           </div>
         </div>
         <div className="p-4 space-y-3">
-          {[
-            { label: "Current Password", val: cur, set: setCur, show: showCur, setShow: setShowCur },
-            { label: "New Password",     val: nw,  set: setNw,  show: showNw,  setShow: setShowNw  },
-            { label: "Confirm Password", val: conf, set: setConf, show: showConf, setShow: setShowConf },
-          ].map(({ label, val, set, show, setShow }) => (
-            <div key={label}>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">{label}</label>
-              <div className="relative">
-                <input
-                  type={show ? "text" : "password"}
-                  value={val}
-                  onChange={(e) => set(e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-3 pr-10 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                  placeholder="••••••••"
-                />
-                <button type="button" onClick={() => setShow(!show)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                  {show ? <EyeOff size={15} /> : <Eye size={15} />}
-                </button>
-              </div>
+          {/* Current password */}
+          <div>
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1.5">Current Password</label>
+            <div className="flex items-center border border-gray-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-blue-400">
+              <input type={showCur ? "text" : "password"} value={cur} onChange={e => setCur(e.target.value)}
+                placeholder="Enter current password"
+                className="flex-1 px-3 py-2.5 text-sm focus:outline-none" />
+              <button onClick={() => setShowCur(!showCur)} className="px-3 text-gray-400 hover:text-gray-700">
+                {showCur ? <EyeOff size={15} /> : <Eye size={15} />}
+              </button>
             </div>
-          ))}
-          <button
-            onClick={handlePasswordChange}
-            className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-sm mt-1 transition-colors"
-          >
-            Update Password
+          </div>
+          {/* New password */}
+          <div>
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1.5">New Password</label>
+            <div className="flex items-center border border-gray-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-blue-400">
+              <input type={showNw ? "text" : "password"} value={nw} onChange={e => setNw(e.target.value)}
+                placeholder="At least 8 characters"
+                className="flex-1 px-3 py-2.5 text-sm focus:outline-none" />
+              <button onClick={() => setShowNw(!showNw)} className="px-3 text-gray-400 hover:text-gray-700">
+                {showNw ? <EyeOff size={15} /> : <Eye size={15} />}
+              </button>
+            </div>
+            {nw.length > 0 && (
+              <div className="mt-1.5 flex items-center gap-2">
+                <div className="flex-1 h-1 rounded-full bg-gray-100 overflow-hidden">
+                  <div className={`h-full rounded-full transition-all ${nw.length < 6 ? "w-1/4 bg-red-400" : nw.length < 8 ? "w-1/2 bg-yellow-400" : nw.length < 12 ? "w-3/4 bg-blue-400" : "w-full bg-green-400"}`} />
+                </div>
+                <p className={`text-[10px] font-bold ${nw.length < 6 ? "text-red-400" : nw.length < 8 ? "text-yellow-500" : "text-green-500"}`}>
+                  {nw.length < 6 ? "Weak" : nw.length < 8 ? "Fair" : nw.length < 12 ? "Good" : "Strong"}
+                </p>
+              </div>
+            )}
+          </div>
+          {/* Confirm password */}
+          <div>
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1.5">Confirm New Password</label>
+            <div className={`flex items-center border rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-blue-400 ${conf && conf !== nw ? "border-red-300" : "border-gray-200"}`}>
+              <input type={showConf ? "text" : "password"} value={conf} onChange={e => setConf(e.target.value)}
+                placeholder="Repeat new password"
+                className="flex-1 px-3 py-2.5 text-sm focus:outline-none" />
+              <button onClick={() => setShowConf(!showConf)} className="px-3 text-gray-400 hover:text-gray-700">
+                {showConf ? <EyeOff size={15} /> : <Eye size={15} />}
+              </button>
+            </div>
+            {conf && conf !== nw && <p className="text-[10px] text-red-500 mt-1">Passwords don't match</p>}
+          </div>
+          <button onClick={handlePasswordChange} disabled={!cur || !nw || !conf || nw !== conf}
+            className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white font-bold rounded-xl text-sm transition-colors flex items-center justify-center gap-2">
+            <Lock size={14} /> Update Password
           </button>
         </div>
+      </div>
+
+      {/* ── Security tips ── */}
+      <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 space-y-2.5">
+        <p className="text-xs font-bold text-blue-800 uppercase tracking-widest">Security Tips</p>
+        {[
+          { icon: "🔑", tip: "Use a unique password not used on other sites" },
+          { icon: "📱", tip: "Enable 2FA for maximum account protection" },
+          { icon: "🚫", tip: "Never share your login credentials with anyone" },
+          { icon: "📧", tip: "Make sure your email address is up to date" },
+        ].map(({ icon, tip }) => (
+          <div key={tip} className="flex items-start gap-2.5">
+            <span className="text-sm leading-none mt-0.5">{icon}</span>
+            <p className="text-xs text-blue-700">{tip}</p>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -563,7 +803,8 @@ const USDT_ADDRESSES = [
 
 function AddFundContent({ token }: { token: string | null }) {
   const PRESET_AMOUNTS = [10, 25, 50, 100, 200, 500];
-  const [tab, setTab]         = useState<"mpesa" | "crypto" | "manual">("mpesa");
+  const { user } = useAuth();
+  const [tab, setTab]         = useState<"mpesa" | "crypto" | "manual" | "card">("mpesa");
   const { data: walletBalance = 0, isLoading: balanceLoading } = useWalletBalance();
   const [manualSent, setManualSent] = useState(false);
   const [manualMethod, setManualMethod] = useState<"binance_pay" | "usdt_manual">("binance_pay");
@@ -583,6 +824,9 @@ function AddFundContent({ token }: { token: string | null }) {
   const [npStatus, setNpStatus]     = useState<"idle" | "pending" | "paid" | "failed">("idle");
   const [npAutoCount, setNpAutoCount] = useState(0);
   const [copiedKey, setCopiedKey]   = useState<string | null>(null);
+  const [cardAmount, setCardAmount] = useState("");
+  const [cardLoading, setCardLoading] = useState(false);
+  const [cardPaid, setCardPaid]     = useState(false);
   const { toast }    = useToast();
   const queryClient  = useQueryClient();
 
@@ -660,6 +904,59 @@ function AddFundContent({ token }: { token: string | null }) {
       setNpLoading(false);
     }
   }
+
+  async function handleCard() {
+    if (!cardAmount || Number(cardAmount) < 1) {
+      toast({ title: "Enter amount (min $1)", variant: "destructive" }); return;
+    }
+    setCardLoading(true);
+    try {
+      const res = await fetch("/api/wallet/add-fund/stripe/session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ amount: Number(cardAmount) }),
+      });
+      const data = await res.json() as { url?: string; error?: string };
+      if (!res.ok || !data.url) throw new Error(data.error || "Could not create payment session");
+      // Redirect to Stripe-hosted checkout.
+      // On success Stripe sends the user back to /account?s_ws=SESSION_ID&s_amt=AMOUNT
+      window.location.href = data.url;
+    } catch (err: unknown) {
+      toast({ title: err instanceof Error ? err.message : "Error", variant: "destructive" });
+      setCardLoading(false);
+    }
+  }
+
+  // Handle return from Stripe Checkout (wallet top-up)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const stripeSession = params.get("s_ws");
+    const stripeAmt = params.get("s_amt");
+    if (!stripeSession || !token) return;
+
+    // Switch to card tab and clean URL
+    setTab("card");
+    window.history.replaceState({}, "", window.location.pathname);
+
+    fetch("/api/wallet/add-fund/stripe/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ sessionId: stripeSession }),
+    })
+      .then((r) => r.json() as Promise<{ success?: boolean; alreadyProcessed?: boolean; amountUsd?: number; error?: string }>)
+      .then((data) => {
+        if (data.success || data.alreadyProcessed) {
+          setCardPaid(true);
+          if (stripeAmt) setCardAmount(stripeAmt);
+          void queryClient.invalidateQueries({ queryKey: ["wallet-balance"] });
+          toast({ title: "Wallet credited!", description: `$${stripeAmt || data.amountUsd?.toFixed(2)} added successfully.` });
+        } else {
+          toast({ title: data.error || "Payment verification failed. Contact support.", variant: "destructive" });
+        }
+      })
+      .catch(() => toast({ title: "Could not verify payment. Contact support.", variant: "destructive" }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
 
   useEffect(() => {
     if (!npPayment || npStatus !== "pending" || !token) return;
@@ -744,6 +1041,10 @@ function AddFundContent({ token }: { token: string | null }) {
         <button onClick={() => setTab("manual")}
           className={`flex-1 py-2.5 text-xs font-bold transition-colors flex items-center justify-center gap-1.5 border-l border-gray-200 ${tab === "manual" ? "bg-yellow-500 text-white" : "bg-white text-gray-600 hover:bg-yellow-50"}`}>
           🏦 Manual
+        </button>
+        <button onClick={() => setTab("card")}
+          className={`flex-1 py-2.5 text-xs font-bold transition-colors flex items-center justify-center gap-1.5 border-l border-gray-200 ${tab === "card" ? "bg-blue-600 text-white" : "bg-white text-gray-600 hover:bg-blue-50"}`}>
+          💳 Card
         </button>
       </div>
 
@@ -1046,6 +1347,69 @@ function AddFundContent({ token }: { token: string | null }) {
                   className="w-full py-3.5 bg-yellow-500 hover:bg-yellow-600 text-white font-black rounded-xl text-sm disabled:opacity-40 flex items-center justify-center gap-2">
                   ✅ I’ve Sent the Payment — Notify Team
                 </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Card tab ── */}
+      {tab === "card" && (
+        <div className="space-y-3">
+          {cardPaid ? (
+            <div className="bg-white border border-green-200 rounded-2xl p-6 text-center space-y-3 shadow-sm">
+              <div className="w-16 h-16 bg-green-100 border-4 border-green-300 rounded-full flex items-center justify-center mx-auto">
+                <CheckCircle size={32} className="text-green-600" />
+              </div>
+              <p className="font-black text-xl text-gray-800">Wallet Credited!</p>
+              <p className="text-sm text-gray-500">Your balance has been updated successfully.</p>
+              <button onClick={() => { setCardPaid(false); setCardAmount(""); }}
+                className="mt-1 px-6 py-2.5 border-2 border-green-400 rounded-xl text-sm font-bold text-green-700 bg-green-50 hover:bg-green-100 transition-colors">
+                Add More Funds
+              </button>
+            </div>
+          ) : (
+            <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+              <div className="px-4 py-3.5 border-b border-blue-100 bg-blue-50">
+                <p className="text-xs font-bold text-blue-800 uppercase tracking-wider">Visa / Mastercard · Powered by Stripe</p>
+                <p className="text-[10px] text-blue-600 mt-0.5">Pay securely with your debit or credit card. Instant confirmation.</p>
+              </div>
+              <div className="px-4 pb-5 pt-4 space-y-4">
+                <div className="bg-blue-50 border border-blue-200 rounded-xl px-3 py-2.5 text-xs text-blue-800 font-medium">
+                  Works worldwide — Visa, Mastercard, and more. USD charged; your bank converts to local currency automatically.
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-2">Amount (USD)</label>
+                  <div className="grid grid-cols-3 gap-2 mb-2">
+                    {PRESET_AMOUNTS.map(a => (
+                      <button key={a} type="button" onClick={() => setCardAmount(String(a))}
+                        className={`py-2 rounded-xl text-sm font-bold border transition-colors ${cardAmount === String(a) ? "bg-blue-600 text-white border-blue-600" : "border-gray-200 text-gray-700 bg-gray-50 hover:border-blue-400 hover:bg-blue-50"}`}>
+                        ${a}
+                      </button>
+                    ))}
+                  </div>
+                  <input
+                    type="number" min="1" value={cardAmount}
+                    onChange={e => setCardAmount(e.target.value)}
+                    placeholder="Or enter custom amount"
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400"
+                  />
+                </div>
+
+                <button onClick={handleCard} disabled={cardLoading || !cardAmount || Number(cardAmount) < 1}
+                  className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl text-sm disabled:opacity-40 transition-colors flex items-center justify-center gap-2">
+                  {cardLoading
+                    ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Opening Checkout…</>
+                    : `💳 Pay ${cardAmount ? `$${cardAmount}` : ""} with Card →`}
+                </button>
+
+                <div className="flex items-center justify-center gap-3 opacity-60">
+                  <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Secured by</span>
+                  <span className="text-xs font-black text-indigo-600">Stripe</span>
+                  <span className="text-[10px] text-gray-300">•</span>
+                  <span className="text-[10px] text-gray-400">256-bit SSL</span>
+                </div>
               </div>
             </div>
           )}

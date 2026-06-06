@@ -350,6 +350,33 @@ const BRAND_IMAGES: Record<string, string> = {
   "Lycamobile":         "https://img.logo.dev/lycamobile.com?token=pk_TCgqx3C7R9Oke-Nl5P9SYw",
 };
 
+const EUR_TO_USD = 1.08;
+const GBP_TO_USD = 1.27;
+const AUD_TO_USD = 0.65;
+const CAD_TO_USD = 0.73;
+const JPY_TO_USD = 0.0067;
+const BRL_TO_USD = 0.19;
+const MXN_TO_USD = 0.058;
+const SAR_TO_USD = 0.27;
+const AED_TO_USD = 0.27;
+const TRY_TO_USD = 0.031;
+const HKD_TO_USD = 0.13;
+const SGD_TO_USD = 0.74;
+const INR_TO_USD = 0.012;
+const ARS_TO_USD = 0.0011;
+const ZAR_TO_USD = 0.055;
+
+export function toUSD(amount: number, currency: string): number {
+  const rates: Record<string, number> = {
+    USD: 1, EUR: EUR_TO_USD, GBP: GBP_TO_USD, AUD: AUD_TO_USD,
+    CAD: CAD_TO_USD, JPY: JPY_TO_USD, BRL: BRL_TO_USD, MXN: MXN_TO_USD,
+    SAR: SAR_TO_USD, AED: AED_TO_USD, TRY: TRY_TO_USD, HKD: HKD_TO_USD,
+    SGD: SGD_TO_USD, INR: INR_TO_USD, ARS: ARS_TO_USD, ZAR: ZAR_TO_USD,
+  };
+  const rate = rates[currency] ?? 1;
+  return Math.max(13, Math.ceil(amount * rate * 100) / 100);
+}
+
 function getBrandImage(brand: string): string | null {
   if (BRAND_IMAGES[brand]) return BRAND_IMAGES[brand];
   const b = brand.toLowerCase();
