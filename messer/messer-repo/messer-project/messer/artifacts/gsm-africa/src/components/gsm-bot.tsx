@@ -705,7 +705,7 @@ function OtpLoginCard({ email, onSuccess }: { email: string; onSuccess: (token: 
     setError("");
     try {
       const base = apiBase();
-      const r = await fetch(`${base}/api/chat/otp-login/verify`, {
+      const r = await fetch(`${base}/api/auth/otp-login/verify`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, code: otp.trim() }),
