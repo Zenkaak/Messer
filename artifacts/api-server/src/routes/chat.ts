@@ -323,12 +323,13 @@ YOUR TOOLS — CALL IMMEDIATELY, NEVER JUST DESCRIBE WHAT YOU COULD DO
 8.  navigate_to(page, label) — send user to any page on the site
 9.  add_to_cart(product_id, quantity) — add a product to the customer's cart
 10. send_login_otp(email) — send OTP for passwordless login
-11. verify_login_otp(email, code) — verify OTP and log customer in
-12. signup_user(email, name, password) — create new account
-13. send_password_reset_otp(email) — send password reset code
-14. reset_user_password(email, code, new_password) — set new password
-15. place_order(payment_method, customer_email, ...) — complete purchase and create order
-16. add_wallet_funds(payment_method, amount, phone?, pay_currency?) — top up wallet balance
+11. show_otp_login_form(email) — display secure OTP entry card (call right after send_login_otp; NEVER ask OTP in plain chat)
+12. verify_login_otp(email, code) — verify OTP and log customer in (called internally by OTP card)
+13. signup_user(email, name, password) — create new account
+14. send_password_reset_otp(email) — send password reset code (ALWAYS ask email FIRST before calling)
+15. reset_user_password(email, code, new_password) — set new password
+16. place_order(payment_method, customer_email, ...) — complete purchase and create order
+17. add_wallet_funds(payment_method, amount, phone?, pay_currency?) — top up wallet balance
 
 RULE: When a customer asks anything, call the relevant tool immediately. Never say "I can check" or "let me look" — just do it.
 
@@ -388,11 +389,13 @@ Wallet balance can be used for instant one-click checkout on any order.
 ══════════════════════════════════════════════════════════════
 LOGIN / SIGNUP / PASSWORD RESET (do it all in chat)
 ══════════════════════════════════════════════════════════════
+⚠️ ALREADY AUTHENTICATED CHECK: If you see "[SYSTEM: This user is AUTHENTICATED]" in context and the user asks to "login", "log in", "sign in", or "create account", DO NOT start a login flow. Instead reply: "You're already signed in as [their email]! Is there anything else I can help you with?" and stop.
+
 LOGIN — first ask: "Would you prefer a one-time code (OTP) sent to your email, or log in with your password?"
   OTP path (easiest — no password needed):
     1. Ask email → send_login_otp(email)
-    2. Ask 6-digit code from their inbox → verify_login_otp(email, code)
-    3. Done — they're logged in ✓
+    2. Call show_otp_login_form(email) — displays a SECURE card where they enter OTP privately
+    ⚠️ NEVER ask the customer to type their OTP code in the chat message box. Always use show_otp_login_form immediately after send_login_otp.
   Password path (secure form):
     1. Ask email
     2. Call show_password_login_form(email) — this displays a secure card where they enter password privately
@@ -403,9 +406,11 @@ SIGNUP (new customer):
   2. signup_user(email, name, password) — account created and logged in ✓
 
 FORGOT PASSWORD:
-  1. Ask email → send_password_reset_otp(email)
-  2. Ask reset code + new password → reset_user_password(email, code, new_password)
-  3. Offer OTP login to get them in immediately
+  ⚠️ ALWAYS ask for the user's email address FIRST before doing anything. Do NOT call send_password_reset_otp until you have their email.
+  1. Ask: "What is your email address?" → wait for reply → send_password_reset_otp(email)
+  2. Tell them to check their inbox for a reset code
+  3. Ask reset code + new password → reset_user_password(email, code, new_password)
+  4. Offer OTP login to get them in immediately
 
 ══════════════════════════════════════════════════════════════
 ORDER STATUS GUIDE — WHAT EACH STATUS MEANS
@@ -505,7 +510,7 @@ TROUBLESHOOTING — RESOLVE THESE YOURSELF BEFORE ESCALATING:
 
 "I forgot my account password":
   Use FORGOT PASSWORD flow immediately — no escalation needed.
-  send_password_reset_otp(email) → collect code + new password → reset_user_password()
+  1. Ask for their email first. 2. send_password_reset_otp(email) → collect code + new password → reset_user_password()
 
 "I want to cancel my order":
   1. lookup_order(email, order_id) to check status
@@ -1174,11 +1179,25 @@ const TOOLS = [
     type: "function" as const,
     function: {
       name: "send_login_otp",
-      description: "Send a one-time password (OTP) to customer's email for passwordless login. Use when customer wants to log in via OTP (not password).",
+      description: "Send a one-time password (OTP) to customer's email for passwordless login. Use when customer wants to log in via OTP (not password). Always call show_otp_login_form immediately after this.",
       parameters: {
         type: "object",
         properties: {
           email: { type: "string", description: "Customer's email address" },
+        },
+        required: ["email"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "show_otp_login_form",
+      description: "Display a secure OTP entry card so the customer can enter their one-time code privately. ALWAYS call this immediately after send_login_otp. NEVER ask the customer to type the OTP in the chat — use this secure card instead.",
+      parameters: {
+        type: "object",
+        properties: {
+          email: { type: "string", description: "Customer email address (must match the one used in send_login_otp)" },
         },
         required: ["email"],
       },
@@ -2247,6 +2266,11 @@ async function runToolCalls(
       } else if (fn === "send_login_otp") {
         const r = await toolSendLoginOtp(String(args.email ?? ""));
         result = JSON.stringify(r);
+      } else if (fn === "show_otp_login_form") {
+        const email = String(args.email ?? "");
+        lat = "show_otp_login";
+        lad = { email };
+        result = `Secure OTP entry card displayed for ${email}. The customer will enter their code in the secure card without typing it in the chat.`;
       } else if (fn === "verify_login_otp") {
         const r = await toolVerifyLoginOtp(String(args.email ?? ""), String(args.code ?? ""));
         result = JSON.stringify(r);

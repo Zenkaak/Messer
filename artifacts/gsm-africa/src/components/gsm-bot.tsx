@@ -73,6 +73,7 @@ interface ChatMessage {
   cartAddedData?: CartAddedData;
   loginSuccessData?: LoginSuccessData;
   passwordLoginData?: { email: string };
+  otpLoginData?: { email: string };
   passwordResetDone?: boolean;
   walletTopUpMpesaData?: WalletTopUpMpesaData;
   walletTopUpNowpaymentsData?: WalletTopUpNowpaymentsData;
@@ -684,6 +685,113 @@ function PasswordLoginCard({
           {loading
             ? <div className="w-3.5 h-3.5 border-2 border-white/50 border-t-white rounded-full animate-spin" />
             : <><UserCheck size={12} /> Sign In</>}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+// ─── Secure OTP login card ────────────────────────────────────────────────────
+function OtpLoginCard({
+  email,
+  base,
+  onSuccess,
+}: {
+  email: string;
+  base: string;
+  onSuccess: (token: string, user: { id: number; email: string; name: string | null }) => void;
+}) {
+  const [code, setCode] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [done, setDone] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [resent, setResent] = useState(false);
+
+  const verifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!code.trim() || code.trim().length < 6) { setError("Enter the 6-digit code from your email."); return; }
+    setLoading(true); setError("");
+    try {
+      const r = await fetch(`${base}/api/auth/otp-login/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.toLowerCase().trim(), code: code.trim() }),
+      });
+      const data = await r.json() as { token?: string; user?: { id: number; email: string; name: string | null }; error?: string };
+      if (r.ok && data.token && data.user) {
+        setDone(true);
+        onSuccess(data.token, data.user);
+      } else {
+        setError(data.error ?? "Invalid or expired code. Try again or request a new code.");
+      }
+    } catch {
+      setError("Could not connect — please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resendOtp = async () => {
+    setResending(true); setError(""); setResent(false);
+    try {
+      await fetch(`${base}/api/auth/otp-login/send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.toLowerCase().trim() }),
+      });
+      setResent(true);
+    } catch {
+      setError("Could not resend — please try again.");
+    } finally {
+      setResending(false);
+    }
+  };
+
+  if (done) {
+    return (
+      <div className="mt-2 flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-3 py-2">
+        <CheckCircle size={14} className="text-green-600 shrink-0" />
+        <p className="text-green-700 text-[11px] font-semibold">Logged in successfully!</p>
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={verifyOtp} className="mt-2 rounded-xl border border-slate-200 bg-white overflow-hidden text-xs shadow-sm">
+      <div className="flex items-center gap-1.5 px-3 py-2 bg-blue-50 border-b border-blue-100">
+        <Lock size={11} className="text-blue-500" />
+        <span className="font-bold text-blue-800 text-[11px]">Enter Your One-Time Code</span>
+        <span className="ml-auto text-[9px] text-slate-400 font-medium">Code is hidden</span>
+      </div>
+      <div className="px-3 py-3 space-y-2.5">
+        <p className="text-slate-500 text-[10px]">Check your email at <strong>{email.slice(0, 3)}***@{email.split("@")[1]}</strong> for the 6-digit code.</p>
+        <div>
+          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">One-Time Code</label>
+          <input
+            type="password"
+            inputMode="numeric"
+            value={code}
+            onChange={e => { setCode(e.target.value); setError(""); }}
+            placeholder="••••••"
+            maxLength={6}
+            autoComplete="one-time-code"
+            className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs mt-1 font-mono tracking-widest focus:outline-none focus:border-blue-400 bg-white"
+          />
+        </div>
+        {error && <p className="text-red-500 text-[10px] font-medium">{error}</p>}
+        {resent && <p className="text-green-600 text-[10px] font-medium">New code sent to your email!</p>}
+        <button
+          type="submit"
+          disabled={loading || !code.trim()}
+          className="w-full py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold rounded-lg flex items-center justify-center gap-1.5 transition-colors text-[11px]"
+        >
+          {loading
+            ? <div className="w-3.5 h-3.5 border-2 border-white/50 border-t-white rounded-full animate-spin" />
+            : <><UserCheck size={12} /> Verify & Sign In</>}
+        </button>
+        <button type="button" onClick={resendOtp} disabled={resending} className="w-full text-[10px] text-slate-400 hover:text-slate-600 transition-colors">
+          {resending ? "Sending…" : "Resend code"}
         </button>
       </div>
     </form>
@@ -1539,6 +1647,8 @@ export function GsmBot() {
         msg.loginSuccessData = ld;
         // Persist token and log user in via auth context
         login(ld.token, ld.user);
+      } else if (finalAction === "show_otp_login" && finalActionData) {
+        msg.otpLoginData = finalActionData as unknown as { email: string };
       } else if (finalAction === "show_password_login" && finalActionData) {
         msg.passwordLoginData = finalActionData as unknown as { email: string };
       } else if (finalAction === "password_reset_done") {
@@ -2009,6 +2119,15 @@ export function GsmBot() {
                       )}
                       {m.cartAddedData && <CartAddedWidget data={m.cartAddedData} onClose={() => setOpen(false)} />}
                       {m.loginSuccessData && <LoginSuccessWidget data={m.loginSuccessData} />}
+                      {m.otpLoginData && (
+                        <OtpLoginCard
+                          email={m.otpLoginData.email}
+                          base={base}
+                          onSuccess={(token, user) => {
+                            login(token, user);
+                          }}
+                        />
+                      )}
                       {m.passwordLoginData && (
                         <PasswordLoginCard
                           email={m.passwordLoginData.email}
