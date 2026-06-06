@@ -80,8 +80,18 @@ router.post("/auth/register", async (req, res) => {
       passwordHash,
       name: name || null,
     }).returning({ id: usersTable.id, email: usersTable.email, name: usersTable.name, createdAt: usersTable.createdAt });
+
+    // Auto-generate username
+    const base = (name || email.split("@")[0]).toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 14) || "user";
+    let username = `${base}${String(Math.floor(1000 + Math.random() * 9000))}`;
+    const existing2 = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.username, username)).limit(1);
+    if (existing2.length > 0) {
+      username = `${base}${String(Math.floor(1000 + Math.random() * 9000))}`;
+    }
+    await db.update(usersTable).set({ username }).where(eq(usersTable.id, user.id));
+
     const token = makeToken(user.id, user.email);
-    logger.info({ userId: user.id }, "User registered");
+    logger.info({ userId: user.id, username }, "User registered");
     const otp = String(Math.floor(100000 + Math.random() * 900000));
     await setOtp(user.email, otp, 10 * 60 * 1000);
     const emailResult = await sendEmail({ to: user.email, ...otpEmail(otp) });
