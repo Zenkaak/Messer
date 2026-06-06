@@ -473,49 +473,64 @@ export function paymentConfirmedEmail(params: {
   amount: string;
   paymentMethod: string;
   transactionRef?: string | null;
+  items?: Array<{ productName: string; quantity: number; price: string }>;
 }) {
   const ref = params.orderCode || String(params.orderId);
   const name = params.customerName || "Valued Customer";
   const orderUrl = appUrl(`/orders/${params.orderId}`);
+  const supportUrl = appUrl("/account/chat");
   const payLabel: Record<string, string> = {
     mpesa: "M-Pesa",
     wallet: "GSM World Wallet",
-    nowpayments: "NOWPayments",
-    binance_pay: "Binance",
-    usdt_manual: "Digital Transfer",
+    nowpayments: "Crypto (NOWPayments)",
+    binance_pay: "Binance Pay",
+    usdt_manual: "USDT Transfer",
+    card: "Card",
   };
   const pmLabel = payLabel[params.paymentMethod] ?? params.paymentMethod;
   const paidAt = new Date().toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" }) + " UTC";
 
   const h = header(
     "linear-gradient(135deg,#064e3b 0%,#059669 100%)",
-    "Payment Successfully Confirmed",
+    "✅ Payment Confirmed",
     `Your payment for Order #${ref} has been verified`
   );
-  const rows: Array<[string, string]> = [
+
+  const infoRows: Array<[string, string]> = [
     ["Order Reference", `#${ref}`],
     ["Amount Paid", `$${parseFloat(params.amount).toFixed(2)} USD`],
     ["Payment Method", pmLabel],
     ["Confirmed At", paidAt],
   ];
-  if (params.transactionRef) rows.push(["Transaction Reference", params.transactionRef]);
+  if (params.transactionRef) infoRows.push(["Transaction Ref", params.transactionRef]);
+
+  const itemsSection = params.items && params.items.length > 0
+    ? `<p style="margin:24px 0 8px;font-size:13px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:1px;">Order Summary</p>${orderItemsTable(params.items, params.amount)}`
+    : "";
 
   const body = `
     <p style="margin:0 0 20px;font-size:15px;color:#475569;">Dear <strong style="color:#0f172a;">${name}</strong>,</p>
-    <p style="margin:0 0 20px;font-size:15px;color:#475569;">We are pleased to confirm that your payment has been successfully verified. Your order is now being processed.</p>
-    ${infoTable(rows)}
-    ${statusChip("Payment Confirmed", "#059669")}
-    <p style="margin:0 0 20px;font-size:14px;color:#475569;">Our team is now working on your order. You will receive another notification once it is completed, typically within <strong style="color:#0f172a;">10 – 30 minutes</strong>.</p>
-    ${btn("View Your Order", orderUrl, "#059669")}
+    <p style="margin:0 0 20px;font-size:15px;color:#475569;">Great news — your payment has been successfully verified and your order is now being processed by our team.</p>
+    ${infoTable(infoRows)}
+    ${itemsSection}
+    ${statusChip("✅ Payment Confirmed — Processing Now", "#059669")}
+    <p style="margin:0 0 8px;font-size:14px;color:#475569;">Our team is working on your order now. Estimated processing time is <strong style="color:#0f172a;">10 – 30 minutes</strong>. You'll receive a completion email when it's done.</p>
+    ${btn("Track Your Order", orderUrl, "#059669")}
+    ${btn("Contact Support", supportUrl, "#0ea5e9")}
     <div style="margin-top:32px;padding-top:20px;border-top:1px solid #f1f5f9;">
-      <p style="margin:0;font-size:13px;color:#64748b;">Please retain this email as your payment confirmation. Reference: ORDER-${ref}</p>
+      <p style="margin:0;font-size:13px;color:#64748b;">Keep this email as your payment receipt. Reference: <strong>ORDER-${ref}</strong></p>
       <p style="margin:12px 0 0;font-size:14px;color:#475569;">Regards,<br><strong style="color:#0f172a;">GSM World Team</strong></p>
     </div>
   `;
+
+  const textItems = params.items && params.items.length > 0
+    ? `\nOrder Summary:\n${params.items.map(i => `  - ${i.productName} × ${i.quantity}  ($${(parseFloat(i.price) * i.quantity).toFixed(2)})`).join("\n")}\n`
+    : "";
+
   return {
-    subject: `Payment Confirmed — Order #${ref} | GSM World`,
-    text: `Dear ${name},\n\nYour payment of $${parseFloat(params.amount).toFixed(2)} for Order #${ref} has been confirmed via ${pmLabel} at ${paidAt}.\n\nYour order is now being processed. Track it here: ${orderUrl}\n\n— GSM World Team`,
-    html: layout(`Payment confirmed for Order #${ref}.`, "#059669", h, body),
+    subject: `✅ Payment Confirmed — Order #${ref} | GSM World`,
+    text: `Dear ${name},\n\nYour payment of $${parseFloat(params.amount).toFixed(2)} for Order #${ref} has been confirmed via ${pmLabel} at ${paidAt}.${textItems}\nYour order is being processed (10–30 min).\n\nTrack order: ${orderUrl}\nContact support: ${supportUrl}\n\nKeep this email as your receipt. Reference: ORDER-${ref}\n\n— GSM World Team`,
+    html: layout(`Payment confirmed for Order #${ref} — processing now.`, "#059669", h, body),
   };
 }
 
