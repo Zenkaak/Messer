@@ -8,3 +8,316 @@
 export interface HealthStatus {
   status: string;
 }
+
+export interface ErrorResponse {
+  error: string;
+}
+
+export interface Category {
+  id: number;
+  name: string;
+  slug: string;
+  productCount: number;
+}
+
+export interface CreateCategory {
+  name: string;
+  slug: string;
+}
+
+export interface Product {
+  id: number;
+  name: string;
+  description: string;
+  price: number;
+  originalPrice?: number | null;
+  imageUrl?: string | null;
+  inStock: boolean;
+  featured: boolean;
+  categoryId: number;
+  categoryName?: string | null;
+  createdAt: string;
+}
+
+export interface ProductListResponse {
+  products: Product[];
+  total: number;
+  totalPages: number;
+}
+
+export interface CreateProduct {
+  name: string;
+  description?: string;
+  price: number;
+  originalPrice?: number | null;
+  imageUrl?: string | null;
+  categoryId: number;
+  inStock?: boolean;
+  featured?: boolean;
+}
+
+export interface CartItem {
+  productId: number;
+  productName: string;
+  price: number;
+  quantity: number;
+  imageUrl?: string | null;
+}
+
+export interface CartResponse {
+  items: CartItem[];
+  total: number;
+  itemCount: number;
+}
+
+export interface AddToCartBody {
+  productId: number;
+  quantity: number;
+}
+
+export interface UpdateCartItemBody {
+  quantity: number;
+}
+
+export interface CreateCheckoutBody {
+  customerEmail: string;
+  customerPhone?: string | null;
+  customerName?: string | null;
+  paymentMethod: string;
+  sessionId?: string | null;
+}
+
+export interface CheckoutMpesaData {
+  checkoutRequestId: string;
+  message: string;
+}
+
+export interface CheckoutUsdtData {
+  walletAddress?: string | null;
+  network: string;
+  amountUsdt: number;
+  memo: string;
+}
+
+export interface CreateCheckoutResponse {
+  orderId: number;
+  paymentMethod: string;
+  status: string;
+  total: number;
+  currency: string;
+  mpesa?: CheckoutMpesaData | null;
+  usdt?: CheckoutUsdtData | null;
+  custom?: unknown | null;
+}
+
+export interface QueryMpesaPaymentBody {
+  orderId: number;
+  checkoutRequestId?: string | null;
+}
+
+export type QueryMpesaPaymentResponsePaymentStatus =
+  (typeof QueryMpesaPaymentResponsePaymentStatus)[keyof typeof QueryMpesaPaymentResponsePaymentStatus];
+
+export const QueryMpesaPaymentResponsePaymentStatus = {
+  pending: "pending",
+  paid: "paid",
+  failed: "failed",
+} as const;
+
+export interface QueryMpesaPaymentResponse {
+  paymentStatus: QueryMpesaPaymentResponsePaymentStatus;
+  message: string;
+}
+
+export interface Order {
+  id: number;
+  sessionId: string;
+  customerEmail: string;
+  customerPhone?: string | null;
+  customerName?: string | null;
+  paymentMethod: string;
+  paymentStatus: string;
+  total: string;
+  currency: string;
+  notes?: string | null;
+  createdAt: string;
+  paidAt?: string | null;
+}
+
+export interface OrderItem {
+  id: number;
+  orderId: number;
+  productId: number;
+  productName: string;
+  price: string;
+  quantity: number;
+}
+
+export type OrderWithItems = Order & {
+  items: OrderItem[];
+};
+
+export type CreateOrderItemsItem = {
+  productId: number;
+  productName: string;
+  price: string;
+  quantity: number;
+};
+
+export interface CreateOrder {
+  sessionId: string;
+  customerEmail: string;
+  customerPhone?: string | null;
+  customerName?: string | null;
+  paymentMethod: string;
+  total: string;
+  currency?: string;
+  notes?: string | null;
+  items: CreateOrderItemsItem[];
+}
+
+export interface UpdateOrderStatus {
+  paymentStatus: string;
+  paidAt?: string | null;
+}
+
+export interface User {
+  id: number;
+  email: string;
+  name?: string | null;
+  createdAt: string;
+  walletBalance: string;
+  status: string;
+}
+
+export interface CreateUser {
+  email: string;
+  passwordHash: string;
+  name?: string | null;
+}
+
+export interface UpdateUser {
+  name?: string | null;
+  status?: string;
+  walletBalance?: string;
+}
+
+export interface AdminSetting {
+  id: number;
+  key: string;
+  value?: string | null;
+  updatedAt: string;
+}
+
+export interface UpsertAdminSetting {
+  key: string;
+  value?: string | null;
+}
+
+export interface PaymentMethodEntry {
+  method: string;
+  walletAddress: string;
+  network?: string | null;
+  label?: string | null;
+  enabled?: boolean;
+}
+
+export interface AdminSettingsAll {
+  mpesaEnabled: boolean;
+  mpesaShortcode?: string | null;
+  mpesaConsumerKey?: string | null;
+  mpesaConsumerSecret?: string | null;
+  mpesaPasskey?: string | null;
+  mpesaCallbackUrl?: string | null;
+  whatsappContact?: string | null;
+  mpesaEnv: string;
+  usdtEnabled: boolean;
+  usdtWalletAddress?: string | null;
+  usdtNetwork: string;
+  nowpaymentsEnabled: boolean;
+  nowpaymentsApiKey?: string | null;
+  coingateEnabled: boolean;
+  coingateApiKey?: string | null;
+  emailFrom?: string | null;
+  smtpHost?: string | null;
+  smtpPort?: string | null;
+  smtpSecure: boolean;
+  smtpUser?: string | null;
+  smtpPass?: string | null;
+  paymentMethods: PaymentMethodEntry[];
+}
+
+export interface ToolActivation {
+  id: number;
+  userId: number;
+  toolName: string;
+  toolCategory: string;
+  username: string;
+  serialKey: string;
+  orderRef?: string | null;
+  status: string;
+  activationCode?: string | null;
+  notes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateToolActivation {
+  userId: number;
+  toolName: string;
+  toolCategory: string;
+  username: string;
+  serialKey: string;
+  orderRef?: string | null;
+  notes?: string | null;
+}
+
+export interface UpdateToolActivation {
+  status?: string;
+  activationCode?: string | null;
+  notes?: string | null;
+}
+
+export type ListProductsParams = {
+  search?: string;
+  /**
+   * Category slug
+   */
+  category?: string;
+  category_id?: number;
+  featured?: boolean;
+  in_stock?: boolean;
+  sort?: ListProductsSort;
+  /**
+   * Minimum price filter (inclusive)
+   */
+  min_price?: number;
+  /**
+   * Maximum price filter (inclusive)
+   */
+  max_price?: number;
+  page?: number;
+  limit?: number;
+};
+
+export type ListProductsSort =
+  (typeof ListProductsSort)[keyof typeof ListProductsSort];
+
+export const ListProductsSort = {
+  newest: "newest",
+  price_asc: "price_asc",
+  price_desc: "price_desc",
+  popular: "popular",
+} as const;
+
+export type ListOrdersParams = {
+  session_id?: string;
+  payment_status?: string;
+};
+
+export type UpdateAdminSettingsBody = { [key: string]: unknown };
+
+export type ListToolActivationsParams = {
+  status?: string;
+  user_id?: number;
+};
