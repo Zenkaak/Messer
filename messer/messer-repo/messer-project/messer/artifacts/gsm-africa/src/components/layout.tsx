@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
-import { Home, Grid, ShoppingCart, User, Search, Menu, Tag, X, Phone, Cpu, Lock, Server, Zap, Gift, Wallet, ChevronRight, Wrench, ChevronDown, Store, Download } from "lucide-react";
+import { Home, Grid, ShoppingCart, User, Search, Menu, Tag, X, Phone, Cpu, Lock, Server, Zap, Gift, Wallet, ChevronRight, Wrench, ChevronDown, Store, Download, Shield } from "lucide-react";
 import { useGetCart, getGetCartQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
@@ -70,7 +70,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
         const currentVer = android?.getAppVersion?.() ?? APP_VERSION;
         if (data.version && data.version !== currentVer) {
           android.downloadAndInstall!(data.apkUrl);
-          toast({ title: "Update available", description: "Downloading in the background — the app will restart when ready." });
         }
       })
       .catch(() => { /* ignore network errors */ });
@@ -275,6 +274,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   iconBg="bg-blue-900/40 text-blue-400"
                 />
               )}
+
+              {/* Admin Panel */}
+              <SideLink
+                href={`${basePath}/admin`} icon={<Shield size={16} />} label="Admin Panel"
+                onClick={() => setSidebarOpen(false)} active={location === "/admin"}
+                iconBg="bg-red-900/40 text-red-400"
+              />
 
               {/* App Download / Update */}
               <p className="px-2 pt-4 pb-1 text-[9px] font-black text-green-400/60 uppercase tracking-[0.15em]">Mobile App</p>

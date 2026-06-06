@@ -73,6 +73,7 @@ interface ChatMessage {
   cartAddedData?: CartAddedData;
   loginSuccessData?: LoginSuccessData;
   passwordLoginData?: { email: string };
+  otpLoginData?: { email: string };
   passwordResetDone?: boolean;
   walletTopUpMpesaData?: WalletTopUpMpesaData;
   walletTopUpNowpaymentsData?: WalletTopUpNowpaymentsData;
@@ -684,6 +685,86 @@ function PasswordLoginCard({
           {loading
             ? <div className="w-3.5 h-3.5 border-2 border-white/50 border-t-white rounded-full animate-spin" />
             : <><UserCheck size={12} /> Sign In</>}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+// ─── OTP Login Card ──────────────────────────────────────────────────────────
+function OtpLoginCard({ email, onSuccess }: { email: string; onSuccess: (token: string, user: { id: number; email: string; name: string | null }) => void }) {
+  const [otp, setOtp] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [done, setDone] = useState(false);
+
+  async function handleVerify(e: React.FormEvent) {
+    e.preventDefault();
+    if (!otp.trim()) return;
+    setLoading(true);
+    setError("");
+    try {
+      const base = apiBase();
+      const r = await fetch(`${base}/api/chat/otp-login/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, code: otp.trim() }),
+      });
+      const data = await r.json() as { token?: string; user?: { id: number; email: string; name: string | null }; error?: string };
+      if (r.ok && data.token && data.user) {
+        setDone(true);
+        onSuccess(data.token, data.user);
+      } else {
+        setError(data.error ?? "Invalid or expired code. Please try again.");
+      }
+    } catch {
+      setError("Could not connect — please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (done) {
+    return (
+      <div className="mt-2 flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-3 py-2">
+        <CheckCircle size={14} className="text-green-600 shrink-0" />
+        <p className="text-green-700 text-[11px] font-semibold">Logged in successfully!</p>
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={handleVerify} className="mt-2 rounded-xl border border-slate-200 bg-white overflow-hidden text-xs shadow-sm">
+      <div className="flex items-center gap-1.5 px-3 py-2 bg-slate-50 border-b border-slate-100">
+        <Shield size={11} className="text-blue-500" />
+        <span className="font-bold text-slate-700 text-[11px]">Enter Your OTP Code</span>
+        <span className="ml-auto text-[9px] text-slate-400 font-medium">Code is hidden</span>
+      </div>
+      <div className="px-3 py-3 space-y-2.5">
+        <p className="text-[10px] text-slate-500">A 6-digit code was sent to <strong>{email}</strong></p>
+        <div>
+          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">One-Time Code</label>
+          <input
+            type="password"
+            inputMode="numeric"
+            value={otp}
+            onChange={e => setOtp(e.target.value)}
+            placeholder="••••••"
+            maxLength={6}
+            className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs mt-1 focus:outline-none focus:border-blue-400 bg-white tracking-widest"
+            autoFocus
+            required
+          />
+        </div>
+        {error && <p className="text-red-500 text-[10px] font-medium">{error}</p>}
+        <button
+          type="submit"
+          disabled={loading || otp.length < 4}
+          className="w-full py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold rounded-lg flex items-center justify-center gap-1.5 transition-colors text-[11px]"
+        >
+          {loading
+            ? <div className="w-3.5 h-3.5 border-2 border-white/50 border-t-white rounded-full animate-spin" />
+            : <><UserCheck size={12} /> Verify &amp; Sign In</>}
         </button>
       </div>
     </form>
@@ -1559,6 +1640,8 @@ export function GsmBot() {
         login(ld.token, ld.user);
       } else if (finalAction === "show_password_login" && finalActionData) {
         msg.passwordLoginData = finalActionData as unknown as { email: string };
+      } else if (finalAction === "show_otp_login" && finalActionData) {
+        msg.otpLoginData = finalActionData as unknown as { email: string };
       } else if (finalAction === "password_reset_done") {
         msg.passwordResetDone = true;
       } else if (finalAction === "show_nowpayments" && finalActionData) {
@@ -2030,6 +2113,14 @@ export function GsmBot() {
                       {m.passwordLoginData && (
                         <PasswordLoginCard
                           email={m.passwordLoginData.email}
+                          onSuccess={(token, user) => {
+                            login(token, user);
+                          }}
+                        />
+                      )}
+                      {m.otpLoginData && (
+                        <OtpLoginCard
+                          email={m.otpLoginData.email}
                           onSuccess={(token, user) => {
                             login(token, user);
                           }}

@@ -410,11 +410,13 @@ Wallet balance can be used for instant one-click checkout on any order.
 ══════════════════════════════════════════════════════════════
 LOGIN / SIGNUP / PASSWORD RESET (do it all in chat)
 ══════════════════════════════════════════════════════════════
+⚠️ ALREADY AUTHENTICATED CHECK: If you see "[SYSTEM: This user is AUTHENTICATED]" in the conversation and the user asks to "login", "log in", "sign in", or "create account", DO NOT start a login flow. Instead reply: "You're already signed in as [their email]! Is there anything else I can help you with?" and stop.
+
 LOGIN — first ask: "Would you prefer a one-time code (OTP) sent to your email, or log in with your password?"
   OTP path (easiest — no password needed):
     1. Ask email → send_login_otp(email)
-    2. Ask 6-digit code from their inbox → verify_login_otp(email, code)
-    3. Done — they're logged in ✓
+    2. Call show_otp_login_form(email) — displays a SECURE card where they enter OTP privately
+    ⚠️ NEVER ask the customer to type their OTP code in the chat message box. Always use show_otp_login_form immediately after send_login_otp.
   Password path (secure form):
     1. Ask email
     2. Call show_password_login_form(email) — this displays a secure card where they enter password privately
@@ -1196,11 +1198,25 @@ const TOOLS = [
     type: "function" as const,
     function: {
       name: "send_login_otp",
-      description: "Send a one-time password (OTP) to customer's email for passwordless login. Use when customer wants to log in via OTP (not password).",
+      description: "Send a one-time password (OTP) to customer's email for passwordless login. Use when customer wants to log in via OTP (not password). Always call show_otp_login_form immediately after this.",
       parameters: {
         type: "object",
         properties: {
           email: { type: "string", description: "Customer's email address" },
+        },
+        required: ["email"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "show_otp_login_form",
+      description: "Display a secure OTP entry card so the customer can enter their one-time code privately. ALWAYS call this immediately after send_login_otp. NEVER ask the customer to type the OTP in the chat — use this secure card instead.",
+      parameters: {
+        type: "object",
+        properties: {
+          email: { type: "string", description: "Customer email address (must match the one used in send_login_otp)" },
         },
         required: ["email"],
       },
@@ -2314,8 +2330,17 @@ async function runToolCalls(
         lad = { email };
         result = `Secure password login form displayed${email ? ` for ${email}` : ""}. Waiting for the user to enter their password.`;
       } else if (fn === "send_login_otp") {
-        const r = await toolSendLoginOtp(String(args.email ?? ""));
-        result = JSON.stringify(r);
+        if (userId !== null) {
+          result = JSON.stringify({ success: false, error: "already_authenticated", message: "User is already logged in. Do not send OTP." });
+        } else {
+          const r = await toolSendLoginOtp(String(args.email ?? ""));
+          result = JSON.stringify(r);
+        }
+      } else if (fn === "show_otp_login_form") {
+        const email = String(args.email ?? "");
+        lat = "show_otp_login";
+        lad = { email };
+        result = `Secure OTP entry card displayed for ${email}. The customer will enter their code in the secure card — do NOT ask them to type it in the chat.`;
       } else if (fn === "verify_login_otp") {
         const r = await toolVerifyLoginOtp(String(args.email ?? ""), String(args.code ?? ""));
         result = JSON.stringify(r);
