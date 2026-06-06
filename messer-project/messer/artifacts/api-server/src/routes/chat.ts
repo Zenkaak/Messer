@@ -136,17 +136,31 @@ const PAGE_HREFS: Record<string, string> = {
   signup: "/signup",
 };
 
-// ─── System prompt cache (TTL: 10 minutes) ───────────────────────────────────
+// ─── System prompt cache (TTL: 30 minutes, background refresh) ───────────────
 let _promptCache: { prompt: string; ts: number } | null = null;
-const PROMPT_TTL_MS = 10 * 60 * 1000;
+let _promptRefreshing = false;
+const PROMPT_TTL_MS = 30 * 60 * 1000;
+const PROMPT_STALE_MS = 5 * 60 * 1000; // serve stale after 5 min, refresh in background
 
 async function getCachedSystemPrompt(waContact?: string): Promise<string> {
   const now = Date.now();
-  if (_promptCache && now - _promptCache.ts < PROMPT_TTL_MS) {
-    return _promptCache.prompt;
+  if (_promptCache) {
+    const age = now - _promptCache.ts;
+    if (age < PROMPT_TTL_MS) {
+      // Kick off background refresh when cache is getting stale (>5 min old)
+      if (age > PROMPT_STALE_MS && !_promptRefreshing) {
+        _promptRefreshing = true;
+        buildSystemPrompt(waContact)
+          .then(p => { _promptCache = { prompt: p, ts: Date.now() }; })
+          .catch(() => { /* silent — stale cache remains */ })
+          .finally(() => { _promptRefreshing = false; });
+      }
+      return _promptCache.prompt; // return immediately without waiting
+    }
   }
+  // No cache at all — must await (cold start)
   const prompt = await buildSystemPrompt(waContact);
-  _promptCache = { prompt, ts: now };
+  _promptCache = { prompt, ts: Date.now() };
   return prompt;
 }
 
@@ -2598,7 +2612,7 @@ router.post("/chat/bot", async (req, res) => {
 
       for (let iter = 0; iter < 4; iter++) {
         const abortCtrl = new AbortController();
-        const abortTimer = setTimeout(() => abortCtrl.abort(), 28000);
+        const abortTimer = setTimeout(() => abortCtrl.abort(), 15000);
 
         let response: Response;
         try {
