@@ -2052,11 +2052,32 @@ function OrdersContent() {
 }
 
 // ── Profile ──────────────────────────────────────────────────────────────────
-function ProfileContent({ user }: { user: { id?: number; name: string | null; email: string } | null }) {
+function ProfileContent({ user }: { user: { id?: number; name: string | null; email: string; username?: string | null } | null }) {
   const [name, setName] = useState(user?.name ?? "");
   const [saving, setSaving] = useState(false);
+  const [username, setUsername] = useState<string | null>(user?.username ?? null);
+  const [usernameCopied, setUsernameCopied] = useState(false);
   const { toast } = useToast();
   const { token, updateUser } = useAuth();
+
+  // Fetch fresh profile data to ensure username is always current
+  useEffect(() => {
+    if (!token) return;
+    fetch("/api/auth/me", { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then((d: { user?: { username?: string | null; name?: string | null } } | null) => {
+        if (d?.user?.username) setUsername(d.user.username);
+        if (d?.user?.name !== undefined) setName(d.user.name ?? "");
+      })
+      .catch(() => {});
+  }, [token]);
+
+  function copyUsername() {
+    if (!username) return;
+    void navigator.clipboard.writeText(username);
+    setUsernameCopied(true);
+    setTimeout(() => setUsernameCopied(false), 2000);
+  }
 
   async function saveProfile() {
     if (!user?.id) { toast({ title: "Not logged in", variant: "destructive" }); return; }
@@ -2083,6 +2104,24 @@ function ProfileContent({ user }: { user: { id?: number; name: string | null; em
 
   return (
     <div className="space-y-4">
+      {/* Username card */}
+      {username && (
+        <div className="bg-gradient-to-br from-indigo-600 to-indigo-800 rounded-2xl px-4 py-4 shadow-md">
+          <p className="text-indigo-200/70 text-[10px] font-bold uppercase tracking-widest mb-1">Your Username</p>
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-white font-black text-xl tracking-tight">@{username}</span>
+            <button
+              onClick={copyUsername}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white/15 hover:bg-white/25 border border-white/20 rounded-xl text-white text-[11px] font-bold transition-colors"
+            >
+              {usernameCopied ? <Check size={12} /> : <Copy size={12} />}
+              {usernameCopied ? "Copied!" : "Copy"}
+            </button>
+          </div>
+          <p className="text-indigo-200/60 text-[11px] mt-2">Share this with others to receive wallet transfers</p>
+        </div>
+      )}
+
       <div>
         <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Full Name</label>
         <input type="text" value={name} onChange={(e) => setName(e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" placeholder="Your name" />

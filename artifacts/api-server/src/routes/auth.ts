@@ -151,7 +151,7 @@ router.get("/auth/me", async (req, res) => {
     if (!authHeader?.startsWith("Bearer ")) { res.status(401).json({ error: "Unauthorized" }); return; }
     const payload = jwt.verify(authHeader.slice(7), _jwtSecret) as { userId: number; email: string };
     const rows = await db
-      .select({ id: usersTable.id, email: usersTable.email, name: usersTable.name, walletBalance: usersTable.walletBalance, status: usersTable.status, createdAt: usersTable.createdAt })
+      .select({ id: usersTable.id, email: usersTable.email, name: usersTable.name, username: usersTable.username, walletBalance: usersTable.walletBalance, status: usersTable.status, createdAt: usersTable.createdAt })
       .from(usersTable).where(eq(usersTable.id, payload.userId)).limit(1);
     if (rows.length === 0) { res.status(401).json({ error: "User not found" }); return; }
     const u = rows[0];
