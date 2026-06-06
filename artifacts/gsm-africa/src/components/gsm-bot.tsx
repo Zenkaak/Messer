@@ -1604,10 +1604,56 @@ export function GsmBot() {
       // Strip the signal from the final text
       const cleanText = fullText.replace(/\[SHOW_HUMAN_BUTTON\]/g, "").trim();
 
+      // Replace bare "Done" / empty responses with a contextual message
+      const DONE_RE = /^[\s✅✓🎉🔔]*(?:done|completed?|got\s+it|confirmed?|success(?:fully)?|noted|alright|okay|ok|great|perfect|sure|understood|will\s+do)[!.…\s]*$/i;
+      function actionFallback(action: string | null, data: Record<string, unknown> | null): string {
+        switch (action) {
+          case "cart_item_added": {
+            const d = data as { productName?: string } | null;
+            return d?.productName ? `✅ **${d.productName}** has been added to your cart!` : "✅ Item added to your cart!";
+          }
+          case "checkout_done": {
+            const d = data as { orderId?: number; currency?: string; total?: number } | null;
+            return d?.orderId
+              ? `✅ Order #${d.orderId} placed successfully! You'll receive a confirmation email shortly.`
+              : "✅ Your order has been placed!";
+          }
+          case "order_cancelled":
+            return "Your order has been cancelled. If you paid, a refund will be processed within 24 hours.";
+          case "password_reset_done":
+            return "✅ Your password has been reset. You can now sign in with your new password.";
+          case "login_success":
+            return "✅ You're now signed in! How can I help you today?";
+          case "logout_user":
+            return "You've been signed out. See you next time!";
+          case "wallet_topup_mpesa":
+          case "wallet_topup_nowpayments":
+          case "wallet_topup_usdt":
+            return "✅ Top-up initiated! Complete the payment using the details below and your wallet will be credited automatically.";
+          case "show_wallet_balance":
+            return "Here's your current wallet balance:";
+          case "wallet_insufficient_funds":
+            return "Your wallet balance is too low for this purchase. You can top up using M-Pesa, crypto, or other methods.";
+          case "show_payment_mpesa":
+          case "show_payment_binance":
+          case "show_payment_usdt":
+            return "Here are your payment details. Complete the payment and your order will be processed automatically:";
+          case "show_mpesa_pending":
+            return "✅ M-Pesa STK push sent to your phone! Check your phone and enter your PIN to complete payment.";
+          case "show_nowpayments":
+            return "Here's your crypto payment address. Send the exact amount shown and your order will be confirmed automatically:";
+          default:
+            return "Is there anything else I can help you with?";
+        }
+      }
+      const resolvedText = (!cleanText || (cleanText.length < 80 && DONE_RE.test(cleanText)))
+        ? actionFallback(finalAction, finalActionData)
+        : cleanText;
+
       // Build the final message with any action widgets attached
       const msg: ChatMessage = {
         role: "assistant",
-        content: cleanText || "Done!",
+        content: resolvedText,
         showHumanButton: finalShowHumanButton || undefined,
       };
 
