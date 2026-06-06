@@ -1,5 +1,4 @@
 import { useEffect, useRef } from "react";
-import { toast } from "sonner";
 
 function apiBase() {
   return (import.meta.env.BASE_URL as string).replace(/\/$/, "");
@@ -7,10 +6,11 @@ function apiBase() {
 
 export function useAppVersion() {
   const currentVersion = useRef<string | null>(null);
-  const toastShown = useRef(false);
+  const reloading = useRef(false);
 
   useEffect(() => {
     async function checkVersion() {
+      if (reloading.current) return;
       try {
         const res = await fetch(`${apiBase()}/api/version`, { cache: "no-store" });
         if (!res.ok) return;
@@ -20,28 +20,16 @@ export function useAppVersion() {
           currentVersion.current = incoming;
           return;
         }
-        if (incoming !== currentVersion.current && !toastShown.current) {
-          toastShown.current = true;
-          const isAndroidApp = navigator.userAgent.includes("GSMWorldApp");
-          // Cache-busting reload: navigate to the same page with a fresh query param
-          // so the WebView fetches the latest version from the server.
+        if (incoming !== currentVersion.current) {
+          reloading.current = true;
+          // Silent background reload — no toast, no prompt
           function hardReload() {
             const url = new URL(window.location.href);
             url.searchParams.set("_v", incoming);
             window.location.replace(url.toString());
           }
-          toast(isAndroidApp ? "App Update Available" : "Update Available", {
-            description: "A new version of GSM World is ready.",
-            duration: isAndroidApp ? 60_000 : Infinity,
-            action: {
-              label: isAndroidApp ? "Update App" : "Update Now",
-              onClick: hardReload,
-            },
-          });
-          // Android app: auto-update after 60 s if user ignores the toast
-          if (isAndroidApp) {
-            setTimeout(hardReload, 60_000);
-          }
+          // Give the page 3 seconds to finish any in-flight work
+          setTimeout(hardReload, 3000);
         }
       } catch {
         // Network error — silently ignore
