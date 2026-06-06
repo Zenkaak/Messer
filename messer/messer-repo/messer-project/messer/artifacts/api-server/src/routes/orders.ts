@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, or, desc } from "drizzle-orm";
 import { db, ordersTable, orderItemsTable, orderMessagesTable, usersTable, notificationsTable } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
@@ -78,10 +78,16 @@ router.get("/orders/my", async (req, res) => {
       res.status(401).json({ error: "Unauthorized" });
       return;
     }
+    // Match by userId OR customerEmail (handles guest orders & mixed-case email)
     const orders = await db
       .select()
       .from(ordersTable)
-      .where(eq(ordersTable.customerEmail, user.email.toLowerCase()))
+      .where(
+        or(
+          eq(ordersTable.userId, user.userId),
+          eq(ordersTable.customerEmail, user.email.toLowerCase()),
+        )
+      )
       .orderBy(desc(ordersTable.createdAt))
       .limit(50);
     const result = await Promise.all(
@@ -258,6 +264,7 @@ router.post("/orders", async (req, res) => {
       return;
     }
     const { items, ...orderData } = parsed.data;
+    orderData.customerEmail = orderData.customerEmail.toLowerCase();
 
     if (orderData.paymentMethod === "wallet") {
       if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }

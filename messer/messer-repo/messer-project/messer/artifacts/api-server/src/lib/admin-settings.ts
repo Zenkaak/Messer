@@ -1,6 +1,14 @@
 import { db, adminSettingsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
+// ── In-memory cache for admin settings (60s TTL) ────────────────────────────
+const _settingsCache = new Map<string, { value: string | null; ts: number }>();
+const SETTINGS_CACHE_TTL_MS = 60_000;
+
+function _invalidateSettingsCache(): void {
+  _settingsCache.clear();
+}
+
 const SETTING_KEYS = [
   "mpesa_enabled",
   "mpesa_shortcode",
@@ -45,33 +53,42 @@ const SETTING_KEYS = [
 type SettingKey = (typeof SETTING_KEYS)[number];
 
 async function getSetting(key: SettingKey): Promise<string | null> {
+  const now = Date.now();
+  const hit = _settingsCache.get(key);
+  if (hit && now - hit.ts < SETTINGS_CACHE_TTL_MS) return hit.value;
+
+  let result: string | null = null;
   try {
     const rows = await db
       .select()
       .from(adminSettingsTable)
       .where(eq(adminSettingsTable.key, key))
       .limit(1);
-    if (rows[0]?.value) return rows[0].value;
+    if (rows[0]?.value) result = rows[0].value;
   } catch {
     // admin_settings table may not exist yet — fall through to env-var fallback
   }
 
-  // fallback to env vars
-  const envFallback: Partial<Record<SettingKey, string | undefined>> = {
-    mpesa_shortcode: process.env.MPESA_SHORTCODE,
-    mpesa_consumer_key: process.env.MPESA_CONSUMER_KEY,
-    mpesa_consumer_secret: process.env.MPESA_CONSUMER_SECRET,
-    mpesa_passkey: process.env.MPESA_PASSKEY,
-    mpesa_callback_url: process.env.MPESA_CALLBACK_URL,
-    usdt_wallet_address: process.env.USDT_WALLET_ADDRESS,
-    usdt_network: process.env.USDT_NETWORK,
-    ots_api_token: process.env.OTS_API_TOKEN,
-    ots_sender_id: process.env.SENDER_ID,
-    ots_admin_phone: process.env.ADMIN_PHONE,
-    openai_api_key: process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY,
-    openai_api_url: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || process.env.OPENAI_BASE_URL,
-  };
-  return envFallback[key] ?? null;
+  if (result === null) {
+    const envFallback: Partial<Record<SettingKey, string | undefined>> = {
+      mpesa_shortcode: process.env.MPESA_SHORTCODE,
+      mpesa_consumer_key: process.env.MPESA_CONSUMER_KEY,
+      mpesa_consumer_secret: process.env.MPESA_CONSUMER_SECRET,
+      mpesa_passkey: process.env.MPESA_PASSKEY,
+      mpesa_callback_url: process.env.MPESA_CALLBACK_URL,
+      usdt_wallet_address: process.env.USDT_WALLET_ADDRESS,
+      usdt_network: process.env.USDT_NETWORK,
+      ots_api_token: process.env.OTS_API_TOKEN,
+      ots_sender_id: process.env.SENDER_ID,
+      ots_admin_phone: process.env.ADMIN_PHONE,
+      openai_api_key: process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY,
+      openai_api_url: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || process.env.OPENAI_BASE_URL,
+    };
+    result = envFallback[key] ?? null;
+  }
+
+  _settingsCache.set(key, { value: result, ts: now });
+  return result;
 }
 
 async function setSetting(key: SettingKey, value: string): Promise<void> {
@@ -79,10 +96,12 @@ async function setSetting(key: SettingKey, value: string): Promise<void> {
     .insert(adminSettingsTable)
     .values({ key, value })
     .onConflictDoUpdate({ target: adminSettingsTable.key, set: { value, updatedAt: new Date() } });
+  _settingsCache.delete(key);
 }
 
 async function deleteSetting(key: SettingKey): Promise<void> {
   await db.delete(adminSettingsTable).where(eq(adminSettingsTable.key, key));
+  _settingsCache.delete(key);
 }
 
 export async function getAllSettings() {
