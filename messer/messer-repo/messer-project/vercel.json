@@ -1,6 +1,6 @@
 {
   "installCommand": "cd messer && pnpm install --no-frozen-lockfile",
-  "buildCommand": "cd messer && pnpm --filter @workspace/gsm-africa run build && cd .. && MESSER_DIR=$OLDPWD node messer/scripts/build-vercel-handler.mjs",
+  "buildCommand": "cd messer && pnpm --filter @workspace/db run push || true && pnpm --filter @workspace/gsm-africa run build && cd .. && MESSER_DIR=$OLDPWD node messer/scripts/build-vercel-handler.mjs",
   "framework": null,
   "headers": [
     {
