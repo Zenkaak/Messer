@@ -1,5 +1,5 @@
 import { Link, useParams, useLocation } from "wouter";
-import { ArrowLeft, User, ShieldCheck, Cpu, DollarSign, FileText, BookOpen, ShoppingBag, BarChart2, ShoppingCart, Zap, Copy, Check, Smartphone, KeyRound, Shield, Eye, EyeOff, CheckCircle, RefreshCw, ChevronRight, MessageSquare, Send, Lock, Paperclip, X as XIcon, Wallet, Plus, TrendingUp } from "lucide-react";
+import { ArrowLeft, User, ShieldCheck, Cpu, DollarSign, FileText, BookOpen, ShoppingBag, BarChart2, ShoppingCart, Zap, Copy, Check, Smartphone, KeyRound, Shield, Eye, EyeOff, CheckCircle, RefreshCw, ChevronRight, MessageSquare, Send, Lock, Paperclip, X as XIcon, Wallet, Plus, ArrowRightLeft, CheckCircle2 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useWalletBalance } from "@/hooks/use-wallet";
 import { useState, useEffect, useRef, useCallback, type ReactNode } from "react";
@@ -18,6 +18,7 @@ const PAGES: Record<string, { title: string; icon: React.ReactNode }> = {
   "add-fund":      { title: "Add Fund",          icon: <DollarSign size={20} /> },
   invoices:        { title: "Invoices",          icon: <FileText size={20} /> },
   ledger:          { title: "Account Ledger",    icon: <BookOpen size={20} /> },
+  transfer:        { title: "Send Funds",        icon: <ArrowRightLeft size={20} /> },
 };
 
 export function AccountSubPage() {
@@ -70,6 +71,7 @@ export function AccountSubPage() {
         {sub === "add-fund"  && <AddFundContent token={token} />}
         {(sub === "api" || sub === "invoices") && <ComingSoon title={page.title} />}
         {sub === "ledger" && <LedgerContent token={token} />}
+        {sub === "transfer" && <TransferContent token={token} />}
       </div>
     </div>
   );
@@ -180,7 +182,7 @@ function DashboardContent({ user }: { user: { name: string | null; email: string
   }>>([]);
   const [ordersLoading, setOrdersLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
-  const [transferOpen, setTransferOpen] = useState(false);
+
   const displayName = user?.name || user?.email?.split("@")[0] || "User";
   const initials = displayName.slice(0, 2).toUpperCase();
   const zeroBalance = !isLoading && Number(balance) <= 0;
@@ -260,17 +262,14 @@ function DashboardContent({ user }: { user: { name: string | null; email: string
                 {zeroBalance ? "Top Up" : "Add Funds"}
               </button>
             </Link>
-            <button
-              onClick={() => setTransferOpen(v => !v)}
-              className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white font-bold text-sm px-4 py-3 rounded-xl transition-colors">
-              <TrendingUp size={14} />
-              Transfer
-            </button>
+            <Link href="/account/transfer" className="flex-1">
+              <button className="w-full bg-white/10 hover:bg-white/20 active:bg-white/30 text-white font-bold text-sm py-3 rounded-xl transition-colors flex items-center justify-center gap-2">
+                <ArrowRightLeft size={14} />
+                Transfer
+              </button>
+            </Link>
           </div>
-          {transferOpen && (
-            <WalletTransferPanel token={token ?? ""} onClose={() => setTransferOpen(false)} />
-          )}
-          {zeroBalance && !transferOpen && (
+          {zeroBalance && (
             <p className="mt-2.5 text-[11px] text-blue-200/60 font-medium text-center">
               Tap Top Up to choose a payment option
             </p>
@@ -392,10 +391,11 @@ function DashboardContent({ user }: { user: { name: string | null; email: string
         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Quick Actions</p>
         <div className="grid grid-cols-2 gap-2.5">
           {[
-            { label: "Browse Store",     icon: <ShoppingBag size={15} />, href: "/products",         grad: "from-blue-500 to-blue-700" },
-            { label: "Add Funds",        icon: <DollarSign size={15} />,  href: "/account/add-fund", grad: "from-emerald-500 to-green-700" },
-            { label: "My Orders",        icon: <FileText size={15} />,    href: "/account/orders",   grad: "from-slate-600 to-slate-800" },
-            { label: "Security",         icon: <ShieldCheck size={15} />, href: "/account/security", grad: "from-violet-500 to-purple-700" },
+            { label: "Browse Store",     icon: <ShoppingBag size={15} />, href: "/products",              grad: "from-blue-500 to-blue-700" },
+            { label: "Add Funds",        icon: <DollarSign size={15} />,  href: "/account/add-fund",      grad: "from-emerald-500 to-green-700" },
+            { label: "Send Funds",       icon: <ArrowRightLeft size={15} />, href: "/account/transfer",  grad: "from-indigo-500 to-indigo-700" },
+            { label: "My Orders",        icon: <FileText size={15} />,    href: "/account/orders",        grad: "from-slate-600 to-slate-800" },
+            { label: "Security",         icon: <ShieldCheck size={15} />, href: "/account/security",      grad: "from-violet-500 to-purple-700" },
           ].map(({ label, icon, href, grad }) => (
             <Link href={href} key={label}>
               <div className={`bg-gradient-to-br ${grad} rounded-2xl p-4 flex items-center gap-3 active:opacity-80 transition-opacity shadow-sm`}>
@@ -2257,6 +2257,144 @@ function ComingSoon({ title }: { title: string }) {
       <Link href="/account">
         <button className="mt-5 px-5 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-600">← Back to Account</button>
       </Link>
+    </div>
+  );
+}
+
+// ── Wallet Transfer ───────────────────────────────────────────────────────────
+function TransferContent({ token }: { token: string | null }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const { data: balance } = useWalletBalance();
+  const [toUsername, setToUsername] = useState("");
+  const [amount, setAmount] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [success, setSuccess] = useState<{ transferred: number; fee: number; totalDeducted: number; toUsername: string } | null>(null);
+
+  const FEE_RATE = 0.02;
+  const amountNum = parseFloat(amount) || 0;
+  const fee = Math.round(amountNum * FEE_RATE * 100) / 100;
+  const total = Math.round((amountNum + fee) * 100) / 100;
+
+  async function handleSend() {
+    if (!toUsername.trim() || amountNum <= 0) return;
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/wallet/transfer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ toUsername: toUsername.trim(), amount: amountNum }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast({ title: "Transfer Failed", description: data.error, variant: "destructive" }); return; }
+      setSuccess(data);
+      setToUsername("");
+      setAmount("");
+      qc.invalidateQueries({ queryKey: ["wallet-balance"] });
+    } catch {
+      toast({ title: "Error", description: "Network error. Please try again.", variant: "destructive" });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (success) {
+    return (
+      <div className="flex flex-col items-center pt-8 pb-16 text-center space-y-4">
+        <div className="w-20 h-20 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center">
+          <CheckCircle2 size={38} className="text-indigo-500" />
+        </div>
+        <div>
+          <p className="text-xl font-black text-gray-900">Sent!</p>
+          <p className="text-sm text-gray-500 mt-1">
+            <span className="font-bold text-indigo-600">${success.transferred.toFixed(2)}</span> sent to{" "}
+            <span className="font-bold text-gray-800">@{success.toUsername}</span>
+          </p>
+          <p className="text-[11px] text-gray-400 mt-1">Fee: ${success.fee.toFixed(2)} · Total deducted: ${success.totalDeducted.toFixed(2)}</p>
+        </div>
+        <button
+          onClick={() => setSuccess(null)}
+          className="px-8 py-3 bg-indigo-600 text-white font-black rounded-2xl text-sm">
+          Send Another
+        </button>
+        <Link href="/account">
+          <button className="text-xs text-gray-400 underline">Back to Account</button>
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4 pt-2">
+      {/* Balance card */}
+      <div className="bg-gradient-to-br from-indigo-600 to-indigo-800 rounded-2xl p-4 flex items-center justify-between shadow-md">
+        <div>
+          <p className="text-indigo-200/80 text-[10px] font-bold uppercase tracking-widest">Your Balance</p>
+          <p className="text-white font-black text-2xl mt-0.5">${parseFloat(String(balance ?? "0")).toFixed(2)}</p>
+        </div>
+        <div className="w-12 h-12 rounded-2xl bg-white/15 flex items-center justify-center">
+          <Wallet size={22} className="text-white/80" />
+        </div>
+      </div>
+
+      {/* Transfer form */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 space-y-4">
+        <div>
+          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Recipient Username</label>
+          <div className="relative">
+            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-sm">@</span>
+            <input
+              value={toUsername}
+              onChange={e => setToUsername(e.target.value)}
+              placeholder="username"
+              className="w-full pl-8 pr-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400"
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Amount (USD)</label>
+          <div className="relative">
+            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-sm">$</span>
+            <input
+              type="number"
+              min="1"
+              step="0.01"
+              value={amount}
+              onChange={e => setAmount(e.target.value)}
+              placeholder="0.00"
+              className="w-full pl-8 pr-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400"
+            />
+          </div>
+        </div>
+
+        {amountNum > 0 && (
+          <div className="bg-indigo-50 border border-indigo-100 rounded-xl px-4 py-3 space-y-1">
+            <div className="flex justify-between text-xs">
+              <span className="text-gray-500">Amount</span>
+              <span className="font-semibold text-gray-800">${amountNum.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between text-xs">
+              <span className="text-gray-500">Transfer fee (2%)</span>
+              <span className="font-semibold text-gray-800">${fee.toFixed(2)}</span>
+            </div>
+            <div className="border-t border-indigo-100 mt-1 pt-1 flex justify-between text-sm">
+              <span className="font-bold text-indigo-700">Total deducted</span>
+              <span className="font-black text-indigo-700">${total.toFixed(2)}</span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <button
+        onClick={handleSend}
+        disabled={submitting || !toUsername.trim() || amountNum <= 0 || total > parseFloat(String(balance ?? "0"))}
+        className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-black rounded-2xl flex items-center justify-center gap-2 transition-colors shadow-md">
+        {submitting
+          ? <div className="w-5 h-5 border-2 border-white/50 border-t-white rounded-full animate-spin" />
+          : <><Send size={16} /> Send Funds</>}
+      </button>
+      <p className="text-center text-[11px] text-gray-400">2% fee applies · Transfers are instant and irreversible</p>
     </div>
   );
 }
