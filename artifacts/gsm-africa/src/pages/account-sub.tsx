@@ -1,5 +1,5 @@
 import { Link, useParams, useLocation } from "wouter";
-import { ArrowLeft, User, ShieldCheck, Cpu, DollarSign, FileText, BookOpen, ShoppingBag, BarChart2, ShoppingCart, Zap, Copy, Check, Smartphone, KeyRound, Shield, Eye, EyeOff, CheckCircle, RefreshCw, ChevronRight, MessageSquare, Send, Lock, Paperclip, X as XIcon, Wallet, Plus, ArrowRightLeft, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, User, ShieldCheck, Cpu, DollarSign, FileText, BookOpen, ShoppingBag, BarChart2, ShoppingCart, Zap, Copy, Check, Smartphone, KeyRound, Shield, Eye, EyeOff, CheckCircle, RefreshCw, ChevronRight, MessageSquare, Send, Lock, Paperclip, X as XIcon, Wallet, Plus, ArrowRightLeft, CheckCircle2, CreditCard } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useWalletBalance } from "@/hooks/use-wallet";
 import { useState, useEffect, useRef, useCallback, type ReactNode } from "react";
@@ -1661,6 +1661,15 @@ function OrderDetailPanel({ order, token, onBack }: { order: MyOrder; token: str
           <p className="text-sm font-black text-blue-700">${parseFloat(order.total).toFixed(2)}</p>
         </div>
       </div>
+
+      {/* Pay Now banner for pending orders */}
+      {(order.paymentStatus === "pending" || order.paymentStatus === "pending_payment_confirmation") && (
+        <Link href={`/orders/${order.id}`}>
+          <button className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-black rounded-2xl flex items-center justify-center gap-2 text-sm shadow-md transition-all active:scale-[0.98]">
+            <CreditCard size={16} /> Pay Now
+          </button>
+        </Link>
+      )}
 
       {/* Action required banner */}
       {hasAdminMessages && order.paymentStatus !== "completed" && (

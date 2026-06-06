@@ -2360,6 +2360,11 @@ async function runToolCalls(
         } else {
           const r = await toolSendLoginOtp(String(args.email ?? ""));
           result = JSON.stringify(r);
+          // Auto-show the OTP entry card immediately — don't rely on model to call show_otp_login_form
+          if (r.success !== false) {
+            lat = "show_otp_login";
+            lad = { email: String(args.email ?? "").toLowerCase().trim() };
+          }
         }
       } else if (fn === "show_otp_login_form") {
         const email = String(args.email ?? "");
@@ -3026,7 +3031,7 @@ router.patch("/chat/live/:sessionId", async (req, res) => {
 });
 
 // ─── OTP email verification (for guests checking orders) ─────────────────────
-const otpStore = new Map<string, { code: string; expiry: number }>();
+// Uses DB-backed _setOtp/_getOtp so codes survive server restarts / serverless cold starts
 
 router.post("/chat/bot/otp/send", async (req, res) => {
   try {
@@ -3037,7 +3042,7 @@ router.post("/chat/bot/otp/send", async (req, res) => {
     }
     const lEmail = email.toLowerCase().trim();
     const code = Math.floor(100000 + Math.random() * 900000).toString();
-    otpStore.set(lEmail, { code, expiry: Date.now() + 10 * 60 * 1000 });
+    await _setOtp(`bot:${lEmail}`, code, 10 * 60 * 1000);
 
     await sendEmail({
       to: lEmail,
@@ -3069,12 +3074,12 @@ router.post("/chat/bot/otp/verify", async (req, res) => {
     const { email, code } = req.body as { email?: string; code?: string };
     if (!email || !code) { res.status(400).json({ ok: false, error: "Email and code required" }); return; }
     const lEmail = email.toLowerCase().trim();
-    const stored = otpStore.get(lEmail);
-    if (!stored || stored.code !== code.trim() || Date.now() > stored.expiry) {
+    const stored = await _getOtp(`bot:${lEmail}`);
+    if (!stored || stored.code !== code.trim() || Date.now() > stored.expiresAt) {
       res.status(400).json({ ok: false, error: "Invalid or expired verification code" });
       return;
     }
-    otpStore.delete(lEmail);
+    await _deleteOtp(`bot:${lEmail}`);
     res.json({ ok: true, verified: true, email: lEmail });
   } catch (err) {
     req.log.error({ err }, "OTP verify error");
