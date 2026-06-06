@@ -6,7 +6,7 @@ import {
   User, BarChart2, ShoppingBag, ShoppingCart, Zap,
   UserCircle, ShieldCheck, Cpu, DollarSign, FileText,
   BookOpen, LogOut, ChevronRight, Plus, Server, KeyRound, Store,
-  Wallet, Settings, TrendingUp,
+  Wallet, Settings, TrendingUp, ArrowLeftRight,
 } from "lucide-react";
 
 export function AccountPage() {
@@ -96,12 +96,20 @@ export function AccountPage() {
                 <Wallet size={18} className="text-blue-300" />
               </div>
             </div>
-            <Link href="/account/add-fund">
-              <button className="w-full bg-blue-500 hover:bg-blue-400 active:bg-blue-600 text-white font-bold text-sm py-3 rounded-xl transition-colors flex items-center justify-center gap-2 shadow-lg shadow-blue-900/30">
-                <Plus size={15} strokeWidth={2.5} />
-                Add Funds
-              </button>
-            </Link>
+            <div className="flex gap-2">
+              <Link href="/account/add-fund" className="flex-1">
+                <button className="w-full bg-blue-500 hover:bg-blue-400 active:bg-blue-600 text-white font-bold text-sm py-3 rounded-xl transition-colors flex items-center justify-center gap-2 shadow-lg shadow-blue-900/30">
+                  <Plus size={15} strokeWidth={2.5} />
+                  Add Funds
+                </button>
+              </Link>
+              <Link href="/account/transfer" className="flex-1">
+                <button className="w-full bg-blue-500/20 hover:bg-blue-500/30 active:bg-blue-500/40 text-white font-bold text-sm py-3 rounded-xl transition-colors flex items-center justify-center gap-2 border border-blue-400/30">
+                  <ArrowLeftRight size={15} strokeWidth={2.5} />
+                  Transfer
+                </button>
+              </Link>
+            </div>
           </div>
         </div>
       </div>
