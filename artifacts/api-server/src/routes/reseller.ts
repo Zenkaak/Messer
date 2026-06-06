@@ -9,7 +9,7 @@ import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
-const SECURITY_FEE_USD = 15;
+const SECURITY_FEE_USD = 0;
 const DEFAULT_COMMISSION = "10.00";
 const MIN_WITHDRAWAL_USD = 10;
 
