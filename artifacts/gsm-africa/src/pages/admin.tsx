@@ -3230,7 +3230,9 @@ export function AdminPage() {
   });
   const [location, navigate] = useLocation();
   const tabFromUrl = location.match(/^\/admin\/([^/]+)/)?.[1] ?? "overview";
-  const tab = (NAV.find(n => n.id === tabFromUrl)?.id ?? "overview") as Tab;
+  const tabAliasMap: Record<string, string> = { imei: "imei_logs", chat: "live_chat", announce: "announcements" };
+  const resolvedTab = tabAliasMap[tabFromUrl] ?? tabFromUrl;
+  const tab = (NAV.find(n => n.id === resolvedTab)?.id ?? "overview") as Tab;
   function setTab(newTab: Tab) { navigate(`/admin/${newTab}`); }
   const [showChangePwd, setShowChangePwd] = useState(false);
   const [isDefaultWarn, setIsDefaultWarn] = useState(false);
