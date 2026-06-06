@@ -26,6 +26,7 @@ import {
   moreInfoNeededEmail,
   orderCompletedEmail,
   pendingManualPaymentEmail,
+  announcementEmail,
 } from "../lib/email";
 
 const router: IRouter = Router();
@@ -827,6 +828,65 @@ router.post("/admin/test-email", async (req, res) => {
   } catch (err) {
     req.log.error({ err }, "Failed to send test email");
     res.status(500).json({ error: "Internal server error", detail: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// ── Announcements ─────────────────────────────────────────────────────────────
+router.post("/admin/announcements/ai-generate", async (req, res) => {
+  if (!await checkAdminAuth(req, res)) return;
+  const { prompt } = req.body || {};
+  if (!prompt?.trim()) { res.status(400).json({ error: "Prompt is required" }); return; }
+  const settings = await getAllSettings();
+  const apiKey = settings.openaiApiKey;
+  if (!apiKey) { res.status(503).json({ error: "OpenAI API key not configured. Add it in Settings." }); return; }
+  try {
+    const { default: OpenAI } = await import("openai") as { default: typeof import("openai").default };
+    const openai = new OpenAI({ apiKey });
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: "You are an email marketing expert for GSM World Store, a phone unlocking and mobile tool business. Generate a professional, engaging announcement email. Return JSON with 'subject' (concise email subject line with emoji) and 'body' (plain text paragraphs separated by newlines, no HTML tags). Keep the body to 2-4 paragraphs.",
+        },
+        { role: "user", content: `Create a professional announcement email for GSM World Store about: ${prompt}` },
+      ],
+      response_format: { type: "json_object" },
+    });
+    const result = JSON.parse(completion.choices[0].message.content || "{}") as { subject?: string; body?: string };
+    res.json({ subject: result.subject ?? "", body: result.body ?? "" });
+  } catch (err) {
+    req.log.error({ err }, "AI announcement generation failed");
+    res.status(500).json({ error: "AI generation failed" });
+  }
+});
+
+router.post("/admin/announcements/send", async (req, res) => {
+  if (!await checkAdminAuth(req, res)) return;
+  const { subject, body } = req.body || {};
+  if (!subject?.trim() || !body?.trim()) { res.status(400).json({ error: "Subject and body are required" }); return; }
+  try {
+    const allUsers = await db
+      .select({ email: usersTable.email })
+      .from(usersTable)
+      .where(eq(usersTable.status, "active"));
+    let sent = 0;
+    for (const u of allUsers) {
+      try {
+        await sendEmail({
+          to: u.email,
+          subject,
+          text: body,
+          html: announcementEmail({ subject, body }),
+        });
+        sent++;
+      } catch { /* skip failed recipients */ }
+    }
+    req.log.info({ sent, subject }, "Announcement broadcast sent");
+    res.json({ ok: true, recipientCount: sent });
+  } catch (err) {
+    req.log.error({ err }, "Announcement broadcast failed");
+    res.status(500).json({ error: "Failed to send announcement" });
   }
 });
 

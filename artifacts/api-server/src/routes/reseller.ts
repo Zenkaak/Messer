@@ -173,7 +173,7 @@ router.post("/reseller/apply", requireJwt, async (req, res) => {
         email,
         storeName,
         storeSlug: finalSlug,
-        status: "pending_payment",
+        status: "pending_approval",
         commissionRate: DEFAULT_COMMISSION,
       })
       .returning();
@@ -187,7 +187,7 @@ router.post("/reseller/apply", requireJwt, async (req, res) => {
         status: app.status,
       },
       paymentMethods,
-      securityFeeUsd: SECURITY_FEE_USD,
+      securityFeeUsd: 0,
     });
   } catch (err) {
     req.log.error({ err }, "reseller/apply error");

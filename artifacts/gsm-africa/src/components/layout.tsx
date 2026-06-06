@@ -183,7 +183,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                     <Wrench size={14} />
                   </div>
                   <span className="flex-1 text-[12.5px] font-bold">All Unlock Tools</span>
-                  <span className="text-[9px] font-black bg-green-600 text-white px-1.5 py-0.5 rounded-full">26</span>
+                  <span className="text-[9px] font-black bg-green-600 text-white px-1.5 py-0.5 rounded-full">33</span>
                 </Link>
                 <button
                   onClick={() => setToolsExpanded((v) => !v)}
@@ -223,6 +223,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
                     { id: "frp-tool-pro", name: "FRP Tool Pro", cat: "FRP" },
                     { id: "easy-frp", name: "Easy FRP Bypass", cat: "FRP" },
                     { id: "android-mdm", name: "Android MDM Bypass", cat: "FRP" },
+                    { id: "pandora-tool", name: "Pandora Tool", cat: "Samsung" },
+                    { id: "bft-dongle", name: "BFT Dongle", cat: "Samsung" },
+                    { id: "unlock-tool", name: "UnlockTool", cat: "Android" },
+                    { id: "mrt-dongle", name: "MRT Dongle", cat: "Android" },
+                    { id: "gcpro-key", name: "GC Pro Key", cat: "Android" },
+                    { id: "r3-tool", name: "R3 Tool", cat: "iPhone" },
+                    { id: "futurerestore", name: "FutureRestore", cat: "iPhone" },
                   ].map((tool) => (
                     <Link
                       key={tool.id}
@@ -295,7 +302,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                       const data = await res.json() as { apkUrl?: string; version?: string };
                       if (data.apkUrl && android?.downloadAndInstall) {
                         android.downloadAndInstall(data.apkUrl);
-                        toast({ title: "⬇️ Updating…", description: "Downloading the latest version. The app will restart automatically when done." });
+                        // silent — no toast, update runs in background
                       } else {
                         const url = new URL(window.location.href);
                         url.searchParams.set("_v", String(Date.now()));

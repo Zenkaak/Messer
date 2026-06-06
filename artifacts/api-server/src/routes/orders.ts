@@ -503,5 +503,76 @@ router.post("/orders/:id/cancel", async (req, res) => {
   }
 });
 
+// ── Pay pending order from wallet ─────────────────────────────────────────────
+router.post("/orders/:id/pay-wallet", async (req, res) => {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid order id" }); return; }
+  const user = getUserFromToken(req.headers.authorization);
+  if (!user) { res.status(401).json({ error: "Authentication required" }); return; }
+  try {
+    const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, id)).limit(1);
+    if (!order) { res.status(404).json({ error: "Order not found" }); return; }
+    if (order.userId !== user.userId) { res.status(403).json({ error: "Access denied" }); return; }
+    if (order.paymentStatus !== "pending") { res.status(400).json({ error: "Order is not awaiting payment" }); return; }
+    if (order.paymentMethod !== "wallet") { res.status(400).json({ error: "This order does not use wallet payment" }); return; }
+
+    const [userRow] = await db.select({ walletBalance: usersTable.walletBalance }).from(usersTable).where(eq(usersTable.id, user.userId)).limit(1);
+    const bal = parseFloat(userRow?.walletBalance ?? "0");
+    const total = parseFloat(order.total);
+    if (bal < total) { res.status(400).json({ error: `Insufficient wallet balance ($${bal.toFixed(2)}). Need $${total.toFixed(2)}` }); return; }
+
+    await db.update(usersTable)
+      .set({ walletBalance: sql`wallet_balance - ${total.toFixed(2)}` })
+      .where(eq(usersTable.id, user.userId));
+
+    const [updated] = await db.update(ordersTable)
+      .set({ paymentStatus: "paid", paidAt: new Date(), updatedAt: new Date() })
+      .where(eq(ordersTable.id, id))
+      .returning();
+
+    sendEmail({
+      to: user.email,
+      ...paymentConfirmedEmail({ orderId: id, orderCode: order.orderCode, customerName: order.customerName, amount: order.total, paymentMethod: "wallet" }),
+    }).catch(() => {});
+
+    res.json({ success: true, message: "Payment successful!", order: updated });
+  } catch (err) {
+    req.log.error({ err }, "pay-wallet error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ── Generate NOWPayments address for existing pending order ──────────────────
+router.post("/orders/:id/nowpayments/generate", async (req, res) => {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid order id" }); return; }
+  const user = getUserFromToken(req.headers.authorization);
+  if (!user) { res.status(401).json({ error: "Authentication required" }); return; }
+  try {
+    const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, id)).limit(1);
+    if (!order) { res.status(404).json({ error: "Order not found" }); return; }
+    if (order.userId !== user.userId) { res.status(403).json({ error: "Access denied" }); return; }
+    if (order.paymentStatus !== "pending") { res.status(400).json({ error: "Order is not awaiting payment" }); return; }
+
+    const { createPayment } = await import("../lib/nowpayments");
+    const payment = await createPayment({
+      priceAmount: parseFloat(order.total),
+      priceCurrency: "usd",
+      payCurrency: "usdttrc20",
+      orderId: id,
+      orderDescription: `Order #${order.orderCode || id}`,
+    });
+    res.json({
+      payAddress: payment.pay_address,
+      payAmount: payment.pay_amount,
+      payCurrency: payment.pay_currency,
+      paymentId: payment.payment_id,
+    });
+  } catch (err) {
+    req.log.error({ err }, "nowpayments generate error");
+    res.status(500).json({ error: "Failed to generate payment address" });
+  }
+});
+
 export default router;
 

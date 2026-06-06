@@ -95,6 +95,82 @@ function isActiveOrder(status: string): boolean {
 }
 
 // ── Dashboard ────────────────────────────────────────────────────────────────
+function WalletTransferPanel({ token, onClose }: { token: string; onClose: () => void }) {
+  const [username, setUsername] = useState("");
+  const [amount, setAmount] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<{ transferred: number; fee: number; toUsername: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
+
+  async function submit() {
+    const a = Number(amount);
+    if (!username.trim()) { setError("Enter recipient username"); return; }
+    if (!a || a < 1) { setError("Minimum transfer is $1.00"); return; }
+    setLoading(true); setError(null);
+    try {
+      const r = await fetch("/api/wallet/transfer", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ toUsername: username.trim(), amount: a }),
+      });
+      const d = await r.json() as { success?: boolean; transferred?: number; fee?: number; toUsername?: string; error?: string };
+      if (r.ok && d.success) {
+        setResult({ transferred: d.transferred!, fee: d.fee!, toUsername: d.toUsername! });
+        toast({ title: `✅ Sent $${d.transferred!.toFixed(2)} to @${d.toUsername}` });
+      } else {
+        setError(d.error ?? "Transfer failed");
+      }
+    } catch { setError("Network error"); }
+    finally { setLoading(false); }
+  }
+
+  return (
+    <div className="mt-3 rounded-2xl p-4 space-y-3" style={{ background: "rgba(255,255,255,0.09)", border: "1px solid rgba(255,255,255,0.12)" }}>
+      {result ? (
+        <div className="text-center space-y-2">
+          <p className="text-green-300 font-bold text-sm">✅ Transfer successful!</p>
+          <p className="text-blue-200/80 text-xs">Sent <strong>${result.transferred.toFixed(2)}</strong> to <strong>@{result.toUsername}</strong></p>
+          <p className="text-blue-200/50 text-[11px]">Fee: ${result.fee.toFixed(2)} (2%)</p>
+          <button onClick={onClose} className="text-xs text-blue-300 underline mt-1">Done</button>
+        </div>
+      ) : (
+        <>
+          <p className="text-white/80 text-xs font-bold uppercase tracking-widest">Send to Username</p>
+          {error && <p className="text-red-300 text-xs bg-red-500/10 rounded-lg px-3 py-1.5">{error}</p>}
+          <input
+            value={username}
+            onChange={e => setUsername(e.target.value.replace(/^@/, ""))}
+            placeholder="@username"
+            className="w-full bg-white/10 border border-white/15 text-white placeholder-white/30 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+          />
+          <div className="flex gap-2">
+            <input
+              value={amount}
+              onChange={e => setAmount(e.target.value)}
+              type="number"
+              min="1"
+              step="0.01"
+              placeholder="Amount (min $1)"
+              className="flex-1 bg-white/10 border border-white/15 text-white placeholder-white/30 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+            />
+            <button onClick={submit} disabled={loading}
+              className="bg-blue-500 hover:bg-blue-400 text-white font-bold text-sm px-4 rounded-xl disabled:opacity-50 transition-colors">
+              {loading ? "…" : "Send"}
+            </button>
+          </div>
+          {amount && Number(amount) >= 1 && (
+            <p className="text-blue-200/50 text-[11px]">
+              Fee: ${(Number(amount) * 0.02).toFixed(2)} (2%) · You pay: ${(Number(amount) * 1.02).toFixed(2)}
+            </p>
+          )}
+          <button onClick={onClose} className="text-xs text-white/40 hover:text-white/60 transition-colors">Cancel</button>
+        </>
+      )}
+    </div>
+  );
+}
+
 function DashboardContent({ user }: { user: { name: string | null; email: string } | null }) {
   const { data: balance = 0, isLoading } = useWalletBalance();
   const { token } = useAuth();
@@ -104,6 +180,7 @@ function DashboardContent({ user }: { user: { name: string | null; email: string
   }>>([]);
   const [ordersLoading, setOrdersLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+  const [transferOpen, setTransferOpen] = useState(false);
   const displayName = user?.name || user?.email?.split("@")[0] || "User";
   const initials = displayName.slice(0, 2).toUpperCase();
   const zeroBalance = !isLoading && Number(balance) <= 0;
@@ -176,15 +253,26 @@ function DashboardContent({ user }: { user: { name: string | null; email: string
               <Wallet size={18} className="text-blue-300" />
             </div>
           </div>
-          <Link href="/account/add-fund">
-            <button className="w-full bg-blue-500 hover:bg-blue-400 active:bg-blue-600 text-white font-bold text-sm py-3 rounded-xl transition-colors flex items-center justify-center gap-2 shadow-lg shadow-blue-900/30">
-              <Plus size={14} strokeWidth={2.5} />
-              {zeroBalance ? "Add Top Up" : "Add Funds"}
+          <div className="flex gap-2">
+            <Link href="/account/add-fund" className="flex-1">
+              <button className="w-full bg-blue-500 hover:bg-blue-400 active:bg-blue-600 text-white font-bold text-sm py-3 rounded-xl transition-colors flex items-center justify-center gap-2 shadow-lg shadow-blue-900/30">
+                <Plus size={14} strokeWidth={2.5} />
+                {zeroBalance ? "Top Up" : "Add Funds"}
+              </button>
+            </Link>
+            <button
+              onClick={() => setTransferOpen(v => !v)}
+              className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white font-bold text-sm px-4 py-3 rounded-xl transition-colors">
+              <TrendingUp size={14} />
+              Transfer
             </button>
-          </Link>
-          {zeroBalance && (
+          </div>
+          {transferOpen && (
+            <WalletTransferPanel token={token ?? ""} onClose={() => setTransferOpen(false)} />
+          )}
+          {zeroBalance && !transferOpen && (
             <p className="mt-2.5 text-[11px] text-blue-200/60 font-medium text-center">
-              Tap Add Top Up to choose a payment option
+              Tap Top Up to choose a payment option
             </p>
           )}
         </div>
@@ -1935,6 +2023,15 @@ function OrdersContent() {
                     </div>
                     <p className="text-base font-black text-[#1a2332]">${parseFloat(order.total).toFixed(2)}</p>
                   </div>
+
+                  {/* Pay Now banner for pending orders */}
+                  {(order.paymentStatus === "pending" || order.paymentStatus === "pending_payment_confirmation") && (
+                    <div className="mt-2.5 flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shrink-0" />
+                      <span className="text-[11px] font-bold text-amber-700 flex-1">Payment pending — tap to pay now</span>
+                      <ChevronRight size={12} className="text-amber-500 shrink-0" />
+                    </div>
+                  )}
                 </div>
               </button>
             );

@@ -6,6 +6,7 @@ export const usersTable = pgTable("users", {
   email: text("email").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
   name: text("name"),
+  username: text("username").unique(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   walletBalance: numeric("wallet_balance").notNull().default("0.00"),
   status: text("status").notNull().default("active"),

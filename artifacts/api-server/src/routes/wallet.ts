@@ -398,4 +398,78 @@ router.post("/wallet/credit", async (req, res) => {
   res.json({ success: true });
 });
 
+// ── Wallet-to-Wallet Transfer ─────────────────────────────────────────────────
+router.post("/wallet/transfer", async (req, res) => {
+  const payload = getUser(req.headers.authorization);
+  if (!payload) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { toUsername, amount } = req.body || {};
+  const amountNum = Number(amount);
+  if (!toUsername || !amount || isNaN(amountNum) || amountNum < 1) {
+    res.status(400).json({ error: "Recipient username and amount (min $1.00) are required" });
+    return;
+  }
+
+  const fee = Math.round(amountNum * 0.02 * 100) / 100;
+  const totalDeduct = Math.round((amountNum + fee) * 100) / 100;
+
+  try {
+    const [recipient] = await db
+      .select({ id: usersTable.id, username: usersTable.username, email: usersTable.email })
+      .from(usersTable)
+      .where(eq(sql`lower(${usersTable.username})`, toUsername.trim().toLowerCase()))
+      .limit(1);
+
+    if (!recipient) {
+      res.status(404).json({ error: `No user found with username "@${toUsername.trim()}"` });
+      return;
+    }
+    if (recipient.id === payload.userId) {
+      res.status(400).json({ error: "You cannot transfer to yourself" });
+      return;
+    }
+
+    const [sender] = await db
+      .select({ walletBalance: usersTable.walletBalance, username: usersTable.username })
+      .from(usersTable)
+      .where(eq(usersTable.id, payload.userId))
+      .limit(1);
+
+    const senderBalance = parseFloat(sender?.walletBalance ?? "0");
+    if (senderBalance < totalDeduct) {
+      res.status(400).json({
+        error: `Insufficient balance. Need $${totalDeduct.toFixed(2)} (includes $${fee.toFixed(2)} fee), have $${senderBalance.toFixed(2)}`,
+      });
+      return;
+    }
+
+    await db.update(usersTable)
+      .set({ walletBalance: sql`wallet_balance - ${totalDeduct.toFixed(2)}` })
+      .where(eq(usersTable.id, payload.userId));
+
+    await db.update(usersTable)
+      .set({ walletBalance: sql`wallet_balance + ${amountNum.toFixed(2)}` })
+      .where(eq(usersTable.id, recipient.id));
+
+    logger.info({ from: payload.userId, to: recipient.id, amount: amountNum, fee }, "Wallet transfer");
+
+    sendEmail({
+      to: recipient.email,
+      subject: "You received a wallet transfer — GSM World",
+      text: `You received $${amountNum.toFixed(2)} from @${sender?.username ?? payload.email} to your GSM World wallet.`,
+    }).catch(() => {});
+
+    res.json({
+      success: true,
+      transferred: amountNum,
+      fee,
+      totalDeducted: totalDeduct,
+      toUsername: toUsername.trim(),
+    });
+  } catch (err) {
+    logger.error({ err }, "Wallet transfer error");
+    res.status(500).json({ error: "Transfer failed" });
+  }
+});
+
 export default router;

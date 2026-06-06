@@ -36,6 +36,38 @@ export async function runMigrations(): Promise<void> {
       )
     `);
 
+    // ── users table ───────────────────────────────────────────────────────────
+    await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS username TEXT`);
+    await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS users_username_unique ON users (lower(username)) WHERE username IS NOT NULL`);
+
+    // ── imei_lookups table (may be missing in production) ─────────────────────
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS imei_lookups (
+        id            SERIAL PRIMARY KEY,
+        imei          TEXT NOT NULL,
+        brand         TEXT,
+        model         TEXT,
+        marketing_name TEXT,
+        sim_lock      TEXT,
+        carrier       TEXT,
+        blacklist     TEXT,
+        enhanced      BOOLEAN NOT NULL DEFAULT FALSE,
+        source        TEXT,
+        checked_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // ── announcements table ───────────────────────────────────────────────────
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS announcements (
+        id              SERIAL PRIMARY KEY,
+        subject         TEXT NOT NULL,
+        body            TEXT NOT NULL,
+        recipient_count INTEGER NOT NULL DEFAULT 0,
+        created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+
     // ── order_messages ────────────────────────────────────────────────────────
     await db.execute(sql`ALTER TABLE order_messages ADD COLUMN IF NOT EXISTS file_url TEXT`);
 

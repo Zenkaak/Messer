@@ -3,8 +3,104 @@ import { useGetOrder } from "@workspace/api-client-react";
 import { useParams, useLocation } from "wouter";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { MessageCircle, CheckCircle2, Paperclip, Send, X, ShieldCheck, XCircle, Clock } from "lucide-react";
+import { MessageCircle, CheckCircle2, Paperclip, Send, X, ShieldCheck, XCircle, Clock, Wallet, CreditCard, ArrowRight } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+
+// ── Pay Now Block ─────────────────────────────────────────────────────────────
+interface OrderSummary {
+  id: number;
+  paymentMethod: string | null;
+  total: string;
+}
+function PayNowBlock({ order, token, onSuccess }: { order: OrderSummary; token: string | null; onSuccess: () => void }) {
+  const pm = order.paymentMethod ?? "";
+  const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, "");
+  const [loading, setLoading] = useState(false);
+  const [nowPayAddr, setNowPayAddr] = useState<{ address: string; amount: number; currency: string } | null>(null);
+  const [walletMsg, setWalletMsg] = useState<string | null>(null);
+  const [walletErr, setWalletErr] = useState<string | null>(null);
+
+  async function payWithWallet() {
+    setLoading(true); setWalletErr(null); setWalletMsg(null);
+    try {
+      const r = await fetch(`${baseUrl}/api/orders/${order.id}/pay-wallet`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token ?? ""}`, "Content-Type": "application/json" },
+      });
+      const d = await r.json() as { success?: boolean; message?: string; error?: string };
+      if (r.ok && d.success) { setWalletMsg(d.message ?? "Payment successful!"); onSuccess(); }
+      else setWalletErr(d.error ?? "Payment failed");
+    } catch { setWalletErr("Network error"); }
+    finally { setLoading(false); }
+  }
+
+  async function generateNowPaymentsAddress() {
+    setLoading(true);
+    try {
+      const r = await fetch(`${baseUrl}/api/orders/${order.id}/nowpayments/generate`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token ?? ""}`, "Content-Type": "application/json" },
+      });
+      const d = await r.json() as { payAddress?: string; payAmount?: number; payCurrency?: string; error?: string };
+      if (r.ok && d.payAddress) setNowPayAddr({ address: d.payAddress, amount: d.payAmount ?? 0, currency: d.payCurrency ?? "?" });
+    } catch {}
+    finally { setLoading(false); }
+  }
+
+  if (pm === "mpesa") return null;
+
+  return (
+    <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3">
+      <div className="flex items-center gap-2">
+        <CreditCard size={16} className="text-blue-600 shrink-0" />
+        <p className="text-sm font-bold text-blue-900">Complete Your Payment</p>
+      </div>
+
+      {pm === "wallet" && (
+        <>
+          {walletMsg && <p className="text-xs text-emerald-700 bg-emerald-50 rounded-lg px-3 py-2 font-medium">{walletMsg}</p>}
+          {walletErr && <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{walletErr}</p>}
+          {!walletMsg && (
+            <button onClick={payWithWallet} disabled={loading}
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold px-4 py-2.5 rounded-xl disabled:opacity-50 transition-colors">
+              <Wallet size={14} />
+              {loading ? "Processing…" : `Pay $${parseFloat(order.total).toFixed(2)} from Wallet`}
+            </button>
+          )}
+        </>
+      )}
+
+      {pm === "nowpayments" && (
+        <>
+          {!nowPayAddr ? (
+            <button onClick={generateNowPaymentsAddress} disabled={loading}
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold px-4 py-2.5 rounded-xl disabled:opacity-50 transition-colors">
+              <ArrowRight size={14} />
+              {loading ? "Generating…" : "Generate Crypto Address"}
+            </button>
+          ) : (
+            <div className="bg-white rounded-xl p-3 border border-blue-200 space-y-2">
+              <p className="text-xs font-semibold text-slate-600">Send exactly <strong>{nowPayAddr.amount} {nowPayAddr.currency.toUpperCase()}</strong> to:</p>
+              <div className="flex items-center gap-2">
+                <code className="text-xs font-mono bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 flex-1 break-all select-all">{nowPayAddr.address}</code>
+              </div>
+              <p className="text-[11px] text-slate-400">Page auto-refreshes when payment is detected</p>
+            </div>
+          )}
+        </>
+      )}
+
+      {!["wallet", "nowpayments", "mpesa"].includes(pm) && (
+        <div className="space-y-2">
+          <p className="text-xs text-blue-800">Transfer payment and then <strong>upload your proof screenshot</strong> in the chat below ↓</p>
+          <a href="#chat" className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-700 hover:text-blue-900">
+            <MessageCircle size={12} /> Go to chat
+          </a>
+        </div>
+      )}
+    </div>
+  );
+}
 
 const STATUS_CONFIG = {
   pending: { label: "Pending Payment", color: "text-amber-600 bg-amber-50 border-amber-200", dot: "bg-amber-500" },
@@ -222,6 +318,8 @@ export function OrderPage() {
           )}
         </div>
       )}
+
+      {order.paymentStatus === "pending" && <PayNowBlock order={order} token={token} onSuccess={() => void refetch()} />}
 
       {order.paymentStatus === "paid" && (
         <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-sm text-green-800">

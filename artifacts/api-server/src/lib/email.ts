@@ -773,3 +773,24 @@ export function pendingManualPaymentEmail(params: {
     html: layout(`Payment instructions for Order #${ref} — please complete your transfer.`, "#4338ca", h, body),
   };
 }
+
+// ── Announcement broadcast email ──────────────────────────────────────────────
+export function announcementEmail(params: { subject: string; body: string }) {
+  const h = header(
+    "linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%)",
+    "GSM World Announcement",
+    params.subject
+  );
+  const paragraphs = params.body
+    .split(/\n+/)
+    .filter(Boolean)
+    .map(p => `<p style="margin:0 0 16px;font-size:15px;color:#475569;line-height:1.6;">${p}</p>`)
+    .join("");
+  const body = `
+    ${paragraphs}
+    <div style="margin-top:32px;padding-top:20px;border-top:1px solid #f1f5f9;">
+      <p style="margin:0;font-size:14px;color:#475569;">Regards,<br><strong style="color:#0f172a;">GSM World Team</strong></p>
+    </div>
+  `;
+  return layout(params.subject, "#0ea5e9", h, body);
+}

@@ -8,7 +8,7 @@ import {
   ToggleLeft, ToggleRight, KeyRound, AlertTriangle, X, ArrowUpRight,
   Smartphone, Zap, Ban, Trash2, UserCheck, MoreVertical,
   MessageSquare, Send, Cpu, UserPlus, Phone, Headphones, WifiOff, Bell,
-  Store, ExternalLink, Image, Menu,
+  Store, ExternalLink, Image, Menu, Megaphone,
 } from "lucide-react";
 
 // ─── types ────────────────────────────────────────────────────────────────────
@@ -102,16 +102,26 @@ interface LiveChatMsg {
 }
 
 const NAV = [
-  { id: "overview",   label: "Overview",  icon: LayoutDashboard },
-  { id: "orders",     label: "Orders",    icon: ShoppingBag },
-  { id: "products",   label: "Products",  icon: Package },
-  { id: "users",      label: "Users",     icon: Users },
-  { id: "resellers",  label: "Resellers", icon: Store },
-  { id: "payments",   label: "Payments",  icon: Settings },
-  { id: "live_chat",  label: "Live Chat", icon: Headphones },
-  { id: "imei_logs",  label: "IMEI Logs", icon: Smartphone },
+  { id: "overview",       label: "Overview",       icon: LayoutDashboard },
+  { id: "orders",         label: "Orders",         icon: ShoppingBag },
+  { id: "products",       label: "Products",       icon: Package },
+  { id: "users",          label: "Users",          icon: Users },
+  { id: "resellers",      label: "Resellers",      icon: Store },
+  { id: "payments",       label: "Payments",       icon: Settings },
+  { id: "announcements",  label: "Announcements",  icon: Megaphone },
+  { id: "live_chat",      label: "Live Chat",      icon: Headphones },
+  { id: "imei_logs",      label: "IMEI Logs",      icon: Smartphone },
 ] as const;
 type Tab = typeof NAV[number]["id"];
+
+// Bottom-nav tabs (mobile) — keep to 5 so they fit comfortably
+const BOTTOM_NAV: Array<typeof NAV[number]> = [
+  { id: "overview",  label: "Overview",  icon: LayoutDashboard },
+  { id: "orders",    label: "Orders",    icon: ShoppingBag },
+  { id: "products",  label: "Products",  icon: Package },
+  { id: "users",     label: "Users",     icon: Users },
+  { id: "payments",  label: "Payments",  icon: Settings },
+] as typeof NAV[number][];
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 function adminFetch(path: string, pwd: string, opts: RequestInit = {}) {
@@ -2976,6 +2986,125 @@ interface ImeiLog {
   checkedAt: string;
 }
 
+function AnnouncementsPanel({ pwd }: { pwd: string }) {
+  const [subject, setSubject] = useState("");
+  const [body, setBody] = useState("");
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState<{ count: number } | null>(null);
+  const { toast } = useToast();
+
+  async function generateWithAI() {
+    if (!aiPrompt.trim()) return;
+    setAiLoading(true);
+    try {
+      const r = await adminFetch(apiPath("/api/admin/announcements/ai-generate"), pwd, {
+        method: "POST",
+        body: JSON.stringify({ prompt: aiPrompt }),
+      });
+      const d = await r.json() as { subject?: string; body?: string; error?: string };
+      if (!r.ok) { toast({ variant: "destructive", title: d.error ?? "AI generation failed" }); return; }
+      if (d.subject) setSubject(d.subject);
+      if (d.body) setBody(d.body);
+    } catch {
+      toast({ variant: "destructive", title: "AI generation failed" });
+    } finally {
+      setAiLoading(false);
+    }
+  }
+
+  async function sendAnnouncement() {
+    if (!subject.trim() || !body.trim()) {
+      toast({ variant: "destructive", title: "Subject and body are required" }); return;
+    }
+    setSending(true);
+    try {
+      const r = await adminFetch(apiPath("/api/admin/announcements/send"), pwd, {
+        method: "POST",
+        body: JSON.stringify({ subject, body }),
+      });
+      const d = await r.json() as { ok?: boolean; recipientCount?: number; error?: string };
+      if (r.ok && d.ok) {
+        setSent({ count: d.recipientCount ?? 0 });
+        toast({ title: `✅ Sent to ${d.recipientCount ?? 0} users!` });
+        setSubject(""); setBody(""); setAiPrompt("");
+      } else {
+        toast({ variant: "destructive", title: d.error ?? "Failed to send" });
+      }
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <div className="px-4 md:px-6 py-5 space-y-4">
+      <div>
+        <h2 className="font-black text-slate-900 text-xl">Announcements</h2>
+        <p className="text-xs text-slate-400 mt-0.5">Broadcast an email to all active users</p>
+      </div>
+
+      {/* AI Generator */}
+      <div className="bg-gradient-to-br from-purple-50 to-blue-50 border border-purple-100 rounded-2xl p-4 space-y-3">
+        <div className="flex items-center gap-2 mb-1">
+          <div className="w-6 h-6 rounded-lg bg-purple-600 flex items-center justify-center">
+            <Zap size={12} className="text-white" />
+          </div>
+          <p className="text-sm font-bold text-purple-900">AI Email Generator</p>
+          <span className="text-[10px] bg-purple-200 text-purple-700 font-bold px-1.5 py-0.5 rounded-full">GPT-4o mini</span>
+        </div>
+        <textarea
+          value={aiPrompt}
+          onChange={e => setAiPrompt(e.target.value)}
+          placeholder="Describe your announcement (e.g. 'New Samsung tools are available at 20% off for 48 hours')"
+          rows={2}
+          className="w-full border border-purple-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-400 resize-none"
+        />
+        <button onClick={generateWithAI} disabled={!aiPrompt.trim() || aiLoading}
+          className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2.5 rounded-xl text-sm disabled:opacity-40 flex items-center justify-center gap-2 transition-colors">
+          {aiLoading ? <><RefreshCw size={13} className="animate-spin" /> Generating…</> : <><Zap size={13} /> Generate with AI</>}
+        </button>
+      </div>
+
+      {/* Compose */}
+      <div className="bg-white border border-slate-100 rounded-2xl p-4 space-y-3 shadow-sm">
+        <p className="text-sm font-bold text-slate-700">Compose Email</p>
+        <div>
+          <label className="text-xs font-semibold text-slate-500 block mb-1.5">Subject</label>
+          <input
+            value={subject}
+            onChange={e => setSubject(e.target.value)}
+            placeholder="e.g. 🎉 New Products Available at GSM World!"
+            className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <div>
+          <label className="text-xs font-semibold text-slate-500 block mb-1.5">Message Body</label>
+          <textarea
+            value={body}
+            onChange={e => setBody(e.target.value)}
+            placeholder="Write your announcement here…"
+            rows={7}
+            className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+          />
+        </div>
+        <button onClick={sendAnnouncement} disabled={!subject.trim() || !body.trim() || sending}
+          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-2xl text-sm disabled:opacity-40 flex items-center justify-center gap-2 transition-colors shadow-sm">
+          {sending ? <><RefreshCw size={13} className="animate-spin" /> Sending…</> : <><Send size={13} /> Send to All Users</>}
+        </button>
+      </div>
+
+      {sent && (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-center">
+          <CheckCircle2 size={24} className="text-emerald-500 mx-auto mb-2" />
+          <p className="font-bold text-emerald-800">Broadcast sent!</p>
+          <p className="text-sm text-emerald-600">Email delivered to {sent.count} users</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ImeiLogsPanel({ pwd }: { pwd: string }) {
   const [logs, setLogs] = useState<ImeiLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -2985,7 +3114,7 @@ function ImeiLogsPanel({ pwd }: { pwd: string }) {
   useEffect(() => {
     adminFetch(apiPath("/api/admin/imei-logs"), pwd)
       .then(r => r.json())
-      .then((d: ImeiLog[]) => { setLogs(d); setLoading(false); })
+      .then((d: unknown) => { setLogs(Array.isArray(d) ? (d as ImeiLog[]) : []); setLoading(false); })
       .catch(() => { toast({ variant: "destructive", title: "Failed to load IMEI logs" }); setLoading(false); });
   }, [pwd, toast]);
 
@@ -3148,6 +3277,7 @@ export function AdminPage() {
     overview: "Dashboard", orders: "Orders",
     products: "Products", users: "Users", payments: "Payments",
     live_chat: "Live Chat", resellers: "Resellers", imei_logs: "IMEI Logs",
+    announcements: "Announcements",
   };
 
   return (
@@ -3281,8 +3411,30 @@ export function AdminPage() {
             {tab === "resellers"  && <ResellersPanel  pwd={pwd} />}
             {tab === "payments"   && <PaymentsPanel   pwd={pwd} />}
             {tab === "live_chat"  && <LiveChatsPanel  pwd={pwd} />}
+            {tab === "announcements" && <AnnouncementsPanel pwd={pwd} />}
             {tab === "imei_logs"  && <ImeiLogsPanel   pwd={pwd} />}
           </main>
+
+          {/* ── Mobile hybrid bottom nav ── */}
+          <nav className="fixed bottom-0 inset-x-0 z-40 md:hidden bg-slate-900 border-t border-white/10 flex safe-bottom">
+            {BOTTOM_NAV.map(item => {
+              const active = tab === item.id;
+              return (
+                <button key={item.id} onClick={() => setTab(item.id)}
+                  className={`flex-1 flex flex-col items-center gap-1 py-2.5 px-1 transition-colors ${
+                    active ? "text-blue-400" : "text-slate-500 hover:text-slate-300"
+                  }`}>
+                  <item.icon size={18} strokeWidth={active ? 2.5 : 1.8} />
+                  <span className="text-[9px] font-bold leading-none truncate">{item.label}</span>
+                </button>
+              );
+            })}
+            <button onClick={() => setMobileSidebarOpen(true)}
+              className="flex-1 flex flex-col items-center gap-1 py-2.5 px-1 text-slate-500 hover:text-slate-300 transition-colors">
+              <Menu size={18} strokeWidth={1.8} />
+              <span className="text-[9px] font-bold leading-none">More</span>
+            </button>
+          </nav>
 
           {/* ── Mobile slide-over sidebar ── */}
           {mobileSidebarOpen && (
