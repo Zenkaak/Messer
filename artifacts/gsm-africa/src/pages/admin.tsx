@@ -4053,28 +4053,60 @@ export function AdminPage() {
     fetchAdminApkVersion();
   }, []);
 
-  // Block SwipeRefreshLayout when scrolled down by redirecting the drag gesture manually
+  // Prevent Android SwipeRefreshLayout from firing when the user is scrolled
+  // down and swipes downward to go back to the top.
+  //
+  // Root cause: SwipeRefreshLayout checks webView.getScrollY(), but the admin
+  // page scrolls inside a CSS overflow <main> element — so getScrollY() is
+  // always 0 and Android always thinks the page is at the very top.
+  //
+  // Fix 1 (primary): The Android app injects a JS tracker that calls
+  //   AdminScrollBridge.setScrolled(main.scrollTop > 0)
+  // on every scroll event, and the native setOnChildScrollUpCallback reads
+  // that flag — correctly blocking pull-to-refresh when scrolled down.
+  //
+  // Fix 2 (belt-and-suspenders): We also notify the bridge directly from
+  // React so there is no gap between mount and the injected script running,
+  // and we call e.preventDefault() on touchmove as a last-resort block.
   useEffect(() => {
     const el = mainRef.current;
     if (!el) return;
+
+    // Notify the Android bridge about current scroll position
+    function notifyBridge(scrolled: boolean) {
+      try {
+        const w = window as unknown as { AdminScrollBridge?: { setScrolled: (v: boolean) => void } };
+        w.AdminScrollBridge?.setScrolled(scrolled);
+      } catch { /* non-Android environment — ignore */ }
+    }
+
+    // Sync bridge state whenever the element scrolls
+    const onScroll = () => notifyBridge(el.scrollTop > 0);
+    el.addEventListener("scroll", onScroll, { passive: true });
+
+    // Immediately report current state on mount
+    notifyBridge(el.scrollTop > 0);
+
+    // Touch handler: call preventDefault on the touchmove when the user is
+    // scrolled down and dragging downward, so the native gesture recogniser
+    // cannot intercept it as a pull-to-refresh.
     let startY = 0;
     const onStart = (e: TouchEvent) => { startY = e.touches[0]?.clientY ?? 0; };
     const onMove = (e: TouchEvent) => {
       const currentY = e.touches[0]?.clientY ?? 0;
-      const dragDown = currentY > startY; // finger moving downward
+      const dragDown = currentY > startY;
       if (el.scrollTop > 0 && dragDown) {
-        // Content exists above — redirect the drag as an upward scroll manually
-        const delta = currentY - startY;
-        el.scrollTop = Math.max(0, el.scrollTop - delta);
-        startY = currentY;
-        e.preventDefault(); // stops SwipeRefreshLayout from intercepting
+        e.preventDefault();
       }
     };
     el.addEventListener("touchstart", onStart, { passive: true });
     el.addEventListener("touchmove", onMove, { passive: false });
+
     return () => {
+      el.removeEventListener("scroll", onScroll);
       el.removeEventListener("touchstart", onStart);
       el.removeEventListener("touchmove", onMove);
+      notifyBridge(false);
     };
   }, [authed]);
 

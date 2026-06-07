@@ -13,6 +13,7 @@ import android.provider.Settings;
 import android.util.Log;
 import android.view.View;
 import android.webkit.CookieManager;
+import android.webkit.JavascriptInterface;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
@@ -55,6 +56,31 @@ public class MainActivity extends AppCompatActivity {
     private final Handler         mainHandler = new Handler(Looper.getMainLooper());
     private final ExecutorService executor    = Executors.newSingleThreadExecutor();
 
+    /**
+     * JavaScript bridge that lets the web admin page tell the native layer
+     * whether the scrollable <main> element is scrolled past the top.
+     *
+     * The admin page scrolls inside a CSS overflow element, so
+     * webView.getScrollY() is always 0.  Without this bridge the
+     * SwipeRefreshLayout can never tell the difference between "user is at
+     * the top" and "user is halfway down the list" — causing spurious
+     * pull-to-refresh when the user tries to scroll back up.
+     */
+    private final class ScrollBridge {
+        // volatile so the main-thread callback reads the latest value written
+        // by the JS thread without needing synchronisation.
+        private volatile boolean scrolledPastTop = false;
+
+        @JavascriptInterface
+        public void setScrolled(boolean isScrolled) {
+            scrolledPastTop = isScrolled;
+        }
+
+        boolean isScrolledPastTop() { return scrolledPastTop; }
+    }
+
+    private final ScrollBridge scrollBridge = new ScrollBridge();
+
     @SuppressLint("SetJavaScriptEnabled")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -71,6 +97,10 @@ public class MainActivity extends AppCompatActivity {
         swipeRefresh = findViewById(R.id.swipeRefresh);
         errorView    = findViewById(R.id.errorView);
 
+        // Register the bridge so the web page can call
+        // AdminScrollBridge.setScrolled(true/false)
+        webView.addJavascriptInterface(scrollBridge, "AdminScrollBridge");
+
         // ── Pull-to-refresh ───────────────────────────────────────────────────
         swipeRefresh.setColorSchemeColors(
             Color.parseColor("#0ea5e9"),
@@ -82,19 +112,22 @@ public class MainActivity extends AppCompatActivity {
             webView.reload();
         });
 
-        // Only allow pull-to-refresh when the WebView is scrolled all the way to the top.
-        // Without this, any downward scroll triggers a refresh instead of scrolling the page.
-        swipeRefresh.setOnChildScrollUpCallback((parent, child) -> webView.getScrollY() > 0);
+        // Allow pull-to-refresh ONLY when both the native WebView scroll AND
+        // the DOM overflow scroll are at the very top.
+        //
+        // webView.getScrollY() covers pages that scroll the body/window.
+        // scrollBridge.isScrolledPastTop() covers pages that scroll an
+        // overflow element (like the admin <main>), where getScrollY() == 0
+        // regardless of how far the user has scrolled inside the element.
+        swipeRefresh.setOnChildScrollUpCallback((parent, child) ->
+            webView.getScrollY() > 0 || scrollBridge.isScrolledPastTop());
 
         // ── Auto-refresh after APK update ─────────────────────────────────────
-        // If the stored tag differs from the compiled-in tag the app was just
-        // updated.  Clear stale cache so the WebView serves fresh content.
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
         String lastTag = prefs.getString(KEY_LAST_TAG, "");
         if (!lastTag.equals(BuildConfig.APK_TAG)) {
             prefs.edit().putString(KEY_LAST_TAG, BuildConfig.APK_TAG).apply();
             if (!lastTag.isEmpty()) {
-                // First launch after a successful auto-update
                 webView.clearCache(true);
                 Toast.makeText(this, "App updated — loading fresh content…",
                     Toast.LENGTH_SHORT).show();
@@ -129,7 +162,8 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
-                // Hide any previous error screen when a new load begins
+                // Reset scroll state on each new page load
+                scrollBridge.setScrolled(false);
                 if (errorShown) {
                     errorShown = false;
                     errorView.setVisibility(View.GONE);
@@ -139,10 +173,8 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public void onPageFinished(WebView view, String url) {
-                // Stop the pull-to-refresh spinner
                 swipeRefresh.setRefreshing(false);
 
-                // Ensure the page uses device width (fixes fixed-width desktop layout)
                 view.evaluateJavascript(
                     "(function(){" +
                     "var m=document.querySelector('meta[name=viewport]');" +
@@ -151,12 +183,33 @@ public class MainActivity extends AppCompatActivity {
                     "})();",
                     null
                 );
+
+                // Inject a scroll tracker on the admin <main> element.
+                // The admin page scrolls inside overflow:auto — not the body —
+                // so webView.getScrollY() is always 0.  We watch the element's
+                // scroll event and notify the native bridge so
+                // SwipeRefreshLayout knows the real scroll position.
+                view.evaluateJavascript(
+                    "(function(){" +
+                    "  if(typeof AdminScrollBridge==='undefined') return;" +
+                    "  function attachTracker(){" +
+                    "    var main=document.querySelector('main');" +
+                    "    if(!main) return;" +
+                    "    AdminScrollBridge.setScrolled(main.scrollTop>0);" +
+                    "    main.addEventListener('scroll',function(){" +
+                    "      AdminScrollBridge.setScrolled(main.scrollTop>0);" +
+                    "    },{passive:true});" +
+                    "  }" +
+                    "  if(document.readyState==='complete'){attachTracker();}" +
+                    "  else{window.addEventListener('load',attachTracker,{once:true});}" +
+                    "})();",
+                    null
+                );
             }
 
             @Override
             public void onReceivedError(WebView view, WebResourceRequest request,
                                         WebResourceError error) {
-                // Only react to main-frame failures (not sub-resource errors)
                 if (!request.isForMainFrame()) return;
                 swipeRefresh.setRefreshing(false);
                 showError();
@@ -169,7 +222,6 @@ public class MainActivity extends AppCompatActivity {
             webView.loadUrl(ADMIN_URL);
         }
 
-        // Check for a newer build 4 seconds after launch
         mainHandler.postDelayed(this::checkForUpdate, 4000);
     }
 
