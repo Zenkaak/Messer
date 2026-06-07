@@ -554,6 +554,106 @@ router.get("/admin/resellers/withdrawals", async (req, res) => {
   }
 });
 
+// ─── Admin: get single reseller detail (user info + attributed orders) ────────
+router.get("/admin/resellers/:id", async (req, res) => {
+  try {
+    const pwd = req.headers["x-admin-password"] as string | undefined;
+    if (!await checkAdminPwd(pwd)) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+    const resellerId = parseInt(req.params.id, 10);
+    if (isNaN(resellerId)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+    // Fetch the reseller application + joined user row
+    const [app] = await db
+      .select({
+        id: resellerApplicationsTable.id,
+        userId: resellerApplicationsTable.userId,
+        email: resellerApplicationsTable.email,
+        storeName: resellerApplicationsTable.storeName,
+        storeSlug: resellerApplicationsTable.storeSlug,
+        status: resellerApplicationsTable.status,
+        securityFeePaid: resellerApplicationsTable.securityFeePaid,
+        paymentMethod: resellerApplicationsTable.paymentMethod,
+        paymentReference: resellerApplicationsTable.paymentReference,
+        commissionRate: resellerApplicationsTable.commissionRate,
+        totalEarned: resellerApplicationsTable.totalEarned,
+        totalOrders: resellerApplicationsTable.totalOrders,
+        rejectionReason: resellerApplicationsTable.rejectionReason,
+        createdAt: resellerApplicationsTable.createdAt,
+        approvedAt: resellerApplicationsTable.approvedAt,
+        // user fields
+        ownerName: usersTable.name,
+        ownerUsername: usersTable.username,
+        ownerEmail: usersTable.email,
+        ownerWalletBalance: usersTable.walletBalance,
+        ownerStatus: usersTable.status,
+        ownerCreatedAt: usersTable.createdAt,
+        ownerRegistrationIp: usersTable.registrationIp,
+      })
+      .from(resellerApplicationsTable)
+      .leftJoin(usersTable, eq(resellerApplicationsTable.userId, usersTable.id))
+      .where(eq(resellerApplicationsTable.id, resellerId))
+      .limit(1);
+
+    if (!app) { res.status(404).json({ error: "Not found" }); return; }
+
+    // Fetch attributed orders (where resellerSlug matches storeSlug)
+    const orders = await db
+      .select({
+        id: ordersTable.id,
+        orderCode: ordersTable.orderCode,
+        total: ordersTable.total,
+        paymentStatus: ordersTable.paymentStatus,
+        paymentMethod: ordersTable.paymentMethod,
+        customerEmail: ordersTable.customerEmail,
+        customerName: ordersTable.customerName,
+        orderType: ordersTable.orderType,
+        createdAt: ordersTable.createdAt,
+        paidAt: ordersTable.paidAt,
+      })
+      .from(ordersTable)
+      .where(eq(ordersTable.resellerSlug, app.storeSlug))
+      .orderBy(desc(ordersTable.createdAt))
+      .limit(100);
+
+    // Fetch withdrawal history
+    const withdrawals = await db
+      .select({
+        id: resellerWithdrawalsTable.id,
+        amount: resellerWithdrawalsTable.amount,
+        status: resellerWithdrawalsTable.status,
+        paymentMethod: resellerWithdrawalsTable.paymentMethod,
+        paymentAddress: resellerWithdrawalsTable.paymentAddress,
+        notes: resellerWithdrawalsTable.notes,
+        adminNotes: resellerWithdrawalsTable.adminNotes,
+        createdAt: resellerWithdrawalsTable.createdAt,
+        processedAt: resellerWithdrawalsTable.processedAt,
+      })
+      .from(resellerWithdrawalsTable)
+      .where(eq(resellerWithdrawalsTable.resellerId, resellerId))
+      .orderBy(desc(resellerWithdrawalsTable.createdAt));
+
+    // Compute sales stats from live order data
+    const paidOrders = orders.filter(o => o.paymentStatus === "paid");
+    const totalRevenue = orders.reduce((s, o) => s + parseFloat(o.total), 0);
+    const paidRevenue = paidOrders.reduce((s, o) => s + parseFloat(o.total), 0);
+    const commissionRate = parseFloat(app.commissionRate ?? "10");
+    const commissionEarned = paidRevenue * (commissionRate / 100);
+    const ordersByStatus: Record<string, number> = {};
+    for (const o of orders) ordersByStatus[o.paymentStatus] = (ordersByStatus[o.paymentStatus] ?? 0) + 1;
+
+    res.json({
+      reseller: app,
+      orders,
+      withdrawals,
+      stats: { totalRevenue, paidRevenue, commissionEarned, commissionRate, ordersByStatus, totalOrders: orders.length, paidOrders: paidOrders.length },
+    });
+  } catch (err) {
+    req.log.error({ err }, "admin/resellers/:id error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // ─── Admin: approve withdrawal ────────────────────────────────────────────────
 router.post("/admin/resellers/withdrawals/:id/approve", async (req, res) => {
   try {
