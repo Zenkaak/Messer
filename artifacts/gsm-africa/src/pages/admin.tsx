@@ -382,7 +382,12 @@ function OverviewPanel({ pwd, onNavigate }: { pwd: string; onNavigate: (tab: Tab
         assets: { name: string; browser_download_url: string; size: number }[];
       };
       const releases = await r.json() as GHRelease[];
-      // Find first release whose tag starts with admin-apk- OR has a gsm-admin-*.apk asset
+      // Sort newest first by published_at — GitHub API order is unreliable
+      // when many releases are created in quick succession.
+      releases.sort((a, b) =>
+        new Date(b.published_at).getTime() - new Date(a.published_at).getTime()
+      );
+      // Find first (newest) release whose tag starts with admin-apk- OR has a gsm-admin-*.apk asset
       const adminRelease = releases.find(rel =>
         rel.tag_name.startsWith("admin-apk-") ||
         rel.assets.some(a => a.name.startsWith("gsm-admin") && a.name.endsWith(".apk"))
@@ -4041,8 +4046,11 @@ export function AdminPage() {
           { headers: { Accept: "application/vnd.github+json" } }
         );
         if (!r.ok) return;
-        type GHRelease = { tag_name: string; assets: { name: string }[] };
+        type GHRelease = { tag_name: string; published_at: string; assets: { name: string }[] };
         const releases = await r.json() as GHRelease[];
+        releases.sort((a, b) =>
+          new Date(b.published_at).getTime() - new Date(a.published_at).getTime()
+        );
         const rel = releases.find(r =>
           r.tag_name.startsWith("admin-apk-") ||
           r.assets.some(a => a.name.startsWith("gsm-admin") && a.name.endsWith(".apk"))

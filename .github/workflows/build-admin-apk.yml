@@ -78,6 +78,6 @@ jobs:
             Download and install `gsm-admin-${{ steps.sha.outputs.short }}.apk` on your Android device.
             Enable "Install from unknown sources" if prompted.
           files: android-admin-app/app/build/outputs/apk/release/gsm-admin-${{ steps.sha.outputs.short }}.apk
-          make_latest: false
+          make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
