@@ -13,10 +13,12 @@ import android.util.Log;
 import android.view.View;
 import android.webkit.CookieManager;
 import android.webkit.WebChromeClient;
+import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.Button;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.FileProvider;
@@ -40,8 +42,11 @@ public class MainActivity extends AppCompatActivity {
         "https://api.github.com/repos/Zenkaak/Messer/releases?per_page=10";
     private static final int    REQUEST_INSTALL_PERMISSION = 1001;
 
-    private WebView webView;
-    private File    pendingApkFile;
+    private WebView  webView;
+    private View     errorView;
+    private File     pendingApkFile;
+    private boolean  errorShown = false;
+
     private final Handler         mainHandler = new Handler(Looper.getMainLooper());
     private final ExecutorService executor    = Executors.newSingleThreadExecutor();
 
@@ -56,7 +61,11 @@ public class MainActivity extends AppCompatActivity {
         getWindow().setStatusBarColor(Color.TRANSPARENT);
 
         setContentView(R.layout.activity_main);
-        webView = findViewById(R.id.webview);
+        webView   = findViewById(R.id.webview);
+        errorView = findViewById(R.id.errorView);
+
+        Button retryButton = findViewById(R.id.retryButton);
+        retryButton.setOnClickListener(v -> retry());
 
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
@@ -74,10 +83,29 @@ public class MainActivity extends AppCompatActivity {
 
         webView.setWebChromeClient(new WebChromeClient());
         webView.setWebViewClient(new WebViewClient() {
+
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 String host = request.getUrl().getHost();
-                return !ADMIN_HOST.equals(host); // stay on the admin host only
+                return !ADMIN_HOST.equals(host);
+            }
+
+            @Override
+            public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+                // Hide any previous error screen when a new load begins
+                if (errorShown) {
+                    errorShown = false;
+                    errorView.setVisibility(View.GONE);
+                    webView.setVisibility(View.VISIBLE);
+                }
+            }
+
+            @Override
+            public void onReceivedError(WebView view, WebResourceRequest request,
+                                        WebResourceError error) {
+                // Only react to main-frame failures (not sub-resource errors)
+                if (!request.isForMainFrame()) return;
+                showError();
             }
         });
 
@@ -87,8 +115,24 @@ public class MainActivity extends AppCompatActivity {
             webView.loadUrl(ADMIN_URL);
         }
 
-        // Check for a newer build 4 seconds after launch so the WebView can settle first
+        // Check for a newer build 4 seconds after launch
         mainHandler.postDelayed(this::checkForUpdate, 4000);
+    }
+
+    // ── Offline screen ────────────────────────────────────────────────────────
+
+    private void showError() {
+        if (errorShown) return;
+        errorShown = true;
+        webView.setVisibility(View.GONE);
+        errorView.setVisibility(View.VISIBLE);
+    }
+
+    private void retry() {
+        errorShown = false;
+        errorView.setVisibility(View.GONE);
+        webView.setVisibility(View.VISIBLE);
+        webView.loadUrl(ADMIN_URL);
     }
 
     // ── Auto-update: check GitHub ─────────────────────────────────────────────
@@ -99,10 +143,10 @@ public class MainActivity extends AppCompatActivity {
                 HttpURLConnection conn = openGet(GH_RELEASES_API);
                 if (conn.getResponseCode() != 200) return;
 
-                String body = readString(conn.getInputStream());
+                String    body     = readString(conn.getInputStream());
                 JSONArray releases = new JSONArray(body);
 
-                String latestTag = null;
+                String latestTag   = null;
                 String downloadUrl = null;
 
                 for (int i = 0; i < releases.length(); i++) {
@@ -127,10 +171,9 @@ public class MainActivity extends AppCompatActivity {
 
                 if (latestTag == null) return;
 
-                // Compare with the tag baked into this build at compile time
                 String currentTag = BuildConfig.APK_TAG;
                 Log.i(TAG, "Current: " + currentTag + "  Latest: " + latestTag);
-                if (latestTag.equals(currentTag)) return; // already up to date
+                if (latestTag.equals(currentTag)) return;
 
                 final String url = downloadUrl;
                 final String tag = latestTag;
@@ -163,7 +206,6 @@ public class MainActivity extends AppCompatActivity {
                 dir.mkdirs();
                 File apkFile = new File(dir, "gsm-admin-update.apk");
 
-                // Follow redirects (GitHub CDN issues 302)
                 HttpURLConnection conn = openGet(downloadUrl);
                 conn.setConnectTimeout(30_000);
                 conn.setReadTimeout(60_000);
@@ -206,7 +248,6 @@ public class MainActivity extends AppCompatActivity {
     // ── Install ───────────────────────────────────────────────────────────────
 
     private void installApk(File apkFile) {
-        // Android 8+ needs a runtime grant for installing unknown apps
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O
                 && !getPackageManager().canRequestPackageInstalls()) {
             pendingApkFile = apkFile;

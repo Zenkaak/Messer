@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">GSM Admin</string>
+    <string name="offline_title">No connection</string>
+    <string name="offline_subtitle">Check your internet and tap to retry.</string>
+    <string name="offline_retry">Tap to retry</string>
 </resources>
