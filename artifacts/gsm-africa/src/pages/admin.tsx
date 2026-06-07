@@ -2146,6 +2146,23 @@ function PaymentsPanel({ pwd }: { pwd: string }) {
     botSystemPrompt: "",
   });
   const [testingOts, setTestingOts] = useState(false);
+  const [cascadeStatus, setCascadeStatus] = useState<{ models: string[]; updatedAt: string | null; isDefault: boolean } | null>(null);
+  const [cascadeRefreshing, setCascadeRefreshing] = useState(false);
+
+  async function refreshCascade() {
+    setCascadeRefreshing(true);
+    try {
+      const r = await adminFetch(apiPath("/api/admin/cascade/refresh"), pwd, { method: "POST" });
+      const d = await r.json();
+      if (r.ok) {
+        setCascadeStatus({ models: d.working, updatedAt: new Date().toISOString(), isDefault: false });
+        toast({ title: `Model health refreshed — ${d.working.length} of ${d.tested} models working` });
+      } else {
+        toast({ variant: "destructive", title: d.error ?? "Refresh failed" });
+      }
+    } catch { toast({ variant: "destructive", title: "Refresh failed" }); }
+    finally { setCascadeRefreshing(false); }
+  }
 
   useEffect(() => {
     adminFetch(apiPath("/api/admin/settings"), pwd)
@@ -2188,6 +2205,13 @@ function PaymentsPanel({ pwd }: { pwd: string }) {
           botSystemPrompt: d.botSystemPromptOverride ?? "",
         });
         setLoading(false);
+        // also fetch cascade status (best-effort — don't block settings load)
+        adminFetch(apiPath("/api/admin/cascade/status"), pwd)
+          .then(r => r.ok ? r.json() : null)
+          .then((d: { models: string[]; updatedAt: string | null; isDefault: boolean } | null) => {
+            if (d) setCascadeStatus(d);
+          })
+          .catch(() => { /* ignore — cascade status is optional */ });
       })
       .catch(() => setLoading(false));
   }, [pwd]);
@@ -2497,6 +2521,52 @@ function PaymentsPanel({ pwd }: { pwd: string }) {
           )}
         </div>
       </div>
+
+      {/* ── AI Model Health ── */}
+      {settings?.openaiApiKey && (
+        <div className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-bold text-slate-800">AI Model Health</p>
+              <p className="text-[10px] font-semibold text-slate-400">
+                Working free models used by GSMBot and the email generator.
+                Auto-refreshes weekly — or check now if something seems broken.
+              </p>
+            </div>
+            <button
+              onClick={refreshCascade}
+              disabled={cascadeRefreshing}
+              className="flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 disabled:opacity-50 transition-colors shrink-0"
+            >
+              <RefreshCw size={11} className={cascadeRefreshing ? "animate-spin" : ""} />
+              {cascadeRefreshing ? "Checking…" : "Check Now"}
+            </button>
+          </div>
+
+          {cascadeStatus ? (
+            <>
+              <div className="flex flex-wrap gap-1.5">
+                {cascadeStatus.models.map((m) => (
+                  <span key={m} className="flex items-center gap-1 text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-full px-2 py-0.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
+                    {m.split("/")[1]?.replace(":free", "") ?? m}
+                  </span>
+                ))}
+              </div>
+              <p className="text-[10px] text-slate-400">
+                {cascadeStatus.isDefault
+                  ? "Using built-in defaults — click Check Now to discover the best live models."
+                  : cascadeStatus.updatedAt
+                    ? `Last checked ${new Date(cascadeStatus.updatedAt).toLocaleString()} · ${cascadeStatus.models.length} model${cascadeStatus.models.length !== 1 ? "s" : ""} active · refreshes automatically every Sunday`
+                    : `${cascadeStatus.models.length} model${cascadeStatus.models.length !== 1 ? "s" : ""} active`
+                }
+              </p>
+            </>
+          ) : (
+            <p className="text-[10px] text-slate-400">Loading model status…</p>
+          )}
+        </div>
+      )}
 
       {/* ── IMEI.info API Token ── */}
       <div className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm p-4 space-y-3">
