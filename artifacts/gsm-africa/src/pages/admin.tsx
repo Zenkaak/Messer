@@ -3776,23 +3776,6 @@ function ImeiLogsPanel({ pwd }: { pwd: string }) {
 }
 
 export function AdminPage() {
-  // Block browser access — admin is only accessible via the Android admin app
-  const isAdminApp = navigator.userAgent.includes("GSMAdminApp");
-  if (!isAdminApp) {
-    return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 text-center">
-        <div className="w-16 h-16 rounded-2xl bg-slate-800 flex items-center justify-center mb-4">
-          <Shield size={28} className="text-slate-400" />
-        </div>
-        <h1 className="text-white font-black text-xl mb-2">Admin Access Restricted</h1>
-        <p className="text-slate-400 text-sm max-w-xs leading-relaxed">
-          The admin panel is only accessible through the <strong className="text-slate-200">GSM Admin Android app</strong>.
-          Download it from the admin app page.
-        </p>
-      </div>
-    );
-  }
-
   const ADMIN_KEY = "gsm_admin_session";
   const [pwd, setPwd] = useState(() => {
     try { return sessionStorage.getItem(ADMIN_KEY + "_pwd") ?? ""; } catch { return ""; }
@@ -3812,6 +3795,27 @@ export function AdminPage() {
   const [paymentUnread, setPaymentUnread] = useState(0);
   const lastNotifTs = useRef(0);
   const { toast } = useToast();
+  const [headerApkVersion, setHeaderApkVersion] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function fetchAdminApkVersion() {
+      try {
+        const r = await fetch(
+          "https://api.github.com/repos/Zenkaak/Messer/releases?per_page=20",
+          { headers: { Accept: "application/vnd.github+json" } }
+        );
+        if (!r.ok) return;
+        type GHRelease = { tag_name: string; assets: { name: string }[] };
+        const releases = await r.json() as GHRelease[];
+        const rel = releases.find(r =>
+          r.tag_name.startsWith("admin-apk-") ||
+          r.assets.some(a => a.name.startsWith("gsm-admin") && a.name.endsWith(".apk"))
+        );
+        if (rel) setHeaderApkVersion(rel.tag_name.replace(/^admin-apk-/, ""));
+      } catch { /* ignore */ }
+    }
+    fetchAdminApkVersion();
+  }, []);
 
   useEffect(() => {
     if (!authed) return;
@@ -3950,7 +3954,15 @@ export function AdminPage() {
             </div>
             {/* Page title row */}
             <div className="py-2.5 flex items-center justify-between">
-              <h1 className="text-white font-black text-lg">{pageTitle[tab]}</h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-white font-black text-lg">{pageTitle[tab]}</h1>
+                {headerApkVersion && (
+                  <span className="hidden md:inline-flex items-center gap-1 bg-blue-900/40 text-blue-300 text-[10px] font-bold px-2 py-0.5 rounded-full border border-blue-700/40">
+                    <Tag size={9} />
+                    APK {headerApkVersion}
+                  </span>
+                )}
+              </div>
               {/* Desktop: actions in header */}
               <div className="hidden md:flex items-center gap-1">
                 <button

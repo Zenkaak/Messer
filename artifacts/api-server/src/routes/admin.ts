@@ -1051,7 +1051,7 @@ router.post("/admin/orders/:id/refund", async (req, res) => {
 
     // Notify customer via email
     const reasonText = reason ? String(reason).trim() : "Order correction";
-    sendEmail({
+    await sendEmail({
       to: user.email,
       subject: `Refund processed — Order #${orderId} · GSM World`,
       text: [
