@@ -1557,6 +1557,7 @@ export function GsmBot() {
       const cartSessionId = typeof window !== "undefined" ? (localStorage.getItem("gsm_session_id") ?? undefined) : undefined;
       const botToken = typeof window !== "undefined" ? (localStorage.getItem("gsmafrica_token") ?? undefined) : undefined;
 
+      const resellerRef = typeof window !== "undefined" ? (sessionStorage.getItem("gsm_reseller_ref") ?? undefined) : undefined;
       const res = await fetch(`${base}/api/chat/bot`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "Accept": "text/event-stream" },
@@ -1566,6 +1567,7 @@ export function GsmBot() {
           isAuthenticated: isAuthenticated && !!user?.email,
           sessionId: cartSessionId ?? visitorId.current,
           botToken,
+          resellerSlug: resellerRef,
         }),
       });
 
