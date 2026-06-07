@@ -30,6 +30,7 @@ import {
   orderCompletedEmail,
   pendingManualPaymentEmail,
   announcementEmail,
+  appUrl,
 } from "../lib/email";
 
 const router: IRouter = Router();
@@ -1148,7 +1149,7 @@ router.post("/admin/orders/:id/refund", async (req, res) => {
         `Reason: ${reasonText}`,
         ``,
         `The amount will appear in your GSM World wallet within 3–5 business days.`,
-        `You can check your wallet balance at: https://gsmworld.store/account`,
+        `You can check your wallet balance at: ${appUrl("/account")}`,
         ``,
         `If you have any questions, reply to this email or contact support.`,
         ``,
@@ -1167,7 +1168,7 @@ router.post("/admin/orders/:id/refund", async (req, res) => {
             <tr><td style="padding:8px 0;color:#64748b;font-size:13px">Credited To</td><td style="text-align:right">GSM World Wallet</td></tr>
           </table>
           <p style="font-size:13px;color:#64748b">Thank you for your patience. Your wallet balance will be updated within 3–5 business days.</p>
-          <a href="https://gsmworld.store/account" style="display:inline-block;margin-top:8px;padding:10px 20px;background:#0f172a;color:#fff;border-radius:8px;text-decoration:none;font-size:13px">Check My Wallet</a>
+          <a href="${appUrl("/account")}" style="display:inline-block;margin-top:8px;padding:10px 20px;background:#0f172a;color:#fff;border-radius:8px;text-decoration:none;font-size:13px">Check My Wallet</a>
         </div>
       `,
     }).catch((e) => req.log.warn({ e }, "Refund email failed"));

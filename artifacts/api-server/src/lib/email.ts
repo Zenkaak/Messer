@@ -32,7 +32,7 @@ export function appUrl(path: string) {
 
 function layout(preheader: string, accentColor: string, headerContent: string, body: string) {
   const year = new Date().getFullYear();
-  const storeUrl = "https://gsmworld.vercel.app";
+  const storeUrl = getBaseUrl();
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -832,7 +832,7 @@ export function announcementEmail(params: {
     originalPrice?: string | null;
   }>;
 }) {
-  const storeUrl = "https://gsmworld.vercel.app";
+  const storeUrl = getBaseUrl();
 
   // ── Product showcase strip (Jumia-style horizontal scroll) ────────────────
   function productCard(p: { id: number; name: string; price: string; imageUrl: string | null; originalPrice?: string | null }) {
