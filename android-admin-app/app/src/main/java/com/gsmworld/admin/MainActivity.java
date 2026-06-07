@@ -44,8 +44,12 @@ public class MainActivity extends AppCompatActivity {
     private static final String GH_RELEASES_API =
         "https://api.github.com/repos/Zenkaak/Messer/releases?per_page=10";
     private static final int    REQUEST_INSTALL_PERMISSION = 1001;
-    private static final String PREFS_NAME = "gsm_admin_prefs";
-    private static final String KEY_LAST_TAG = "last_apk_tag";
+    private static final String WEB_VERSION_API =
+        "https://gsmworld.vercel.app/api/web-version";
+    private static final long   WEB_VERSION_POLL_MS = 60_000;
+    private static final String PREFS_NAME        = "gsm_admin_prefs";
+    private static final String KEY_LAST_TAG      = "last_apk_tag";
+    private static final String KEY_WEB_BUILD_ID  = "web_build_id";
 
     private WebView             webView;
     private SwipeRefreshLayout  swipeRefresh;
@@ -225,10 +229,19 @@ public class MainActivity extends AppCompatActivity {
         if (savedInstanceState != null) {
             webView.restoreState(savedInstanceState);
         } else {
-            webView.loadUrl(ADMIN_URL);
+            // Append a launch timestamp so Android's WebView cache never serves
+            // stale HTML on a fresh open — Vercel will always return the latest
+            // index.html, which in turn loads the latest JS chunks.
+            webView.loadUrl(ADMIN_URL + "?_launch=" + System.currentTimeMillis());
         }
 
+        // Check for a new APK release (native code changes)
         mainHandler.postDelayed(this::checkForUpdate, 4000);
+
+        // Check for a new Vercel web deployment (JS/CSS/web changes).
+        // This runs natively in Java so it works even when the WebView is
+        // showing a stale cached page with no JS poller running inside it.
+        mainHandler.postDelayed(this::checkWebVersion, 5000);
     }
 
     // ── Offline screen ────────────────────────────────────────────────────────
@@ -298,6 +311,59 @@ public class MainActivity extends AppCompatActivity {
             } catch (Exception e) {
                 Log.w(TAG, "Update check failed: " + e.getMessage());
             }
+        });
+    }
+
+    // ── Native web-version poller ─────────────────────────────────────────────
+    //
+    // Polls /api/web-version (JSON: { buildId }) every 60 s from Java — not
+    // from JS inside the WebView — so it fires even when the WebView is
+    // showing a stale cached page that has no JS poller running in it.
+    //
+    // On first poll: stores the buildId, no reload.
+    // On subsequent polls: if buildId changed → clear WebView cache and reload
+    //   with a cache-busting URL so the latest Vercel deployment is fetched.
+    //
+    // This means: push to GitHub → Vercel deploys → within 60 s the admin
+    // WebView automatically loads the new version. No APK update needed.
+
+    private void checkWebVersion() {
+        executor.execute(() -> {
+            try {
+                HttpURLConnection conn = openGet(WEB_VERSION_API);
+                conn.setRequestProperty("Cache-Control", "no-store");
+                if (conn.getResponseCode() != 200) return;
+
+                String body = readString(conn.getInputStream());
+                JSONObject json = new JSONObject(body);
+                String newBuildId = json.optString("buildId", "");
+                if (newBuildId.isEmpty()) return;
+
+                SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+                String knownBuildId = prefs.getString(KEY_WEB_BUILD_ID, "");
+
+                if (knownBuildId.isEmpty()) {
+                    // First poll — record the current build, do not reload.
+                    prefs.edit().putString(KEY_WEB_BUILD_ID, newBuildId).apply();
+                    Log.i(TAG, "Web version recorded: " + newBuildId);
+                } else if (!newBuildId.equals(knownBuildId)) {
+                    // New Vercel deployment detected — reload with cache-busting.
+                    Log.i(TAG, "New web deploy detected: " + knownBuildId + " → " + newBuildId);
+                    prefs.edit().putString(KEY_WEB_BUILD_ID, newBuildId).apply();
+                    mainHandler.post(() -> {
+                        webView.clearCache(true);
+                        webView.loadUrl(ADMIN_URL + "?_v=" + System.currentTimeMillis());
+                        Toast.makeText(this,
+                            "Admin panel updated — loading latest version…",
+                            Toast.LENGTH_SHORT).show();
+                    });
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "Web version check failed: " + e.getMessage());
+            }
+
+            // Schedule next poll regardless of outcome.
+            mainHandler.postDelayed(this::checkWebVersion, WEB_VERSION_POLL_MS);
         });
     }
 
