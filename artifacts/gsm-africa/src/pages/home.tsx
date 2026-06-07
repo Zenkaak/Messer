@@ -487,10 +487,13 @@ export function Home() {
             style={{ background: "linear-gradient(135deg,#14532d,#166534 60%,#15803d)", border: "1px solid rgba(74,222,128,0.25)", boxShadow: "0 4px 28px rgba(22,101,52,0.45)" }}
             onClick={() => {
               try {
-                const bridge = (window as typeof window & { AndroidBridge?: { downloadAndInstall:(url:string)=>void } }).AndroidBridge;
-                if (bridge?.downloadAndInstall) { bridge.downloadAndInstall("https://gsmworld.vercel.app/api/download/apk"); return; }
-              } catch { /* ignore */ }
-              window.open("https://gsmworld.vercel.app/api/download/apk", "_blank");
+                // Web content auto-updates from Vercel — just reload to get the latest
+                const url = new URL(window.location.href);
+                url.searchParams.set("_v", String(Date.now()));
+                window.location.replace(url.toString());
+              } catch {
+                window.location.reload();
+              }
             }}>
             <AppBannerContent isUpdate />
           </button>

@@ -846,29 +846,50 @@ router.post("/admin/announcements/ai-generate", async (req, res) => {
     const [apiKey, openaiBase] = await Promise.all([getOpenAiKey(), getOpenAiBaseUrl()]);
     if (!apiKey) { res.status(503).json({ error: "OpenAI API key not configured. Add it in Admin → Settings." }); return; }
     const isOpenRouter = openaiBase.toLowerCase().includes("openrouter");
-    // Use a free model on OpenRouter; gpt-4o-mini on direct OpenAI
-    const model = isOpenRouter ? "meta-llama/llama-3.3-70b-instruct:free" : "gpt-4o-mini";
     const baseURL = openaiBase.endsWith("/v1") ? openaiBase : `${openaiBase}/v1`;
     const systemMsg = isOpenRouter
-      ? "You are an email marketing expert for GSM World Store, a phone unlocking and mobile tool business. Generate a professional announcement email. You MUST respond with valid JSON only, no markdown. The JSON must have exactly two keys: 'subject' (email subject line with emoji) and 'body' (plain text, 2-4 paragraphs, newlines between paragraphs, no HTML)."
+      ? "You are an email marketing expert for GSM World Store, a phone unlocking and mobile tool business. Generate a professional announcement email. You MUST respond with valid JSON only — no markdown, no code fences. The JSON must have exactly two keys: 'subject' (email subject line with emoji) and 'body' (plain text, 2-4 paragraphs, newlines between paragraphs, no HTML)."
       : "You are an email marketing expert for GSM World Store, a phone unlocking and mobile tool business. Generate a professional, engaging announcement email. Return JSON with 'subject' (concise email subject line with emoji) and 'body' (plain text paragraphs separated by newlines, no HTML tags). Keep the body to 2-4 paragraphs.";
-    const reqBody: Record<string, unknown> = {
-      model,
-      messages: [
-        { role: "system", content: systemMsg },
-        { role: "user", content: `Create a professional announcement email for GSM World Store about: ${prompt}` },
-      ],
-    };
-    if (!isOpenRouter) reqBody.response_format = { type: "json_object" };
-    const aiRes = await fetch(`${baseURL}/chat/completions`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
-      body: JSON.stringify(reqBody),
-    });
-    if (!aiRes.ok) {
-      const errText = await aiRes.text().catch(() => "unknown");
-      req.log.error({ status: aiRes.status, errText }, "OpenAI API error for announcement");
-      res.status(500).json({ error: `AI generation failed (${aiRes.status})` });
+    const userContent = `Create a professional announcement email for GSM World Store about: ${prompt}`;
+
+    // On OpenRouter, try multiple free models in cascade — skip on 429/402 rate-limit
+    const modelCascade = isOpenRouter
+      ? [
+          "meta-llama/llama-3.3-70b-instruct:free",
+          "mistralai/mistral-7b-instruct:free",
+          "meta-llama/llama-3.1-8b-instruct:free",
+          "google/gemma-2-9b-it:free",
+        ]
+      : ["gpt-4o-mini"];
+
+    let aiRes: Response | null = null;
+    let lastStatus = 0;
+    for (const model of modelCascade) {
+      const reqBody: Record<string, unknown> = {
+        model,
+        messages: [
+          { role: "system", content: systemMsg },
+          { role: "user", content: userContent },
+        ],
+      };
+      if (!isOpenRouter) reqBody.response_format = { type: "json_object" };
+      const r = await fetch(`${baseURL}/chat/completions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
+        body: JSON.stringify(reqBody),
+      });
+      lastStatus = r.status;
+      if (r.status === 429 || r.status === 402) {
+        req.log.warn({ model, status: r.status }, "AI model rate-limited, trying next");
+        continue; // try next model in cascade
+      }
+      aiRes = r;
+      break;
+    }
+    if (!aiRes || !aiRes.ok) {
+      const errText = aiRes ? await aiRes.text().catch(() => "unknown") : "all models rate-limited";
+      req.log.error({ status: lastStatus, errText }, "OpenAI API error for announcement");
+      res.status(500).json({ error: `AI generation failed (${lastStatus})` });
       return;
     }
     const aiData = await aiRes.json() as { choices?: Array<{ message?: { content?: string } }> };

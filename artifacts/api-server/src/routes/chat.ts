@@ -2636,9 +2636,9 @@ router.post("/chat/bot", async (req, res) => {
       ...safeMessages,
     ];
 
-    // Server-side OTP-choice interception: if the user's latest message is just "otp" / "Otp" / "1"
-    // (i.e. answering the "OTP or password?" question), inject a system instruction so the model
-    // always asks for their email next instead of saying "Is there anything else I can help with?".
+    // Server-side OTP login flow interception — two steps:
+    // Step 1: user says "Otp" → force bot to ask for email
+    // Step 2: user provides email in OTP context → force bot to call send_login_otp(email)
     if (!isAuthenticated) {
       let latestUserText = "";
       for (let i = openaiMessages.length - 1; i >= 0; i--) {
@@ -2647,11 +2647,29 @@ router.post("/chat/bot", async (req, res) => {
           break;
         }
       }
+
+      // Step 1: user chose OTP → ask for their email
       if (/^(otp|one.?time.?code|one.?time|code|1)$/i.test(latestUserText)) {
         openaiMessages.push({
           role: "system",
           content: "[FORCE ACTION: User just selected OTP as their login method. You MUST reply with exactly this and nothing else: 'What is your email address? I will send the login code there.' Do NOT say 'Is there anything else'. Do NOT explain OTP. Just ask for their email.]",
         });
+      }
+
+      // Step 2: user just gave an email address in an OTP login context → force send_login_otp
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+      if (emailRegex.test(latestUserText)) {
+        const recentTexts = openaiMessages.slice(-8).map(m => String(m.content ?? "").toLowerCase());
+        const hasOtpLoginContext = recentTexts.some(t =>
+          t.includes("login code") || t.includes("send the login") || t.includes("send a login") ||
+          t.includes("send the otp") || t.includes("i will send") || t.includes("otp") && t.includes("email")
+        );
+        if (hasOtpLoginContext) {
+          openaiMessages.push({
+            role: "system",
+            content: `[FORCE ACTION: The user just provided their email "${latestUserText}" for OTP login. You MUST call send_login_otp with email="${latestUserText}" RIGHT NOW. Do NOT say anything before calling the tool. Do NOT say "Is there anything else". Call send_login_otp("${latestUserText}") immediately — that is the only correct next action.]`,
+          });
+        }
       }
     }
 
