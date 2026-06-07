@@ -48,6 +48,8 @@ const SETTING_KEYS = [
   "openai_api_url",
   "imei_info_api_token",
   "bot_system_prompt",
+  "cascade_models",
+  "cascade_updated_at",
 ] as const;
 
 type SettingKey = (typeof SETTING_KEYS)[number];
@@ -367,4 +369,55 @@ export async function getBotSystemPromptOverride(): Promise<string | null> {
 
 export async function getImeiInfoApiToken(): Promise<string | null> {
   return (await getSetting("imei_info_api_token")) || process.env.IMEI_INFO_API_TOKEN || null;
+}
+
+// ── AI Model Cascade ─────────────────────────────────────────────────────────
+// The cascade is stored in DB as a JSON array of working model IDs.
+// If the DB has no value (first run), fall back to the hardcoded defaults.
+
+export const FALLBACK_CASCADE = [
+  "openai/gpt-oss-120b:free",
+  "openai/gpt-oss-20b:free",
+  "google/gemma-4-31b-it:free",
+  "nvidia/nemotron-3-super-120b-a12b:free",
+  "meta-llama/llama-3.3-70b-instruct:free",
+];
+
+export async function getWorkingCascade(): Promise<string[]> {
+  const raw = await getSetting("cascade_models");
+  if (raw) {
+    try {
+      const models = JSON.parse(raw) as string[];
+      if (Array.isArray(models) && models.length > 0) return models;
+    } catch { /* fall through */ }
+  }
+  return [...FALLBACK_CASCADE];
+}
+
+export async function setWorkingCascade(models: string[]): Promise<void> {
+  await setSetting("cascade_models", JSON.stringify(models));
+  await setSetting("cascade_updated_at", new Date().toISOString());
+}
+
+export async function getCascadeStatus(): Promise<{
+  models: string[];
+  updatedAt: string | null;
+  isDefault: boolean;
+}> {
+  const [modelsRaw, updatedAt] = await Promise.all([
+    getSetting("cascade_models"),
+    getSetting("cascade_updated_at"),
+  ]);
+  let models = [...FALLBACK_CASCADE];
+  let isDefault = true;
+  if (modelsRaw) {
+    try {
+      const parsed = JSON.parse(modelsRaw) as string[];
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        models = parsed;
+        isDefault = false;
+      }
+    } catch { /* fall through */ }
+  }
+  return { models, updatedAt: updatedAt ?? null, isDefault };
 }
