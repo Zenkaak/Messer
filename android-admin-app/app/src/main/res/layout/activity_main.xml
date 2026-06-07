@@ -4,10 +4,18 @@
     android:layout_height="match_parent"
     android:background="@color/background">
 
-    <WebView
-        android:id="@+id/webview"
+    <!-- SwipeRefreshLayout enables pull-to-refresh on the WebView -->
+    <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+        android:id="@+id/swipeRefresh"
         android:layout_width="match_parent"
-        android:layout_height="match_parent" />
+        android:layout_height="match_parent">
+
+        <WebView
+            android:id="@+id/webview"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+    </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
     <!-- Offline / error overlay — shown when main-frame load fails -->
     <LinearLayout

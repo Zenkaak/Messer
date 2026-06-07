@@ -3,6 +3,7 @@ package com.gsmworld.admin;
 import android.annotation.SuppressLint;
 import android.app.AlertDialog;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
@@ -22,6 +23,7 @@ import android.widget.Button;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.FileProvider;
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -41,11 +43,14 @@ public class MainActivity extends AppCompatActivity {
     private static final String GH_RELEASES_API =
         "https://api.github.com/repos/Zenkaak/Messer/releases?per_page=10";
     private static final int    REQUEST_INSTALL_PERMISSION = 1001;
+    private static final String PREFS_NAME = "gsm_admin_prefs";
+    private static final String KEY_LAST_TAG = "last_apk_tag";
 
-    private WebView  webView;
-    private View     errorView;
-    private File     pendingApkFile;
-    private boolean  errorShown = false;
+    private WebView             webView;
+    private SwipeRefreshLayout  swipeRefresh;
+    private View                errorView;
+    private File                pendingApkFile;
+    private boolean             errorShown = false;
 
     private final Handler         mainHandler = new Handler(Looper.getMainLooper());
     private final ExecutorService executor    = Executors.newSingleThreadExecutor();
@@ -61,8 +66,36 @@ public class MainActivity extends AppCompatActivity {
         getWindow().setStatusBarColor(Color.TRANSPARENT);
 
         setContentView(R.layout.activity_main);
-        webView   = findViewById(R.id.webview);
-        errorView = findViewById(R.id.errorView);
+
+        webView      = findViewById(R.id.webview);
+        swipeRefresh = findViewById(R.id.swipeRefresh);
+        errorView    = findViewById(R.id.errorView);
+
+        // ── Pull-to-refresh ───────────────────────────────────────────────────
+        swipeRefresh.setColorSchemeColors(
+            Color.parseColor("#0ea5e9"),
+            Color.parseColor("#38bdf8"),
+            Color.parseColor("#7dd3fc")
+        );
+        swipeRefresh.setOnRefreshListener(() -> {
+            webView.clearCache(false);
+            webView.reload();
+        });
+
+        // ── Auto-refresh after APK update ─────────────────────────────────────
+        // If the stored tag differs from the compiled-in tag the app was just
+        // updated.  Clear stale cache so the WebView serves fresh content.
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        String lastTag = prefs.getString(KEY_LAST_TAG, "");
+        if (!lastTag.equals(BuildConfig.APK_TAG)) {
+            prefs.edit().putString(KEY_LAST_TAG, BuildConfig.APK_TAG).apply();
+            if (!lastTag.isEmpty()) {
+                // First launch after a successful auto-update
+                webView.clearCache(true);
+                Toast.makeText(this, "App updated — loading fresh content…",
+                    Toast.LENGTH_SHORT).show();
+            }
+        }
 
         Button retryButton = findViewById(R.id.retryButton);
         retryButton.setOnClickListener(v -> retry());
@@ -102,6 +135,9 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public void onPageFinished(WebView view, String url) {
+                // Stop the pull-to-refresh spinner
+                swipeRefresh.setRefreshing(false);
+
                 // Ensure the page uses device width (fixes fixed-width desktop layout)
                 view.evaluateJavascript(
                     "(function(){" +
@@ -118,6 +154,7 @@ public class MainActivity extends AppCompatActivity {
                                         WebResourceError error) {
                 // Only react to main-frame failures (not sub-resource errors)
                 if (!request.isForMainFrame()) return;
+                swipeRefresh.setRefreshing(false);
                 showError();
             }
         });
@@ -189,9 +226,10 @@ public class MainActivity extends AppCompatActivity {
                 if (latestTag.equals(currentTag)) return;
 
                 final String url = downloadUrl;
-                Log.i(TAG, "Update available " + BuildConfig.APK_TAG + " → " + latestTag + ". Downloading silently.");
+                Log.i(TAG, "Update available " + currentTag + " → " + latestTag + ". Downloading silently.");
                 mainHandler.post(() -> {
-                    Toast.makeText(MainActivity.this, "Update found — downloading…", Toast.LENGTH_LONG).show();
+                    Toast.makeText(MainActivity.this, "Update found — downloading…",
+                        Toast.LENGTH_LONG).show();
                     executor.execute(() -> downloadAndInstallSilent(url));
                 });
 
@@ -204,48 +242,48 @@ public class MainActivity extends AppCompatActivity {
     // ── Silent download + install ─────────────────────────────────────────────
 
     private void downloadAndInstallSilent(String downloadUrl) {
-            try {
-                File dir = new File(getCacheDir(), "apk_updates");
-                //noinspection ResultOfMethodCallIgnored
-                dir.mkdirs();
-                File apkFile = new File(dir, "gsm-admin-update.apk");
+        try {
+            File dir = new File(getCacheDir(), "apk_updates");
+            //noinspection ResultOfMethodCallIgnored
+            dir.mkdirs();
+            File apkFile = new File(dir, "gsm-admin-update.apk");
 
-                HttpURLConnection conn = openGet(downloadUrl);
+            HttpURLConnection conn = openGet(downloadUrl);
+            conn.setConnectTimeout(30_000);
+            conn.setReadTimeout(60_000);
+            conn.setInstanceFollowRedirects(true);
+
+            int status = conn.getResponseCode();
+            while (status == 301 || status == 302 || status == 307 || status == 308) {
+                String location = conn.getHeaderField("Location");
+                conn.disconnect();
+                conn = openGet(location);
                 conn.setConnectTimeout(30_000);
                 conn.setReadTimeout(60_000);
-                conn.setInstanceFollowRedirects(true);
-
-                int status = conn.getResponseCode();
-                while (status == 301 || status == 302 || status == 307 || status == 308) {
-                    String location = conn.getHeaderField("Location");
-                    conn.disconnect();
-                    conn = openGet(location);
-                    conn.setConnectTimeout(30_000);
-                    conn.setReadTimeout(60_000);
-                    status = conn.getResponseCode();
-                }
-
-                if (status != 200) {
-                    int finalStatus = status;
-                    mainHandler.post(() -> Toast.makeText(this,
-                        "Download failed (HTTP " + finalStatus + ")", Toast.LENGTH_SHORT).show());
-                    return;
-                }
-
-                try (InputStream in = conn.getInputStream();
-                     FileOutputStream out = new FileOutputStream(apkFile)) {
-                    byte[] buf = new byte[8192];
-                    int n;
-                    while ((n = in.read(buf)) != -1) out.write(buf, 0, n);
-                }
-
-                mainHandler.post(() -> installApk(apkFile));
-
-            } catch (Exception e) {
-                Log.e(TAG, "Download failed", e);
-                mainHandler.post(() -> Toast.makeText(this,
-                    "Download failed: " + e.getMessage(), Toast.LENGTH_LONG).show());
+                status = conn.getResponseCode();
             }
+
+            if (status != 200) {
+                int finalStatus = status;
+                mainHandler.post(() -> Toast.makeText(this,
+                    "Download failed (HTTP " + finalStatus + ")", Toast.LENGTH_SHORT).show());
+                return;
+            }
+
+            try (InputStream in = conn.getInputStream();
+                 FileOutputStream out = new FileOutputStream(apkFile)) {
+                byte[] buf = new byte[8192];
+                int n;
+                while ((n = in.read(buf)) != -1) out.write(buf, 0, n);
+            }
+
+            mainHandler.post(() -> installApk(apkFile));
+
+        } catch (Exception e) {
+            Log.e(TAG, "Download failed", e);
+            mainHandler.post(() -> Toast.makeText(this,
+                "Download failed: " + e.getMessage(), Toast.LENGTH_LONG).show());
+        }
     }
 
     // ── Install ───────────────────────────────────────────────────────────────
