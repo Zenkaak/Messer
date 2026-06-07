@@ -856,10 +856,11 @@ router.post("/admin/announcements/ai-generate", async (req, res) => {
     const modelCascade = isOpenRouter
       ? [
           "meta-llama/llama-3.3-70b-instruct:free",
+          "meta-llama/llama-3.1-70b-instruct:free",
+          "qwen/qwen2.5-72b-instruct:free",
           "mistralai/mistral-7b-instruct:free",
-          "meta-llama/llama-3.1-8b-instruct:free",
           "google/gemma-2-9b-it:free",
-          "openai/gpt-4o-mini",
+          "deepseek/deepseek-chat:free",
         ]
       : ["gpt-4o-mini"];
 
