@@ -15,7 +15,7 @@ import {
 } from "@workspace/db";
 import { productsTable, categoriesTable } from "@workspace/db";
 import { z } from "zod";
-import { getAllSettings, updateSettings, getAdminPassword, hasAdminPasswordBeenSet, getOpenAiKey, getOpenAiBaseUrl } from "../lib/admin-settings";
+import { getAllSettings, updateSettings, getAdminPassword, hasAdminPasswordBeenSet, getOpenAiKey, getOpenAiBaseUrl, getWorkingCascade, setWorkingCascade, getCascadeStatus } from "../lib/admin-settings";
 import {
   sendEmail,
   otpEmail,
@@ -853,15 +853,7 @@ router.post("/admin/announcements/ai-generate", async (req, res) => {
     const userContent = `Create a professional announcement email for GSM World Store about: ${prompt}`;
 
     // On OpenRouter, try multiple free models in cascade — skip on 429/402/404 rate-limit
-    const modelCascade = isOpenRouter
-      ? [
-          "openai/gpt-oss-120b:free",
-          "openai/gpt-oss-20b:free",
-          "google/gemma-4-31b-it:free",
-          "nvidia/nemotron-3-super-120b-a12b:free",
-          "meta-llama/llama-3.3-70b-instruct:free",
-        ]
-      : ["gpt-4o-mini"];
+    const modelCascade = isOpenRouter ? await getWorkingCascade() : ["gpt-4o-mini"];
 
     let lastStatus = 0;
     let resultSubject = "";
@@ -987,6 +979,116 @@ router.get("/admin/imei-logs", async (req, res) => {
   } catch (err) {
     req.log.error({ err }, "Failed to fetch IMEI logs");
     res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ── AI Model Health: candidate pool tested during refresh ────────────────────
+const CANDIDATE_MODELS = [
+  "openai/gpt-oss-120b:free",
+  "openai/gpt-oss-20b:free",
+  "google/gemma-4-31b-it:free",
+  "nvidia/nemotron-3-super-120b-a12b:free",
+  "meta-llama/llama-3.3-70b-instruct:free",
+  "qwen/qwen3-235b-a22b:free",
+  "qwen/qwen3-30b-a3b:free",
+  "deepseek/deepseek-r1-0528:free",
+  "deepseek/deepseek-chat-v3-0324:free",
+  "google/gemma-2-9b-it:free",
+  "mistralai/mistral-7b-instruct:free",
+  "microsoft/phi-4:free",
+];
+
+async function probeModel(apiKey: string, baseURL: string, model: string): Promise<boolean> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 9000);
+  try {
+    const r = await fetch(`${baseURL}/chat/completions`, {
+      method: "POST",
+      signal: ctrl.signal,
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://gsmworld.vercel.app",
+        "X-Title": "GSMWorld Model Probe",
+      },
+      body: JSON.stringify({
+        model,
+        stream: false,
+        max_tokens: 5,
+        messages: [{ role: "user", content: "hi" }],
+      }),
+    });
+    clearTimeout(timer);
+    if (!r.ok) return false;
+    const data = await r.json() as { choices?: Array<{ message?: { content?: string } }> };
+    return !!(data.choices?.[0]?.message?.content?.trim());
+  } catch {
+    clearTimeout(timer);
+    return false;
+  }
+}
+
+async function runModelRefresh(apiKey: string, baseURL: string, log: typeof router): Promise<{ working: string[]; tested: number }> {
+  const probes = await Promise.allSettled(
+    CANDIDATE_MODELS.map(async (model) => ({ model, ok: await probeModel(apiKey, baseURL, model) }))
+  );
+  const working = probes
+    .filter((r): r is PromiseFulfilledResult<{ model: string; ok: boolean }> => r.status === "fulfilled" && r.value.ok)
+    .map((r) => r.value.model);
+  if (working.length > 0) await setWorkingCascade(working);
+  return { working, tested: CANDIDATE_MODELS.length };
+}
+
+// GET /admin/cascade/status — current working models + last refresh time
+router.get("/admin/cascade/status", async (req, res) => {
+  if (!await checkAdminAuth(req, res)) return;
+  try {
+    const status = await getCascadeStatus();
+    res.json(status);
+  } catch (err) {
+    req.log.error({ err }, "Failed to get cascade status");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// POST /admin/cascade/refresh — manually trigger model health refresh (admin auth)
+router.post("/admin/cascade/refresh", async (req, res) => {
+  if (!await checkAdminAuth(req, res)) return;
+  try {
+    const [apiKey, openaiBase] = await Promise.all([getOpenAiKey(), getOpenAiBaseUrl()]);
+    if (!apiKey) { res.status(503).json({ error: "OpenAI API key not configured" }); return; }
+    const isOpenRouter = openaiBase.toLowerCase().includes("openrouter");
+    if (!isOpenRouter) { res.status(400).json({ error: "Model refresh only applies to OpenRouter keys" }); return; }
+    const baseURL = openaiBase.endsWith("/v1") ? openaiBase : `${openaiBase}/v1`;
+    const result = await runModelRefresh(apiKey, baseURL, router as unknown as typeof router);
+    req.log.info(result, "Manual model cascade refresh complete");
+    res.json({ ...result, candidates: CANDIDATE_MODELS });
+  } catch (err) {
+    req.log.error({ err }, "Model cascade refresh failed");
+    res.status(500).json({ error: "Refresh failed" });
+  }
+});
+
+// POST /admin/cron/refresh-models — called weekly by Vercel cron (CRON_SECRET auth)
+router.post("/admin/cron/refresh-models", async (req, res) => {
+  const cronSecret = process.env.CRON_SECRET;
+  const authHeader = req.headers.authorization;
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  try {
+    const [apiKey, openaiBase] = await Promise.all([getOpenAiKey(), getOpenAiBaseUrl()]);
+    if (!apiKey) { res.status(503).json({ error: "OpenAI API key not configured" }); return; }
+    const isOpenRouter = openaiBase.toLowerCase().includes("openrouter");
+    if (!isOpenRouter) { res.json({ skipped: true, reason: "Not OpenRouter — no cascade needed" }); return; }
+    const baseURL = openaiBase.endsWith("/v1") ? openaiBase : `${openaiBase}/v1`;
+    const result = await runModelRefresh(apiKey, baseURL, router as unknown as typeof router);
+    req.log.info(result, "Cron model cascade refresh complete");
+    res.json({ ok: true, ...result, candidates: CANDIDATE_MODELS });
+  } catch (err) {
+    req.log.error({ err }, "Cron model cascade refresh failed");
+    res.status(500).json({ error: "Refresh failed" });
   }
 });
 
