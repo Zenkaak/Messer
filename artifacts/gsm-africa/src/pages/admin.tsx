@@ -4214,7 +4214,10 @@ export function AdminPage() {
           </main>
 
           {/* ── Mobile hybrid bottom nav ── */}
-          <nav className="fixed bottom-0 inset-x-0 z-40 md:hidden bg-slate-900 border-t border-white/10 flex safe-bottom">
+          <nav
+            className="fixed bottom-0 inset-x-0 z-50 md:hidden bg-slate-900 border-t border-white/10 flex safe-bottom"
+            style={{ transform: "translateZ(0)", overscrollBehavior: "none", touchAction: "none" }}
+          >
             {BOTTOM_NAV.map(item => {
               const active = tab === item.id;
               return (
