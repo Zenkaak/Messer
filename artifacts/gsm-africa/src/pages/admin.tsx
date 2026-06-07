@@ -1271,9 +1271,23 @@ function OrdersPanel({ pwd }: { pwd: string }) {
     } finally { if (!silent) setLoading(false); }
   }, [pwd]);
 
+  // Preserve scroll position during silent auto-refresh
+  const scrollContainerRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    // Find the nearest scrollable ancestor (<main>) once on mount
+    scrollContainerRef.current = document.querySelector("main[class*='overflow-y-auto']") as HTMLElement | null;
+  }, []);
+
   useEffect(() => {
     load(page, filterType);
-    const tick = () => load(page, filterType, true);
+    const tick = () => {
+      const savedScroll = scrollContainerRef.current?.scrollTop ?? 0;
+      load(page, filterType, true).then?.(() => {
+        if (scrollContainerRef.current && savedScroll > 0) {
+          scrollContainerRef.current.scrollTop = savedScroll;
+        }
+      });
+    };
     const interval = setInterval(tick, 30_000);
     const onVisible = () => { if (document.visibilityState === "visible") tick(); };
     document.addEventListener("visibilitychange", onVisible);
@@ -3982,6 +3996,7 @@ export function AdminPage() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [paymentUnread, setPaymentUnread] = useState(0);
   const lastNotifTs = useRef(0);
+  const mainRef = useRef<HTMLElement>(null);
   const { toast } = useToast();
   const [headerApkVersion, setHeaderApkVersion] = useState<string | null>(null);
 
@@ -4004,6 +4019,26 @@ export function AdminPage() {
     }
     fetchAdminApkVersion();
   }, []);
+
+  // Block pull-to-refresh on the admin scrollable container (touch events)
+  useEffect(() => {
+    const el = mainRef.current;
+    if (!el) return;
+    let startY = 0;
+    const onStart = (e: TouchEvent) => { startY = e.touches[0]?.clientY ?? 0; };
+    const onMove = (e: TouchEvent) => {
+      // Prevent pull-down gesture when already at the top of the scroll container
+      if (el.scrollTop <= 0 && (e.touches[0]?.clientY ?? 0) > startY) {
+        e.preventDefault();
+      }
+    };
+    el.addEventListener("touchstart", onStart, { passive: true });
+    el.addEventListener("touchmove", onMove, { passive: false });
+    return () => {
+      el.removeEventListener("touchstart", onStart);
+      el.removeEventListener("touchmove", onMove);
+    };
+  }, [authed]);
 
   useEffect(() => {
     if (!authed) return;
@@ -4177,7 +4212,7 @@ export function AdminPage() {
           </header>
 
           {/* ── scrollable content ── */}
-          <main className="flex-1 overflow-y-auto overscroll-y-none pb-16 md:pb-0">
+          <main ref={mainRef} className="flex-1 overflow-y-auto overscroll-y-none pb-16 md:pb-0">
             {tab === "overview"   && <OverviewPanel   pwd={pwd} onNavigate={setTab} />}
             {tab === "orders"     && <OrdersPanel     pwd={pwd} />}
             {tab === "products"   && <ProductsPanel   pwd={pwd} />}

@@ -152,12 +152,7 @@
   }
 }
 
-/* ── Prevent mobile pull-to-refresh from reloading the app ── */
+/* ── Prevent mobile pull-to-refresh on the main site body ── */
 html, body {
-  overscroll-behavior: none;
-  overscroll-behavior-y: none;
-}
-/* Also block pull-to-refresh on any scrollable child containers */
-* {
-  overscroll-behavior-y: none;
+  overscroll-behavior-x: none;
 }
