@@ -373,7 +373,7 @@ function OverviewPanel({ pwd, onNavigate }: { pwd: string; onNavigate: (tab: Tab
     setApkError(false);
     try {
       const r = await fetch(
-        "https://api.github.com/repos/Zenkaak/Messer/releases?per_page=20",
+        "https://api.github.com/repos/Zenkaak/Messer/releases?per_page=50",
         { headers: { Accept: "application/vnd.github+json" } }
       );
       if (!r.ok) { setApkError(true); return; }
@@ -382,8 +382,9 @@ function OverviewPanel({ pwd, onNavigate }: { pwd: string; onNavigate: (tab: Tab
         assets: { name: string; browser_download_url: string; size: number }[];
       };
       const releases = await r.json() as GHRelease[];
-      // Sort newest first by published_at — GitHub API order is unreliable
-      // when many releases are created in quick succession.
+      // Sort newest first by published_at — GitHub's default order is by
+      // created_at which doesn't guarantee newest-first, and with 28+ releases
+      // per_page=20 would drop the newest ones entirely.
       releases.sort((a, b) =>
         new Date(b.published_at).getTime() - new Date(a.published_at).getTime()
       );
@@ -4060,7 +4061,7 @@ export function AdminPage() {
     async function fetchAdminApkVersion() {
       try {
         const r = await fetch(
-          "https://api.github.com/repos/Zenkaak/Messer/releases?per_page=20",
+          "https://api.github.com/repos/Zenkaak/Messer/releases?per_page=50",
           { headers: { Accept: "application/vnd.github+json" } }
         );
         if (!r.ok) return;
