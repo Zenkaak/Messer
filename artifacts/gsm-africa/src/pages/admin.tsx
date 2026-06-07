@@ -425,7 +425,21 @@ function OverviewPanel({ pwd, onNavigate }: { pwd: string; onNavigate: (tab: Tab
       window.removeEventListener("focus", tick);
     };
   }, [load]);
-  useEffect(() => { fetchApkRelease(); }, [fetchApkRelease]);
+  // Auto-poll GitHub for new APK releases every 5 minutes so the dashboard
+  // card updates automatically when a build finishes — no page reload needed.
+  // Also re-fetches when the tab becomes visible or the window regains focus.
+  useEffect(() => {
+    fetchApkRelease();
+    const interval = setInterval(fetchApkRelease, 5 * 60_000);
+    const onVisible = () => { if (document.visibilityState === "visible") fetchApkRelease(); };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", fetchApkRelease);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", fetchApkRelease);
+    };
+  }, [fetchApkRelease]);
 
   const confirmed = stats?.paidOrders.count ?? 0;
   const pending = stats?.pendingOrders?.count ?? 0;
@@ -760,7 +774,11 @@ function OverviewPanel({ pwd, onNavigate }: { pwd: string; onNavigate: (tab: Tab
                       <li>If Play Protect warns you, tap <strong>Install anyway</strong>.</li>
                     </ol>
                   </div>
-                  <a href={apkRelease.downloadUrl} download
+                  {/* Route through the API proxy so the WebView's
+                      DownloadListener intercepts the response and hands it
+                      to the native install flow. Direct github.com links
+                      get blocked by shouldOverrideUrlLoading. */}
+                  <a href={apiPath("/api/download/apk")} download
                     className="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm transition-colors active:scale-95">
                     <Download size={15}/> Download APK
                   </a>
