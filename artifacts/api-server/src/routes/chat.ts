@@ -27,6 +27,7 @@ import {
   getUsdtNetwork,
   getBinancePayId,
   getSmtpConfig,
+  getWorkingCascade,
 } from "../lib/admin-settings";
 import { sendEmail, orderSubmittedEmail, pendingManualPaymentEmail, adminNewOrderAlertEmail, otpEmail } from "../lib/email";
 import { initiateSTKPush } from "../lib/mpesa";
@@ -2694,17 +2695,10 @@ router.post("/chat/bot", async (req, res) => {
     };
 
     // ── Model cascade → Tool-call loop ────────────────────────────────────────
-    // Try primary model first, then free fallbacks so the bot is always online.
+    // Cascade is dynamically maintained in DB by the weekly cron health-check.
+    // Falls back to hardcoded defaults if the DB has no value yet.
     const isOpenRouter = openaiBase.toLowerCase().includes("openrouter");
-    const modelCascade = isOpenRouter
-      ? [
-          "openai/gpt-oss-120b:free",                    // primary — OpenAI OSS 120B, great tool-calling
-          "openai/gpt-oss-20b:free",                     // fast smaller fallback
-          "google/gemma-4-31b-it:free",                  // Google Gemma 4 31B
-          "nvidia/nemotron-3-super-120b-a12b:free",      // NVIDIA 120B — 1M context
-          "meta-llama/llama-3.3-70b-instruct:free",      // Llama 3.3 70B — may recover from rate-limit
-        ]
-      : ["gpt-4o-mini"];
+    const modelCascade = isOpenRouter ? await getWorkingCascade() : ["gpt-4o-mini"];
 
     const baseMessages = [...openaiMessages]; // snapshot before any tool results
     let botResponded = false;
