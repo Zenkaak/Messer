@@ -879,8 +879,8 @@ router.post("/admin/announcements/ai-generate", async (req, res) => {
         body: JSON.stringify(reqBody),
       });
       lastStatus = r.status;
-      if (r.status === 429 || r.status === 402) {
-        req.log.warn({ model, status: r.status }, "AI model rate-limited, trying next");
+      if (r.status === 429 || r.status === 402 || r.status === 404) {
+        req.log.warn({ model, status: r.status }, "AI model unavailable/rate-limited, trying next");
         continue; // try next model in cascade
       }
       aiRes = r;
