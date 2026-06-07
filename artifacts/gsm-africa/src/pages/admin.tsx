@@ -346,8 +346,8 @@ function OverviewPanel({ pwd, onNavigate }: { pwd: string; onNavigate: (tab: Tab
     finally { setCascadeRefreshing(false); }
   }
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const [statsRes, liveRes] = await Promise.all([
         adminFetch("/api/admin/stats", pwd),
@@ -356,7 +356,7 @@ function OverviewPanel({ pwd, onNavigate }: { pwd: string; onNavigate: (tab: Tab
       if (statsRes.ok) setStats(await statsRes.json() as Stats);
       if (liveRes.ok) setLiveRequests(await liveRes.json() as { waiting: number; active: number });
     }
-    finally { setLoading(false); }
+    finally { if (!silent) setLoading(false); }
     // Fetch cascade status separately (best-effort — don't block stats)
     adminFetch(apiPath("/api/admin/cascade/status"), pwd)
       .then(r => r.ok ? r.json() : null)
@@ -407,7 +407,19 @@ function OverviewPanel({ pwd, onNavigate }: { pwd: string; onNavigate: (tab: Tab
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+    const tick = () => load(true);
+    const interval = setInterval(tick, 30_000);
+    const onVisible = () => { if (document.visibilityState === "visible") tick(); };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", tick);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", tick);
+    };
+  }, [load]);
   useEffect(() => { fetchApkRelease(); }, [fetchApkRelease]);
 
   const confirmed = stats?.paidOrders.count ?? 0;
@@ -1237,8 +1249,8 @@ function OrdersPanel({ pwd }: { pwd: string }) {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const PER = 20;
 
-  const load = useCallback(async (p: number, ft: OrderFilter) => {
-    setLoading(true);
+  const load = useCallback(async (p: number, ft: OrderFilter, silent = false) => {
+    if (!silent) setLoading(true);
     try {
       if (ft === "giftcard") {
         const r = await adminFetch(`/api/admin/tool-activations`, pwd);
@@ -1256,10 +1268,22 @@ function OrdersPanel({ pwd }: { pwd: string }) {
           setTotal(d.total);
         }
       }
-    } finally { setLoading(false); }
+    } finally { if (!silent) setLoading(false); }
   }, [pwd]);
 
-  useEffect(() => { load(page, filterType); }, [load, page, filterType]);
+  useEffect(() => {
+    load(page, filterType);
+    const tick = () => load(page, filterType, true);
+    const interval = setInterval(tick, 30_000);
+    const onVisible = () => { if (document.visibilityState === "visible") tick(); };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", tick);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", tick);
+    };
+  }, [load, page, filterType]);
 
   function handleFilterChange(ft: OrderFilter) {
     setFilterType(ft);
