@@ -789,6 +789,37 @@ export function pendingManualPaymentEmail(params: {
   };
 }
 
+
+// ── Admin → User direct message notification ──────────────────────────────────
+
+export function adminDirectMessageEmail(params: {
+  customerName?: string | null;
+  message: string;
+}) {
+  const name = params.customerName || "Valued Customer";
+  const accountUrl = appUrl("/account");
+
+  const h = header(
+    "linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%)",
+    "Message from GSM World Support",
+    "The support team has sent you a message"
+  );
+  const body = `
+    <p style="margin:0 0 20px;font-size:15px;color:#475569;">Dear <strong style="color:#0f172a;">${name}</strong>,</p>
+    <p style="margin:0 0 20px;font-size:15px;color:#475569;">You have a new message from the GSM World support team:</p>
+    ${alertBox("", params.message, "#0ea5e9", "#f0f9ff")}
+    ${btn("View My Account", accountUrl)}
+    <div style="margin-top:32px;padding-top:20px;border-top:1px solid #f1f5f9;">
+      <p style="margin:0;font-size:14px;color:#475569;">Regards,<br><strong style="color:#0f172a;">GSM World Support Team</strong></p>
+    </div>
+  `;
+  return {
+    subject: "New Message from GSM World Support",
+    text: `Dear ${name},\n\nYou have a new message from GSM World Support:\n\n${params.message}\n\nView your account: ${accountUrl}\n\n— GSM World Team`,
+    html: layout("You have a new message from the GSM World support team.", "#0ea5e9", h, body),
+  };
+}
+
 // ── Announcement broadcast email ──────────────────────────────────────────────
 export function announcementEmail(params: { subject: string; body: string }) {
   const h = header(

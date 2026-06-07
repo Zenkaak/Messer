@@ -13,6 +13,8 @@ import {
   notificationsTable,
   imeiLookupsTable,
   walletTransactionsTable,
+  liveChatSessionsTable,
+  liveChatMessagesTable,
 } from "@workspace/db";
 import { productsTable, categoriesTable } from "@workspace/db";
 import { z } from "zod";
@@ -206,6 +208,7 @@ router.get("/admin/users", async (req, res) => {
       id: usersTable.id,
       email: usersTable.email,
       name: usersTable.name,
+      username: usersTable.username,
       walletBalance: usersTable.walletBalance,
       status: usersTable.status,
       createdAt: usersTable.createdAt,
@@ -329,42 +332,109 @@ router.post("/admin/users", async (req, res) => {
   }
 });
 
-// ─── admin direct message to user (creates a message on one of their orders) ──
+// ─── admin direct chat with user ─────────────────────────────────────────────
+
+// GET — fetch chat history between admin and a specific user
+router.get("/admin/users/:id/messages", async (req, res) => {
+  try {
+    if (!(await checkAdminAuth(req, res))) return;
+    const userId = Number(req.params.id);
+    const visitorId = `direct:${userId}`;
+
+    const sessions = await db.select({ id: liveChatSessionsTable.id })
+      .from(liveChatSessionsTable)
+      .where(eq(liveChatSessionsTable.visitorId, visitorId))
+      .limit(1);
+
+    if (!sessions.length) {
+      res.json({ messages: [] });
+      return;
+    }
+
+    const messages = await db.select()
+      .from(liveChatMessagesTable)
+      .where(eq(liveChatMessagesTable.sessionId, sessions[0].id))
+      .orderBy(liveChatMessagesTable.createdAt);
+
+    res.json({ messages });
+  } catch (err) {
+    req.log.error({ err }, "Failed to get user messages");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// POST — admin sends message to user; stores in live-chat, notifies in-app + email
 router.post("/admin/users/:id/message", async (req, res) => {
   try {
     if (!(await checkAdminAuth(req, res))) return;
     const userId = Number(req.params.id);
     const parsed = z.object({
       message: z.string().min(1),
-      orderId: z.number().int().optional(),
     }).safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.message });
       return;
     }
-    const [user] = await db.select({ id: usersTable.id, email: usersTable.email }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+
+    const [user] = await db
+      .select({ id: usersTable.id, email: usersTable.email, name: usersTable.name })
+      .from(usersTable)
+      .where(eq(usersTable.id, userId))
+      .limit(1);
     if (!user) {
       res.status(404).json({ error: "User not found" });
       return;
     }
-    let orderId = parsed.data.orderId;
-    if (!orderId) {
-      const latestOrder = await db.select({ id: ordersTable.id }).from(ordersTable)
-        .where(eq(ordersTable.customerEmail, user.email))
-        .orderBy(desc(ordersTable.createdAt))
-        .limit(1);
-      if (!latestOrder.length) {
-        res.status(400).json({ error: "User has no orders. Please specify an orderId." });
-        return;
-      }
-      orderId = latestOrder[0].id;
+
+    const visitorId = `direct:${userId}`;
+
+    // Find or create a direct-message session for this user
+    let sessionRows = await db.select()
+      .from(liveChatSessionsTable)
+      .where(eq(liveChatSessionsTable.visitorId, visitorId))
+      .limit(1);
+
+    let session = sessionRows[0];
+    if (!session) {
+      [session] = await db.insert(liveChatSessionsTable).values({
+        visitorId,
+        visitorName: user.name || user.email,
+        visitorEmail: user.email,
+        status: "active",
+        lastMessage: parsed.data.message,
+      }).returning();
     }
-    const [msg] = await db.insert(orderMessagesTable).values({
-      orderId,
+
+    // Insert admin message
+    const [msg] = await db.insert(liveChatMessagesTable).values({
+      sessionId: session.id,
       senderType: "admin",
-      senderEmail: "admin",
       message: parsed.data.message,
     }).returning();
+
+    // Update session last-message + timestamp
+    await db.update(liveChatSessionsTable)
+      .set({ lastMessage: parsed.data.message, updatedAt: new Date() })
+      .where(eq(liveChatSessionsTable.id, session.id));
+
+    // In-app notification for user
+    await db.insert(notificationsTable).values({
+      userEmail: user.email,
+      title: "Message from GSM World Support",
+      message: parsed.data.message.length > 100
+        ? parsed.data.message.slice(0, 100) + "…"
+        : parsed.data.message,
+      type: "info",
+    });
+
+    // Email notification (fire-and-forget)
+    import("../lib/email").then(({ sendEmail, adminDirectMessageEmail }) => {
+      sendEmail({
+        to: user.email,
+        ...adminDirectMessageEmail({ customerName: user.name, message: parsed.data.message }),
+      }).catch(() => {});
+    }).catch(() => {});
+
     res.status(201).json(msg);
   } catch (err) {
     req.log.error({ err }, "Failed to send direct message");

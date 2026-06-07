@@ -101,6 +101,19 @@ public class MainActivity extends AppCompatActivity {
             }
 
             @Override
+            public void onPageFinished(WebView view, String url) {
+                // Ensure the page uses device width (fixes fixed-width desktop layout)
+                view.evaluateJavascript(
+                    "(function(){" +
+                    "var m=document.querySelector('meta[name=viewport]');" +
+                    "if(!m){m=document.createElement('meta');m.name='viewport';document.head.appendChild(m);}" +
+                    "m.content='width=device-width,initial-scale=1.0,maximum-scale=5.0';" +
+                    "})();",
+                    null
+                );
+            }
+
+            @Override
             public void onReceivedError(WebView view, WebResourceRequest request,
                                         WebResourceError error) {
                 // Only react to main-frame failures (not sub-resource errors)
@@ -176,8 +189,11 @@ public class MainActivity extends AppCompatActivity {
                 if (latestTag.equals(currentTag)) return;
 
                 final String url = downloadUrl;
-                final String tag = latestTag;
-                mainHandler.post(() -> promptUpdate(url, tag));
+                Log.i(TAG, "Update available " + BuildConfig.APK_TAG + " → " + latestTag + ". Downloading silently.");
+                mainHandler.post(() -> {
+                    Toast.makeText(MainActivity.this, "Update found — downloading…", Toast.LENGTH_LONG).show();
+                    executor.execute(() -> downloadAndInstallSilent(url));
+                });
 
             } catch (Exception e) {
                 Log.w(TAG, "Update check failed: " + e.getMessage());
@@ -185,21 +201,9 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    private void promptUpdate(String downloadUrl, String newTag) {
-        new AlertDialog.Builder(this)
-            .setTitle("Update Available")
-            .setMessage("A new version of GSM Admin is ready (\u2192 " + newTag + ").\nTap Update to download and install now.")
-            .setPositiveButton("Update Now",  (d, w) -> downloadAndInstall(downloadUrl))
-            .setNegativeButton("Later", null)
-            .setCancelable(true)
-            .show();
-    }
+    // ── Silent download + install ─────────────────────────────────────────────
 
-    // ── Download ──────────────────────────────────────────────────────────────
-
-    private void downloadAndInstall(String downloadUrl) {
-        Toast.makeText(this, "Downloading update\u2026", Toast.LENGTH_LONG).show();
-        executor.execute(() -> {
+    private void downloadAndInstallSilent(String downloadUrl) {
             try {
                 File dir = new File(getCacheDir(), "apk_updates");
                 //noinspection ResultOfMethodCallIgnored
@@ -242,7 +246,6 @@ public class MainActivity extends AppCompatActivity {
                 mainHandler.post(() -> Toast.makeText(this,
                     "Download failed: " + e.getMessage(), Toast.LENGTH_LONG).show());
             }
-        });
     }
 
     // ── Install ───────────────────────────────────────────────────────────────
