@@ -41,28 +41,44 @@ function layout(preheader: string, accentColor: string, headerContent: string, b
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <title>GSM World</title>
   <!--[if mso]><noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript><![endif]-->
+  <style>
+    @media only screen and (max-width: 600px) {
+      .outer-wrapper { padding: 16px 8px !important; }
+      .email-card { border-radius: 0 0 12px 12px !important; }
+      .email-brand-bar { border-radius: 12px 12px 0 0 !important; padding: 14px 16px !important; }
+      .email-header { padding: 24px 20px 20px !important; }
+      .email-header h1 { font-size: 20px !important; }
+      .email-body { padding: 24px 20px 20px !important; font-size: 15px !important; }
+      .email-footer { padding: 20px 20px 24px !important; }
+      .email-footer-divider { padding: 0 20px !important; }
+      .product-grid-table { width: 100% !important; }
+      .product-cell { display: inline-block !important; width: 46% !important; min-width: 0 !important; padding-right: 4px !important; padding-bottom: 8px !important; vertical-align: top !important; }
+      .btn-cta { padding: 14px 20px !important; font-size: 15px !important; }
+    }
+    a { color: inherit; }
+  </style>
 </head>
 <body style="margin:0;padding:0;background-color:#f0f4f8;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;">
   <div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;color:#f0f4f8;line-height:1px;">${preheader}&nbsp;&#8203;&zwnj;&nbsp;&#8203;&zwnj;&nbsp;&#8203;&zwnj;&nbsp;&#8203;&zwnj;&nbsp;&#8203;&zwnj;&nbsp;&#8203;&zwnj;</div>
 
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f0f4f8;padding:40px 16px;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="outer-wrapper" style="background-color:#f0f4f8;padding:32px 12px;">
     <tr>
       <td align="center">
 
         <!-- Top brand bar -->
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin-bottom:0;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;">
           <tr>
-            <td style="background:#0f172a;border-radius:16px 16px 0 0;padding:20px 32px;text-align:center;">
-              <a href="${storeUrl}" style="text-decoration:none;display:inline-flex;align-items:center;gap:8px;">
-                <span style="display:inline-block;width:32px;height:32px;background:#0ea5e9;border-radius:8px;text-align:center;line-height:32px;font-size:16px;font-weight:900;color:#ffffff;font-family:Arial,sans-serif;">G</span>
-                <span style="font-size:18px;font-weight:900;color:#ffffff;letter-spacing:0.5px;font-family:Arial,sans-serif;">GSM <span style="color:#0ea5e9;">World</span></span>
+            <td class="email-brand-bar" style="background:#0f172a;border-radius:16px 16px 0 0;padding:18px 28px;text-align:center;">
+              <a href="${storeUrl}" style="text-decoration:none;">
+                <span style="display:inline-block;width:30px;height:30px;background:#0ea5e9;border-radius:7px;text-align:center;line-height:30px;font-size:15px;font-weight:900;color:#ffffff;font-family:Arial,sans-serif;vertical-align:middle;">G</span>
+                <span style="font-size:17px;font-weight:900;color:#ffffff;letter-spacing:0.5px;font-family:Arial,sans-serif;vertical-align:middle;margin-left:7px;">GSM <span style="color:#0ea5e9;">World</span></span>
               </a>
             </td>
           </tr>
         </table>
 
         <!-- Card -->
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border-radius:0 0 16px 16px;overflow:hidden;box-shadow:0 8px 40px rgba(15,23,42,0.12);">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="email-card" style="max-width:600px;background:#ffffff;border-radius:0 0 16px 16px;overflow:hidden;box-shadow:0 4px 24px rgba(15,23,42,0.10);">
 
           <!-- Accent line -->
           <tr>
@@ -71,34 +87,34 @@ function layout(preheader: string, accentColor: string, headerContent: string, b
 
           <!-- Header -->
           <tr>
-            <td style="padding:0;">
+            <td class="email-header" style="padding:0;">
               ${headerContent}
             </td>
           </tr>
 
           <!-- Body -->
           <tr>
-            <td style="padding:32px 36px 28px;color:#334155;font-size:15px;line-height:1.75;">
+            <td class="email-body" style="padding:28px 32px 24px;color:#334155;font-size:15px;line-height:1.75;">
               ${body}
             </td>
           </tr>
 
           <!-- Divider -->
           <tr>
-            <td style="padding:0 36px;">
+            <td class="email-footer-divider" style="padding:0 32px;">
               <div style="height:1px;background:#e2e8f0;"></div>
             </td>
           </tr>
 
           <!-- Footer -->
           <tr>
-            <td style="padding:24px 36px 32px;background:#f8fafc;">
+            <td class="email-footer" style="padding:20px 32px 28px;background:#f8fafc;">
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                   <td style="text-align:center;">
                     <p style="margin:0 0 8px;font-size:12px;color:#94a3b8;line-height:1.6;">This message was sent to you because you have an account with GSM World.<br>If you did not request this email, please disregard it.</p>
                     <p style="margin:0;font-size:12px;color:#94a3b8;">
-                      <a href="${storeUrl}" style="color:#0ea5e9;text-decoration:none;font-weight:600;">gsmworld.vercel.app</a>
+                      <a href="${storeUrl}" style="color:#0ea5e9;text-decoration:none;font-weight:600;">gsmworld.co.ke</a>
                       &nbsp;&nbsp;·&nbsp;&nbsp;
                       <a href="${storeUrl}/account" style="color:#0ea5e9;text-decoration:none;">Account Settings</a>
                       &nbsp;&nbsp;·&nbsp;&nbsp;
@@ -115,7 +131,7 @@ function layout(preheader: string, accentColor: string, headerContent: string, b
         </table>
 
         <!-- Below-card note -->
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin-top:16px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin-top:12px;">
           <tr>
             <td style="text-align:center;padding:0 8px;">
               <p style="font-size:11px;color:#94a3b8;margin:0;">GSM World · Official Distributor of GSM Tools &amp; Services Since 2016</p>
@@ -131,17 +147,17 @@ function layout(preheader: string, accentColor: string, headerContent: string, b
 }
 
 function header(bg: string, title: string, subtitle: string) {
-  return `<div style="background:${bg};padding:36px 36px 32px;">
-    <h1 style="margin:0 0 6px;font-size:24px;font-weight:900;color:#ffffff;letter-spacing:-0.3px;line-height:1.2;">${title}</h1>
-    <p style="margin:0;font-size:14px;color:rgba(255,255,255,0.70);font-weight:400;">${subtitle}</p>
+  return `<div class="email-header" style="background:${bg};padding:32px 32px 28px;">
+    <h1 style="margin:0 0 6px;font-size:22px;font-weight:900;color:#ffffff;letter-spacing:-0.3px;line-height:1.25;">${title}</h1>
+    <p style="margin:0;font-size:14px;color:rgba(255,255,255,0.72);font-weight:400;line-height:1.5;">${subtitle}</p>
   </div>`;
 }
 
 function btn(label: string, url: string, bg = "#0ea5e9") {
-  return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:28px 0 0;">
+  return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:24px 0 0;width:100%;">
     <tr>
-      <td style="background:${bg};border-radius:10px;font-size:0;">
-        <a href="${url}" style="display:block;padding:14px 32px;font-size:14px;font-weight:700;color:#ffffff;text-decoration:none;letter-spacing:0.3px;">${label}</a>
+      <td style="background:${bg};border-radius:10px;font-size:0;text-align:center;">
+        <a href="${url}" class="btn-cta" style="display:block;padding:15px 32px;font-size:15px;font-weight:700;color:#ffffff;text-decoration:none;letter-spacing:0.3px;">${label}</a>
       </td>
     </tr>
   </table>`;
@@ -840,23 +856,24 @@ export function announcementEmail(params: {
   function productCard(p: { id: number; name: string; price: string; imageUrl: string | null; originalPrice?: string | null }) {
     const productUrl = `${storeUrl}/products/${p.id}`;
     const imgSrc = p.imageUrl || `${storeUrl}/placeholder.png`;
-    const oldPrice = p.originalPrice ? `<p style="margin:0 0 2px;font-size:10px;color:#94a3b8;text-decoration:line-through;">${parseFloat(p.originalPrice).toFixed(2)}</p>` : "";
+    const oldPriceHtml = p.originalPrice ? `<p style="margin:0 0 2px;font-size:11px;color:#94a3b8;text-decoration:line-through;">${parseFloat(p.originalPrice).toFixed(2)}</p>` : "";
     const discount = p.originalPrice
-      ? `<span style="display:inline-block;background:#ef4444;color:#fff;font-size:9px;font-weight:900;padding:2px 5px;border-radius:4px;margin-left:4px;">-${Math.round((1 - parseFloat(p.price)/parseFloat(p.originalPrice))*100)}%</span>`
+      ? `<span style="display:inline-block;background:#ef4444;color:#fff;font-size:9px;font-weight:900;padding:2px 6px;border-radius:4px;margin-left:4px;">-${Math.round((1 - parseFloat(p.price)/parseFloat(p.originalPrice))*100)}%</span>`
       : "";
-    return `<td style="width:180px;min-width:180px;vertical-align:top;padding-right:12px;">
-      <a href="${productUrl}" style="text-decoration:none;display:block;background:#fff;border:1.5px solid #e2e8f0;border-radius:16px;overflow:hidden;box-shadow:0 2px 8px rgba(15,23,42,0.06);">
-        <div style="width:100%;height:140px;overflow:hidden;background:#f1f5f9;">
-          <img src="${imgSrc}" width="180" height="140" style="width:100%;height:140px;object-fit:cover;display:block;" />
+    // Use table cell with class product-cell — CSS makes it 46% wide on mobile
+    return `<td class="product-cell" style="width:48%;vertical-align:top;padding-right:8px;padding-bottom:10px;">
+      <a href="${productUrl}" style="text-decoration:none;display:block;background:#fff;border:1.5px solid #e2e8f0;border-radius:14px;overflow:hidden;box-shadow:0 2px 8px rgba(15,23,42,0.06);">
+        <div style="width:100%;overflow:hidden;background:#f1f5f9;line-height:0;">
+          <img src="${imgSrc}" width="260" height="160" style="width:100%;height:auto;display:block;object-fit:cover;" />
         </div>
-        <div style="padding:10px 12px 14px;">
-          <p style="margin:0 0 4px;font-size:12px;font-weight:800;color:#0f172a;line-height:1.35;max-height:2.7em;overflow:hidden;">${p.name}</p>
-          ${oldPrice}
-          <p style="margin:0 0 8px;font-size:17px;font-weight:900;color:#0ea5e9;line-height:1;">${parseFloat(p.price).toFixed(2)}${discount}</p>
+        <div style="padding:10px 12px 13px;">
+          <p style="margin:0 0 4px;font-size:13px;font-weight:800;color:#0f172a;line-height:1.35;">${p.name}</p>
+          ${oldPriceHtml}
+          <p style="margin:0 0 10px;font-size:16px;font-weight:900;color:#0ea5e9;line-height:1;">${parseFloat(p.price).toFixed(2)}${discount}</p>
           <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
             <tr>
-              <td style="background:linear-gradient(135deg,#0ea5e9,#0284c7);border-radius:8px;text-align:center;padding:8px 0;">
-                <a href="${productUrl}" style="color:#fff;font-size:11px;font-weight:900;text-decoration:none;letter-spacing:0.5px;">BUY NOW</a>
+              <td style="background:linear-gradient(135deg,#0ea5e9,#0284c7);border-radius:8px;text-align:center;padding:9px 0;">
+                <a href="${productUrl}" style="color:#fff;font-size:12px;font-weight:900;text-decoration:none;letter-spacing:0.5px;">BUY NOW</a>
               </td>
             </tr>
           </table>
@@ -865,34 +882,38 @@ export function announcementEmail(params: {
     </td>`;
   }
 
+  // Build products in rows of 2 for a grid layout that works on both desktop and mobile
+  function buildProductRows(products: typeof params.featuredProducts & object[]) {
+    const rows: string[] = [];
+    for (let i = 0; i < products.length; i += 2) {
+      const pair = products.slice(i, i + 2);
+      rows.push(`<tr>${pair.map(productCard).join("")}${pair.length === 1 ? `<td class="product-cell" style="width:48%;vertical-align:top;"></td>` : ""}</tr>`);
+    }
+    return rows.join("");
+  }
+
   const productsHtml = (params.featuredProducts && params.featuredProducts.length > 0)
-    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 28px;">
+    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px;">
       <tr>
-        <td style="padding:0 0 14px;">
+        <td style="padding:0 0 12px;">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
             <tr>
-              <td><p style="margin:0;font-size:12px;font-weight:900;color:#0f172a;text-transform:uppercase;letter-spacing:1.5px;">🔥 Featured Products</p></td>
-              <td style="text-align:right;"><a href="${storeUrl}/products" style="font-size:11px;color:#0ea5e9;font-weight:700;text-decoration:none;">View All Products →</a></td>
+              <td><p style="margin:0;font-size:12px;font-weight:900;color:#0f172a;text-transform:uppercase;letter-spacing:1.5px;">Featured Products</p></td>
+              <td style="text-align:right;"><a href="${storeUrl}/products" style="font-size:12px;color:#0ea5e9;font-weight:700;text-decoration:none;">View All →</a></td>
             </tr>
           </table>
         </td>
       </tr>
       <tr>
-        <td style="padding:0;">
-          <!-- Horizontal scrolling product strip — slides left to right on mobile -->
-          <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;display:block;padding:4px 0 8px;">
-            <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:separate;border-spacing:0;white-space:nowrap;">
-              <tr>
-                ${params.featuredProducts.map(productCard).join("")}
-              </tr>
-            </table>
-          </div>
+        <td>
+          <table class="product-grid-table" role="presentation" width="100%" cellpadding="0" cellspacing="0">
+            ${buildProductRows(params.featuredProducts)}
+          </table>
         </td>
       </tr>
       <tr>
         <td style="padding:8px 0 0;text-align:center;">
-          <p style="margin:0 0 12px;font-size:10px;color:#94a3b8;letter-spacing:1px;">← SWIPE TO EXPLORE MORE DEALS →</p>
-          <a href="${storeUrl}/products" style="display:inline-block;background:#0f172a;color:#fff;font-size:12px;font-weight:800;padding:12px 28px;border-radius:10px;text-decoration:none;letter-spacing:0.3px;">🛒 Shop All Products</a>
+          <a href="${storeUrl}/products" style="display:inline-block;background:#0f172a;color:#fff;font-size:13px;font-weight:800;padding:13px 28px;border-radius:10px;text-decoration:none;letter-spacing:0.3px;">Shop All Products</a>
         </td>
       </tr>
     </table>`
