@@ -2734,7 +2734,7 @@ router.post("/chat/bot", async (req, res) => {
               tools: TOOLS,
               tool_choice: "auto",
               parallel_tool_calls: true,
-              max_tokens: 500,
+              max_tokens: 1500,
               temperature: 0.3,
               stream: wantsStream,
             }),
