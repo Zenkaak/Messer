@@ -2507,7 +2507,7 @@ function UsersPanel({ pwd }: { pwd: string }) {
 
       {/* Send Direct Message Modal */}
       {msgModal && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm" onClick={e => { if (e.target === e.currentTarget) { setMsgModal(null); setMsgText(""); setChatHistory([]); } }}>
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm pb-16 sm:pb-0" onClick={e => { if (e.target === e.currentTarget) { setMsgModal(null); setMsgText(""); setChatHistory([]); } }}>
           <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col" style={{ maxHeight: "88vh" }}>
             {/* Chat header */}
             <div className="flex items-center gap-3 px-5 pt-5 pb-3.5 border-b border-slate-100">

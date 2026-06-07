@@ -3,6 +3,8 @@ name: Build & Release Admin APK
 on:
   push:
     branches: [main]
+    paths:
+      - 'android-admin-app/**'
   workflow_dispatch:
 
 jobs:
