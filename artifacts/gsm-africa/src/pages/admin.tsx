@@ -2471,7 +2471,7 @@ function PaymentsPanel({ pwd }: { pwd: string }) {
         <div className="bg-blue-50 border border-blue-100 rounded-xl px-3.5 py-2.5 text-[11px] text-blue-700 leading-relaxed">
           Get a key at{" "}
           <a href="https://platform.openai.com/api-keys" target="_blank" rel="noreferrer" className="font-bold underline">platform.openai.com</a>
-          {" "}→ API keys. GSMBot uses <strong>gpt-4o-mini</strong> (very low cost).
+          {" "}→ API keys. For OpenRouter keys, GSMBot uses free models at no cost. For direct OpenAI keys, it uses <strong>gpt-4o-mini</strong>.
         </div>
         <MaskedInput label="OpenAI API Key" value={form.openaiApiKey}
           onChange={v => setForm(f => ({ ...f, openaiApiKey: v }))}
@@ -3051,7 +3051,7 @@ function AnnouncementsPanel({ pwd }: { pwd: string }) {
             <Zap size={12} className="text-white" />
           </div>
           <p className="text-sm font-bold text-purple-900">AI Email Generator</p>
-          <span className="text-[10px] bg-purple-200 text-purple-700 font-bold px-1.5 py-0.5 rounded-full">GPT-4o mini</span>
+          <span className="text-[10px] bg-purple-200 text-purple-700 font-bold px-1.5 py-0.5 rounded-full">Free AI</span>
         </div>
         <textarea
           value={aiPrompt}
