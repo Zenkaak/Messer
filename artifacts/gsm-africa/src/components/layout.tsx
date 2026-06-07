@@ -75,6 +75,37 @@ export function Layout({ children }: { children: React.ReactNode }) {
       .catch(() => { /* ignore network errors */ });
   }, []);
 
+  // Auto-reload web content when a new Vercel deploy is detected (WebView only — browser uses service worker)
+  useEffect(() => {
+    const isAndroidWebApp = navigator.userAgent.includes("GSMWorldApp");
+    if (!isAndroidWebApp) return;
+
+    let knownBuildId: string | null = null;
+
+    async function checkWebVersion() {
+      try {
+        const r = await fetch(`${basePath}/api/web-version`, { cache: "no-store" });
+        if (!r.ok) return;
+        const d = await r.json() as { buildId?: string };
+        if (!d.buildId) return;
+        if (knownBuildId === null) {
+          knownBuildId = d.buildId; // first poll — just record current build
+          return;
+        }
+        if (d.buildId !== knownBuildId) {
+          // New Vercel deployment detected — silently reload to pick up latest web content
+          const url = new URL(window.location.href);
+          url.searchParams.set("_v", String(Date.now()));
+          window.location.replace(url.toString());
+        }
+      } catch { /* ignore network errors */ }
+    }
+
+    checkWebVersion(); // run immediately on mount
+    const interval = setInterval(checkWebVersion, 60_000); // re-check every 60 s
+    return () => clearInterval(interval);
+  }, [basePath]);
+
   // Invalidate cart cache when user logs in so guest cart items appear immediately
   useEffect(() => {
     if (isAuthenticated && !prevAuthRef.current) {

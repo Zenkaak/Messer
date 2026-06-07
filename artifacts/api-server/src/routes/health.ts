@@ -5,6 +5,12 @@ const router: IRouter = Router();
 
 const APP_VERSION = "2.0.0";
 const RELEASE_DATE = "2026-06-02";
+
+// Unique ID for the current web deployment — changes on every Vercel deploy
+const WEB_BUILD_ID =
+  process.env.VERCEL_DEPLOYMENT_ID ||
+  process.env.VERCEL_GIT_COMMIT_SHA ||
+  String(Date.now()); // fallback: server start time (changes on each restart)
 const GITHUB_OWNER = "Zenkaak";
 const GITHUB_REPO = "Messer";
 
@@ -42,6 +48,12 @@ router.get("/healthz", (_req, res) => {
 
 router.get("/version", (_req, res) => {
   res.json({ version: APP_VERSION, releaseDate: RELEASE_DATE });
+});
+
+// Web build ID — used by the WebView to detect new Vercel deploys and auto-reload
+router.get("/web-version", (_req, res) => {
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+  res.json({ buildId: WEB_BUILD_ID });
 });
 
 // Returns the latest APK version + download URL for auto-update checks
