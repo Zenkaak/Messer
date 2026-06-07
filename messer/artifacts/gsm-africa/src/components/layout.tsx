@@ -75,6 +75,23 @@ export function Layout({ children }: { children: React.ReactNode }) {
       .catch(() => { /* ignore network errors */ });
   }, []);
 
+  // Persist reseller referral from ?ref= query param or /store/:slug path for the whole session
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const ref = params.get("ref");
+      if (ref && ref.length > 0 && ref.length <= 50) {
+        sessionStorage.setItem("gsm_reseller_ref", ref.trim().toLowerCase());
+      } else {
+        // Also capture /store/:slug path style
+        const storeMatch = window.location.pathname.match(/\/store\/([a-z0-9-]+)/i);
+        if (storeMatch?.[1] && !sessionStorage.getItem("gsm_reseller_ref")) {
+          sessionStorage.setItem("gsm_reseller_ref", storeMatch[1].toLowerCase());
+        }
+      }
+    } catch { /* sessionStorage unavailable */ }
+  }, []);
+
   // Invalidate cart cache when user logs in so guest cart items appear immediately
   useEffect(() => {
     if (isAuthenticated && !prevAuthRef.current) {
