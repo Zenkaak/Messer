@@ -2103,7 +2103,7 @@ async function toolResetUserPassword(email: string, code: string, newPassword: s
 async function toolPlaceOrder(args: {
   paymentMethod: string; customerEmail: string; customerName?: string;
   customerPhone?: string; deviceIdentifier?: string; payCurrency?: string;
-  sessionId?: string | null; botToken?: string | null;
+  sessionId?: string | null; botToken?: string | null; resellerSlug?: string | null;
 }): Promise<Record<string, unknown>> {
   try {
     const pm = args.paymentMethod.toLowerCase().replace(/^binance$/, "binance_pay");
@@ -2148,6 +2148,7 @@ async function toolPlaceOrder(args: {
       total: String(total),
       currency: "USD",
       deviceIdentifier: args.deviceIdentifier ?? null,
+      resellerSlug: args.resellerSlug ?? null,
     }).returning();
 
     // Insert order items
@@ -2305,7 +2306,7 @@ type ToolCallItem = { id: string; type: string; function: { name: string; argume
 /** Execute a list of tool calls in parallel and return tool-role messages + action data. */
 async function runToolCalls(
   toolCalls: ToolCallItem[],
-  opts: { isAuthenticated: boolean; userEmail: string | null; sessionId?: string | null; botToken?: string | null },
+  opts: { isAuthenticated: boolean; userEmail: string | null; sessionId?: string | null; botToken?: string | null; resellerSlug?: string | null },
 ): Promise<{
   messages: Array<{ role: string; content: string; tool_call_id: string; name: string }>;
   actionType: string | null;
@@ -2434,6 +2435,7 @@ async function runToolCalls(
           payCurrency: args.pay_currency ? String(args.pay_currency) : undefined,
           sessionId: opts.sessionId ?? "guest-session",
           botToken: opts.botToken,
+          resellerSlug: args.reseller_slug ? String(args.reseller_slug) : (opts.resellerSlug ?? null),
         });
         result = JSON.stringify(r);
         if (r.success) {
@@ -2644,9 +2646,10 @@ router.post("/chat/bot", async (req, res) => {
       : [];
 
     // Read authenticated user context from request
-    const { userEmail: rawUserEmail, isAuthenticated: rawIsAuth, sessionId: rawSessionId, botToken: rawBotToken } = req.body as { userEmail?: string; isAuthenticated?: boolean; sessionId?: string; botToken?: string };
+    const { userEmail: rawUserEmail, isAuthenticated: rawIsAuth, sessionId: rawSessionId, botToken: rawBotToken, resellerSlug: rawResellerSlug } = req.body as { userEmail?: string; isAuthenticated?: boolean; sessionId?: string; botToken?: string; resellerSlug?: string };
     const userEmail = typeof rawUserEmail === "string" && rawUserEmail.includes("@") ? rawUserEmail.toLowerCase() : null;
     const isAuthenticated = rawIsAuth === true;
+    const reqResellerSlug = typeof rawResellerSlug === "string" && rawResellerSlug.length > 0 && rawResellerSlug.length <= 50 ? rawResellerSlug.toLowerCase() : null;
     const reqSessionId = typeof rawSessionId === "string" && rawSessionId.length > 0 ? rawSessionId : null;
     const reqBotToken = typeof rawBotToken === "string" && rawBotToken.length > 0 ? rawBotToken : null;
 
@@ -2657,8 +2660,12 @@ router.post("/chat/bot", async (req, res) => {
       ? `\n\n[SYSTEM: This user is AUTHENTICATED. Their verified email is: ${userEmail}. RULES:\n1. NEVER ask for their email — you already have it: ${userEmail}\n2. For place_order, always pass customer_email="${userEmail}" automatically — do NOT ask the customer for it\n3. For order lookups, use ${userEmail} automatically — just ask for the order number\n4. For gift card / unlock orders, skip the "What email should we send the code to?" question — use ${userEmail}]`
       : `\n\n[SYSTEM: This user is a GUEST (not logged in). For order lookups, you MUST ask for BOTH their email address AND their order number before calling lookup_order.]`;
 
+    const resellerContext = reqResellerSlug
+      ? `\n\n[SYSTEM: This session was referred by reseller store "${reqResellerSlug}". When calling place_order, you MUST always include reseller_slug="${reqResellerSlug}" as a parameter — never omit it, even if not explicitly mentioned by the customer.]`
+      : "";
+
     const openaiMessages: Array<Record<string, unknown>> = [
-      { role: "system", content: systemPrompt + authContext },
+      { role: "system", content: systemPrompt + authContext + resellerContext },
       ...safeMessages,
     ];
 
@@ -2848,7 +2855,7 @@ router.post("/chat/bot", async (req, res) => {
           }
 
           msgs.push({ role: "assistant", content: text || null, tool_calls: toolCalls });
-          const tr = await runToolCalls(toolCalls, { isAuthenticated, userEmail, sessionId: reqSessionId, botToken: reqBotToken });
+          const tr = await runToolCalls(toolCalls, { isAuthenticated, userEmail, sessionId: reqSessionId, botToken: reqBotToken, resellerSlug: reqResellerSlug });
           msgs.push(...tr.messages);
           if (tr.actionType) actionType = tr.actionType;
           if (tr.actionData) actionData = tr.actionData;
@@ -2893,7 +2900,7 @@ router.post("/chat/bot", async (req, res) => {
 
           const tr = await runToolCalls(
             assistantMsg.tool_calls as ToolCallItem[],
-            { isAuthenticated, userEmail, sessionId: reqSessionId, botToken: reqBotToken },
+            { isAuthenticated, userEmail, sessionId: reqSessionId, botToken: reqBotToken, resellerSlug: reqResellerSlug },
           );
           msgs.push(...tr.messages);
           if (tr.actionType) actionType = tr.actionType;
