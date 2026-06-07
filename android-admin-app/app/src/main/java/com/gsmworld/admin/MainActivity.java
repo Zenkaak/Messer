@@ -161,12 +161,40 @@ public class MainActivity extends AppCompatActivity {
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
 
+        // Intercept APK download links that the WebView cannot handle itself.
+        // Without this, tapping "Download APK" in the dashboard silently does
+        // nothing — the WebView tries to navigate to github.com (blocked by
+        // shouldOverrideUrlLoading) and never triggers a download.
+        // This listener catches the case where the server sends
+        // Content-Disposition: attachment or an APK MIME type.
+        webView.setDownloadListener((url, userAgent, contentDisposition, mimetype, contentLength) -> {
+            if (url.endsWith(".apk")
+                    || "application/vnd.android.package-archive".equals(mimetype)) {
+                mainHandler.post(() -> Toast.makeText(MainActivity.this,
+                    "Downloading update…", Toast.LENGTH_SHORT).show());
+                executor.execute(() -> downloadAndInstallSilent(url));
+            }
+        });
+
         webView.setWebChromeClient(new WebChromeClient());
         webView.setWebViewClient(new WebViewClient() {
 
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 String host = request.getUrl().getHost();
+                String path = request.getUrl().getPath();
+
+                // APK download link from the admin dashboard "Download APK" button.
+                // The WebView cannot navigate to a binary file — intercept it here
+                // and hand off to the same silent download+install flow used by
+                // the auto-updater, so the user gets the install prompt directly.
+                if (path != null && path.endsWith(".apk")) {
+                    mainHandler.post(() -> Toast.makeText(MainActivity.this,
+                        "Downloading update…", Toast.LENGTH_SHORT).show());
+                    executor.execute(() -> downloadAndInstallSilent(request.getUrl().toString()));
+                    return true;
+                }
+
                 return !ADMIN_HOST.equals(host);
             }
 

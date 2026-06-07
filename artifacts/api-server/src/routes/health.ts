@@ -14,7 +14,7 @@ const WEB_BUILD_ID =
 const GITHUB_OWNER = "Zenkaak";
 const GITHUB_REPO = "Messer";
 
-// Cache the latest release so we don't hammer the GitHub API
+// Cache the latest admin APK release so we don't hammer the GitHub API
 let _apkCache: { url: string; version: string; fetchedAt: number } | null = null;
 
 async function getLatestApkRelease(): Promise<{ url: string; version: string } | null> {
@@ -22,18 +22,36 @@ async function getLatestApkRelease(): Promise<{ url: string; version: string } |
     return { url: _apkCache.url, version: _apkCache.version };
   }
   try {
+    // Fetch all releases and sort by published_at — /releases/latest uses
+    // GitHub's "Latest" marker which can point to an older release when
+    // make_latest was previously false or when many releases exist.
     const res = await fetch(
-      `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`,
+      `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases?per_page=50`,
       { headers: { Accept: "application/vnd.github.v3+json", "User-Agent": "GSMWorld-App/1.0" } },
     );
     if (!res.ok) return null;
-    const data = await res.json() as {
+    const releases = await res.json() as Array<{
       tag_name: string;
-      assets: Array<{ name: string; browser_download_url: string }>;
-    };
-    const apk = data.assets.find(a => a.name.toLowerCase().endsWith(".apk"));
+      published_at: string;
+      assets: Array<{ name: string; browser_download_url: string; state: string }>;
+    }>;
+
+    // Sort newest first, then find the first admin-apk-* release with an uploaded APK
+    releases.sort((a, b) =>
+      new Date(b.published_at).getTime() - new Date(a.published_at).getTime()
+    );
+    const adminRelease = releases.find(r =>
+      r.tag_name.startsWith("admin-apk-") &&
+      r.assets.some(a => a.name.endsWith(".apk") && a.state === "uploaded")
+    );
+    if (!adminRelease) return null;
+
+    const apk = adminRelease.assets.find(
+      a => a.name.endsWith(".apk") && a.state === "uploaded"
+    );
     if (!apk) return null;
-    const result = { url: apk.browser_download_url, version: data.tag_name.replace(/^v/, "") };
+
+    const result = { url: apk.browser_download_url, version: adminRelease.tag_name };
     _apkCache = { ...result, fetchedAt: Date.now() };
     return result;
   } catch {
@@ -65,17 +83,20 @@ router.get("/app/version", async (_req, res) => {
   });
 });
 
-// APK download — redirects to the latest GitHub release asset
-// Served from our own domain so Chrome trusts the origin better
+// APK download — proxies the latest admin APK from GitHub releases.
+// Going through our own domain avoids WebView host-blocking and lets
+// the DownloadListener in MainActivity.java intercept the response.
 router.get("/download/apk", async (_req, res) => {
   const release = await getLatestApkRelease();
-  const apkUrl =
-    release?.url ??
-    `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest/download/app-release.apk`;
+  if (!release) {
+    res.status(404).json({ error: "No admin APK release found" });
+    return;
+  }
+  const filename = `gsm-admin-${release.version}.apk`;
   res.setHeader("Content-Type", "application/vnd.android.package-archive");
-  res.setHeader("Content-Disposition", 'attachment; filename="GSMWorld.apk"');
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
   res.setHeader("X-Content-Type-Options", "nosniff");
-  res.redirect(302, apkUrl);
+  res.redirect(302, release.url);
 });
 
 export default router;
