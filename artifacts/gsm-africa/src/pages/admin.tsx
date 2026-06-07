@@ -1412,6 +1412,7 @@ function ResellersPanel({ pwd }: { pwd: string }) {
   const [wActingId, setWActingId] = useState<number | null>(null);
   const [wNotes, setWNotes] = useState("");
   const [wActionModal, setWActionModal] = useState<{ w: AdminWithdrawal; action: "approve" | "reject" } | null>(null);
+  const [selectedReseller, setSelectedReseller] = useState<AdminReseller | null>(null);
   const { toast } = useToast();
   const base = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -1541,7 +1542,7 @@ function ResellersPanel({ pwd }: { pwd: string }) {
           ) : (
             <div className="space-y-2">
               {resellers.map(r => (
-                <div key={r.id} className="bg-white border border-slate-200 rounded-2xl p-4">
+                <div key={r.id} className="bg-white border border-slate-200 rounded-2xl p-4 cursor-pointer hover:border-slate-300 hover:shadow-sm transition-all" onClick={() => setSelectedReseller(r)}>
                   <div className="flex items-start gap-3">
                     <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center shrink-0">
                       <Store size={16} className="text-slate-500" />
@@ -1556,7 +1557,8 @@ function ResellersPanel({ pwd }: { pwd: string }) {
                         <span className="font-mono bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 text-[10px]">/store/{r.storeSlug}</span>
                         {r.status === "approved" && (
                           <a href={`${base}/store/${r.storeSlug}`} target="_blank" rel="noopener noreferrer"
-                            className="flex items-center gap-0.5 text-blue-500 hover:underline text-[10px]">
+                            className="flex items-center gap-0.5 text-blue-500 hover:underline text-[10px]"
+                            onClick={e => e.stopPropagation()}>
                             <ExternalLink size={9} /> View Store
                           </a>
                         )}
@@ -1685,6 +1687,148 @@ function ResellersPanel({ pwd }: { pwd: string }) {
             </div>
           )}
         </>
+      )}
+
+      {/* Reseller detail modal */}
+      {selectedReseller && (
+        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.5)" }}
+          onClick={() => setSelectedReseller(null)}>
+          <div className="bg-white w-full max-w-md rounded-3xl overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div className="bg-slate-900 px-5 py-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
+                  <Store size={18} className="text-white" />
+                </div>
+                <div>
+                  <p className="font-black text-white text-sm">{selectedReseller.storeName ?? selectedReseller.storeSlug}</p>
+                  <p className="text-slate-400 text-[10px] font-mono">/store/{selectedReseller.storeSlug}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <ResellerStatusBadge status={selectedReseller.status} />
+                <button onClick={() => setSelectedReseller(null)} className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-white text-xs hover:bg-white/20">✕</button>
+              </div>
+            </div>
+            {/* Body */}
+            <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
+              {/* Owner info */}
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Owner Details</p>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-slate-500">Name</span>
+                  <span className="font-semibold text-slate-800">{selectedReseller.ownerName ?? "—"}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-slate-500">Email</span>
+                  <span className="font-semibold text-slate-800 text-xs">{selectedReseller.email}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-slate-500">User ID</span>
+                  <span className="font-mono text-slate-600 text-xs">#{selectedReseller.userId}</span>
+                </div>
+              </div>
+              {/* Performance */}
+              <div className="grid grid-cols-3 gap-2">
+                <div className="bg-white border border-slate-200 rounded-2xl p-3 text-center">
+                  <p className="text-lg font-black text-emerald-600">${parseFloat(selectedReseller.totalEarned).toFixed(2)}</p>
+                  <p className="text-[9px] text-slate-400 font-semibold mt-0.5">Total Earned</p>
+                </div>
+                <div className="bg-white border border-slate-200 rounded-2xl p-3 text-center">
+                  <p className="text-lg font-black text-slate-700">{selectedReseller.totalOrders}</p>
+                  <p className="text-[9px] text-slate-400 font-semibold mt-0.5">Orders</p>
+                </div>
+                <div className="bg-white border border-slate-200 rounded-2xl p-3 text-center">
+                  <p className="text-lg font-black text-blue-600">{selectedReseller.commissionRate}%</p>
+                  <p className="text-[9px] text-slate-400 font-semibold mt-0.5">Commission</p>
+                </div>
+              </div>
+              {/* Payment info */}
+              {(selectedReseller.paymentMethod || selectedReseller.paymentReference) && (
+                <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 space-y-2">
+                  <p className="text-[10px] font-bold text-blue-400 uppercase tracking-wider">Security Fee Payment</p>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-blue-600">Method</span>
+                    <span className="font-semibold text-blue-800">{selectedReseller.paymentMethod ?? "—"}</span>
+                  </div>
+                  {selectedReseller.paymentReference && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-blue-600">Reference</span>
+                      <span className="font-mono text-blue-800 text-xs">{selectedReseller.paymentReference}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-blue-600">Fee Paid</span>
+                    <span className={`font-bold text-xs ${selectedReseller.securityFeePaid ? "text-emerald-600" : "text-amber-600"}`}>
+                      {selectedReseller.securityFeePaid ? "✓ Yes" : "✗ No"}
+                    </span>
+                  </div>
+                </div>
+              )}
+              {/* Dates */}
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Timeline</p>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-slate-500">Applied</span>
+                  <span className="text-slate-700">{new Date(selectedReseller.createdAt).toLocaleDateString()}</span>
+                </div>
+                {selectedReseller.approvedAt && (
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-slate-500">Approved</span>
+                    <span className="text-emerald-600">{new Date(selectedReseller.approvedAt).toLocaleDateString()}</span>
+                  </div>
+                )}
+              </div>
+              {/* Rejection reason */}
+              {selectedReseller.rejectionReason && (
+                <div className="bg-red-50 border border-red-100 rounded-2xl p-4">
+                  <p className="text-[10px] font-bold text-red-400 uppercase tracking-wider mb-1">Rejection Reason</p>
+                  <p className="text-sm text-red-700">{selectedReseller.rejectionReason}</p>
+                </div>
+              )}
+              {/* Links */}
+              {selectedReseller.status === "approved" && (
+                <a href={`${base}/store/${selectedReseller.storeSlug}`} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-2 w-full py-3 border border-blue-200 text-blue-600 font-bold rounded-2xl text-sm hover:bg-blue-50 transition-colors">
+                  <ExternalLink size={13} /> View Live Store
+                </a>
+              )}
+              {/* Actions */}
+              <div className="flex gap-2 flex-wrap" onClick={e => e.stopPropagation()}>
+                {selectedReseller.status === "pending_approval" && (
+                  <>
+                    <button onClick={() => { approve(selectedReseller.id); setSelectedReseller(null); }} disabled={actingId === selectedReseller.id}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-2xl disabled:opacity-50">
+                      <CheckCircle2 size={13} /> Approve
+                    </button>
+                    <button onClick={() => { setRejectModal(selectedReseller); setRejectReason(""); setSelectedReseller(null); }}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-3 bg-red-50 border border-red-200 text-red-600 text-sm font-bold rounded-2xl">
+                      <XCircle size={13} /> Reject
+                    </button>
+                  </>
+                )}
+                {selectedReseller.status === "pending_payment" && (
+                  <>
+                    <button onClick={() => { confirmPayment(selectedReseller.id); setSelectedReseller(null); }} disabled={actingId === selectedReseller.id}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-2xl disabled:opacity-50">
+                      <CheckCircle2 size={13} /> Confirm Payment
+                    </button>
+                    <button onClick={() => { setRejectModal(selectedReseller); setRejectReason(""); setSelectedReseller(null); }}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-3 bg-red-50 border border-red-200 text-red-600 text-sm font-bold rounded-2xl">
+                      <XCircle size={13} /> Reject
+                    </button>
+                  </>
+                )}
+                {selectedReseller.status === "rejected" && (
+                  <button onClick={() => { approve(selectedReseller.id); setSelectedReseller(null); }} disabled={actingId === selectedReseller.id}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-3 bg-emerald-50 border border-emerald-200 text-emerald-600 text-sm font-bold rounded-2xl disabled:opacity-50">
+                    <CheckCircle2 size={13} /> Approve Anyway
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Reject application modal */}
