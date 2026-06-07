@@ -83,8 +83,8 @@ interface ToolActivation {
   notes: string | null; createdAt: string; updatedAt: string;
 }
 interface AdminUser {
-  id: number; email: string; name: string | null;
-  walletBalance: string; status: string; createdAt: string;
+  id: number; email: string; name: string | null; username: string | null;
+  walletBalance: string; status: string; createdAt: string; registrationIp: string | null;
 }
 interface AdminProduct {
   id: number; name: string; price: string;
@@ -2213,8 +2213,9 @@ function UsersPanel({ pwd }: { pwd: string }) {
   const [creating, setCreating] = useState(false);
   const [msgModal, setMsgModal] = useState<AdminUser | null>(null);
   const [msgText, setMsgText] = useState("");
-  const [msgOrderId, setMsgOrderId] = useState("");
   const [msgSending, setMsgSending] = useState(false);
+  const [chatHistory, setChatHistory] = useState<{id: number; senderType: string; message: string; createdAt: string}[]>([]);
+  const [chatLoading, setChatLoading] = useState(false);
   const { toast } = useToast();
   const PER = 30;
 
@@ -2306,19 +2307,27 @@ function UsersPanel({ pwd }: { pwd: string }) {
     } finally { setCreating(false); }
   }
 
+  async function loadChatHistory(userId: number) {
+    setChatLoading(true);
+    try {
+      const r = await adminFetch(`/api/admin/users/${userId}/messages`, pwd);
+      if (r.ok) {
+        const d = await r.json() as { messages: {id: number; senderType: string; message: string; createdAt: string}[] };
+        setChatHistory(d.messages ?? []);
+      }
+    } finally { setChatLoading(false); }
+  }
+
   async function sendDirectMessage() {
     if (!msgModal || !msgText.trim()) return;
     setMsgSending(true);
+    const text = msgText.trim();
     try {
-      const body: Record<string, unknown> = { message: msgText.trim() };
-      if (msgOrderId) body.orderId = Number(msgOrderId);
-      const r = await adminFetch(`/api/admin/users/${msgModal.id}/message`, pwd, { method: "POST", body: JSON.stringify(body) });
-      const d = await r.json() as { error?: string };
+      const r = await adminFetch(`/api/admin/users/${msgModal.id}/message`, pwd, { method: "POST", body: JSON.stringify({ message: text }) });
+      const d = await r.json() as { error?: string; id?: number };
       if (!r.ok) throw new Error(d.error || "Failed");
-      toast({ title: "Message sent", description: `Sent to ${msgModal.email}` });
-      setMsgModal(null);
+      setChatHistory(prev => [...prev, { id: d.id ?? Date.now(), senderType: "admin", message: text, createdAt: new Date().toISOString() }]);
       setMsgText("");
-      setMsgOrderId("");
     } catch (err) {
       toast({ variant: "destructive", title: err instanceof Error ? err.message : "Send failed" });
     } finally { setMsgSending(false); }
@@ -2427,27 +2436,62 @@ function UsersPanel({ pwd }: { pwd: string }) {
 
       {/* Send Direct Message Modal */}
       {msgModal && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm" onClick={e => { if (e.target === e.currentTarget) { setMsgModal(null); setMsgText(""); setMsgOrderId(""); } }}>
-          <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl p-5 space-y-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between">
-              <h3 className="font-black text-slate-900 text-lg">Direct Message</h3>
-              <button onClick={() => { setMsgModal(null); setMsgText(""); setMsgOrderId(""); }} className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200">✕</button>
-            </div>
-            <p className="text-sm text-slate-500">Sending to <span className="font-semibold text-slate-700">{msgModal.email}</span></p>
-            <div className="space-y-3">
-              <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Order ID (optional – auto-uses latest order)</label>
-                <input type="number" value={msgOrderId} onChange={e => setMsgOrderId(e.target.value)} placeholder="e.g. 42" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm" onClick={e => { if (e.target === e.currentTarget) { setMsgModal(null); setMsgText(""); setChatHistory([]); } }}>
+          <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col" style={{ maxHeight: "88vh" }}>
+            {/* Chat header */}
+            <div className="flex items-center gap-3 px-5 pt-5 pb-3.5 border-b border-slate-100">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white font-black text-sm shrink-0">
+                {(msgModal.name || msgModal.email).charAt(0).toUpperCase()}
               </div>
-              <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Message *</label>
-                <textarea value={msgText} onChange={e => setMsgText(e.target.value)} rows={4} placeholder="Type your message to the user…" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-black text-slate-900 truncate">{msgModal.name || "No name"}</p>
+                <p className="text-[10px] text-slate-400 truncate">{msgModal.email}{msgModal.username ? ` · @${msgModal.username}` : ""}</p>
               </div>
+              <button onClick={() => { setMsgModal(null); setMsgText(""); setChatHistory([]); }} className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 hover:bg-slate-200 shrink-0">✕</button>
             </div>
-            <div className="flex gap-2 pt-1">
-              <button onClick={() => { setMsgModal(null); setMsgText(""); setMsgOrderId(""); }} className="flex-1 py-3 border border-slate-200 text-slate-600 font-bold rounded-2xl text-sm">Cancel</button>
-              <button onClick={sendDirectMessage} disabled={msgSending || !msgText.trim()} className="flex-1 flex items-center justify-center gap-1.5 py-3 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-2xl text-sm disabled:opacity-60">
-                {msgSending ? "Sending…" : <><Send size={13} /> Send</>}
+            {/* Chat history */}
+            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2.5" style={{ minHeight: 160 }}>
+              {chatLoading ? (
+                <div className="flex justify-center py-8"><div className="w-5 h-5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" /></div>
+              ) : chatHistory.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-10 text-center">
+                  <MessageSquare size={28} className="text-slate-200 mb-2" />
+                  <p className="text-xs text-slate-400 font-medium">No messages yet</p>
+                  <p className="text-[10px] text-slate-300">Send the first message below.</p>
+                </div>
+              ) : (
+                chatHistory.map(m => (
+                  <div key={m.id} className={`flex ${m.senderType === "admin" ? "justify-end" : "justify-start"}`}>
+                    <div className={`max-w-[78%] px-3 py-2 rounded-2xl text-sm leading-relaxed ${m.senderType === "admin" ? "bg-blue-600 text-white rounded-br-sm" : "bg-slate-100 text-slate-800 rounded-bl-sm"}`}>
+                      <p className="whitespace-pre-wrap break-words">{m.message}</p>
+                      <p className={`text-[9px] mt-0.5 ${m.senderType === "admin" ? "text-blue-200" : "text-slate-400"}`}>{new Date(m.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+            {/* Reg IP strip */}
+            {msgModal.registrationIp && (
+              <div className="px-4 py-1 bg-slate-50 border-t border-slate-100">
+                <p className="text-[9px] text-slate-300 font-mono">IP {msgModal.registrationIp}</p>
+              </div>
+            )}
+            {/* Compose bar */}
+            <div className="flex items-end gap-2 px-4 py-3 border-t border-slate-100">
+              <textarea
+                value={msgText}
+                onChange={e => setMsgText(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendDirectMessage(); } }}
+                rows={2}
+                placeholder="Type a message… Enter to send"
+                className="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
+              />
+              <button
+                onClick={sendDirectMessage}
+                disabled={msgSending || !msgText.trim()}
+                className="w-10 h-10 flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white rounded-xl disabled:opacity-40 transition-colors shrink-0"
+              >
+                {msgSending ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Send size={15} />}
               </button>
             </div>
           </div>
@@ -2495,6 +2539,7 @@ function UsersPanel({ pwd }: { pwd: string }) {
                         <UserStatusBadge status={u.status} />
                       </div>
                       <p className="text-[11px] text-slate-400 truncate">{u.email}</p>
+                      {u.username && <p className="text-[10px] font-semibold text-blue-500 truncate">@{u.username}</p>}
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <div className="text-right">
@@ -2510,6 +2555,14 @@ function UsersPanel({ pwd }: { pwd: string }) {
 
                   {isExpanded && (
                     <div className="border-t border-slate-100 px-4 py-3 space-y-2 bg-slate-50/60">
+                      {/* User details */}
+                      <div className="bg-white border border-slate-100 rounded-xl p-3 space-y-1.5">
+                        <div className="flex justify-between text-[11px]"><span className="text-slate-400 font-semibold">User ID</span><span className="font-black text-slate-700">#{u.id}</span></div>
+                        {u.username && <div className="flex justify-between text-[11px]"><span className="text-slate-400 font-semibold">Username</span><span className="font-bold text-blue-600">@{u.username}</span></div>}
+                        <div className="flex justify-between text-[11px]"><span className="text-slate-400 font-semibold">Wallet</span><span className="font-black text-emerald-600">${Number(u.walletBalance).toFixed(2)}</span></div>
+                        <div className="flex justify-between text-[11px]"><span className="text-slate-400 font-semibold">Joined</span><span className="font-bold text-slate-700">{new Date(u.createdAt).toLocaleDateString()}</span></div>
+                        {u.registrationIp && <div className="flex justify-between text-[11px] items-center gap-2"><span className="text-slate-400 font-semibold shrink-0">Reg. IP</span><span className="font-mono text-slate-500 text-right break-all">{u.registrationIp}</span></div>}
+                      </div>
                       {/* Wallet management row */}
                       <div className="flex gap-2">
                         <button onClick={() => { setWalletModal({ user: u, action: "add" }); setWalletAmount(""); setExpandedId(null); }}
@@ -2523,7 +2576,7 @@ function UsersPanel({ pwd }: { pwd: string }) {
                       </div>
                       {/* Send message row */}
                       <div className="flex gap-2">
-                        <button onClick={() => { setMsgModal(u); setMsgText(""); setMsgOrderId(""); setExpandedId(null); }}
+                        <button onClick={() => { setMsgModal(u); setMsgText(""); setChatHistory([]); loadChatHistory(u.id); setExpandedId(null); }}
                           className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 transition-colors">
                           <MessageSquare size={13} /> Send Message
                         </button>
