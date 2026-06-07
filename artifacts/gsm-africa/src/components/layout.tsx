@@ -296,14 +296,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 />
               )}
 
-              {/* Admin section */}
-              <p className="px-2 pt-4 pb-1 text-[9px] font-black text-slate-500/60 uppercase tracking-[0.15em]">Admin</p>
-              <SideLink
-                href={`${basePath}/admin`} icon={<Shield size={16} />} label="Admin Panel"
-                onClick={() => setSidebarOpen(false)} active={location.startsWith("/admin")}
-                iconBg="bg-slate-700/60 text-slate-400"
-              />
-
               {/* App Download / Update */}
               <p className="px-2 pt-4 pb-1 text-[9px] font-black text-green-400/60 uppercase tracking-[0.15em]">Mobile App</p>
               {navigator.userAgent.includes("GSMWorldApp") ? (
