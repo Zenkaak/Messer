@@ -273,6 +273,19 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 badge="10%"
               />
 
+              {/* Legal section */}
+              <p className="px-2 pt-4 pb-1 text-[9px] font-black text-gray-500/60 uppercase tracking-[0.15em]">Legal</p>
+              <SideLink
+                href={`${basePath}/terms`} icon={<Shield size={16} />} label="Terms &amp; Conditions"
+                onClick={() => setSidebarOpen(false)} active={location === "/terms"}
+                iconBg="bg-gray-800 text-gray-400"
+              />
+              <SideLink
+                href={`${basePath}/privacy`} icon={<Shield size={16} />} label="Privacy Policy"
+                onClick={() => setSidebarOpen(false)} active={location === "/privacy"}
+                iconBg="bg-gray-800 text-gray-400"
+              />
+
               {/* Account section */}
               <p className="px-2 pt-4 pb-1 text-[9px] font-black text-blue-400/60 uppercase tracking-[0.15em]">Account</p>
               {isAuthenticated ? (
@@ -514,12 +527,19 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   </li>
                 ))}
               </ul>
+              <p className="font-bold text-sm mt-6 mb-3 text-gray-200 uppercase tracking-wider">Legal</p>
+              <ul className="space-y-2.5">
+                <li><Link href={`${basePath}/terms`} className="text-gray-400 hover:text-teal-400 text-sm transition-colors">Terms &amp; Conditions</Link></li>
+                <li><Link href={`${basePath}/privacy`} className="text-gray-400 hover:text-teal-400 text-sm transition-colors">Privacy Policy</Link></li>
+              </ul>
             </div>
           </div>
 
-          <div className="border-t border-white/10 pt-6 flex items-center justify-between">
+          <div className="border-t border-white/10 pt-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <p className="text-gray-500 text-xs">© {new Date().getFullYear()} GSM World. All rights reserved. Official distributor for major tool teams.</p>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4 flex-wrap">
+              <Link href={`${basePath}/terms`} className="text-gray-500 hover:text-teal-400 text-xs transition-colors">Terms &amp; Conditions</Link>
+              <Link href={`${basePath}/privacy`} className="text-gray-500 hover:text-teal-400 text-xs transition-colors">Privacy Policy</Link>
               <span className="text-gray-500 text-xs flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse inline-block" />
                 Online &amp; Ready to Help

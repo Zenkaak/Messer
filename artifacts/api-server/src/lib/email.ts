@@ -286,7 +286,7 @@ export async function sendEmail(message: EmailMessage) {
     "Feedback-ID": `transactional:gsm-world:${sendingDomain}`,
   };
 
-  // ── Try Resend first (HTTP-based; works on Vercel/serverless — no SMTP port blocking) ──
+  // ── Try Resend API first if configured (optional — skip if not set) ──
   if (resendApiKey && fromAddress) {
     try {
       const resp = await fetch("https://api.resend.com/emails", {
@@ -307,20 +307,20 @@ export async function sendEmail(message: EmailMessage) {
       });
       if (resp.ok) {
         const data = await resp.json() as { id?: string };
-        logger.info({ to: message.to, subject: message.subject, resendId: data.id }, "Email sent via Resend");
+        logger.info({ to: message.to, subject: message.subject, resendId: data.id }, "Email sent via Resend API");
         return { sent: true, provider: "resend" };
       }
       const errText = await resp.text();
-      logger.warn({ to: message.to, status: resp.status, errText, from: fromAddress }, "Resend failed, attempting SMTP fallback — verify your sender domain is verified in Resend dashboard");
+      logger.warn({ to: message.to, status: resp.status, errText, from: fromAddress }, "Resend API failed — falling back to SMTP (Zoho)");
     } catch (fetchErr) {
-      logger.warn({ to: message.to, err: fetchErr }, "Resend fetch error, attempting SMTP fallback");
+      logger.warn({ to: message.to, err: fetchErr }, "Resend API fetch error — falling back to SMTP (Zoho)");
     }
   }
 
   // ── Fallback: nodemailer SMTP ──
   if (!emailFrom || !smtpHost) {
-    logger.info({ to: message.to, subject: message.subject }, "Email skipped: no email provider configured (add RESEND_API_KEY or SMTP settings in admin panel)");
-    return { sent: false, reason: "No email provider configured. Add a Resend API key in Admin → Payments & Settings, or configure SMTP." };
+    logger.info({ to: message.to, subject: message.subject }, "Email skipped: no email provider configured (add SMTP/Zoho settings in admin panel)");
+    return { sent: false, reason: "No email provider configured. Configure SMTP (Zoho) settings in Admin → Payments & Settings." };
   }
 
   const port = Number(smtpPort || 587);

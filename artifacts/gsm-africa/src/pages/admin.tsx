@@ -3142,10 +3142,10 @@ function PaymentsPanel({ pwd }: { pwd: string }) {
         )}
       </div>
 
-      {/* Resend API – recommended for Vercel (HTTP-based, no SMTP port blocking) */}
+      {/* Email provider – SMTP (Zoho, Gmail, etc.) or optional Resend API key */}
       <div className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm p-4 space-y-3">
         <div>
-          <p className="text-sm font-bold text-slate-800">Resend API Key</p>
+          <p className="text-sm font-bold text-slate-800">Resend API Key <span className="text-xs font-normal text-slate-400">(optional — leave blank to use SMTP below)</span></p>
           <p className="text-[10px] font-semibold text-slate-400">Recommended for Vercel — HTTP-based, no SMTP port blocking. Takes priority over SMTP.</p>
         </div>
         <div className="bg-blue-50 border border-blue-100 rounded-xl px-3 py-2.5 text-[11px] text-blue-700 leading-relaxed">
@@ -3164,7 +3164,7 @@ function PaymentsPanel({ pwd }: { pwd: string }) {
       <div className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm p-4 space-y-3">
         <div>
           <p className="text-sm font-bold text-slate-800">Email SMTP</p>
-          <p className="text-[10px] font-semibold text-slate-400">Fallback — used only when Resend API key is not configured</p>
+          <p className="text-[10px] font-semibold text-slate-400">SMTP settings (Zoho, Gmail, etc.) — used for all outgoing mail</p>
         </div>
         <PlainInput label="From Email" value={form.emailFrom} onChange={v => setForm(f => ({ ...f, emailFrom: v }))} placeholder="no-reply@yourdomain.com" />
         <PlainInput label="SMTP Host" value={form.smtpHost} onChange={v => setForm(f => ({ ...f, smtpHost: v }))} placeholder="smtp.mailprovider.com" />
