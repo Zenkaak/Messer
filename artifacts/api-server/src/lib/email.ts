@@ -262,10 +262,12 @@ export async function sendEmail(message: EmailMessage) {
     "X-Entity-Ref-ID": entityRef,
     "MIME-Version": "1.0",
     "Precedence": "transactional",
+    "X-Priority": "3",
+    "X-MS-Exchange-Organization-SCL": "-1",
     "X-Mailer": "GSM World Mailer/2.0",
     "List-Unsubscribe": `<${unsubscribeUrl}>, <mailto:unsubscribe@${sendingDomain}?subject=unsubscribe>`,
     "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
-    "Feedback-ID": `gsm-world:transactional:${sendingDomain}`,
+    "Feedback-ID": `transactional:gsm-world:${sendingDomain}`,
   };
 
   // ── Try Resend first (HTTP-based; works on Vercel/serverless — no SMTP port blocking) ──
@@ -492,7 +494,7 @@ export function paymentConfirmedEmail(params: {
 
   const h = header(
     "linear-gradient(135deg,#064e3b 0%,#059669 100%)",
-    "✅ Payment Confirmed",
+    "Payment Confirmed",
     `Your payment for Order #${ref} has been verified`
   );
 
@@ -513,7 +515,7 @@ export function paymentConfirmedEmail(params: {
     <p style="margin:0 0 20px;font-size:15px;color:#475569;">Great news — your payment has been successfully verified and your order is now being processed by our team.</p>
     ${infoTable(infoRows)}
     ${itemsSection}
-    ${statusChip("✅ Payment Confirmed — Processing Now", "#059669")}
+    ${statusChip("Payment Confirmed — Processing Now", "#059669")}
     <p style="margin:0 0 8px;font-size:14px;color:#475569;">Our team is working on your order now. Estimated processing time is <strong style="color:#0f172a;">10 – 30 minutes</strong>. You'll receive a completion email when it's done.</p>
     ${btn("Track Your Order", orderUrl, "#059669")}
     ${btn("Contact Support", supportUrl, "#0ea5e9")}
@@ -528,7 +530,7 @@ export function paymentConfirmedEmail(params: {
     : "";
 
   return {
-    subject: `✅ Payment Confirmed — Order #${ref} | GSM World`,
+    subject: `Payment Confirmed — Order #${ref} | GSM World`,
     text: `Dear ${name},\n\nYour payment of $${parseFloat(params.amount).toFixed(2)} for Order #${ref} has been confirmed via ${pmLabel} at ${paidAt}.${textItems}\nYour order is being processed (10–30 min).\n\nTrack order: ${orderUrl}\nContact support: ${supportUrl}\n\nKeep this email as your receipt. Reference: ORDER-${ref}\n\n— GSM World Team`,
     html: layout(`Payment confirmed for Order #${ref} — processing now.`, "#059669", h, body),
   };
@@ -707,7 +709,7 @@ export function adminNewOrderAlertEmail(params: {
   const pmLabel = payLabel[params.paymentMethod] ?? params.paymentMethod;
   const h = header(
     "linear-gradient(135deg,#1e3a5f 0%,#0f172a 100%)",
-    `🛒 New ${params.orderType} — Order #${ref}`,
+    `New ${params.orderType} Order #${ref}`,
     `A new order has been placed on GSM World`
   );
   const body = `

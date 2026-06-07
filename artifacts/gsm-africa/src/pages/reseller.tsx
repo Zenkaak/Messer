@@ -157,8 +157,14 @@ export function ResellerPage() {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ storeName: storeName.trim(), storeSlug: storeSlug.trim() || undefined }),
       });
-      const data = await res.json() as { ok?: boolean; error?: string; status?: string; paymentMethods?: PaymentMethod[]; securityFeeUsd?: number; application?: { storeSlug: string; storeName: string } };
+      const data = await res.json() as { ok?: boolean; error?: string; status?: string; paymentMethods?: PaymentMethod[]; securityFeeUsd?: number; application?: { storeSlug: string; storeName: string; status?: string } };
       if (!res.ok) { toast({ title: data.error ?? "Application failed", variant: "destructive" }); return; }
+      // When security fee is $0, server already sets status to pending_approval — skip payment step
+      if ((data.securityFeeUsd ?? 0) === 0 || data.application?.status === "pending_approval") {
+        toast({ title: "Application submitted!", description: "Your store will be reviewed and activated within 24 hours." });
+        await fetchStatus();
+        return;
+      }
       setStatus({
         status: "pending_payment",
         storeSlug: data.application?.storeSlug,

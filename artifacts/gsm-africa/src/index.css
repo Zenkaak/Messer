@@ -151,3 +151,9 @@
     @apply font-sans antialiased bg-background text-foreground;
   }
 }
+
+/* ── Prevent mobile pull-to-refresh from reloading the app ── */
+html, body {
+  overscroll-behavior: none;
+  overscroll-behavior-y: none;
+}

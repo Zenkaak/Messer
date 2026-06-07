@@ -52,6 +52,8 @@ import { UnlockToolsPage } from "@/pages/unlock-tools";
 import { UnsubscribePage } from "@/pages/unsubscribe";
 import { ResellerPage } from "@/pages/reseller";
 import { ResellerStorePage } from "@/pages/reseller-store";
+import { TermsPage } from "@/pages/terms";
+import { PrivacyPage } from "@/pages/privacy";
 import { useAppVersion } from "@/hooks/use-app-version";
 
 const queryClient = new QueryClient();
@@ -91,6 +93,8 @@ function Router() {
             <Route path="/unsubscribe" component={UnsubscribePage} />
             <Route path="/reseller" component={ResellerPage} />
             <Route path="/store/:slug" component={ResellerStorePage} />
+            <Route path="/terms" component={TermsPage} />
+            <Route path="/privacy" component={PrivacyPage} />
             <Route path="/auth/google-callback" component={GoogleCallbackPage} />
             <Route>
               <div className="flex items-center justify-center h-[50vh] text-muted-foreground">
