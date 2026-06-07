@@ -366,29 +366,39 @@ function OverviewPanel({ pwd, onNavigate }: { pwd: string; onNavigate: (tab: Tab
       .catch(() => {});
   }, [pwd]);
 
-  // Fetch latest admin APK release from GitHub
+  // Fetch latest ADMIN APK release from GitHub
+  // Searches all releases for one tagged admin-apk-* or with an admin APK asset
   const fetchApkRelease = useCallback(async () => {
     setApkLoading(true);
     setApkError(false);
     try {
       const r = await fetch(
-        "https://api.github.com/repos/Zenkaak/Messer/releases/latest",
+        "https://api.github.com/repos/Zenkaak/Messer/releases?per_page=20",
         { headers: { Accept: "application/vnd.github+json" } }
       );
       if (!r.ok) { setApkError(true); return; }
-      const data = await r.json() as {
+      type GHRelease = {
         tag_name: string; name: string; published_at: string; body: string;
         assets: { name: string; browser_download_url: string; size: number }[];
       };
-      const apkAsset = data.assets.find(a => a.name.endsWith(".apk"));
+      const releases = await r.json() as GHRelease[];
+      // Find first release whose tag starts with admin-apk- OR has a gsm-admin-*.apk asset
+      const adminRelease = releases.find(rel =>
+        rel.tag_name.startsWith("admin-apk-") ||
+        rel.assets.some(a => a.name.startsWith("gsm-admin") && a.name.endsWith(".apk"))
+      );
+      if (!adminRelease) { setApkError(true); return; }
+      const apkAsset = adminRelease.assets.find(
+        a => (a.name.startsWith("gsm-admin") || a.name.includes("admin")) && a.name.endsWith(".apk")
+      ) ?? adminRelease.assets.find(a => a.name.endsWith(".apk"));
       if (!apkAsset) { setApkError(true); return; }
       setApkRelease({
-        tag: data.tag_name,
-        name: data.name,
-        published: data.published_at,
+        tag: adminRelease.tag_name,
+        name: adminRelease.name || `Admin APK · ${adminRelease.tag_name}`,
+        published: adminRelease.published_at,
         downloadUrl: apkAsset.browser_download_url,
         size: apkAsset.size,
-        body: data.body ?? "",
+        body: adminRelease.body ?? "",
       });
     } catch {
       setApkError(true);
