@@ -852,13 +852,14 @@ router.post("/admin/announcements/ai-generate", async (req, res) => {
       : "You are an email marketing expert for GSM World Store, a phone unlocking and mobile tool business. Generate a professional, engaging announcement email. Return JSON with 'subject' (concise email subject line with emoji) and 'body' (plain text paragraphs separated by newlines, no HTML tags). Keep the body to 2-4 paragraphs.";
     const userContent = `Create a professional announcement email for GSM World Store about: ${prompt}`;
 
-    // On OpenRouter, try multiple free models in cascade — skip on 429/402 rate-limit
+    // On OpenRouter, try multiple free models in cascade — skip on 429/402/404 rate-limit
     const modelCascade = isOpenRouter
       ? [
           "meta-llama/llama-3.3-70b-instruct:free",
           "mistralai/mistral-7b-instruct:free",
           "meta-llama/llama-3.1-8b-instruct:free",
           "google/gemma-2-9b-it:free",
+          "openai/gpt-4o-mini",
         ]
       : ["gpt-4o-mini"];
 
