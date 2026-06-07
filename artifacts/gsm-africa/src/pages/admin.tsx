@@ -696,11 +696,14 @@ function OverviewPanel({ pwd, onNavigate }: { pwd: string; onNavigate: (tab: Tab
                   </div>
                 </div>
 
-                <div className="bg-blue-50 border border-blue-100 rounded-xl px-3 py-2">
+                <div className="bg-blue-50 border border-blue-100 rounded-xl px-3 py-2 space-y-1.5">
                   <p className="text-[10px] text-blue-700 leading-relaxed">
                     Auto-built from the latest <strong>main</strong> push. Installs on any Android 7+ device.
-                    Enable <em>"Install from unknown sources"</em> when prompted.
                   </p>
+                  <ol className="text-[10px] text-blue-700 leading-relaxed list-decimal list-inside space-y-0.5">
+                    <li>Enable <em>"Install from unknown sources"</em> in Settings → Apps.</li>
+                    <li>If Google Play Protect warns you, tap <strong>"Install anyway"</strong> — this is normal for apps outside the Play Store.</li>
+                  </ol>
                 </div>
 
                 <a

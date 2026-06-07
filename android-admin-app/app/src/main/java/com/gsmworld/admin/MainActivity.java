@@ -14,8 +14,9 @@ import androidx.appcompat.app.AppCompatActivity;
 
 public class MainActivity extends AppCompatActivity {
 
-    // ── Change this to your production admin URL ──
-    private static final String ADMIN_URL = "https://gsmworldstore.com/admin";
+    // Admin panel URL — update this if the domain changes
+    private static final String ADMIN_URL = "https://gsmworld.vercel.app/admin";
+    private static final String ADMIN_HOST = "gsmworld.vercel.app";
 
     private WebView webView;
 
@@ -53,12 +54,12 @@ public class MainActivity extends AppCompatActivity {
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                // Stay inside the webview for the same host
-                String url = request.getUrl().toString();
-                if (url.startsWith(ADMIN_URL) || url.contains("gsmworldstore.com")) {
-                    return false;
+                // Stay inside the webview for the same host only
+                String host = request.getUrl().getHost();
+                if (ADMIN_HOST.equals(host)) {
+                    return false; // load in webview
                 }
-                return true; // block external URLs
+                return true; // block all other domains
             }
         });
 
