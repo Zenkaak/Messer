@@ -12,6 +12,7 @@ import {
   orderMessagesTable,
   notificationsTable,
   imeiLookupsTable,
+  walletTransactionsTable,
 } from "@workspace/db";
 import { productsTable, categoriesTable } from "@workspace/db";
 import { z } from "zod";
@@ -980,6 +981,119 @@ router.get("/admin/imei-logs", async (req, res) => {
   } catch (err) {
     req.log.error({ err }, "Failed to fetch IMEI logs");
     res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ── Order Wallet Refund ───────────────────────────────────────────────────────
+// POST /admin/orders/:id/refund
+// Credits the order amount (or a custom amount) to the customer's GSM Wallet.
+// Refunds go to gsmwallet within 3-5 business days (manual schedule window).
+router.post("/admin/orders/:id/refund", async (req, res) => {
+  if (!(await checkAdminAuth(req, res))) return;
+
+  const orderId = parseInt(req.params.id, 10);
+  if (isNaN(orderId)) { res.status(400).json({ error: "Invalid order ID" }); return; }
+
+  const { amount, reason } = req.body || {};
+  const refundAmount = parseFloat(amount);
+  if (!refundAmount || refundAmount <= 0) {
+    res.status(400).json({ error: "Refund amount must be greater than 0" });
+    return;
+  }
+
+  try {
+    const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, orderId)).limit(1);
+    if (!order) { res.status(404).json({ error: "Order not found" }); return; }
+
+    if (!order.customerEmail) {
+      res.status(422).json({ error: "Order has no customer email — cannot process wallet refund." });
+      return;
+    }
+
+    const [user] = await db
+      .select({ id: usersTable.id, email: usersTable.email, name: usersTable.name, walletBalance: usersTable.walletBalance })
+      .from(usersTable)
+      .where(eq(usersTable.email, order.customerEmail))
+      .limit(1);
+
+    if (!user) {
+      res.status(422).json({
+        error: `No GSM World account found for ${order.customerEmail}. Wallet refund requires an account.`,
+        customerEmail: order.customerEmail,
+      });
+      return;
+    }
+
+    // Credit wallet
+    await db.update(usersTable)
+      .set({ walletBalance: sql`wallet_balance + ${refundAmount.toFixed(2)}` })
+      .where(eq(usersTable.id, user.id));
+
+    // Wallet transaction log
+    await db.insert(walletTransactionsTable).values({
+      userId: user.id,
+      type: "refund",
+      amount: refundAmount.toFixed(2),
+      fee: "0.00",
+      counterpartyUsername: null,
+      note: `Refund for order #${orderId}${reason ? ` — ${reason}` : ""}`,
+    });
+
+    // Mark order as refunded
+    await db.update(ordersTable)
+      .set({ paymentStatus: "refunded", updatedAt: new Date() })
+      .where(eq(ordersTable.id, orderId));
+
+    // Notify customer via email
+    const reasonText = reason ? String(reason).trim() : "Order correction";
+    sendEmail({
+      to: user.email,
+      subject: `Refund processed — Order #${orderId} · GSM World`,
+      text: [
+        `Hi ${user.name || "there"},`,
+        ``,
+        `We have processed a refund of $${refundAmount.toFixed(2)} USD for order #${orderId}.`,
+        ``,
+        `Reason: ${reasonText}`,
+        ``,
+        `The amount will appear in your GSM World wallet within 3–5 business days.`,
+        `You can check your wallet balance at: https://gsmworld.store/account`,
+        ``,
+        `If you have any questions, reply to this email or contact support.`,
+        ``,
+        `— GSM World Team`,
+      ].join("\n"),
+      html: `
+        <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
+          <h2 style="color:#0f172a;margin-bottom:8px">Refund Processed ✅</h2>
+          <p>Hi <strong>${user.name || "there"}</strong>,</p>
+          <p>We have processed a refund for your order.</p>
+          <table style="width:100%;border-collapse:collapse;margin:16px 0">
+            <tr><td style="padding:8px 0;color:#64748b;font-size:13px">Order</td><td style="text-align:right;font-weight:700">#${orderId}</td></tr>
+            <tr><td style="padding:8px 0;color:#64748b;font-size:13px">Refund Amount</td><td style="text-align:right;font-weight:700;color:#059669">$${refundAmount.toFixed(2)} USD</td></tr>
+            <tr><td style="padding:8px 0;color:#64748b;font-size:13px">Reason</td><td style="text-align:right">${reasonText}</td></tr>
+            <tr><td style="padding:8px 0;color:#64748b;font-size:13px">Credit Timeline</td><td style="text-align:right">3–5 business days</td></tr>
+            <tr><td style="padding:8px 0;color:#64748b;font-size:13px">Credited To</td><td style="text-align:right">GSM World Wallet</td></tr>
+          </table>
+          <p style="font-size:13px;color:#64748b">Thank you for your patience. Your wallet balance will be updated within 3–5 business days.</p>
+          <a href="https://gsmworld.store/account" style="display:inline-block;margin-top:8px;padding:10px 20px;background:#0f172a;color:#fff;border-radius:8px;text-decoration:none;font-size:13px">Check My Wallet</a>
+        </div>
+      `,
+    }).catch((e) => req.log.warn({ e }, "Refund email failed"));
+
+    req.log.info({ orderId, userId: user.id, refundAmount, reason: reasonText }, "Order wallet refund issued");
+
+    res.json({
+      success: true,
+      orderId,
+      userId: user.id,
+      userEmail: user.email,
+      refundAmount,
+      message: `$${refundAmount.toFixed(2)} queued for ${user.email}'s GSM Wallet (3–5 business days).`,
+    });
+  } catch (err) {
+    req.log.error({ err }, "Order refund failed");
+    res.status(500).json({ error: "Refund failed. Please try again." });
   }
 });
 

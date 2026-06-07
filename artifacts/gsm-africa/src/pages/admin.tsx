@@ -8,7 +8,7 @@ import {
   ToggleLeft, ToggleRight, KeyRound, AlertTriangle, X, ArrowUpRight,
   Smartphone, Zap, Ban, Trash2, UserCheck, MoreVertical,
   MessageSquare, Send, Cpu, UserPlus, Phone, Headphones, WifiOff, Bell,
-  Store, ExternalLink, Image, Menu, Megaphone,
+  Store, ExternalLink, Image, Menu, Megaphone, RotateCcw, Wallet,
 } from "lucide-react";
 
 // ─── types ────────────────────────────────────────────────────────────────────
@@ -605,6 +605,13 @@ function OrderDetailView({ order: initialOrder, pwd, onBack }: { order: Order; p
   const [newMsg, setNewMsg] = useState("");
   const [sendingMsg, setSendingMsg] = useState(false);
 
+  // Refund state
+  const [showRefund, setShowRefund] = useState(false);
+  const [refundAmount, setRefundAmount] = useState(String(Number(initialOrder.total).toFixed(2)));
+  const [refundReason, setRefundReason] = useState("");
+  const [refunding, setRefunding] = useState(false);
+  const [refundSuccess, setRefundSuccess] = useState<string | null>(null);
+
   const statusColors: Record<string, string> = {
     paid:        "bg-emerald-50 border-emerald-200 text-emerald-700",
     completed:   "bg-emerald-50 border-emerald-200 text-emerald-700",
@@ -666,6 +673,28 @@ function OrderDetailView({ order: initialOrder, pwd, onBack }: { order: Order; p
         toast({ title: "Update failed", variant: "destructive" });
       }
     } finally { setUpdatingStatus(false); }
+  }
+
+  async function issueRefund() {
+    const amt = parseFloat(refundAmount);
+    if (!amt || amt <= 0) { toast({ title: "Enter a valid refund amount", variant: "destructive" }); return; }
+    setRefunding(true);
+    setRefundSuccess(null);
+    try {
+      const r = await adminFetch(apiPath(`/api/admin/orders/${order.id}/refund`), pwd, {
+        method: "POST",
+        body: JSON.stringify({ amount: amt, reason: refundReason.trim() || "Order correction" }),
+      });
+      const data = await r.json() as { success?: boolean; message?: string; error?: string };
+      if (r.ok && data.success) {
+        setRefundSuccess(data.message ?? `$${amt.toFixed(2)} queued for GSM Wallet.`);
+        setOrder(prev => ({ ...prev, paymentStatus: "refunded" }));
+        setShowRefund(false);
+        toast({ title: "Refund issued", description: data.message });
+      } else {
+        toast({ title: "Refund failed", description: data.error ?? "Unknown error", variant: "destructive" });
+      }
+    } finally { setRefunding(false); }
   }
 
   async function sendMessage() {
@@ -837,6 +866,90 @@ function OrderDetailView({ order: initialOrder, pwd, onBack }: { order: Order; p
             <DollarSign size={24} className="text-blue-400" />
           </div>
         </div>
+      </div>
+
+      {/* Wallet Refund */}
+      <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
+        <div className="px-4 py-3 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+          <p className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
+            <RotateCcw size={11} /> Wallet Refund
+          </p>
+          {order.paymentStatus === "refunded" ? (
+            <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">Refunded</span>
+          ) : (
+            <button
+              onClick={() => { setShowRefund(v => !v); setRefundSuccess(null); }}
+              className="text-[11px] font-bold text-rose-600 hover:text-rose-700 transition-colors"
+            >
+              {showRefund ? "Cancel" : "Issue Refund"}
+            </button>
+          )}
+        </div>
+
+        {refundSuccess && (
+          <div className="px-4 py-3 bg-emerald-50 flex items-start gap-2">
+            <CheckCircle2 size={14} className="text-emerald-600 shrink-0 mt-0.5" />
+            <p className="text-xs text-emerald-700 font-medium">{refundSuccess}</p>
+          </div>
+        )}
+
+        {!showRefund && !refundSuccess && (
+          <div className="px-4 py-3">
+            <p className="text-xs text-slate-400">
+              Credit the customer's GSM Wallet for a wrong or disputed charge.
+              Refunds appear within <strong>3–5 business days</strong>.
+            </p>
+          </div>
+        )}
+
+        {showRefund && (
+          <div className="p-4 space-y-3">
+            <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 flex gap-2">
+              <AlertTriangle size={13} className="text-amber-600 shrink-0 mt-0.5" />
+              <p className="text-[11px] text-amber-700">
+                Refund goes to <strong>{order.customerEmail}</strong>'s GSM Wallet within <strong>3–5 business days</strong>.
+                The order will be marked as <strong>Refunded</strong>.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Refund Amount (USD)</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold">$</span>
+                <input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={refundAmount}
+                  onChange={e => setRefundAmount(e.target.value)}
+                  className="w-full border border-slate-200 rounded-xl pl-7 pr-3 py-2.5 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-rose-400"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Reason</label>
+              <input
+                type="text"
+                placeholder="e.g. Wrong product charged by bot"
+                value={refundReason}
+                onChange={e => setRefundReason(e.target.value)}
+                className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-400"
+              />
+            </div>
+
+            <button
+              onClick={issueRefund}
+              disabled={refunding}
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-sm transition-colors disabled:opacity-50"
+            >
+              {refunding
+                ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Processing…</>
+                : <><Wallet size={15} /> Refund to GSM Wallet</>
+              }
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Chat */}
