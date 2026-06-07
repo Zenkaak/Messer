@@ -96,6 +96,7 @@ router.post("/cart", async (req, res) => {
         productId,
         quantity,
         priceAtAdd: product.price,
+        addedAt: new Date(),
       });
     }
 

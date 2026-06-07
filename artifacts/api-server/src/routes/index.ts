@@ -19,6 +19,7 @@ import resellerRouter from "./reseller";
 import downloadRouter from "./download";
 import versionRouter from "./version";
 import imeiRouter from "./imei";
+import cronRouter from "./cron";
 
 const router: IRouter = Router();
 
@@ -42,5 +43,6 @@ router.use(unlockRentalsRouter);
 router.use(resellerRouter);
 router.use(downloadRouter);
 router.use(imeiRouter);
+router.use(cronRouter);
 
 export default router;

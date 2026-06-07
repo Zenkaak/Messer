@@ -915,3 +915,94 @@ export function announcementEmail(params: {
   `;
   return layout(params.subject, "#0ea5e9", h, bodyHtml);
 }
+
+// ── Abandoned cart recovery email ─────────────────────────────────────────────
+export function abandonedCartEmail(params: {
+  customerName?: string | null;
+  items: Array<{ productName: string; quantity: number; price: string; imageUrl?: string | null }>;
+  total: number;
+}) {
+  const name = params.customerName || "there";
+  const cartUrl = appUrl("/cart");
+  const storeUrl = getBaseUrl();
+
+  const itemRows = params.items
+    .map(item => {
+      const lineTotal = (parseFloat(item.price) * item.quantity).toFixed(2);
+      const imgCell = item.imageUrl
+        ? `<td style="width:60px;padding-right:12px;vertical-align:middle;"><img src="${item.imageUrl}" width="60" height="60" style="border-radius:10px;object-fit:cover;display:block;" /></td>`
+        : "";
+      return `<tr>
+        <td style="padding:12px 20px;border-bottom:1px solid #f1f5f9;">
+          <table role="presentation" cellpadding="0" cellspacing="0" width="100%"><tr>
+            ${imgCell}
+            <td style="vertical-align:middle;">
+              <p style="margin:0;font-size:13px;font-weight:700;color:#0f172a;">${item.productName}</p>
+              <p style="margin:3px 0 0;font-size:12px;color:#64748b;">Qty: ${item.quantity}</p>
+            </td>
+            <td style="vertical-align:middle;text-align:right;white-space:nowrap;">
+              <p style="margin:0;font-size:14px;font-weight:800;color:#0f172a;">$${lineTotal}</p>
+            </td>
+          </tr></table>
+        </td>
+      </tr>`;
+    })
+    .join("");
+
+  const h = header(
+    "linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%)",
+    "You Left Something Behind 👀",
+    "Your cart is waiting for you"
+  );
+
+  const body = `
+    <p style="margin:0 0 20px;font-size:15px;color:#475569;">Hi <strong style="color:#0f172a;">${name}</strong>,</p>
+    <p style="margin:0 0 20px;font-size:15px;color:#475569;">You left some items in your cart — don't worry, we saved them for you.</p>
+
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1.5px solid #e2e8f0;border-radius:14px;overflow:hidden;margin:0 0 20px;">
+      <thead>
+        <tr style="background:#f8fafc;">
+          <th style="padding:10px 20px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:1px;text-align:left;">Your Saved Items</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${itemRows}
+        <tr style="background:#eff6ff;">
+          <td style="padding:14px 20px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+              <td style="font-size:14px;font-weight:800;color:#0f172a;">Total</td>
+              <td style="text-align:right;font-size:20px;font-weight:900;color:#0ea5e9;">$${params.total.toFixed(2)}</td>
+            </tr></table>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px;">
+      <tr>
+        <td style="background:#fff7ed;border-left:4px solid #f97316;border-radius:0 10px 10px 0;padding:14px 20px;">
+          <p style="margin:0;font-size:13px;color:#9a3412;font-weight:600;">⚡ Items in your cart are in high demand and may sell out soon.</p>
+        </td>
+      </tr>
+    </table>
+
+    ${btn("Complete My Order →", cartUrl, "#0ea5e9")}
+
+    <p style="margin:20px 0 0;font-size:13px;color:#94a3b8;text-align:center;">
+      Need help? <a href="${storeUrl}" style="color:#0ea5e9;text-decoration:none;font-weight:600;">Contact our support team</a>
+    </p>
+    <div style="margin-top:32px;padding-top:20px;border-top:1px solid #f1f5f9;">
+      <p style="margin:0;font-size:14px;color:#475569;">Regards,<br><strong style="color:#0f172a;">GSM World Team</strong></p>
+    </div>
+  `;
+
+  const textItems = params.items
+    .map(i => `  - ${i.productName} × ${i.quantity}  ($${(parseFloat(i.price) * i.quantity).toFixed(2)})`)
+    .join("\n");
+
+  return {
+    subject: `You left ${params.items.length === 1 ? "an item" : `${params.items.length} items`} in your GSM World cart 🛒`,
+    text: `Hi ${name},\n\nYou have items waiting in your GSM World cart:\n\n${textItems}\n\nTotal: $${params.total.toFixed(2)}\n\nComplete your order here: ${cartUrl}\n\n— GSM World Team`,
+    html: layout("Your cart is waiting — complete your order before items sell out.", "#f97316", h, body),
+  };
+}

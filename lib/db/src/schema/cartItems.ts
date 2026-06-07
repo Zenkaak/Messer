@@ -1,4 +1,4 @@
-import { pgTable, serial, text, numeric, integer } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, numeric, integer, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { productsTable } from "./products";
 
@@ -8,6 +8,8 @@ export const cartItemsTable = pgTable("cart_items", {
   productId: integer("product_id").notNull().references(() => productsTable.id),
   quantity: integer("quantity").notNull().default(1),
   priceAtAdd: numeric("price_at_add").notNull(),
+  addedAt: timestamp("added_at").defaultNow().notNull(),
+  reminderSentAt: timestamp("reminder_sent_at"),
 });
 
 export const insertCartItemSchema = createInsertSchema(cartItemsTable).omit({ id: true });

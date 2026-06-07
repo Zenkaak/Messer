@@ -6,6 +6,10 @@
     {
       "path": "/api/admin/cron/refresh-models",
       "schedule": "0 4 */2 * *"
+    },
+    {
+      "path": "/api/admin/cron/abandoned-carts",
+      "schedule": "0 9 * * *"
     }
   ]
 }
