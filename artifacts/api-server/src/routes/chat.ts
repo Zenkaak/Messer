@@ -2636,6 +2636,25 @@ router.post("/chat/bot", async (req, res) => {
       ...safeMessages,
     ];
 
+    // Server-side OTP-choice interception: if the user's latest message is just "otp" / "Otp" / "1"
+    // (i.e. answering the "OTP or password?" question), inject a system instruction so the model
+    // always asks for their email next instead of saying "Is there anything else I can help with?".
+    if (!isAuthenticated) {
+      let latestUserText = "";
+      for (let i = openaiMessages.length - 1; i >= 0; i--) {
+        if (openaiMessages[i].role === "user") {
+          latestUserText = String(openaiMessages[i].content ?? "").trim();
+          break;
+        }
+      }
+      if (/^(otp|one.?time.?code|one.?time|code|1)$/i.test(latestUserText)) {
+        openaiMessages.push({
+          role: "system",
+          content: "[FORCE ACTION: User just selected OTP as their login method. You MUST reply with exactly this and nothing else: 'What is your email address? I will send the login code there.' Do NOT say 'Is there anything else'. Do NOT explain OTP. Just ask for their email.]",
+        });
+      }
+    }
+
     let actionType: string | null = null;
     let actionData: Record<string, unknown> | null = null;
 

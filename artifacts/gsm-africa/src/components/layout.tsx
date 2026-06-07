@@ -56,24 +56,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // Silent auto-update check when running inside the Android WebView app
-  useEffect(() => {
-    const isAndroidWebApp = navigator.userAgent.includes("GSMWorldApp");
-    if (!isAndroidWebApp) return;
-    const android = (window as unknown as { Android?: { downloadAndInstall?: (url: string) => void; getAppVersion?: () => string } }).Android;
-    if (!android?.downloadAndInstall) return;
-
-    fetch(`${basePath}/api/app/version`)
-      .then(r => r.json())
-      .then((data: { version?: string; apkUrl?: string }) => {
-        if (!data.apkUrl) return;
-        const currentVer = android?.getAppVersion?.() ?? APP_VERSION;
-        if (data.version && data.version !== currentVer) {
-          android.downloadAndInstall!(data.apkUrl);
-        }
-      })
-      .catch(() => { /* ignore network errors */ });
-  }, []);
+  // (APK startup auto-download removed — web content updates via web-version polling below)
 
   // Auto-reload web content when a new Vercel deploy is detected (WebView only — browser uses service worker)
   useEffect(() => {

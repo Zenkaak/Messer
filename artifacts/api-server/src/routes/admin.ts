@@ -845,21 +845,25 @@ router.post("/admin/announcements/ai-generate", async (req, res) => {
   try {
     const [apiKey, openaiBase] = await Promise.all([getOpenAiKey(), getOpenAiBaseUrl()]);
     if (!apiKey) { res.status(503).json({ error: "OpenAI API key not configured. Add it in Admin → Settings." }); return; }
+    const isOpenRouter = openaiBase.toLowerCase().includes("openrouter");
+    // Use a free model on OpenRouter; gpt-4o-mini on direct OpenAI
+    const model = isOpenRouter ? "meta-llama/llama-3.3-70b-instruct:free" : "gpt-4o-mini";
     const baseURL = openaiBase.endsWith("/v1") ? openaiBase : `${openaiBase}/v1`;
+    const systemMsg = isOpenRouter
+      ? "You are an email marketing expert for GSM World Store, a phone unlocking and mobile tool business. Generate a professional announcement email. You MUST respond with valid JSON only, no markdown. The JSON must have exactly two keys: 'subject' (email subject line with emoji) and 'body' (plain text, 2-4 paragraphs, newlines between paragraphs, no HTML)."
+      : "You are an email marketing expert for GSM World Store, a phone unlocking and mobile tool business. Generate a professional, engaging announcement email. Return JSON with 'subject' (concise email subject line with emoji) and 'body' (plain text paragraphs separated by newlines, no HTML tags). Keep the body to 2-4 paragraphs.";
+    const reqBody: Record<string, unknown> = {
+      model,
+      messages: [
+        { role: "system", content: systemMsg },
+        { role: "user", content: `Create a professional announcement email for GSM World Store about: ${prompt}` },
+      ],
+    };
+    if (!isOpenRouter) reqBody.response_format = { type: "json_object" };
     const aiRes = await fetch(`${baseURL}/chat/completions`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        messages: [
-          {
-            role: "system",
-            content: "You are an email marketing expert for GSM World Store, a phone unlocking and mobile tool business. Generate a professional, engaging announcement email. Return JSON with 'subject' (concise email subject line with emoji) and 'body' (plain text paragraphs separated by newlines, no HTML tags). Keep the body to 2-4 paragraphs.",
-          },
-          { role: "user", content: `Create a professional announcement email for GSM World Store about: ${prompt}` },
-        ],
-        response_format: { type: "json_object" },
-      }),
+      body: JSON.stringify(reqBody),
     });
     if (!aiRes.ok) {
       const errText = await aiRes.text().catch(() => "unknown");
@@ -868,7 +872,10 @@ router.post("/admin/announcements/ai-generate", async (req, res) => {
       return;
     }
     const aiData = await aiRes.json() as { choices?: Array<{ message?: { content?: string } }> };
-    const result = JSON.parse(aiData.choices?.[0]?.message?.content || "{}") as { subject?: string; body?: string };
+    const raw = aiData.choices?.[0]?.message?.content || "{}";
+    // Strip markdown code fences if the model wrapped output in ```json ... ```
+    const cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
+    const result = JSON.parse(cleaned) as { subject?: string; body?: string };
     res.json({ subject: result.subject ?? "", body: result.body ?? "" });
   } catch (err) {
     req.log.error({ err }, "AI announcement generation failed");
