@@ -1635,6 +1635,232 @@ interface OrderMessage {
   createdAt: string;
 }
 
+function PayNowPanel({ order, token }: { order: MyOrder; token: string }) {
+  const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, "");
+  const { toast } = useToast();
+  const pm = (order.paymentMethod ?? "").toLowerCase();
+
+  const [loading, setLoading] = useState(false);
+  const [payConfig, setPayConfig] = useState<{ binancePayId?: string; usdtAddress?: string; usdtNetwork?: string } | null>(null);
+  const [cryptoAddr, setCryptoAddr] = useState<{ payAddress?: string; payAmount?: number; payCurrency?: string } | null>(null);
+  const [phone, setPhone] = useState("");
+  const [stkSent, setStkSent] = useState(false);
+  const [copied, setCopied] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (pm === "binance_pay" || pm === "usdt_manual") {
+      fetch(`${baseUrl}/api/payment-config`)
+        .then(r => r.json())
+        .then(d => setPayConfig(d as { binancePayId?: string; usdtAddress?: string; usdtNetwork?: string }))
+        .catch(() => {});
+    }
+    if (pm === "nowpayments" || pm === "crypto") {
+      setLoading(true);
+      fetch(`${baseUrl}/api/orders/${order.id}/nowpayments/generate`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+        .then(r => r.json())
+        .then(d => setCryptoAddr(d as { payAddress?: string; payAmount?: number; payCurrency?: string }))
+        .catch(() => toast({ title: "Could not generate crypto address", variant: "destructive" }))
+        .finally(() => setLoading(false));
+    }
+  }, [order.id, pm]);
+
+  function copyText(text: string, key: string) {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(key);
+      setTimeout(() => setCopied(null), 2000);
+    }).catch(() => {});
+  }
+
+  async function payWithWallet() {
+    setLoading(true);
+    try {
+      const r = await fetch(`${baseUrl}/api/orders/${order.id}/pay-wallet`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const d = await r.json() as { success?: boolean; error?: string };
+      if (r.ok && d.success) {
+        toast({ title: "Payment successful! 🎉" });
+        setTimeout(() => window.location.reload(), 800);
+      } else {
+        toast({ title: d.error ?? "Payment failed", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Payment failed", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function triggerMpesa() {
+    const ph = phone.trim();
+    if (!ph) { toast({ title: "Enter your M-Pesa phone number", variant: "destructive" }); return; }
+    setLoading(true);
+    try {
+      const r = await fetch(`${baseUrl}/api/orders/${order.id}/mpesa/trigger`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ phone: ph }),
+      });
+      const d = await r.json() as { success?: boolean; error?: string };
+      if (r.ok && d.success) {
+        setStkSent(true);
+        toast({ title: "STK push sent! Check your phone and enter your M-Pesa PIN." });
+      } else {
+        toast({ title: d.error ?? "Failed to send STK push", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Failed to initiate payment", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const cardCls = "bg-white border border-gray-100 rounded-2xl p-4 shadow-sm space-y-3";
+  const total = parseFloat(order.total).toFixed(2);
+
+  if (pm === "wallet") {
+    return (
+      <div className={cardCls}>
+        <div className="flex items-center gap-2">
+          <Wallet size={16} className="text-blue-600" />
+          <p className="font-black text-gray-800 text-sm">Pay with Wallet</p>
+        </div>
+        <p className="text-xs text-gray-500">Click below to deduct <span className="font-bold text-gray-800">${total}</span> from your wallet balance.</p>
+        <button
+          onClick={payWithWallet} disabled={loading}
+          className="w-full py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-black rounded-xl text-sm disabled:opacity-60 active:scale-[0.98] transition-all"
+        >
+          {loading ? "Processing…" : `Pay $${total} from Wallet`}
+        </button>
+      </div>
+    );
+  }
+
+  if (pm === "mpesa") {
+    return (
+      <div className={cardCls}>
+        <div className="flex items-center gap-2">
+          <Smartphone size={16} className="text-green-600" />
+          <p className="font-black text-gray-800 text-sm">Pay via M-Pesa</p>
+          <span className="ml-auto text-sm font-black text-green-700">KES {Math.ceil(parseFloat(order.total))}</span>
+        </div>
+        {stkSent ? (
+          <div className="bg-green-50 border border-green-200 rounded-xl px-3 py-3 text-center">
+            <CheckCircle2 size={24} className="mx-auto text-green-600 mb-1" />
+            <p className="text-xs font-black text-green-800">STK push sent!</p>
+            <p className="text-[11px] text-green-700 mt-0.5">Check your phone and enter your M-Pesa PIN to complete the payment.</p>
+          </div>
+        ) : (
+          <>
+            <p className="text-xs text-gray-500">Enter your M-Pesa number and we'll send a payment prompt to your phone.</p>
+            <input
+              value={phone} onChange={e => setPhone(e.target.value)}
+              placeholder="07XXXXXXXX" maxLength={12}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-200"
+            />
+            <button
+              onClick={triggerMpesa} disabled={loading || !phone.trim()}
+              className="w-full py-3 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-black rounded-xl text-sm disabled:opacity-60 active:scale-[0.98] transition-all"
+            >
+              {loading ? "Sending…" : "Send M-Pesa Request"}
+            </button>
+          </>
+        )}
+      </div>
+    );
+  }
+
+  if (pm === "binance_pay") {
+    const pid = payConfig?.binancePayId ?? "Loading…";
+    return (
+      <div className={cardCls}>
+        <div className="flex items-center gap-2">
+          <CreditCard size={16} className="text-yellow-500" />
+          <p className="font-black text-gray-800 text-sm">Pay via Binance Pay</p>
+        </div>
+        <p className="text-xs text-gray-500">Send exactly <span className="font-bold text-gray-800">${total}</span> using the Binance Pay ID below.</p>
+        <div className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 flex items-center justify-between gap-2">
+          <p className="text-sm font-mono font-bold text-gray-800 break-all">{pid}</p>
+          <button onClick={() => copyText(pid, "binance")} className="shrink-0 text-gray-400 hover:text-blue-600 transition-colors">
+            {copied === "binance" ? <Check size={14} className="text-green-600" /> : <Copy size={14} />}
+          </button>
+        </div>
+        <p className="text-[11px] text-gray-400">After sending, please contact support with your transfer receipt so we can confirm your payment.</p>
+      </div>
+    );
+  }
+
+  if (pm === "usdt_manual" || pm === "usdt") {
+    const addr = payConfig?.usdtAddress ?? "Loading…";
+    const net = payConfig?.usdtNetwork ?? "TRC20";
+    return (
+      <div className={cardCls}>
+        <div className="flex items-center gap-2">
+          <CreditCard size={16} className="text-teal-500" />
+          <p className="font-black text-gray-800 text-sm">Pay via USDT ({net})</p>
+        </div>
+        <p className="text-xs text-gray-500">Send exactly <span className="font-bold text-gray-800">${total} USDT</span> on the <span className="font-bold">{net}</span> network.</p>
+        {addr && addr !== "Loading…" && (
+          <div className="flex justify-center py-1">
+            <QRCodeSVG value={addr} size={120} />
+          </div>
+        )}
+        <div className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 flex items-center justify-between gap-2">
+          <p className="text-xs font-mono text-gray-800 break-all">{addr}</p>
+          <button onClick={() => copyText(addr, "usdt")} className="shrink-0 text-gray-400 hover:text-blue-600 transition-colors">
+            {copied === "usdt" ? <Check size={14} className="text-green-600" /> : <Copy size={14} />}
+          </button>
+        </div>
+        <p className="text-[11px] text-amber-600 font-semibold">⚠️ Send exact amount on {net} only. Wrong network = funds lost.</p>
+      </div>
+    );
+  }
+
+  if (pm === "nowpayments" || pm === "crypto") {
+    return (
+      <div className={cardCls}>
+        <div className="flex items-center gap-2">
+          <CreditCard size={16} className="text-purple-600" />
+          <p className="font-black text-gray-800 text-sm">Pay via Crypto</p>
+        </div>
+        {loading && <p className="text-xs text-center text-gray-400 py-2">Generating address…</p>}
+        {cryptoAddr?.payAddress && (
+          <>
+            <p className="text-xs text-gray-500">
+              Send <span className="font-bold text-gray-800">{cryptoAddr.payAmount} {cryptoAddr.payCurrency?.toUpperCase()}</span> to the address below.
+            </p>
+            <div className="flex justify-center py-1">
+              <QRCodeSVG value={cryptoAddr.payAddress} size={120} />
+            </div>
+            <div className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 flex items-center justify-between gap-2">
+              <p className="text-xs font-mono text-gray-800 break-all">{cryptoAddr.payAddress}</p>
+              <button onClick={() => copyText(cryptoAddr.payAddress!, "crypto")} className="shrink-0 text-gray-400 hover:text-blue-600 transition-colors">
+                {copied === "crypto" ? <Check size={14} className="text-green-600" /> : <Copy size={14} />}
+              </button>
+            </div>
+            <p className="text-[11px] text-amber-600 font-semibold">⚠️ Address valid ~60 min. Send exact amount only.</p>
+          </>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className={cardCls}>
+      <div className="flex items-center gap-2">
+        <CreditCard size={16} className="text-blue-600" />
+        <p className="font-black text-gray-800 text-sm">Complete Payment</p>
+      </div>
+      <p className="text-xs text-gray-500">Amount due: <span className="font-bold text-gray-800">${total}</span> via {order.paymentMethod?.replace(/_/g, " ")}.</p>
+      <p className="text-[11px] text-gray-400">Please contact support for payment details or if you've already paid.</p>
+    </div>
+  );
+}
+
 function OrderDetailPanel({ order, token, onBack }: { order: MyOrder; token: string; onBack: () => void }) {
   const [messages, setMessages] = useState<OrderMessage[]>([]);
   const [msgsLoading, setMsgsLoading] = useState(true);
@@ -1762,13 +1988,9 @@ function OrderDetailPanel({ order, token, onBack }: { order: MyOrder; token: str
         </div>
       </div>
 
-      {/* Pay Now banner for pending orders */}
+      {/* Pay Now panel for pending orders — method-specific UI */}
       {(order.paymentStatus === "pending" || order.paymentStatus === "pending_payment_confirmation") && (
-        <Link href={`/orders/${order.id}`}>
-          <button className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-black rounded-2xl flex items-center justify-center gap-2 text-sm shadow-md transition-all active:scale-[0.98]">
-            <CreditCard size={16} /> Pay Now
-          </button>
-        </Link>
+        <PayNowPanel order={order} token={token} />
       )}
 
       {/* Action required banner */}

@@ -12,7 +12,8 @@ import {
   moreInfoNeededEmail,
   orderSubmittedEmail,
 } from "../lib/email";
-import { getAdminPassword } from "../lib/admin-settings";
+import { getAdminPassword, getBinancePayId, getUsdtManualAddress, getUsdtManualNetwork } from "../lib/admin-settings";
+import { initiateSTKPush } from "../lib/mpesa";
 
 const router: IRouter = Router();
 const _jwtSecret = process.env.JWT_SECRET || "gsm-africa-jwt-secret-CHANGE-IN-PRODUCTION";
@@ -26,6 +27,21 @@ function getUserFromToken(authHeader: string | undefined): { userId: number; ema
     return null;
   }
 }
+
+// ── Public payment configuration (binance Pay ID, USDT address) ────────────
+router.get("/payment-config", async (req, res) => {
+  try {
+    const [binancePayId, usdtAddress, usdtNetwork] = await Promise.all([
+      getBinancePayId(),
+      getUsdtManualAddress(),
+      getUsdtManualNetwork(),
+    ]);
+    res.json({ binancePayId, usdtAddress, usdtNetwork });
+  } catch (err) {
+    req.log.error({ err }, "payment-config error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
 
 // Guest order lookup — email + orderId, no auth required
 router.get("/orders/lookup", async (req, res) => {
@@ -571,6 +587,33 @@ router.post("/orders/:id/nowpayments/generate", async (req, res) => {
   } catch (err) {
     req.log.error({ err }, "nowpayments generate error");
     res.status(500).json({ error: "Failed to generate payment address" });
+  }
+});
+
+// ── Trigger M-Pesa STK push for an existing pending order ─────────────────
+router.post("/orders/:id/mpesa/trigger", async (req, res) => {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid order id" }); return; }
+  const user = getUserFromToken(req.headers.authorization);
+  if (!user) { res.status(401).json({ error: "Authentication required" }); return; }
+  const { phone } = req.body || {};
+  if (!phone) { res.status(400).json({ error: "phone is required" }); return; }
+  try {
+    const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, id)).limit(1);
+    if (!order) { res.status(404).json({ error: "Order not found" }); return; }
+    if (order.userId !== user.userId) { res.status(403).json({ error: "Access denied" }); return; }
+    if (order.paymentStatus !== "pending") { res.status(400).json({ error: "Order is not awaiting payment" }); return; }
+    const amountKes = Math.ceil(parseFloat(order.total));
+    const stk = await initiateSTKPush({
+      phone: String(phone),
+      amount: amountKes,
+      orderId: id,
+      description: `Order #${order.orderCode || id}`,
+    });
+    res.json({ success: true, checkoutRequestId: stk.CheckoutRequestID, message: `STK push sent. Enter your M-Pesa PIN.` });
+  } catch (err) {
+    req.log.error({ err }, "mpesa order trigger error");
+    res.status(500).json({ error: "Failed to initiate M-Pesa payment" });
   }
 });
 

@@ -845,21 +845,30 @@ router.post("/admin/announcements/ai-generate", async (req, res) => {
   try {
     const [apiKey, openaiBase] = await Promise.all([getOpenAiKey(), getOpenAiBaseUrl()]);
     if (!apiKey) { res.status(503).json({ error: "OpenAI API key not configured. Add it in Admin → Settings." }); return; }
-    const { default: OpenAI } = await import("openai") as { default: typeof import("openai").default };
     const baseURL = openaiBase.endsWith("/v1") ? openaiBase : `${openaiBase}/v1`;
-    const openai = new OpenAI({ apiKey, baseURL });
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "system",
-          content: "You are an email marketing expert for GSM World Store, a phone unlocking and mobile tool business. Generate a professional, engaging announcement email. Return JSON with 'subject' (concise email subject line with emoji) and 'body' (plain text paragraphs separated by newlines, no HTML tags). Keep the body to 2-4 paragraphs.",
-        },
-        { role: "user", content: `Create a professional announcement email for GSM World Store about: ${prompt}` },
-      ],
-      response_format: { type: "json_object" },
+    const aiRes = await fetch(`${baseURL}/chat/completions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: "You are an email marketing expert for GSM World Store, a phone unlocking and mobile tool business. Generate a professional, engaging announcement email. Return JSON with 'subject' (concise email subject line with emoji) and 'body' (plain text paragraphs separated by newlines, no HTML tags). Keep the body to 2-4 paragraphs.",
+          },
+          { role: "user", content: `Create a professional announcement email for GSM World Store about: ${prompt}` },
+        ],
+        response_format: { type: "json_object" },
+      }),
     });
-    const result = JSON.parse(completion.choices[0].message.content || "{}") as { subject?: string; body?: string };
+    if (!aiRes.ok) {
+      const errText = await aiRes.text().catch(() => "unknown");
+      req.log.error({ status: aiRes.status, errText }, "OpenAI API error for announcement");
+      res.status(500).json({ error: `AI generation failed (${aiRes.status})` });
+      return;
+    }
+    const aiData = await aiRes.json() as { choices?: Array<{ message?: { content?: string } }> };
+    const result = JSON.parse(aiData.choices?.[0]?.message?.content || "{}") as { subject?: string; body?: string };
     res.json({ subject: result.subject ?? "", body: result.body ?? "" });
   } catch (err) {
     req.log.error({ err }, "AI announcement generation failed");

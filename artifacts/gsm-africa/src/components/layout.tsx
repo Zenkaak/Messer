@@ -297,21 +297,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   onClick={async () => {
                     setSidebarOpen(false);
                     try {
-                      const android = (window as unknown as { Android?: { downloadAndInstall?: (url: string) => void } }).Android;
-                      const res = await fetch(`${basePath}/api/app/version`);
-                      const data = await res.json() as { apkUrl?: string; version?: string };
-                      if (data.apkUrl && android?.downloadAndInstall) {
-                        android.downloadAndInstall(data.apkUrl);
-                        // silent — no toast, update runs in background
-                      } else {
-                        const url = new URL(window.location.href);
-                        url.searchParams.set("_v", String(Date.now()));
-                        window.location.replace(url.toString());
-                      }
-                    } catch {
+                      // Web content auto-updates from Vercel on every push — reload to get the latest
                       const url = new URL(window.location.href);
                       url.searchParams.set("_v", String(Date.now()));
                       window.location.replace(url.toString());
+                    } catch {
+                      window.location.reload();
                     }
                   }}
                   className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-gray-300 hover:bg-white/8 transition-colors"
