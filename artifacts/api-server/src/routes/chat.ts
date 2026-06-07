@@ -2698,10 +2698,12 @@ router.post("/chat/bot", async (req, res) => {
     const isOpenRouter = openaiBase.toLowerCase().includes("openrouter");
     const modelCascade = isOpenRouter
       ? [
-          "meta-llama/llama-3.3-70b-instruct:free",     // primary FREE — fast 70B, great tool-calling
-          "mistralai/mistral-7b-instruct:free",          // fast fallback — 7B, very low latency
-          "openai/gpt-oss-120b:free",                    // large fallback — 120B, tool-calling
-          "openai/gpt-4o-mini",                          // paid fallback (if credits available)
+          "meta-llama/llama-3.3-70b-instruct:free",     // primary — fast 70B, great tool-calling
+          "meta-llama/llama-3.1-70b-instruct:free",     // fallback 70B llama
+          "qwen/qwen2.5-72b-instruct:free",             // Qwen 72B — strong tool-calling
+          "mistralai/mistral-7b-instruct:free",         // fast 7B fallback
+          "google/gemma-2-9b-it:free",                  // Google Gemma 9B
+          "deepseek/deepseek-chat:free",                // DeepSeek free — capable fallback
         ]
       : ["gpt-4o-mini"];
 
@@ -2748,7 +2750,7 @@ router.post("/chat/bot", async (req, res) => {
           req.log.warn({ model: modelName, status: response.status, body: errBody.slice(0, 200) }, "AI model error — trying next in cascade");
           // Rate limit: brief wait then retry same model
           if (response.status === 429 && iter < 2) {
-            await new Promise(r => setTimeout(r, 1500));
+            await new Promise(r => setTimeout(r, 600));
             continue;
           }
           // Any other failure: try next model in cascade
