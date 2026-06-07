@@ -4053,6 +4053,41 @@ export function AdminPage() {
     fetchAdminApkVersion();
   }, []);
 
+  // Auto-reload when a new Vercel deploy is detected (WebView only).
+  // The user app does this in layout.tsx for GSMWorldApp; the admin WebView
+  // uses GSMAdminApp/1.0 and had no equivalent — so after a deploy the
+  // WebView would keep serving the old cached JS bundle indefinitely.
+  useEffect(() => {
+    const isAdminWebView = navigator.userAgent.includes("GSMAdminApp");
+    if (!isAdminWebView) return;
+
+    let knownBuildId: string | null = null;
+    const base = apiPath("");
+
+    async function checkWebVersion() {
+      try {
+        const r = await fetch(`${base}/api/web-version`, { cache: "no-store" });
+        if (!r.ok) return;
+        const d = await r.json() as { buildId?: string };
+        if (!d.buildId) return;
+        if (knownBuildId === null) {
+          knownBuildId = d.buildId; // first poll — record current build, don't reload
+          return;
+        }
+        if (d.buildId !== knownBuildId) {
+          // New Vercel deployment detected — reload with cache-busting param
+          const url = new URL(window.location.href);
+          url.searchParams.set("_v", String(Date.now()));
+          window.location.replace(url.toString());
+        }
+      } catch { /* ignore network errors */ }
+    }
+
+    checkWebVersion();
+    const interval = setInterval(checkWebVersion, 60_000);
+    return () => clearInterval(interval);
+  }, []);
+
   // Prevent Android SwipeRefreshLayout from firing when the user is scrolled
   // down and swipes downward to go back to the top.
   //
