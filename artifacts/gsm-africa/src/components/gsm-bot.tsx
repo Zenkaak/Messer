@@ -2118,7 +2118,10 @@ export function GsmBot() {
             <>
               {/* ── BOT CHAT BODY ── */}
               <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2.5">
-                {messages.map((m, i) => (
+                {messages.map((m, i) => {
+                  // Hide the empty placeholder bubble while streaming — dots handle the indicator
+                  if (m.role === "assistant" && !m.content && i === messages.length - 1 && loading) return null;
+                  return (
                   <div key={i} className={`flex gap-2 ${m.role === "user" ? "justify-end" : "justify-start"}`}>
                     {m.role === "assistant" && (
                       <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center shrink-0 mt-0.5">
@@ -2199,7 +2202,8 @@ export function GsmBot() {
                       </div>
                     )}
                   </div>
-                ))}
+                  );
+                })}
 
                 {loading && (
                   <div className="flex gap-2 justify-start">
