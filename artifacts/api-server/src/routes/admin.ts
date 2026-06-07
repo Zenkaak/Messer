@@ -1011,13 +1011,29 @@ router.post("/admin/announcements/ai-generate", async (req, res) => {
 
 router.post("/admin/announcements/send", async (req, res) => {
   if (!await checkAdminAuth(req, res)) return;
-  const { subject, body } = req.body || {};
+  const { subject, body, productIds } = req.body || {};
   if (!subject?.trim() || !body?.trim()) { res.status(400).json({ error: "Subject and body are required" }); return; }
   try {
+    // Fetch featured products if any IDs were supplied
+    let featuredProducts: Array<{ id: number; name: string; price: string; imageUrl: string | null; originalPrice: string | null }> = [];
+    if (Array.isArray(productIds) && productIds.length > 0) {
+      const ids = productIds.slice(0, 6).map(Number).filter(n => !isNaN(n));
+      if (ids.length > 0) {
+        const rows = await db
+          .select({ id: productsTable.id, name: productsTable.name, price: productsTable.price, imageUrl: productsTable.imageUrl, originalPrice: productsTable.originalPrice })
+          .from(productsTable)
+          .where(sql`${productsTable.id} = ANY(${sql.raw("'{" + ids.join(",") + "}'::int[]")})`);
+        // preserve caller order
+        const map = new Map(rows.map(r => [r.id, r]));
+        featuredProducts = ids.flatMap(id => (map.has(id) ? [map.get(id)!] : []));
+      }
+    }
+
     const allUsers = await db
       .select({ email: usersTable.email })
       .from(usersTable)
       .where(eq(usersTable.status, "active"));
+
     let sent = 0;
     for (const u of allUsers) {
       try {
@@ -1025,12 +1041,12 @@ router.post("/admin/announcements/send", async (req, res) => {
           to: u.email,
           subject,
           text: body,
-          html: announcementEmail({ subject, body }),
+          html: announcementEmail({ subject, body, featuredProducts: featuredProducts.length > 0 ? featuredProducts : undefined }),
         });
         sent++;
       } catch { /* skip failed recipients */ }
     }
-    req.log.info({ sent, subject }, "Announcement broadcast sent");
+    req.log.info({ sent, subject, featuredProducts: featuredProducts.length }, "Announcement broadcast sent");
     res.json({ ok: true, recipientCount: sent });
   } catch (err) {
     req.log.error({ err }, "Announcement broadcast failed");

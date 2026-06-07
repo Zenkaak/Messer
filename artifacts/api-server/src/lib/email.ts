@@ -821,7 +821,81 @@ export function adminDirectMessageEmail(params: {
 }
 
 // ── Announcement broadcast email ──────────────────────────────────────────────
-export function announcementEmail(params: { subject: string; body: string }) {
+export function announcementEmail(params: {
+  subject: string;
+  body: string;
+  featuredProducts?: Array<{
+    id: number;
+    name: string;
+    price: string;
+    imageUrl: string | null;
+    originalPrice?: string | null;
+  }>;
+}) {
+  const storeUrl = "https://gsmworld.vercel.app";
+
+  // ── Product showcase strip (Jumia-style horizontal scroll) ────────────────
+  function productCard(p: { id: number; name: string; price: string; imageUrl: string | null; originalPrice?: string | null }) {
+    const productUrl = `${storeUrl}/products/${p.id}`;
+    const imgSrc = p.imageUrl || `${storeUrl}/placeholder.png`;
+    const oldPrice = p.originalPrice ? `<p style="margin:0 0 2px;font-size:10px;color:#94a3b8;text-decoration:line-through;">${parseFloat(p.originalPrice).toFixed(2)}</p>` : "";
+    const discount = p.originalPrice
+      ? `<span style="display:inline-block;background:#ef4444;color:#fff;font-size:9px;font-weight:900;padding:2px 5px;border-radius:4px;margin-left:4px;">-${Math.round((1 - parseFloat(p.price)/parseFloat(p.originalPrice))*100)}%</span>`
+      : "";
+    return `<td style="width:180px;min-width:180px;vertical-align:top;padding-right:12px;">
+      <a href="${productUrl}" style="text-decoration:none;display:block;background:#fff;border:1.5px solid #e2e8f0;border-radius:16px;overflow:hidden;box-shadow:0 2px 8px rgba(15,23,42,0.06);">
+        <div style="width:100%;height:140px;overflow:hidden;background:#f1f5f9;">
+          <img src="${imgSrc}" width="180" height="140" style="width:100%;height:140px;object-fit:cover;display:block;" />
+        </div>
+        <div style="padding:10px 12px 14px;">
+          <p style="margin:0 0 4px;font-size:12px;font-weight:800;color:#0f172a;line-height:1.35;max-height:2.7em;overflow:hidden;">${p.name}</p>
+          ${oldPrice}
+          <p style="margin:0 0 8px;font-size:17px;font-weight:900;color:#0ea5e9;line-height:1;">${parseFloat(p.price).toFixed(2)}${discount}</p>
+          <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+            <tr>
+              <td style="background:linear-gradient(135deg,#0ea5e9,#0284c7);border-radius:8px;text-align:center;padding:8px 0;">
+                <a href="${productUrl}" style="color:#fff;font-size:11px;font-weight:900;text-decoration:none;letter-spacing:0.5px;">BUY NOW</a>
+              </td>
+            </tr>
+          </table>
+        </div>
+      </a>
+    </td>`;
+  }
+
+  const productsHtml = (params.featuredProducts && params.featuredProducts.length > 0)
+    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 28px;">
+      <tr>
+        <td style="padding:0 0 14px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+            <tr>
+              <td><p style="margin:0;font-size:12px;font-weight:900;color:#0f172a;text-transform:uppercase;letter-spacing:1.5px;">🔥 Featured Products</p></td>
+              <td style="text-align:right;"><a href="${storeUrl}/products" style="font-size:11px;color:#0ea5e9;font-weight:700;text-decoration:none;">View All Products →</a></td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:0;">
+          <!-- Horizontal scrolling product strip — slides left to right on mobile -->
+          <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;display:block;padding:4px 0 8px;">
+            <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:separate;border-spacing:0;white-space:nowrap;">
+              <tr>
+                ${params.featuredProducts.map(productCard).join("")}
+              </tr>
+            </table>
+          </div>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:8px 0 0;text-align:center;">
+          <p style="margin:0 0 12px;font-size:10px;color:#94a3b8;letter-spacing:1px;">← SWIPE TO EXPLORE MORE DEALS →</p>
+          <a href="${storeUrl}/products" style="display:inline-block;background:#0f172a;color:#fff;font-size:12px;font-weight:800;padding:12px 28px;border-radius:10px;text-decoration:none;letter-spacing:0.3px;">🛒 Shop All Products</a>
+        </td>
+      </tr>
+    </table>`
+    : "";
+
   const h = header(
     "linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%)",
     "GSM World Announcement",
@@ -832,11 +906,12 @@ export function announcementEmail(params: { subject: string; body: string }) {
     .filter(Boolean)
     .map(p => `<p style="margin:0 0 16px;font-size:15px;color:#475569;line-height:1.6;">${p}</p>`)
     .join("");
-  const body = `
+  const bodyHtml = `
+    ${productsHtml}
     ${paragraphs}
     <div style="margin-top:32px;padding-top:20px;border-top:1px solid #f1f5f9;">
       <p style="margin:0;font-size:14px;color:#475569;">Regards,<br><strong style="color:#0f172a;">GSM World Team</strong></p>
     </div>
   `;
-  return layout(params.subject, "#0ea5e9", h, body);
+  return layout(params.subject, "#0ea5e9", h, bodyHtml);
 }

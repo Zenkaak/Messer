@@ -3604,7 +3604,22 @@ function AnnouncementsPanel({ pwd }: { pwd: string }) {
   const [aiLoading, setAiLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState<{ count: number } | null>(null);
+  const [allProducts, setAllProducts] = useState<AdminProduct[]>([]);
+  const [selectedProducts, setSelectedProducts] = useState<AdminProduct[]>([]);
+  const [showPicker, setShowPicker] = useState(false);
+  const [pickerSearch, setPickerSearch] = useState("");
   const { toast } = useToast();
+
+  useEffect(() => {
+    adminFetch(apiPath("/api/admin/products?limit=100&inStock=true"), pwd)
+      .then(r => r.json())
+      .then((d: unknown) => {
+        if (d && typeof d === "object" && "products" in d) {
+          setAllProducts((d as { products: AdminProduct[] }).products);
+        }
+      })
+      .catch(() => {});
+  }, [pwd]);
 
   async function generateWithAI() {
     if (!aiPrompt.trim()) return;
@@ -3633,13 +3648,13 @@ function AnnouncementsPanel({ pwd }: { pwd: string }) {
     try {
       const r = await adminFetch(apiPath("/api/admin/announcements/send"), pwd, {
         method: "POST",
-        body: JSON.stringify({ subject, body }),
+        body: JSON.stringify({ subject, body, productIds: selectedProducts.map(p => p.id) }),
       });
       const d = await r.json() as { ok?: boolean; recipientCount?: number; error?: string };
       if (r.ok && d.ok) {
         setSent({ count: d.recipientCount ?? 0 });
         toast({ title: `✅ Sent to ${d.recipientCount ?? 0} users!` });
-        setSubject(""); setBody(""); setAiPrompt("");
+        setSubject(""); setBody(""); setAiPrompt(""); setSelectedProducts([]); setShowPicker(false);
       } else {
         toast({ variant: "destructive", title: d.error ?? "Failed to send" });
       }
@@ -3699,6 +3714,99 @@ function AnnouncementsPanel({ pwd }: { pwd: string }) {
             className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
           />
         </div>
+        {/* ── Featured products picker ─────────────────────────────────────── */}
+        <div className="space-y-2 pt-1">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold text-slate-500">
+              Featured Products <span className="font-normal text-slate-300">(optional · shown as product cards in email)</span>
+            </p>
+            <button
+              onClick={() => setShowPicker(v => !v)}
+              className="text-xs text-blue-600 font-bold hover:text-blue-800 transition-colors flex items-center gap-1"
+            >
+              <Package size={11} /> {showPicker ? "Close" : "+ Add"}
+            </button>
+          </div>
+
+          {/* Selected product chips */}
+          {selectedProducts.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {selectedProducts.map(p => (
+                <div key={p.id} className="flex items-center gap-1.5 bg-blue-50 border border-blue-100 rounded-xl px-2 py-1">
+                  {p.imageUrl
+                    ? <img src={p.imageUrl} className="w-6 h-6 rounded-md object-cover shrink-0" alt="" />
+                    : <div className="w-6 h-6 rounded-md bg-slate-200 shrink-0 flex items-center justify-center"><Package size={10} className="text-slate-400" /></div>
+                  }
+                  <span className="text-[10px] font-bold text-blue-800 max-w-[90px] truncate">{p.name}</span>
+                  <span className="text-[10px] font-black text-blue-600">${Number(p.price).toFixed(2)}</span>
+                  <button
+                    onClick={() => setSelectedProducts(prev => prev.filter(x => x.id !== p.id))}
+                    className="text-blue-200 hover:text-red-400 transition-colors leading-none"
+                  >✕</button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Product picker dropdown */}
+          {showPicker && (
+            <div className="border border-slate-200 rounded-2xl bg-white shadow-lg p-3 space-y-2">
+              <div className="relative">
+                <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                <input
+                  value={pickerSearch}
+                  onChange={e => setPickerSearch(e.target.value)}
+                  placeholder="Search products…"
+                  className="w-full pl-8 pr-3 border border-slate-200 rounded-xl py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-400"
+                />
+              </div>
+              <p className="text-[10px] text-slate-400 font-medium">Select up to 6 products to feature in the email carousel</p>
+              <div className="max-h-52 overflow-y-auto space-y-1 pr-0.5">
+                {allProducts
+                  .filter(p => p.name.toLowerCase().includes(pickerSearch.toLowerCase()))
+                  .slice(0, 30)
+                  .map(p => {
+                    const isSel = selectedProducts.some(s => s.id === p.id);
+                    return (
+                      <button
+                        key={p.id}
+                        onClick={() => {
+                          if (isSel) {
+                            setSelectedProducts(prev => prev.filter(x => x.id !== p.id));
+                          } else if (selectedProducts.length >= 6) {
+                            toast({ title: "Max 6 products" });
+                          } else {
+                            setSelectedProducts(prev => [...prev, p]);
+                          }
+                        }}
+                        className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-left transition-colors ${isSel ? "bg-blue-50 border border-blue-200" : "hover:bg-slate-50 border border-transparent"}`}
+                      >
+                        {p.imageUrl
+                          ? <img src={p.imageUrl} className="w-10 h-10 rounded-lg object-cover shrink-0" alt="" />
+                          : <div className="w-10 h-10 rounded-lg bg-slate-100 shrink-0 flex items-center justify-center"><Package size={14} className="text-slate-300" /></div>
+                        }
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-bold text-slate-800 truncate">{p.name}</p>
+                          <p className="text-[10px] text-slate-400">
+                            ${Number(p.price).toFixed(2)}
+                            {p.originalPrice && <span className="line-through ml-1 text-slate-300">${Number(p.originalPrice).toFixed(2)}</span>}
+                            {!p.inStock && <span className="ml-1 text-amber-500 font-semibold">· Out of stock</span>}
+                          </p>
+                        </div>
+                        {isSel && <CheckCircle2 size={15} className="text-blue-500 shrink-0" />}
+                      </button>
+                    );
+                  })
+                }
+                {allProducts.length === 0 && (
+                  <p className="text-xs text-slate-400 text-center py-4">No products found</p>
+                )}
+              </div>
+              <button onClick={() => setShowPicker(false)} className="w-full py-2 text-xs text-slate-500 font-bold border border-slate-200 rounded-xl hover:bg-slate-50">Done ({selectedProducts.length}/6 selected)</button>
+            </div>
+          )}
+        </div>
+
         <button onClick={sendAnnouncement} disabled={!subject.trim() || !body.trim() || sending}
           className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-2xl text-sm disabled:opacity-40 flex items-center justify-center gap-2 transition-colors shadow-sm">
           {sending ? <><RefreshCw size={13} className="animate-spin" /> Sending…</> : <><Send size={13} /> Send to All Users</>}
