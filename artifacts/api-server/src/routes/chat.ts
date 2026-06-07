@@ -1034,6 +1034,7 @@ TRIGGERS: "gift card", "PSN", "PlayStation", "Xbox", "Steam", "Google Play", "Ne
   • NEVER tell the customer to "add to cart", "click Add to Cart", or "select the card" — YOU do it for them by CALLING the add_to_cart TOOL FUNCTION.
   • NEVER say "we don't have that denomination" or "that amount isn't pre-listed" — accept ANY amount ≥ $10 as a custom order.
   • If the user's message already contains brand + amount, skip navigation entirely and go straight to calling add_to_cart.
+  • ALWAYS pass replace_cart: true when calling add_to_cart for a gift card — this clears any stale items from a previous session so the customer is NEVER charged for the wrong product.
 
 ⚠️ CRITICAL EXECUTION RULE (applies to ALL tool calls, especially add_to_cart):
   • Writing "[Adding to cart...]" or "Let me add that to your cart" as TEXT is NOT the same as calling the add_to_cart tool.
@@ -1041,12 +1042,16 @@ TRIGGERS: "gift card", "PSN", "PlayStation", "Xbox", "Steam", "Google Play", "Ne
   • Do NOT write any sentence saying you are about to add to cart. Just call the tool directly.
 
 PATH A — User already specified brand AND amount (e.g. "Google Play USA $50", "PSN $25"):
-  A1 — search_products("[brand] [region]") to get the product ID
-  A2 — IMMEDIATELY call add_to_cart(product_id, 1, custom_price=[customer's exact requested dollar amount]).
-         ALWAYS pass custom_price equal to the customer's requested denomination (e.g. 50 for a "$50" Google Play card).
-         This ensures the order total matches what the customer asked for, NOT the catalog price.
-         Set device_identifier = "Custom: $[amount] [brand] [region]" if exact denomination not in catalog.
-         Do NOT write anything about adding to cart — just call the tool directly.
+  A1 — search_products("[brand] [region]") to get the product ID.
+         • If search returns a matching gift card product: use that product_id.
+         • If search returns found:false or no gift card products: call search_products("[brand] gift card") — if still no match, call get_category_products("Gift Cards") to get the full gift card catalog and pick the closest matching product by brand/region (e.g. "Google Play USA Gift Card" for a Google Play USA request).
+         • NEVER skip this step — you MUST have a valid product_id from the catalog before calling add_to_cart.
+  A2 — IMMEDIATELY call add_to_cart(product_id, 1, custom_price=[customer's exact requested dollar amount], replace_cart: true).
+         • ALWAYS pass custom_price equal to the customer's requested denomination (e.g. 50 for a "$50" Google Play card).
+         • ALWAYS pass replace_cart: true — clears stale cart items and ensures only THIS product is ordered.
+         • This ensures the order total matches what the customer asked for, NOT the catalog price.
+         • Set device_identifier = "Custom: $[amount] [brand] [region]" if exact denomination not in catalog.
+         • Do NOT write anything about adding to cart — just call the tool directly.
   ⚠️ PATH A CONTINUATION RULE: After add_to_cart you MUST immediately proceed to A3. Do NOT say "Is there anything else?" Do NOT pause. Do NOT wait. Keep going straight through A1→A2→A3→A4→place_order without stopping under any circumstances.
   A3 — Collect email if not already known (NO IMEI — never ask for IMEI on gift cards)
   A4 — Ask payment method → place_order. Delivery: instant–30 min standard, up to 1 hour custom.
@@ -1054,7 +1059,8 @@ PATH A — User already specified brand AND amount (e.g. "Google Play USA $50", 
 PATH B — User said "buy gift card" with no brand or amount yet:
   B1 — navigate_to("gift-cards", "Gift Cards Store") and ask: "Which brand and region? (e.g. Google Play USA, PSN UK)"
   B2 — Once they reply with brand/region: ask denomination. Accept any amount ≥ $10.
-  B3 — search_products("[brand] [region]") → IMMEDIATELY call add_to_cart(product_id, 1, custom_price=[amount]).
+  B3 — search_products("[brand] [region]") → if no exact match, call get_category_products("Gift Cards") and pick the closest gift card product.
+         IMMEDIATELY call add_to_cart(product_id, 1, custom_price=[amount], replace_cart: true).
          device_identifier = "Custom: $[amount] [brand] [region]" if needed.
   B4 — Collect email (NO IMEI). Payment → place_order.
 
@@ -1236,6 +1242,7 @@ const TOOLS = [
           product_id: { type: "number", description: "Product ID to add (get from search_products or get_product_details)" },
           quantity: { type: "number", description: "Quantity to add (default 1)" },
           custom_price: { type: "number", description: "Override the catalog price with a custom amount (USD). Use this for gift cards or custom denomination orders where the customer requested a specific amount different from the catalog price. E.g. if customer wants a $50 Google Play card, pass 50 here." },
+          replace_cart: { type: "boolean", description: "If true, clears ALL existing items from the cart before adding this product. Use this for every new gift card order to prevent stale items from a previous order being charged accidentally." },
         },
         required: ["product_id"],
       },
@@ -1957,7 +1964,7 @@ async function consumeStream(
 }
 
 // ─── New tool executors (cart / auth / checkout) ─────────────────────────────
-async function toolAddToCart(productId: number, quantity: number, sessionId: string, botToken?: string | null, customPrice?: number | null): Promise<Record<string, unknown>> {
+async function toolAddToCart(productId: number, quantity: number, sessionId: string, botToken?: string | null, customPrice?: number | null, replaceCart?: boolean): Promise<Record<string, unknown>> {
   try {
     // Direct DB — no internal HTTP call (serverless-safe)
     const { resolvedSession } = resolveBotSession(sessionId, botToken);
@@ -1968,6 +1975,11 @@ async function toolAddToCart(productId: number, quantity: number, sessionId: str
 
     // Use custom_price if provided (e.g. gift card custom denominations), otherwise use catalog price
     const effectivePrice = (customPrice && customPrice > 0) ? String(customPrice.toFixed(2)) : product.price;
+
+    // If replace_cart is set, clear ALL existing cart items first to prevent stale items
+    if (replaceCart) {
+      await db.delete(cartItemsTable).where(eq(cartItemsTable.sessionId, resolvedSession));
+    }
 
     const [existing] = await db.select().from(cartItemsTable)
       .where(and(eq(cartItemsTable.sessionId, resolvedSession), eq(cartItemsTable.productId, productId)));
@@ -2390,7 +2402,8 @@ async function runToolCalls(
         if (r.found && (r.orders as unknown[])?.length) { lat = "show_orders"; lad = { orders: r.orders }; }
       } else if (fn === "add_to_cart") {
         const customPrice = args.custom_price != null ? Number(args.custom_price) : null;
-        const r = await toolAddToCart(Number(args.product_id ?? 0), Number(args.quantity ?? 1), opts.sessionId ?? "guest-session", opts.botToken, customPrice);
+        const replaceCart = args.replace_cart === true;
+        const r = await toolAddToCart(Number(args.product_id ?? 0), Number(args.quantity ?? 1), opts.sessionId ?? "guest-session", opts.botToken, customPrice, replaceCart);
         result = JSON.stringify(r);
         if (r.success) { lat = "cart_item_added"; lad = { productName: r.productName, quantity: r.quantity, price: r.price }; }
       } else if (fn === "show_password_login_form") {
