@@ -116,6 +116,8 @@ function layout(preheader: string, accentColor: string, headerContent: string, b
                     <p style="margin:0;font-size:12px;color:#94a3b8;">
                       <a href="${storeUrl}" style="color:#0ea5e9;text-decoration:none;font-weight:600;">gsmworld.co.ke</a>
                       &nbsp;&nbsp;·&nbsp;&nbsp;
+                      <a href="${storeUrl}/account/orders" style="color:#0ea5e9;text-decoration:none;">Track Your Order</a>
+                      &nbsp;&nbsp;·&nbsp;&nbsp;
                       <a href="${storeUrl}/account" style="color:#0ea5e9;text-decoration:none;">Account Settings</a>
                       &nbsp;&nbsp;·&nbsp;&nbsp;
                       <a href="{{UNSUB_URL}}" style="color:#94a3b8;text-decoration:underline;">Unsubscribe</a>
