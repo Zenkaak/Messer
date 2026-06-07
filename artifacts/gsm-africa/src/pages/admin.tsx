@@ -1272,20 +1272,26 @@ function OrdersPanel({ pwd }: { pwd: string }) {
   }, [pwd]);
 
   // Preserve scroll position during silent auto-refresh
+  // Mobile: body scrolls (window.scrollY). Desktop (md+): <main> element scrolls.
   const scrollContainerRef = useRef<HTMLElement | null>(null);
   useEffect(() => {
-    // Find the nearest scrollable ancestor (<main>) once on mount
     scrollContainerRef.current = document.querySelector("main[class*='overflow-y-auto']") as HTMLElement | null;
   }, []);
+
+  const getScroll = () =>
+    window.innerWidth < 768 ? window.scrollY : (scrollContainerRef.current?.scrollTop ?? 0);
+  const restoreScroll = (y: number) => {
+    if (window.innerWidth < 768) window.scrollTo({ top: y, behavior: "instant" as ScrollBehavior });
+    else if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = y;
+  };
 
   useEffect(() => {
     load(page, filterType);
     const tick = () => {
-      const savedScroll = scrollContainerRef.current?.scrollTop ?? 0;
-      load(page, filterType, true).then?.(() => {
-        if (scrollContainerRef.current && savedScroll > 0) {
-          scrollContainerRef.current.scrollTop = savedScroll;
-        }
+      const savedScroll = getScroll();
+      load(page, filterType, true);
+      requestAnimationFrame(() => {
+        if (savedScroll > 0) restoreScroll(savedScroll);
       });
     };
     const interval = setInterval(tick, 30_000);
@@ -4020,25 +4026,8 @@ export function AdminPage() {
     fetchAdminApkVersion();
   }, []);
 
-  // Block pull-to-refresh on the admin scrollable container (touch events)
-  useEffect(() => {
-    const el = mainRef.current;
-    if (!el) return;
-    let startY = 0;
-    const onStart = (e: TouchEvent) => { startY = e.touches[0]?.clientY ?? 0; };
-    const onMove = (e: TouchEvent) => {
-      // Prevent pull-down gesture when already at the top of the scroll container
-      if (el.scrollTop <= 0 && (e.touches[0]?.clientY ?? 0) > startY) {
-        e.preventDefault();
-      }
-    };
-    el.addEventListener("touchstart", onStart, { passive: true });
-    el.addEventListener("touchmove", onMove, { passive: false });
-    return () => {
-      el.removeEventListener("touchstart", onStart);
-      el.removeEventListener("touchmove", onMove);
-    };
-  }, [authed]);
+  // (pull-to-refresh handled natively: body scrolls on mobile so Android SwipeRefreshLayout
+  //  correctly reads scroll position — no JS intervention needed)
 
   useEffect(() => {
     if (!authed) return;
@@ -4090,7 +4079,7 @@ export function AdminPage() {
         />
       )}
 
-      <div className="flex h-screen bg-slate-50 overflow-hidden">
+      <div className="flex flex-col min-h-screen bg-slate-50 md:flex-row md:h-screen md:overflow-hidden">
 
         {/* ── Desktop Left Sidebar ── */}
         <aside className="hidden md:flex flex-col w-56 bg-slate-900 shrink-0">
@@ -4139,10 +4128,10 @@ export function AdminPage() {
         </aside>
 
         {/* ── Main Area ── */}
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 flex flex-col md:overflow-hidden">
 
           {/* ── top header ── */}
-          <header className="shrink-0 bg-slate-900 px-4">
+          <header className="sticky top-0 z-50 shrink-0 bg-slate-900 px-4">
             {/* Mobile: brand row */}
             <div className="flex md:hidden items-center justify-between py-3 border-b border-white/5">
               <div className="flex items-center gap-2.5">
@@ -4212,7 +4201,7 @@ export function AdminPage() {
           </header>
 
           {/* ── scrollable content ── */}
-          <main ref={mainRef} className="flex-1 overflow-y-auto overscroll-y-none pb-16 md:pb-0">
+          <main ref={mainRef} className="flex-1 md:overflow-y-auto md:overscroll-y-none pb-16 md:pb-0">
             {tab === "overview"   && <OverviewPanel   pwd={pwd} onNavigate={setTab} />}
             {tab === "orders"     && <OrdersPanel     pwd={pwd} />}
             {tab === "products"   && <ProductsPanel   pwd={pwd} />}
