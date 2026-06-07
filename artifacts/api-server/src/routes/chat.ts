@@ -2717,7 +2717,7 @@ router.post("/chat/bot", async (req, res) => {
 
       for (let iter = 0; iter < 4; iter++) {
         const abortCtrl = new AbortController();
-        const abortTimer = setTimeout(() => abortCtrl.abort(), 28000);
+        const abortTimer = setTimeout(() => abortCtrl.abort(), 10000);
 
         let response: Response;
         try {
@@ -2741,6 +2741,10 @@ router.post("/chat/bot", async (req, res) => {
               stream: wantsStream,
             }),
           });
+        } catch (fetchErr) {
+          clearTimeout(abortTimer);
+          req.log.warn({ model: modelName, err: String(fetchErr) }, "AI fetch error — trying next model");
+          continue modelLoop;
         } finally {
           clearTimeout(abortTimer);
         }
@@ -2790,7 +2794,7 @@ router.post("/chat/bot", async (req, res) => {
           };
 
           const assistantMsg = data.choices?.[0]?.message;
-          if (!assistantMsg) break;
+          if (!assistantMsg) continue modelLoop;
 
           const entry: Record<string, unknown> = { role: "assistant", content: assistantMsg.content ?? null };
           if (assistantMsg.tool_calls?.length) entry.tool_calls = assistantMsg.tool_calls;
@@ -2798,8 +2802,9 @@ router.post("/chat/bot", async (req, res) => {
 
           if (!assistantMsg.tool_calls?.length) {
             const rawReply = assistantMsg.content?.trim() ?? "";
+            if (!rawReply) continue modelLoop; // empty response — try next model
             const hasHumanBtn2 = rawReply.includes("[SHOW_HUMAN_BUTTON]");
-            const reply = rawReply.replace(/\[SHOW_HUMAN_BUTTON\]/g, "").trim() || "Is there anything else I can help you with?";
+            const reply = rawReply.replace(/\[SHOW_HUMAN_BUTTON\]/g, "").trim();
             res.json({ message: reply, action: actionType, actionData, showHumanButton: hasHumanBtn2 || undefined });
             botResponded = true;
             break modelLoop;
@@ -2816,9 +2821,9 @@ router.post("/chat/bot", async (req, res) => {
       }
 
       if (!botResponded) {
-        // Tool-call iterations exhausted for this model — send final response
-        sseDone({ message: "Is there anything else I can help you with?", action: actionType, actionData });
-        botResponded = true;
+        // Tool-call iterations exhausted for this model — try the next model in cascade
+        req.log.warn({ model: modelName }, "Tool-call iterations exhausted — trying next model");
+        continue modelLoop;
       }
       break modelLoop;
     }
