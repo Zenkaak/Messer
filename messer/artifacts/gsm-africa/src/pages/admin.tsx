@@ -2188,6 +2188,53 @@ interface ResellerApp {
   ownerName: string | null;
 }
 
+interface ResellerOrder {
+  id: number;
+  orderCode: string | null;
+  total: string;
+  paymentStatus: string;
+  paymentMethod: string;
+  customerEmail: string;
+  customerName: string | null;
+  orderType: string;
+  createdAt: string;
+  paidAt: string | null;
+}
+
+interface ResellerWithdrawal {
+  id: number;
+  amount: string;
+  status: string;
+  paymentMethod: string | null;
+  paymentAddress: string | null;
+  notes: string | null;
+  adminNotes: string | null;
+  createdAt: string;
+  processedAt: string | null;
+}
+
+interface ResellerDetailData {
+  reseller: ResellerApp & {
+    ownerUsername: string | null;
+    ownerEmail: string | null;
+    ownerWalletBalance: string | null;
+    ownerStatus: string | null;
+    ownerCreatedAt: string | null;
+    ownerRegistrationIp: string | null;
+  };
+  orders: ResellerOrder[];
+  withdrawals: ResellerWithdrawal[];
+  stats: {
+    totalRevenue: number;
+    paidRevenue: number;
+    commissionEarned: number;
+    commissionRate: number;
+    ordersByStatus: Record<string, number>;
+    totalOrders: number;
+    paidOrders: number;
+  };
+}
+
 function ResellerStatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
     approved: "bg-emerald-50 text-emerald-700 border-emerald-200",
@@ -2208,13 +2255,26 @@ function ResellerStatusBadge({ status }: { status: string }) {
   );
 }
 
+function OrderPayStatusBadge({ status }: { status: string }) {
+  const s: Record<string, string> = {
+    paid: "bg-emerald-50 text-emerald-700",
+    pending: "bg-amber-50 text-amber-700",
+    failed: "bg-red-50 text-red-600",
+    refunded: "bg-slate-100 text-slate-500",
+  };
+  return <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${s[status] ?? "bg-slate-100 text-slate-500"}`}>{status}</span>;
+}
+
 function ResellersPanel({ pwd }: { pwd: string }) {
   const { toast } = useToast();
   const [resellers, setResellers] = useState<ResellerApp[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<ResellerApp | null>(null);
+  const [detail, setDetail] = useState<ResellerDetailData | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
   const [acting, setActing] = useState<number | null>(null);
   const [rejectReason, setRejectReason] = useState("");
+  const [detailTab, setDetailTab] = useState<"info" | "orders" | "withdrawals">("info");
 
   const load = useCallback(() => {
     setLoading(true);
@@ -2227,6 +2287,18 @@ function ResellersPanel({ pwd }: { pwd: string }) {
 
   useEffect(() => { load(); }, [load]);
 
+  function selectReseller(r: ResellerApp) {
+    setSelected(r);
+    setDetail(null);
+    setDetailTab("info");
+    setDetailLoading(true);
+    adminFetch(apiPath(`/api/admin/resellers/${r.id}`), pwd)
+      .then(res => res.ok ? res.json() : Promise.reject())
+      .then((data: ResellerDetailData) => setDetail(data))
+      .catch(() => toast({ variant: "destructive", title: "Failed to load reseller details" }))
+      .finally(() => setDetailLoading(false));
+  }
+
   async function approve(id: number) {
     setActing(id);
     try {
@@ -2234,6 +2306,7 @@ function ResellersPanel({ pwd }: { pwd: string }) {
       if (!r.ok) throw new Error();
       toast({ title: "Reseller approved ✓" });
       setSelected(prev => prev ? { ...prev, status: "approved" } : prev);
+      setDetail(prev => prev ? { ...prev, reseller: { ...prev.reseller, status: "approved" } } : prev);
       load();
     } catch { toast({ variant: "destructive", title: "Failed to approve" }); }
     finally { setActing(null); }
@@ -2249,6 +2322,7 @@ function ResellersPanel({ pwd }: { pwd: string }) {
       if (!r.ok) throw new Error();
       toast({ title: "Application rejected" });
       setSelected(prev => prev ? { ...prev, status: "rejected" } : prev);
+      setDetail(prev => prev ? { ...prev, reseller: { ...prev.reseller, status: "rejected" } } : prev);
       setRejectReason("");
       load();
     } catch { toast({ variant: "destructive", title: "Failed to reject" }); }
@@ -2262,6 +2336,7 @@ function ResellersPanel({ pwd }: { pwd: string }) {
       if (!r.ok) throw new Error();
       toast({ title: "Payment confirmed" });
       setSelected(prev => prev ? { ...prev, status: "pending_approval" } : prev);
+      setDetail(prev => prev ? { ...prev, reseller: { ...prev.reseller, status: "pending_approval" } } : prev);
       load();
     } catch { toast({ variant: "destructive", title: "Failed to confirm payment" }); }
     finally { setActing(null); }
@@ -2270,7 +2345,12 @@ function ResellersPanel({ pwd }: { pwd: string }) {
   if (loading) return <div className="p-4 space-y-3">{[1,2,3].map(i => <Skeleton key={i} h="h-20" />)}</div>;
 
   if (selected) {
-    const storeUrl = `${window.location.origin}/store/${selected.storeSlug}`;
+    const rs = detail?.reseller ?? selected as ResellerDetailData["reseller"];
+    const stats = detail?.stats;
+    const orders = detail?.orders ?? [];
+    const withdrawals = detail?.withdrawals ?? [];
+    const storeUrl = `${window.location.origin}/store/${rs.storeSlug}`;
+
     return (
       <div className="p-4 space-y-4">
         <button onClick={() => setSelected(null)}
@@ -2278,80 +2358,220 @@ function ResellersPanel({ pwd }: { pwd: string }) {
           <ArrowLeft size={13} /> All Resellers
         </button>
 
+        {/* Header card */}
         <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
           <div className="px-5 py-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
             <div>
-              <p className="text-sm font-black text-slate-800">{selected.storeName}</p>
-              <p className="text-xs text-slate-400 font-mono">/{selected.storeSlug}</p>
+              <p className="text-sm font-black text-slate-800">{rs.storeName}</p>
+              <p className="text-xs text-slate-400 font-mono">/{rs.storeSlug}</p>
             </div>
-            <ResellerStatusBadge status={selected.status} />
+            <ResellerStatusBadge status={rs.status} />
           </div>
 
-          <div className="p-5 space-y-4">
-            <div className="grid grid-cols-2 gap-3">
+          {/* Stats bar */}
+          {detailLoading ? (
+            <div className="p-4"><Skeleton h="h-16" /></div>
+          ) : stats && (
+            <div className="grid grid-cols-4 divide-x divide-slate-100">
               {[
-                { label: "Owner", value: selected.ownerName ?? "—" },
-                { label: "Email", value: selected.email ?? "—" },
-                { label: "Commission", value: `${selected.commissionRate}%` },
-                { label: "Total Earned", value: `$${parseFloat(selected.totalEarned || "0").toFixed(2)}` },
-                { label: "Total Orders", value: String(selected.totalOrders) },
-                { label: "User ID", value: selected.userId ? `#${selected.userId}` : "—" },
-                { label: "Payment Method", value: selected.paymentMethod ?? "—" },
-                { label: "Payment Ref", value: selected.paymentReference ?? "—" },
-                { label: "Applied", value: new Date(selected.createdAt).toLocaleDateString() },
-                { label: "Approved", value: selected.approvedAt ? new Date(selected.approvedAt).toLocaleDateString() : "—" },
-              ].map(item => (
-                <div key={item.label} className="bg-slate-50 rounded-xl p-3">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">{item.label}</p>
-                  <p className="text-sm font-semibold text-slate-800 mt-0.5 break-all">{item.value}</p>
+                { label: "Orders", value: String(stats.totalOrders), sub: `${stats.paidOrders} paid` },
+                { label: "Revenue", value: `$${stats.totalRevenue.toFixed(2)}`, sub: `$${stats.paidRevenue.toFixed(2)} paid` },
+                { label: "Commission", value: `$${stats.commissionEarned.toFixed(2)}`, sub: `${stats.commissionRate}% rate` },
+                { label: "Earned", value: `$${parseFloat(rs.totalEarned || "0").toFixed(2)}`, sub: "all time" },
+              ].map(s => (
+                <div key={s.label} className="p-3 text-center">
+                  <p className="text-xs font-black text-slate-800">{s.value}</p>
+                  <p className="text-[9px] text-slate-400 mt-0.5">{s.label}</p>
+                  <p className="text-[9px] text-slate-300">{s.sub}</p>
                 </div>
               ))}
             </div>
+          )}
+        </div>
 
-            {selected.status === "approved" && (
-              <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3">
-                <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wide mb-1">Store URL</p>
-                <a href={storeUrl} target="_blank" rel="noopener noreferrer"
-                  className="text-xs font-mono text-emerald-700 underline break-all">{storeUrl}</a>
-              </div>
-            )}
+        {/* Tabs */}
+        <div className="flex bg-slate-100 rounded-xl p-1 gap-1">
+          {(["info", "orders", "withdrawals"] as const).map(t => (
+            <button key={t} onClick={() => setDetailTab(t)}
+              className={`flex-1 text-xs font-bold py-1.5 rounded-lg transition-all capitalize ${detailTab === t ? "bg-white text-slate-800 shadow-sm" : "text-slate-400 hover:text-slate-600"}`}>
+              {t === "orders" ? `Orders (${orders.length})` : t === "withdrawals" ? `Payouts (${withdrawals.length})` : "Info"}
+            </button>
+          ))}
+        </div>
 
-            {selected.rejectionReason && (
-              <div className="bg-red-50 border border-red-100 rounded-xl p-3">
-                <p className="text-[10px] font-bold text-red-600 uppercase tracking-wide mb-1">Rejection Reason</p>
-                <p className="text-sm text-red-700">{selected.rejectionReason}</p>
-              </div>
-            )}
-
-            {selected.status === "pending_payment" && (
-              <button onClick={() => confirmPayment(selected.id)} disabled={acting === selected.id}
-                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-sm flex items-center justify-center gap-2 disabled:opacity-60">
-                {acting === selected.id ? <RefreshCw size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
-                Confirm Payment Received
-              </button>
-            )}
-
-            {selected.status === "pending_approval" && (
-              <div className="space-y-2">
-                <button onClick={() => approve(selected.id)} disabled={acting === selected.id}
-                  className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-sm flex items-center justify-center gap-2 disabled:opacity-60">
-                  {acting === selected.id ? <RefreshCw size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
-                  Approve Application
-                </button>
-                <div className="flex gap-2">
-                  <input value={rejectReason} onChange={e => setRejectReason(e.target.value)}
-                    placeholder="Reason for rejection (optional)"
-                    className="flex-1 text-sm border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-300" />
-                  <button onClick={() => reject(selected.id)} disabled={acting === selected.id}
-                    className="py-2 px-4 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl text-sm flex items-center justify-center gap-1.5 disabled:opacity-60">
-                    {acting === selected.id ? <RefreshCw size={13} className="animate-spin" /> : <XCircle size={13} />}
-                    Reject
-                  </button>
+        {/* Info tab */}
+        {detailTab === "info" && (
+          <div className="space-y-3">
+            {detailLoading ? <Skeleton h="h-48" /> : (
+              <>
+                {/* Personal details */}
+                <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
+                  <div className="px-4 py-2.5 border-b border-slate-50">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-1.5"><Users size={10} /> Personal Details</p>
+                  </div>
+                  <div className="p-4 grid grid-cols-2 gap-3">
+                    {[
+                      { label: "Full Name", value: rs.ownerName ?? "—" },
+                      { label: "Email", value: rs.ownerEmail ?? rs.email ?? "—" },
+                      { label: "Username", value: rs.ownerUsername ? `@${rs.ownerUsername}` : "—" },
+                      { label: "Account Status", value: rs.ownerStatus ?? "—" },
+                      { label: "Wallet Balance", value: rs.ownerWalletBalance ? `$${parseFloat(rs.ownerWalletBalance).toFixed(2)}` : "—" },
+                      { label: "Registered", value: rs.ownerCreatedAt ? new Date(rs.ownerCreatedAt).toLocaleDateString() : "—" },
+                      { label: "User ID", value: rs.userId ? `#${rs.userId}` : "—" },
+                      { label: "Registration IP", value: rs.ownerRegistrationIp ?? "—" },
+                    ].map(item => (
+                      <div key={item.label} className="bg-slate-50 rounded-xl p-3">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">{item.label}</p>
+                        <p className="text-xs font-semibold text-slate-800 mt-0.5 break-all">{item.value}</p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
+
+                {/* Store / application details */}
+                <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
+                  <div className="px-4 py-2.5 border-b border-slate-50">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-1.5"><Store size={10} /> Store & Application</p>
+                  </div>
+                  <div className="p-4 grid grid-cols-2 gap-3">
+                    {[
+                      { label: "Commission Rate", value: `${rs.commissionRate}%` },
+                      { label: "Payment Method", value: rs.paymentMethod ?? "—" },
+                      { label: "Payment Ref", value: rs.paymentReference ?? "—" },
+                      { label: "Applied", value: new Date(rs.createdAt).toLocaleDateString() },
+                      { label: "Approved", value: rs.approvedAt ? new Date(rs.approvedAt).toLocaleDateString() : "—" },
+                      { label: "Fee Paid", value: rs.securityFeePaid ? "Yes" : "No" },
+                    ].map(item => (
+                      <div key={item.label} className="bg-slate-50 rounded-xl p-3">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">{item.label}</p>
+                        <p className="text-xs font-semibold text-slate-800 mt-0.5 break-all">{item.value}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {rs.status === "approved" && (
+                  <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3">
+                    <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wide mb-1 flex items-center gap-1"><Globe size={10} /> Store URL</p>
+                    <a href={storeUrl} target="_blank" rel="noopener noreferrer"
+                      className="text-xs font-mono text-emerald-700 underline break-all">{storeUrl}</a>
+                  </div>
+                )}
+
+                {rs.rejectionReason && (
+                  <div className="bg-red-50 border border-red-100 rounded-xl p-3">
+                    <p className="text-[10px] font-bold text-red-600 uppercase tracking-wide mb-1">Rejection Reason</p>
+                    <p className="text-xs text-red-700">{rs.rejectionReason}</p>
+                  </div>
+                )}
+
+                {/* Action buttons */}
+                {rs.status === "pending_payment" && (
+                  <button onClick={() => confirmPayment(rs.id)} disabled={acting === rs.id}
+                    className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-sm flex items-center justify-center gap-2 disabled:opacity-60">
+                    {acting === rs.id ? <RefreshCw size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+                    Confirm Payment Received
+                  </button>
+                )}
+                {rs.status === "pending_approval" && (
+                  <div className="space-y-2">
+                    <button onClick={() => approve(rs.id)} disabled={acting === rs.id}
+                      className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-sm flex items-center justify-center gap-2 disabled:opacity-60">
+                      {acting === rs.id ? <RefreshCw size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+                      Approve Application
+                    </button>
+                    <div className="flex gap-2">
+                      <input value={rejectReason} onChange={e => setRejectReason(e.target.value)}
+                        placeholder="Reason for rejection (optional)"
+                        className="flex-1 text-sm border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-300" />
+                      <button onClick={() => reject(rs.id)} disabled={acting === rs.id}
+                        className="py-2 px-4 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl text-sm flex items-center justify-center gap-1.5 disabled:opacity-60">
+                        {acting === rs.id ? <RefreshCw size={13} className="animate-spin" /> : <XCircle size={13} />}
+                        Reject
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Orders tab */}
+        {detailTab === "orders" && (
+          <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
+            {detailLoading ? (
+              <div className="p-4 space-y-2">{[1,2,3].map(i => <Skeleton key={i} h="h-14" />)}</div>
+            ) : orders.length === 0 ? (
+              <div className="p-10 text-center">
+                <ShoppingBag size={28} className="mx-auto text-slate-200 mb-2" />
+                <p className="text-xs font-bold text-slate-400">No attributed orders yet</p>
+                <p className="text-[10px] text-slate-300 mt-1">Orders placed via this reseller's link will appear here</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-slate-50">
+                {orders.map(o => (
+                  <div key={o.id} className="px-4 py-3 flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-xs font-bold text-slate-700">#{o.orderCode ?? o.id}</p>
+                        <OrderPayStatusBadge status={o.paymentStatus} />
+                        <span className="text-[9px] text-slate-300 font-mono">{o.paymentMethod}</span>
+                      </div>
+                      <p className="text-[10px] text-slate-500 mt-0.5 truncate">{o.customerEmail}</p>
+                      {o.customerName && <p className="text-[10px] text-slate-400 truncate">{o.customerName}</p>}
+                      <p className="text-[10px] text-slate-300 mt-0.5">
+                        {new Date(o.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                      </p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-xs font-black text-slate-800">${parseFloat(o.total).toFixed(2)}</p>
+                      {o.paymentStatus === "paid" && (
+                        <p className="text-[9px] text-emerald-600 font-bold mt-0.5">
+                          +${(parseFloat(o.total) * (parseFloat(rs.commissionRate) / 100)).toFixed(2)} comm.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
-        </div>
+        )}
+
+        {/* Withdrawals tab */}
+        {detailTab === "withdrawals" && (
+          <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
+            {detailLoading ? (
+              <div className="p-4 space-y-2">{[1,2].map(i => <Skeleton key={i} h="h-14" />)}</div>
+            ) : withdrawals.length === 0 ? (
+              <div className="p-10 text-center">
+                <DollarSign size={28} className="mx-auto text-slate-200 mb-2" />
+                <p className="text-xs font-bold text-slate-400">No withdrawal requests yet</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-slate-50">
+                {withdrawals.map(w => (
+                  <div key={w.id} className="px-4 py-3 flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-xs font-bold text-slate-700">${parseFloat(w.amount).toFixed(2)}</p>
+                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${w.status === "approved" ? "bg-emerald-50 text-emerald-700" : w.status === "rejected" ? "bg-red-50 text-red-600" : "bg-amber-50 text-amber-700"}`}>{w.status}</span>
+                      </div>
+                      <p className="text-[10px] text-slate-500 mt-0.5">{w.paymentMethod ?? "—"} · {w.paymentAddress ?? "—"}</p>
+                      {w.notes && <p className="text-[10px] text-slate-400 mt-0.5 italic">"{w.notes}"</p>}
+                      {w.adminNotes && <p className="text-[10px] text-blue-500 mt-0.5">Admin: {w.adminNotes}</p>}
+                      <p className="text-[10px] text-slate-300 mt-0.5">{new Date(w.createdAt).toLocaleDateString()}</p>
+                    </div>
+                    {w.processedAt && (
+                      <p className="text-[9px] text-slate-300 shrink-0">Processed {new Date(w.processedAt).toLocaleDateString()}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     );
   }
@@ -2381,7 +2601,7 @@ function ResellersPanel({ pwd }: { pwd: string }) {
       ) : (
         <div className="space-y-2">
           {resellers.map(r => (
-            <button key={r.id} onClick={() => setSelected(r)}
+            <button key={r.id} onClick={() => selectReseller(r)}
               className="w-full text-left bg-white rounded-2xl border border-slate-100 p-4 transition-all hover:border-blue-300 hover:shadow-sm group">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
