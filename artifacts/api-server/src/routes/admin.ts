@@ -855,12 +855,11 @@ router.post("/admin/announcements/ai-generate", async (req, res) => {
     // On OpenRouter, try multiple free models in cascade — skip on 429/402/404 rate-limit
     const modelCascade = isOpenRouter
       ? [
+          "openai/gpt-oss-120b:free",
+          "openai/gpt-oss-20b:free",
+          "google/gemma-4-31b-it:free",
+          "nvidia/nemotron-3-super-120b-a12b:free",
           "meta-llama/llama-3.3-70b-instruct:free",
-          "meta-llama/llama-3.1-70b-instruct:free",
-          "qwen/qwen2.5-72b-instruct:free",
-          "mistralai/mistral-7b-instruct:free",
-          "google/gemma-2-9b-it:free",
-          "deepseek/deepseek-chat:free",
         ]
       : ["gpt-4o-mini"];
 
