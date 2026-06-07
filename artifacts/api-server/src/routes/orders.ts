@@ -406,6 +406,7 @@ router.patch("/orders/:id", async (req, res) => {
         refunded:    { title: `Order #${id} Refunded`, message: "A refund has been issued for your order.", type: "info" },
         pending_payment_confirmation: { title: `Order #${id} — Payment Pending`, message: "We are awaiting payment verification for your order.", type: "warning" },
         cancelled:   { title: `Order #${id} Cancelled`, message: "Your order has been cancelled. Contact support if you have questions.", type: "error" },
+        rejected:    { title: `Order #${id} Rejected`, message: "Unfortunately your order has been rejected. Please contact support for more information.", type: "error" },
       };
 
       const notifData = statusNotifMap[newStatus];
@@ -439,7 +440,7 @@ router.patch("/orders/:id", async (req, res) => {
             paymentMethod: order.paymentMethod,
           }),
         }).catch((err) => req.log.error({ err }, "Failed to send payment confirmed email"));
-      } else if (["processing", "active", "paused", "closed", "failed", "refunded", "pending_payment_confirmation", "cancelled"].includes(newStatus)) {
+      } else if (["processing", "active", "paused", "closed", "failed", "refunded", "pending_payment_confirmation", "cancelled", "rejected"].includes(newStatus)) {
         sendEmail({
           to: order.customerEmail,
           ...orderStatusUpdateEmail({ orderId: id, customerName: order.customerName, status: newStatus, notes: notesForEmail }),

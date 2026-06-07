@@ -573,6 +573,7 @@ export function orderStatusUpdateEmail(params: {
     failed:                       { label: "Order Unsuccessful",            color: "#dc2626", bg: "linear-gradient(135deg,#7f1d1d 0%,#dc2626 100%)", accent: "#dc2626" },
     refunded:                     { label: "Order Refunded",                color: "#64748b", bg: "linear-gradient(135deg,#1e293b 0%,#64748b 100%)", accent: "#64748b" },
     cancelled:                    { label: "Order Cancelled",               color: "#dc2626", bg: "linear-gradient(135deg,#7f1d1d 0%,#dc2626 100%)", accent: "#dc2626" },
+    rejected:                     { label: "Order Rejected",                color: "#b91c1c", bg: "linear-gradient(135deg,#450a0a 0%,#b91c1c 100%)", accent: "#b91c1c" },
   };
   const st = statusMap[params.status] ?? { label: params.status, color: "#0f172a", bg: "linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%)", accent: "#0ea5e9" };
 
