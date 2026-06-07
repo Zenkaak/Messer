@@ -311,9 +311,27 @@ function ChangePasswordModal({ pwd, onSuccess, onDismiss, isForced }: {
 
 // ─── overview ─────────────────────────────────────────────────────────────────
 function OverviewPanel({ pwd, onNavigate }: { pwd: string; onNavigate: (tab: Tab) => void }) {
+  const { toast } = useToast();
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
   const [liveRequests, setLiveRequests] = useState<{ waiting: number; active: number } | null>(null);
+  const [cascadeStatus, setCascadeStatus] = useState<{ models: string[]; updatedAt: string | null; isDefault: boolean } | null>(null);
+  const [cascadeRefreshing, setCascadeRefreshing] = useState(false);
+
+  async function refreshCascade() {
+    setCascadeRefreshing(true);
+    try {
+      const r = await adminFetch(apiPath("/api/admin/cascade/refresh"), pwd, { method: "POST" });
+      const d = await r.json();
+      if (r.ok) {
+        setCascadeStatus({ models: d.working, updatedAt: new Date().toISOString(), isDefault: false });
+        toast({ title: `Model check complete — ${d.working.length} of ${d.tested} models working` });
+      } else {
+        toast({ variant: "destructive", title: d.error ?? "Check failed" });
+      }
+    } catch { toast({ variant: "destructive", title: "Check failed" }); }
+    finally { setCascadeRefreshing(false); }
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -326,6 +344,13 @@ function OverviewPanel({ pwd, onNavigate }: { pwd: string; onNavigate: (tab: Tab
       if (liveRes.ok) setLiveRequests(await liveRes.json() as { waiting: number; active: number });
     }
     finally { setLoading(false); }
+    // Fetch cascade status separately (best-effort — don't block stats)
+    adminFetch(apiPath("/api/admin/cascade/status"), pwd)
+      .then(r => r.ok ? r.json() : null)
+      .then((d: { models: string[]; updatedAt: string | null; isDefault: boolean } | null) => {
+        if (d) setCascadeStatus(d);
+      })
+      .catch(() => {});
   }, [pwd]);
 
   useEffect(() => { load(); }, [load]);
@@ -500,6 +525,40 @@ function OverviewPanel({ pwd, onNavigate }: { pwd: string; onNavigate: (tab: Tab
                 <ChevronRight size={13} />
               </span>
             </button>
+          )}
+
+          {/* AI Model Health — Run Check Now */}
+          {cascadeStatus && (
+            <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-violet-50 flex items-center justify-center">
+                    <Cpu size={13} className="text-violet-600" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-slate-800 leading-tight">AI Model Health</p>
+                    <p className="text-[10px] text-slate-400">
+                      {cascadeStatus.isDefault
+                        ? "Using defaults"
+                        : `${cascadeStatus.models.length} model${cascadeStatus.models.length !== 1 ? "s" : ""} active`}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={refreshCascade}
+                  disabled={cascadeRefreshing}
+                  className="flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 text-white disabled:opacity-50 transition-colors shrink-0"
+                >
+                  <RefreshCw size={11} className={cascadeRefreshing ? "animate-spin" : ""} />
+                  {cascadeRefreshing ? "Checking…" : "Run Check Now"}
+                </button>
+              </div>
+              {!cascadeStatus.isDefault && cascadeStatus.updatedAt && (
+                <p className="text-[10px] text-slate-400 mt-1">
+                  Last checked {new Date(cascadeStatus.updatedAt).toLocaleString()}
+                </p>
+              )}
+            </div>
           )}
 
           {/* Quick actions */}

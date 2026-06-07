@@ -2694,6 +2694,39 @@ router.post("/chat/bot", async (req, res) => {
       else { res.json({ ...extra }); }
     };
 
+    // ── Server-side OTP email short-circuit ───────────────────────────────────
+    // Free OpenRouter models often ignore the FORCE ACTION injection and fall
+    // back to "Is there anything else I can help you with?". Instead of relying
+    // on the AI to call send_login_otp, detect the email-in-OTP-context here
+    // and bypass the AI entirely — call the tool directly and return the form.
+    if (!isAuthenticated) {
+      const _emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+      let _latestText = "";
+      for (let _i = openaiMessages.length - 1; _i >= 0; _i--) {
+        if (openaiMessages[_i].role === "user") {
+          _latestText = String(openaiMessages[_i].content ?? "").trim();
+          break;
+        }
+      }
+      if (_emailRe.test(_latestText)) {
+        const _recentUser = openaiMessages
+          .filter(m => m.role === "user")
+          .slice(-4)
+          .map(m => String(m.content ?? "").trim());
+        const _hadOtp = _recentUser.some(t => /^(otp|one.?time.?code|one.?time|code|1)$/i.test(t));
+        if (_hadOtp) {
+          const _email = _latestText.toLowerCase().trim();
+          const _otpRes = await toolSendLoginOtp(_email);
+          if (_otpRes.success === false) {
+            sseDone({ message: String(_otpRes.error ?? "Could not send verification code. Please try again.") });
+          } else {
+            sseDone({ action: "show_otp_login", actionData: { email: _email } });
+          }
+          return;
+        }
+      }
+    }
+
     // ── Model cascade → Tool-call loop ────────────────────────────────────────
     // Cascade is dynamically maintained in DB by the weekly cron health-check.
     // Falls back to hardcoded defaults if the DB has no value yet.
