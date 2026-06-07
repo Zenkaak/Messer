@@ -2,8 +2,8 @@ import { Router, type IRouter } from "express";
 
 const router: IRouter = Router();
 
-const GH_API_URL =
-  "https://api.github.com/repos/Zenkaak/Messer/releases/latest";
+const GH_RELEASES_URL =
+  "https://api.github.com/repos/Zenkaak/Messer/releases?per_page=20";
 const GH_HEADERS = {
   "User-Agent": "GSMWorld/1.0",
   Accept: "application/vnd.github.v3+json",
@@ -16,6 +16,7 @@ interface GhAsset {
   state: string;
 }
 interface GhRelease {
+  tag_name: string;
   assets?: GhAsset[];
 }
 
@@ -23,24 +24,35 @@ interface GhRelease {
 let cachedUrl: string | null = null;
 let cacheExpiry = 0;
 
+// Searches releases for the user APK (GSMWorld.apk) specifically.
+// Skips admin-apk-* releases so they never interfere with user downloads.
 async function getApkAssetUrl(): Promise<string | null> {
   const now = Date.now();
   if (now < cacheExpiry) return cachedUrl;
 
   try {
-    const res = await fetch(GH_API_URL, { headers: GH_HEADERS });
+    const res = await fetch(GH_RELEASES_URL, { headers: GH_HEADERS });
     if (!res.ok) {
       cachedUrl = null;
-      cacheExpiry = now + 30_000; // retry sooner on API error
+      cacheExpiry = now + 30_000;
       return null;
     }
-    const release = (await res.json()) as GhRelease;
-    const asset = release.assets?.find(
-      (a) => a.name === "GSMWorld.apk" && a.state === "uploaded",
-    );
-    cachedUrl = asset?.browser_download_url ?? null;
+    const releases = (await res.json()) as GhRelease[];
+    // Find first release that has GSMWorld.apk — skip any admin-apk-* releases
+    for (const release of releases) {
+      if (release.tag_name?.startsWith("admin-apk-")) continue;
+      const asset = release.assets?.find(
+        (a) => a.name === "GSMWorld.apk" && a.state === "uploaded",
+      );
+      if (asset) {
+        cachedUrl = asset.browser_download_url;
+        cacheExpiry = now + 60_000;
+        return cachedUrl;
+      }
+    }
+    cachedUrl = null;
     cacheExpiry = now + 60_000;
-    return cachedUrl;
+    return null;
   } catch {
     cachedUrl = null;
     cacheExpiry = now + 30_000;
@@ -49,7 +61,6 @@ async function getApkAssetUrl(): Promise<string | null> {
 }
 
 // HEAD — tells the frontend whether the APK is actually available.
-// Uses the GitHub Releases API so there's no guesswork from content-type.
 router.head("/download/apk", async (_req, res) => {
   const url = await getApkAssetUrl();
   res.status(url ? 200 : 503).end();
@@ -63,8 +74,6 @@ router.get("/download/apk", async (_req, res) => {
     res.status(503).json({ error: "APK not available yet. Please try again later." });
     return;
   }
-  // The CDN URL already carries the correct Content-Type and a very long
-  // Cache-Control, so we just send the client there.
   res.redirect(302, assetUrl);
 });
 
