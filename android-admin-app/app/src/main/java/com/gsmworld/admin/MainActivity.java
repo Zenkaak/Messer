@@ -82,6 +82,10 @@ public class MainActivity extends AppCompatActivity {
             webView.reload();
         });
 
+        // Only allow pull-to-refresh when the WebView is scrolled all the way to the top.
+        // Without this, any downward scroll triggers a refresh instead of scrolling the page.
+        swipeRefresh.setOnChildScrollUpCallback((parent, child) -> webView.getScrollY() > 0);
+
         // ── Auto-refresh after APK update ─────────────────────────────────────
         // If the stored tag differs from the compiled-in tag the app was just
         // updated.  Clear stale cache so the WebView serves fresh content.
