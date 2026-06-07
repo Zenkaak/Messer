@@ -380,6 +380,7 @@ RESPONSE QUALITY RULES (CRITICAL — enforced on every message):
   ✗ NEVER say "Done", "Completed", "All done!", "Done!", "Got it!", "Sure!", "Certainly!", "Of course!" as a standalone response or to declare success.
   ✗ NEVER say a bare "Done" after a tool call. Always follow up with a real, helpful message.
   ✗ NEVER declare success unless place_order, add_wallet_funds, or another action tool has explicitly returned success=true in THIS conversation turn.
+  ✗ NEVER say "Is there anything else I can help you with?" (or any close variant) unless the customer's task is FULLY and EXPLICITLY complete — every needed piece of information collected, every required tool called with a successful result returned in this turn, and nothing left pending. Using this phrase while a flow is still in progress is FORBIDDEN.
   ✓ After a tool succeeds → give the customer the RESULT: what happened, what's next, and what they should do now.
   ✓ If tools haven't confirmed success → say "Let me retry that" and continue attempting — do not stop.
   ✓ Every reply must advance the conversation: confirm what happened, give next steps, or ask the single next question needed.
@@ -387,7 +388,7 @@ RESPONSE QUALITY RULES (CRITICAL — enforced on every message):
     ✓ After send_login_otp: [immediately call show_otp_login_form — no words at all]
     ✓ After place_order success: "Your order is confirmed! 🎉 Order #[id] — you'll get a confirmation email shortly. Delivery: [SLA]. Track it at /account/orders."
     ✓ After add_to_cart: [do not announce it — proceed silently to the next step]
-    ✓ After cancel_order: "Order #[id] has been cancelled. Your payment will be refunded. Anything else I can help with?"
+    ✓ After cancel_order: "Order #[id] has been cancelled. Your payment will be refunded. What else can I do for you?"
     ✓ After lookup_order: [share the status details directly — don't just say "I looked it up"]
 
 ══════════════════════════════════════════════════════════════
@@ -423,7 +424,7 @@ Wallet balance can be used for instant one-click checkout on any order.
 ══════════════════════════════════════════════════════════════
 LOGIN / SIGNUP / PASSWORD RESET (do it all in chat)
 ══════════════════════════════════════════════════════════════
-⚠️ ALREADY AUTHENTICATED CHECK: If you see "[SYSTEM: This user is AUTHENTICATED]" in the conversation and the user asks to "login", "log in", "sign in", or "create account", DO NOT start a login flow. Instead reply: "You're already signed in as [their full email]! Is there anything else I can help you with?" and stop.
+⚠️ ALREADY AUTHENTICATED CHECK: If you see "[SYSTEM: This user is AUTHENTICATED]" in the conversation and the user asks to "login", "log in", "sign in", or "create account", DO NOT start a login flow. Instead reply: "You're already signed in as [their full email]! What else can I do for you?" and stop.
 
 LOGOUT: If the user asks to "log out", "sign out", "logout", or "switch accounts" → call logout_user() immediately. Do NOT just say "you have been logged out" without calling the tool first.
 
@@ -1861,6 +1862,15 @@ async function sendOtsSms(params: { apiToken: string; senderId: string | null; t
 
 // ─── Streaming helpers ────────────────────────────────────────────────────────
 
+/**
+ * Returns true when an AI response is a premature conversation-closer
+ * ("Is there anything else I can help you with?" and its variants).
+ * Free OpenRouter models often emit these mid-flow instead of continuing.
+ */
+function isConversationCloser(text: string): boolean {
+  return /is there anything else (i|we) (can|could|may) help|anything else (i|we) can (do|help)|how (else |can i |may i)(help|assist)|what else can i (do|help|assist)/i.test(text);
+}
+
 /** Consumes an OpenAI SSE stream. If `sseWrite` is provided, text tokens are
  *  forwarded as they arrive (only when no tool-calls have started). Returns
  *  the accumulated text and fully-assembled tool-call list. */
@@ -2789,15 +2799,32 @@ router.post("/chat/bot", async (req, res) => {
 
         if (wantsStream && response.body) {
           // ── Streaming path ────────────────────────────────────────────────
+          // After tool calls (iter > 0) we buffer the response so we can
+          // detect premature conversation-closers before they reach the client.
+          const bufferThisIter = iter > 0;
           const { text, toolCalls } = await consumeStream(
             response.body as unknown as ReadableStream<Uint8Array>,
-            sseWrite,
+            bufferThisIter ? undefined : sseWrite,
           );
 
           if (!toolCalls.length) {
             if (!text) {
               req.log.warn({ model: modelName }, "Streaming model returned empty text — trying next model");
               continue modelLoop;
+            }
+            // Detect premature closer mid-flow and retry with correction
+            if (bufferThisIter && isConversationCloser(text) && msgs.length > 2 && iter < 3) {
+              req.log.warn({ model: modelName, snippet: text.slice(0, 100) }, "Model gave closing phrase mid-flow — injecting correction and retrying");
+              msgs.push({
+                role: "system" as const,
+                content: "[CORRECTION: You just responded with a conversation-closing phrase (e.g. 'Is there anything else I can help you with?') but the customer's task is NOT complete. Look at the tool results above and give a DIRECT, SPECIFIC reply that moves the conversation forward. Do NOT use any closing phrase.]",
+              });
+              continue;
+            }
+            // Flush buffered text to client (iter > 0 path)
+            if (bufferThisIter && sseWrite) {
+              const chunks = text.match(/.{1,40}/gsu) ?? [text];
+              for (const chunk of chunks) sseWrite(chunk);
             }
             const hasHumanBtn = text.includes("[SHOW_HUMAN_BUTTON]");
             sseDone({ action: actionType, actionData, showHumanButton: hasHumanBtn || undefined });
@@ -2833,6 +2860,15 @@ router.post("/chat/bot", async (req, res) => {
           if (!assistantMsg.tool_calls?.length) {
             const rawReply = assistantMsg.content?.trim() ?? "";
             if (!rawReply) continue modelLoop; // empty response — try next model
+            // Detect premature closer mid-flow and retry with correction
+            if (isConversationCloser(rawReply) && msgs.length > 2 && iter < 3) {
+              req.log.warn({ model: modelName, snippet: rawReply.slice(0, 100) }, "Model gave closing phrase mid-flow — injecting correction and retrying");
+              msgs.push({
+                role: "system" as const,
+                content: "[CORRECTION: You just responded with a conversation-closing phrase (e.g. 'Is there anything else I can help you with?') but the customer's task is NOT complete. Look at the tool results above and give a DIRECT, SPECIFIC reply that moves the conversation forward. Do NOT use any closing phrase.]",
+              });
+              continue;
+            }
             const hasHumanBtn2 = rawReply.includes("[SHOW_HUMAN_BUTTON]");
             const reply = rawReply.replace(/\[SHOW_HUMAN_BUTTON\]/g, "").trim();
             res.json({ message: reply, action: actionType, actionData, showHumanButton: hasHumanBtn2 || undefined });
