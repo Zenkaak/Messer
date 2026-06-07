@@ -863,42 +863,82 @@ router.post("/admin/announcements/ai-generate", async (req, res) => {
         ]
       : ["gpt-4o-mini"];
 
-    let aiRes: Response | null = null;
     let lastStatus = 0;
+    let resultSubject = "";
+    let resultBody = "";
+    let succeeded = false;
+
     for (const model of modelCascade) {
       const reqBody: Record<string, unknown> = {
         model,
+        stream: false,
+        max_tokens: 1000,
+        temperature: 0.7,
         messages: [
           { role: "system", content: systemMsg },
           { role: "user", content: userContent },
         ],
       };
       if (!isOpenRouter) reqBody.response_format = { type: "json_object" };
-      const r = await fetch(`${baseURL}/chat/completions`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
-        body: JSON.stringify(reqBody),
-      });
-      lastStatus = r.status;
-      if (r.status === 429 || r.status === 402 || r.status === 404) {
-        req.log.warn({ model, status: r.status }, "AI model unavailable/rate-limited, trying next");
-        continue; // try next model in cascade
+
+      let r: Response;
+      try {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 20000);
+        r = await fetch(`${baseURL}/chat/completions`, {
+          method: "POST",
+          signal: ctrl.signal,
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${apiKey}`,
+            "HTTP-Referer": "https://gsmworld.vercel.app",
+            "X-Title": "GSMWorld Admin",
+          },
+          body: JSON.stringify(reqBody),
+        });
+        clearTimeout(timer);
+      } catch (fetchErr) {
+        req.log.warn({ model, err: String(fetchErr) }, "Announcement AI fetch error, trying next");
+        continue;
       }
-      aiRes = r;
-      break;
+
+      lastStatus = r.status;
+      if (r.status === 429 || r.status === 402 || r.status === 404 || r.status === 400) {
+        const errSnippet = await r.text().catch(() => "");
+        req.log.warn({ model, status: r.status, err: errSnippet.slice(0, 100) }, "AI model error, trying next");
+        continue;
+      }
+      if (!r.ok) {
+        req.log.warn({ model, status: r.status }, "AI model non-ok, trying next");
+        continue;
+      }
+
+      const aiData = await r.json() as { choices?: Array<{ message?: { content?: string } }> };
+      const raw = aiData.choices?.[0]?.message?.content?.trim() ?? "";
+      if (!raw) {
+        req.log.warn({ model }, "AI model returned empty content, trying next");
+        continue;
+      }
+
+      // Strip markdown code fences if the model wrapped output in ```json ... ```
+      const cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
+      try {
+        const parsed = JSON.parse(cleaned) as { subject?: string; body?: string };
+        resultSubject = parsed.subject ?? "";
+        resultBody = parsed.body ?? "";
+        succeeded = true;
+        break;
+      } catch {
+        req.log.warn({ model, raw: raw.slice(0, 100) }, "AI model returned invalid JSON, trying next");
+        continue;
+      }
     }
-    if (!aiRes || !aiRes.ok) {
-      const errText = aiRes ? await aiRes.text().catch(() => "unknown") : "all models rate-limited";
-      req.log.error({ status: lastStatus, errText }, "OpenAI API error for announcement");
-      res.status(500).json({ error: `AI generation failed (${lastStatus})` });
+
+    if (!succeeded) {
+      res.status(500).json({ error: `AI generation failed — all models unavailable. Try again in a moment.` });
       return;
     }
-    const aiData = await aiRes.json() as { choices?: Array<{ message?: { content?: string } }> };
-    const raw = aiData.choices?.[0]?.message?.content || "{}";
-    // Strip markdown code fences if the model wrapped output in ```json ... ```
-    const cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
-    const result = JSON.parse(cleaned) as { subject?: string; body?: string };
-    res.json({ subject: result.subject ?? "", body: result.body ?? "" });
+    res.json({ subject: resultSubject, body: resultBody });
   } catch (err) {
     req.log.error({ err }, "AI announcement generation failed");
     res.status(500).json({ error: "AI generation failed" });
