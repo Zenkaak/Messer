@@ -2769,6 +2769,10 @@ router.post("/chat/bot", async (req, res) => {
           );
 
           if (!toolCalls.length) {
+            if (!text) {
+              req.log.warn({ model: modelName }, "Streaming model returned empty text — trying next model");
+              continue modelLoop;
+            }
             const hasHumanBtn = text.includes("[SHOW_HUMAN_BUTTON]");
             sseDone({ action: actionType, actionData, showHumanButton: hasHumanBtn || undefined });
             botResponded = true;
