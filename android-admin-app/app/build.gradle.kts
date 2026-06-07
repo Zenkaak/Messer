@@ -12,6 +12,14 @@ android {
         targetSdk = 34
         versionCode = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
         versionName = System.getenv("GITHUB_SHA")?.take(7) ?: "dev"
+
+        // Embed the current release tag so the app can detect newer builds
+        val sha = System.getenv("GITHUB_SHA")?.take(7) ?: "dev"
+        buildConfigField("String", "APK_TAG", "\"admin-apk-$sha\"")
+    }
+
+    buildFeatures {
+        buildConfig = true
     }
 
     buildTypes {
