@@ -372,39 +372,17 @@ function OverviewPanel({ pwd, onNavigate }: { pwd: string; onNavigate: (tab: Tab
     setApkLoading(true);
     setApkError(false);
     try {
-      const r = await fetch(
-        "https://api.github.com/repos/Zenkaak/Messer/releases?per_page=50",
-        { headers: { Accept: "application/vnd.github+json" } }
-      );
+      const r = await fetch(apiPath("/api/app/version"));
       if (!r.ok) { setApkError(true); return; }
-      type GHRelease = {
-        tag_name: string; name: string; published_at: string; body: string;
-        assets: { name: string; browser_download_url: string; size: number }[];
-      };
-      const releases = await r.json() as GHRelease[];
-      // Sort newest first by published_at — GitHub's default order is by
-      // created_at which doesn't guarantee newest-first, and with 28+ releases
-      // per_page=20 would drop the newest ones entirely.
-      releases.sort((a, b) =>
-        new Date(b.published_at).getTime() - new Date(a.published_at).getTime()
-      );
-      // Find first (newest) release whose tag starts with admin-apk- OR has a gsm-admin-*.apk asset
-      const adminRelease = releases.find(rel =>
-        rel.tag_name.startsWith("admin-apk-") ||
-        rel.assets.some(a => a.name.startsWith("gsm-admin") && a.name.endsWith(".apk"))
-      );
-      if (!adminRelease) { setApkError(true); return; }
-      const apkAsset = adminRelease.assets.find(
-        a => (a.name.startsWith("gsm-admin") || a.name.includes("admin")) && a.name.endsWith(".apk")
-      ) ?? adminRelease.assets.find(a => a.name.endsWith(".apk"));
-      if (!apkAsset) { setApkError(true); return; }
+      const d = await r.json() as { version: string; apkUrl: string | null };
+      if (!d.version || !d.apkUrl) { setApkError(true); return; }
       setApkRelease({
-        tag: adminRelease.tag_name,
-        name: adminRelease.name || `Admin APK · ${adminRelease.tag_name}`,
-        published: adminRelease.published_at,
-        downloadUrl: apkAsset.browser_download_url,
-        size: apkAsset.size,
-        body: adminRelease.body ?? "",
+        tag: d.version,
+        name: `Admin APK · ${d.version}`,
+        published: "",
+        downloadUrl: d.apkUrl,
+        size: 0,
+        body: "",
       });
     } catch {
       setApkError(true);
@@ -763,10 +741,6 @@ function OverviewPanel({ pwd, onNavigate }: { pwd: string; onNavigate: (tab: Tab
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full">
                       <Tag size={8}/> {apkRelease.tag}
-                    </span>
-                    <span className="text-[10px] text-slate-400">{(apkRelease.size/1024/1024).toFixed(1)} MB</span>
-                    <span className="text-[10px] text-slate-400">
-                      {new Date(apkRelease.published).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}
                     </span>
                   </div>
                   <div className="bg-blue-50 border border-blue-100 rounded-xl px-3 py-2">
@@ -4058,26 +4032,12 @@ export function AdminPage() {
   const [headerApkVersion, setHeaderApkVersion] = useState<string | null>(null);
 
   useEffect(() => {
-    async function fetchAdminApkVersion() {
-      try {
-        const r = await fetch(
-          "https://api.github.com/repos/Zenkaak/Messer/releases?per_page=50",
-          { headers: { Accept: "application/vnd.github+json" } }
-        );
-        if (!r.ok) return;
-        type GHRelease = { tag_name: string; published_at: string; assets: { name: string }[] };
-        const releases = await r.json() as GHRelease[];
-        releases.sort((a, b) =>
-          new Date(b.published_at).getTime() - new Date(a.published_at).getTime()
-        );
-        const rel = releases.find(r =>
-          r.tag_name.startsWith("admin-apk-") ||
-          r.assets.some(a => a.name.startsWith("gsm-admin") && a.name.endsWith(".apk"))
-        );
-        if (rel) setHeaderApkVersion(rel.tag_name.replace(/^admin-apk-/, ""));
-      } catch { /* ignore */ }
-    }
-    fetchAdminApkVersion();
+    fetch(apiPath("/api/app/version"))
+      .then(r => r.ok ? r.json() : null)
+      .then((d: { version: string } | null) => {
+        if (d?.version) setHeaderApkVersion(d.version.replace(/^admin-apk-/, ""));
+      })
+      .catch(() => {});
   }, []);
 
   // Auto-reload when a new Vercel deploy is detected (WebView only).
