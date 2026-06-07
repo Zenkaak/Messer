@@ -428,7 +428,7 @@ function DashboardContent({ user }: { user: { name: string | null; email: string
               const pct = Math.round((stage / (ORDER_STAGES.length - 1)) * 100);
               const styles = STAGE_STYLES[stage] ?? STAGE_STYLES[2];
               return (
-                <Link key={order.id} href={`/orders/${order.id}`} className="block">
+                <Link key={order.id} href={`/account/orders#order-${order.id}`} className="block">
                   <div className="bg-white rounded-2xl border border-gray-100/80 p-4 shadow-sm active:shadow-none active:scale-[0.99] transition-all">
                     {/* Order header */}
                     <div className="flex items-start justify-between mb-3.5">
@@ -545,7 +545,7 @@ function DashboardContent({ user }: { user: { name: string | null; email: string
                     ? "bg-amber-100 text-amber-700"
                     : "bg-red-100 text-red-600";
                 return (
-                  <Link key={order.id} href={`/orders/${order.id}`} className="block">
+                  <Link key={order.id} href={`/account/orders#order-${order.id}`} className="block">
                     <div className="px-4 py-3.5 hover:bg-gray-50 active:bg-blue-50/40 transition-colors">
                       <div className="flex items-center justify-between mb-1">
                         <p className="text-[13px] font-black text-gray-800">Order #{order.id}</p>
