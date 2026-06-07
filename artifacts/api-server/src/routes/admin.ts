@@ -208,6 +208,7 @@ router.get("/admin/users", async (req, res) => {
       walletBalance: usersTable.walletBalance,
       status: usersTable.status,
       createdAt: usersTable.createdAt,
+      registrationIp: usersTable.registrationIp,
     };
 
     let users;

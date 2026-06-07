@@ -10,6 +10,7 @@ export const usersTable = pgTable("users", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
   walletBalance: numeric("wallet_balance").notNull().default("0.00"),
   status: text("status").notNull().default("active"),
+  registrationIp: text("registration_ip"),
 });
 
 export const insertUserSchema = createInsertSchema(usersTable).omit({ id: true, createdAt: true });

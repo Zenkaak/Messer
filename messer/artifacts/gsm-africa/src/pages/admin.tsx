@@ -7,6 +7,7 @@ import {
   ToggleLeft, ToggleRight, KeyRound, AlertTriangle, X, ArrowUpRight,
   Smartphone, Zap, Ban, Trash2, UserCheck, MoreVertical,
   MessageSquare, Send, Cpu, UserPlus, Phone, Headphones, WifiOff, Bell, ArrowLeft,
+  Store, Globe,
 } from "lucide-react";
 
 // ─── types ────────────────────────────────────────────────────────────────────
@@ -80,6 +81,7 @@ interface ToolActivation {
 interface AdminUser {
   id: number; email: string; name: string | null;
   walletBalance: string; status: string; createdAt: string;
+  registrationIp?: string | null;
 }
 interface AdminProduct {
   id: number; name: string; price: string;
@@ -104,6 +106,7 @@ const NAV = [
   { id: "users",      label: "Users",     icon: Users },
   { id: "payments",   label: "Payments",  icon: Settings },
   { id: "live_chat",  label: "Live Chat", icon: Headphones },
+  { id: "resellers",  label: "Resellers", icon: Store },
 ] as const;
 type Tab = typeof NAV[number]["id"];
 
@@ -1528,6 +1531,9 @@ function UsersPanel({ pwd }: { pwd: string }) {
                         <UserStatusBadge status={u.status} />
                       </div>
                       <p className="text-[11px] text-slate-400 truncate">{u.email}</p>
+                      {u.registrationIp && (
+                        <p className="text-[10px] text-slate-300 truncate flex items-center gap-1"><Globe size={9} />{u.registrationIp}</p>
+                      )}
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <div className="text-right">
@@ -2162,6 +2168,251 @@ function LoginScreen({ onLogin }: { onLogin: (pwd: string, isDefault: boolean) =
 }
 
 // ─── main export ──────────────────────────────────────────────────────────────
+// ─── Resellers Panel ──────────────────────────────────────────────────────────
+interface ResellerApp {
+  id: number;
+  userId: number | null;
+  email: string | null;
+  storeName: string;
+  storeSlug: string;
+  status: string;
+  securityFeePaid: boolean;
+  paymentMethod: string | null;
+  paymentReference: string | null;
+  commissionRate: string;
+  totalEarned: string;
+  totalOrders: number;
+  rejectionReason: string | null;
+  createdAt: string;
+  approvedAt: string | null;
+  ownerName: string | null;
+}
+
+function ResellerStatusBadge({ status }: { status: string }) {
+  const styles: Record<string, string> = {
+    approved: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    pending_approval: "bg-amber-50 text-amber-700 border-amber-200",
+    pending_payment: "bg-blue-50 text-blue-700 border-blue-200",
+    rejected: "bg-red-50 text-red-600 border-red-200",
+  };
+  const labels: Record<string, string> = {
+    approved: "Active",
+    pending_approval: "Pending Review",
+    pending_payment: "Awaiting Payment",
+    rejected: "Rejected",
+  };
+  return (
+    <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${styles[status] ?? "bg-slate-100 text-slate-500 border-slate-200"}`}>
+      {labels[status] ?? status}
+    </span>
+  );
+}
+
+function ResellersPanel({ pwd }: { pwd: string }) {
+  const { toast } = useToast();
+  const [resellers, setResellers] = useState<ResellerApp[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState<ResellerApp | null>(null);
+  const [acting, setActing] = useState<number | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+
+  const load = useCallback(() => {
+    setLoading(true);
+    adminFetch(apiPath("/api/admin/resellers"), pwd)
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then((data: { resellers: ResellerApp[] }) => { setResellers(data.resellers ?? []); })
+      .catch(() => toast({ variant: "destructive", title: "Failed to load resellers" }))
+      .finally(() => setLoading(false));
+  }, [pwd, toast]);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function approve(id: number) {
+    setActing(id);
+    try {
+      const r = await adminFetch(apiPath(`/api/admin/resellers/${id}/approve`), pwd, { method: "POST" });
+      if (!r.ok) throw new Error();
+      toast({ title: "Reseller approved ✓" });
+      setSelected(prev => prev ? { ...prev, status: "approved" } : prev);
+      load();
+    } catch { toast({ variant: "destructive", title: "Failed to approve" }); }
+    finally { setActing(null); }
+  }
+
+  async function reject(id: number) {
+    setActing(id);
+    try {
+      const r = await adminFetch(apiPath(`/api/admin/resellers/${id}/reject`), pwd, {
+        method: "POST",
+        body: JSON.stringify({ reason: rejectReason || undefined }),
+      });
+      if (!r.ok) throw new Error();
+      toast({ title: "Application rejected" });
+      setSelected(prev => prev ? { ...prev, status: "rejected" } : prev);
+      setRejectReason("");
+      load();
+    } catch { toast({ variant: "destructive", title: "Failed to reject" }); }
+    finally { setActing(null); }
+  }
+
+  async function confirmPayment(id: number) {
+    setActing(id);
+    try {
+      const r = await adminFetch(apiPath(`/api/admin/resellers/${id}/confirm-payment`), pwd, { method: "POST" });
+      if (!r.ok) throw new Error();
+      toast({ title: "Payment confirmed" });
+      setSelected(prev => prev ? { ...prev, status: "pending_approval" } : prev);
+      load();
+    } catch { toast({ variant: "destructive", title: "Failed to confirm payment" }); }
+    finally { setActing(null); }
+  }
+
+  if (loading) return <div className="p-4 space-y-3">{[1,2,3].map(i => <Skeleton key={i} h="h-20" />)}</div>;
+
+  if (selected) {
+    const storeUrl = `${window.location.origin}/store/${selected.storeSlug}`;
+    return (
+      <div className="p-4 space-y-4">
+        <button onClick={() => setSelected(null)}
+          className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-900 bg-white border border-slate-200 rounded-xl px-3 py-1.5 transition-colors">
+          <ArrowLeft size={13} /> All Resellers
+        </button>
+
+        <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
+          <div className="px-5 py-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-black text-slate-800">{selected.storeName}</p>
+              <p className="text-xs text-slate-400 font-mono">/{selected.storeSlug}</p>
+            </div>
+            <ResellerStatusBadge status={selected.status} />
+          </div>
+
+          <div className="p-5 space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { label: "Owner", value: selected.ownerName ?? "—" },
+                { label: "Email", value: selected.email ?? "—" },
+                { label: "Commission", value: `${selected.commissionRate}%` },
+                { label: "Total Earned", value: `$${parseFloat(selected.totalEarned || "0").toFixed(2)}` },
+                { label: "Total Orders", value: String(selected.totalOrders) },
+                { label: "User ID", value: selected.userId ? `#${selected.userId}` : "—" },
+                { label: "Payment Method", value: selected.paymentMethod ?? "—" },
+                { label: "Payment Ref", value: selected.paymentReference ?? "—" },
+                { label: "Applied", value: new Date(selected.createdAt).toLocaleDateString() },
+                { label: "Approved", value: selected.approvedAt ? new Date(selected.approvedAt).toLocaleDateString() : "—" },
+              ].map(item => (
+                <div key={item.label} className="bg-slate-50 rounded-xl p-3">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">{item.label}</p>
+                  <p className="text-sm font-semibold text-slate-800 mt-0.5 break-all">{item.value}</p>
+                </div>
+              ))}
+            </div>
+
+            {selected.status === "approved" && (
+              <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3">
+                <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wide mb-1">Store URL</p>
+                <a href={storeUrl} target="_blank" rel="noopener noreferrer"
+                  className="text-xs font-mono text-emerald-700 underline break-all">{storeUrl}</a>
+              </div>
+            )}
+
+            {selected.rejectionReason && (
+              <div className="bg-red-50 border border-red-100 rounded-xl p-3">
+                <p className="text-[10px] font-bold text-red-600 uppercase tracking-wide mb-1">Rejection Reason</p>
+                <p className="text-sm text-red-700">{selected.rejectionReason}</p>
+              </div>
+            )}
+
+            {selected.status === "pending_payment" && (
+              <button onClick={() => confirmPayment(selected.id)} disabled={acting === selected.id}
+                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-sm flex items-center justify-center gap-2 disabled:opacity-60">
+                {acting === selected.id ? <RefreshCw size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+                Confirm Payment Received
+              </button>
+            )}
+
+            {selected.status === "pending_approval" && (
+              <div className="space-y-2">
+                <button onClick={() => approve(selected.id)} disabled={acting === selected.id}
+                  className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-sm flex items-center justify-center gap-2 disabled:opacity-60">
+                  {acting === selected.id ? <RefreshCw size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+                  Approve Application
+                </button>
+                <div className="flex gap-2">
+                  <input value={rejectReason} onChange={e => setRejectReason(e.target.value)}
+                    placeholder="Reason for rejection (optional)"
+                    className="flex-1 text-sm border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-300" />
+                  <button onClick={() => reject(selected.id)} disabled={acting === selected.id}
+                    className="py-2 px-4 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl text-sm flex items-center justify-center gap-1.5 disabled:opacity-60">
+                    {acting === selected.id ? <RefreshCw size={13} className="animate-spin" /> : <XCircle size={13} />}
+                    Reject
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-4 space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-black text-slate-800">Reseller Applications</p>
+          <p className="text-xs text-slate-400 mt-0.5">
+            {resellers.length} total · {resellers.filter(r => r.status === "approved").length} active ·{" "}
+            {resellers.filter(r => r.status === "pending_approval").length} pending review
+          </p>
+        </div>
+        <button onClick={load}
+          className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition-colors">
+          <RefreshCw size={13} />
+        </button>
+      </div>
+
+      {resellers.length === 0 ? (
+        <div className="bg-white border border-slate-100 rounded-2xl p-12 text-center">
+          <Store size={36} className="mx-auto text-slate-200 mb-3" />
+          <p className="text-sm font-bold text-slate-400">No reseller applications yet</p>
+          <p className="text-xs text-slate-300 mt-1">Applications appear here when users apply from the Reseller page</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {resellers.map(r => (
+            <button key={r.id} onClick={() => setSelected(r)}
+              className="w-full text-left bg-white rounded-2xl border border-slate-100 p-4 transition-all hover:border-blue-300 hover:shadow-sm group">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-slate-100 group-hover:bg-blue-50 flex items-center justify-center shrink-0 transition-colors">
+                    <Store size={16} className="text-slate-500 group-hover:text-blue-600" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-slate-700 truncate">{r.storeName}</p>
+                    <p className="text-xs text-slate-400 truncate">{r.email ?? "—"} {r.ownerName ? `· ${r.ownerName}` : ""}</p>
+                    <p className="text-[10px] text-slate-300 mt-0.5">
+                      {new Date(r.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <div className="text-right mr-1">
+                    <p className="text-xs font-black text-emerald-600">${parseFloat(r.totalEarned || "0").toFixed(2)}</p>
+                    <p className="text-[10px] text-slate-400">{r.totalOrders} orders</p>
+                  </div>
+                  <ResellerStatusBadge status={r.status} />
+                  <ChevronRight size={14} className="text-slate-300 group-hover:text-blue-400 transition-colors" />
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Live Chats Panel ─────────────────────────────────────────────────────────
 function LiveChatsPanel({ pwd }: { pwd: string }) {
   const { toast } = useToast();
@@ -2502,7 +2753,7 @@ export function AdminPage() {
   const pageTitle: Record<Tab, string> = {
     overview: "Dashboard", orders: "Orders",
     products: "Products", users: "Users", payments: "Payments",
-    live_chat: "Live Chat",
+    live_chat: "Live Chat", resellers: "Resellers",
   };
 
   return (
@@ -2636,6 +2887,7 @@ export function AdminPage() {
             {tab === "users"      && <UsersPanel      pwd={pwd} />}
             {tab === "payments"   && <PaymentsPanel   pwd={pwd} />}
             {tab === "live_chat"  && <LiveChatsPanel  pwd={pwd} />}
+            {tab === "resellers"  && <ResellersPanel  pwd={pwd} />}
           </main>
 
           {/* ── Mobile bottom nav — fixed so it never scrolls away ── */}

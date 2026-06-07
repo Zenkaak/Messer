@@ -75,10 +75,12 @@ router.post("/auth/register", async (req, res) => {
       return;
     }
     const passwordHash = await bcrypt.hash(password, 10);
+    const registrationIp = (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() || req.socket?.remoteAddress || null;
     const [user] = await db.insert(usersTable).values({
       email: email.toLowerCase(),
       passwordHash,
       name: name || null,
+      registrationIp,
     }).returning({ id: usersTable.id, email: usersTable.email, name: usersTable.name, createdAt: usersTable.createdAt });
 
     // Auto-generate username

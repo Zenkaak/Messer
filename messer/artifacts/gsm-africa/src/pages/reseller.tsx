@@ -73,9 +73,13 @@ export function ResellerPage() {
   const { toast } = useToast();
   const [status, setStatus] = useState<ResellerStatus | null>(null);
   const [loading, setLoading] = useState(true);
-  const [step, setStep] = useState<"info" | "apply" | "pay" | "submitted">("info");
+  const [step, setStep] = useState<"info" | "apply" | "apply2" | "pay" | "submitted">("info");
   const [storeName, setStoreName] = useState("");
   const [storeSlug, setStoreSlug] = useState("");
+  const [applyPhone, setApplyPhone] = useState("");
+  const [applyBusinessType, setApplyBusinessType] = useState("");
+  const [applyExperience, setApplyExperience] = useState("");
+  const [applyReferral, setApplyReferral] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
   const [paymentRef, setPaymentRef] = useState("");
@@ -151,11 +155,17 @@ export function ResellerPage() {
   async function handleApply() {
     if (!storeName.trim()) { toast({ title: "Enter a store name", variant: "destructive" }); return; }
     setSubmitting(true);
+    const notes = [
+      applyPhone ? `Phone: ${applyPhone}` : "",
+      applyBusinessType ? `Business Type: ${applyBusinessType}` : "",
+      applyExperience ? `Experience: ${applyExperience}` : "",
+      applyReferral ? `Referral: ${applyReferral}` : "",
+    ].filter(Boolean).join(" | ") || undefined;
     try {
       const res = await fetch(`${BASE}/api/reseller/apply`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ storeName: storeName.trim(), storeSlug: storeSlug.trim() || undefined }),
+        body: JSON.stringify({ storeName: storeName.trim(), storeSlug: storeSlug.trim() || undefined, notes }),
       });
       const data = await res.json() as { ok?: boolean; error?: string; status?: string; paymentMethods?: PaymentMethod[]; securityFeeUsd?: number; application?: { storeSlug: string; storeName: string } };
       if (!res.ok) { toast({ title: data.error ?? "Application failed", variant: "destructive" }); return; }
@@ -1040,19 +1050,133 @@ export function ResellerPage() {
               </div>
             </div>
 
-            {/* CTA */}
+            {/* CTA: go to step 2 */}
             <button
-              onClick={handleApply}
-              disabled={submitting || !storeName.trim()}
-              className="w-full py-4 font-black rounded-2xl flex items-center justify-center gap-2 transition-all text-white"
+              onClick={() => {
+                if (!storeName.trim()) { toast({ title: "Enter a store name", variant: "destructive" }); return; }
+                setStep("apply2");
+              }}
+              disabled={!storeName.trim()}
+              className="w-full py-4 font-black rounded-2xl flex items-center justify-center gap-2 transition-all"
               style={{ background: storeName.trim() ? "linear-gradient(135deg,#0d4f3c 0%,#0ea5e9 100%)" : undefined, backgroundColor: storeName.trim() ? undefined : "#e5e7eb", color: storeName.trim() ? "white" : "#9ca3af" }}
             >
-              {submitting
-                ? <div className="w-5 h-5 border-2 border-white/50 border-t-white rounded-full animate-spin" />
-                : <><ArrowRight size={18} /> Continue to Payment</>}
+              <ArrowRight size={18} /> Next — Business Details
             </button>
 
             <p className="text-center text-[11px] text-gray-400">By applying you agree to our reseller terms. Your store activates within 24 hours after payment verification.</p>
+          </div>
+        </div>
+      );
+    }
+
+    // ── APPLY STEP 2: Contact & Business Info ─────────────────────────────
+    if (step === "apply2") {
+      return (
+        <div className="flex flex-col min-h-full pb-24">
+          <div className="px-5 pt-6 pb-6 relative overflow-hidden" style={{ background: "linear-gradient(135deg,#0d1f35 0%,#1a3a5f 60%,#0d4f3c 100%)" }}>
+            <div className="absolute inset-0 opacity-10" style={{ backgroundImage: "radial-gradient(circle at 80% 50%, #0ea5e9 0%, transparent 60%)" }} />
+            <button onClick={() => setStep("apply")} className="relative text-white/50 text-xs mb-4 flex items-center gap-1 hover:text-white/80 transition-colors">
+              ← Back
+            </button>
+            <div className="relative flex items-center gap-3 mb-1">
+              <div className="w-10 h-10 rounded-2xl bg-teal-500/20 border border-teal-400/30 flex items-center justify-center">
+                <Store size={20} className="text-teal-300" />
+              </div>
+              <div>
+                <p className="text-white font-black text-lg leading-tight">Business Details</p>
+                <p className="text-teal-300/70 text-xs">Step 2 of 2 — Tell us about your business</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="h-1 bg-gray-100">
+            <div className="h-full bg-teal-500 transition-all" style={{ width: "100%" }} />
+          </div>
+
+          <div className="px-4 pt-5 space-y-4">
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 space-y-4">
+              <div>
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Phone Number</label>
+                <input
+                  value={applyPhone}
+                  onChange={e => setApplyPhone(e.target.value)}
+                  placeholder="e.g. +254 712 345 678"
+                  type="tel"
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-400 focus:bg-white transition-colors"
+                />
+                <p className="text-[11px] text-gray-400 mt-1">We may call you to verify your account.</p>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Business Type *</label>
+                <select
+                  value={applyBusinessType}
+                  onChange={e => setApplyBusinessType(e.target.value)}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-teal-400 focus:bg-white transition-colors appearance-none">
+                  <option value="">Select business type…</option>
+                  <option value="Individual">Individual / Freelancer</option>
+                  <option value="Phone Repair Shop">Phone Repair Shop</option>
+                  <option value="Mobile Phone Dealer">Mobile Phone Dealer</option>
+                  <option value="Online Reseller">Online Reseller (social media)</option>
+                  <option value="IT Shop">IT / Electronics Shop</option>
+                  <option value="Cyber Cafe">Cyber Cafe</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">GSM Experience *</label>
+                <select
+                  value={applyExperience}
+                  onChange={e => setApplyExperience(e.target.value)}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-teal-400 focus:bg-white transition-colors appearance-none">
+                  <option value="">How long have you worked in GSM?</option>
+                  <option value="New (less than 6 months)">New to GSM (less than 6 months)</option>
+                  <option value="6-12 months">6–12 months</option>
+                  <option value="1-2 years">1–2 years</option>
+                  <option value="2-5 years">2–5 years</option>
+                  <option value="5+ years">5+ years (expert)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">How Did You Hear About Us?</label>
+                <input
+                  value={applyReferral}
+                  onChange={e => setApplyReferral(e.target.value)}
+                  placeholder="e.g. WhatsApp group, referral from John, Facebook…"
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-400 focus:bg-white transition-colors"
+                />
+              </div>
+            </div>
+
+            {/* Summary card */}
+            <div className="bg-teal-50 border border-teal-100 rounded-2xl p-4 flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-teal-100 flex items-center justify-center shrink-0">
+                <Store size={16} className="text-teal-600" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-black text-teal-800 truncate">{storeName}</p>
+                <p className="text-[11px] text-teal-500 font-mono truncate">/store/{storeSlug || slugify(storeName)}</p>
+              </div>
+            </div>
+
+            <button
+              onClick={handleApply}
+              disabled={submitting || !applyBusinessType || !applyExperience}
+              className="w-full py-4 font-black rounded-2xl flex items-center justify-center gap-2 transition-all"
+              style={{
+                background: (!submitting && applyBusinessType && applyExperience) ? "linear-gradient(135deg,#0d4f3c 0%,#0ea5e9 100%)" : undefined,
+                backgroundColor: (!submitting && applyBusinessType && applyExperience) ? undefined : "#e5e7eb",
+                color: (!submitting && applyBusinessType && applyExperience) ? "white" : "#9ca3af",
+              }}
+            >
+              {submitting
+                ? <div className="w-5 h-5 border-2 border-white/50 border-t-white rounded-full animate-spin" />
+                : <><ArrowRight size={18} /> Submit Application</>}
+            </button>
+
+            <p className="text-center text-[11px] text-gray-400">Your application is reviewed within 24 hours after payment is verified.</p>
           </div>
         </div>
       );
