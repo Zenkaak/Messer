@@ -173,6 +173,101 @@ function WalletTransferPanel({ token, onClose }: { token: string; onClose: () =>
   );
 }
 
+function WalletPreviewCard({ token }: { token: string | null }) {
+  const [txns, setTxns] = useState<WalletTxn[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!token) { setLoading(false); return; }
+    fetch("/api/wallet/transactions", { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : [])
+      .then((d: WalletTxn[]) => { setTxns(Array.isArray(d) ? d.slice(0, 3) : []); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [token]);
+
+  function rowIcon(type: string) {
+    if (type === "transfer_sent")     return <ArrowUpRight size={13} className="text-red-500" />;
+    if (type === "transfer_received") return <ArrowDownLeft size={13} className="text-green-600" />;
+    if (type === "credit")            return <Gift size={13} className="text-purple-500" />;
+    return <Plus size={13} className="text-blue-500" />;
+  }
+  function rowIconBg(type: string) {
+    if (type === "transfer_sent")     return "bg-red-50 border-red-100";
+    if (type === "transfer_received") return "bg-green-50 border-green-100";
+    if (type === "credit")            return "bg-purple-50 border-purple-100";
+    return "bg-blue-50 border-blue-100";
+  }
+  function rowLabel(t: WalletTxn) {
+    if (t.type === "transfer_sent")     return `Sent to @${t.counterpartyUsername ?? ""}`;
+    if (t.type === "transfer_received") return `From @${t.counterpartyUsername ?? ""}`;
+    if (t.type === "credit")            return "Admin credit";
+    return t.note ?? "Top-up";
+  }
+  function rowAmount(t: WalletTxn) {
+    const sign = t.type === "transfer_sent" ? "-" : "+";
+    const color = t.type === "transfer_sent" ? "text-red-600" : "text-green-600";
+    return <span className={`text-xs font-black tabular-nums ${color}`}>{sign}${parseFloat(t.amount).toFixed(2)}</span>;
+  }
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100/80 overflow-hidden shadow-sm">
+      <div className="flex items-center justify-between px-4 pt-4 pb-2">
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center">
+            <Wallet size={12} className="text-blue-500" />
+          </div>
+          <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Wallet Activity</p>
+        </div>
+        <Link href="/account/ledger" className="text-blue-500 text-[11px] font-bold">See all</Link>
+      </div>
+
+      {loading ? (
+        <div className="divide-y divide-gray-50">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="px-4 py-3 flex items-center gap-3 animate-pulse">
+              <div className="w-7 h-7 rounded-lg bg-gray-100 shrink-0" />
+              <div className="flex-1 space-y-1.5">
+                <div className="h-2 bg-gray-100 rounded w-2/3" />
+                <div className="h-1.5 bg-gray-100 rounded w-1/3" />
+              </div>
+              <div className="h-3 bg-gray-100 rounded w-12" />
+            </div>
+          ))}
+        </div>
+      ) : txns.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-8 px-4 text-center">
+          <div className="w-10 h-10 bg-gray-50 rounded-xl flex items-center justify-center mb-2 border border-gray-100">
+            <Wallet size={18} className="text-gray-200" />
+          </div>
+          <p className="text-xs font-bold text-gray-400">No wallet activity yet</p>
+          <Link href="/account/add-fund">
+            <button className="mt-3 px-4 py-2 bg-blue-600 text-white text-[11px] font-black rounded-xl">Top Up Now</button>
+          </Link>
+        </div>
+      ) : (
+        <div className="divide-y divide-gray-50">
+          {txns.map(t => (
+            <div key={t.id} className="px-4 py-3 flex items-center gap-3">
+              <div className={`w-7 h-7 rounded-lg border flex items-center justify-center shrink-0 ${rowIconBg(t.type)}`}>
+                {rowIcon(t.type)}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[12px] font-bold text-gray-800 truncate">{rowLabel(t)}</p>
+                <p className="text-[10px] text-gray-400">
+                  {new Date(t.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                  {" · "}
+                  {new Date(t.createdAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+                </p>
+              </div>
+              {rowAmount(t)}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function DashboardContent({ user }: { user: { name: string | null; email: string } | null }) {
   const { data: balance = 0, isLoading } = useWalletBalance();
   const { token } = useAuth();
@@ -407,6 +502,11 @@ function DashboardContent({ user }: { user: { name: string | null; email: string
             </Link>
           ))}
         </div>
+      </div>
+
+      {/* ── Wallet Preview ────────────────────────────────────────────────── */}
+      <div className="px-4">
+        <WalletPreviewCard token={token} />
       </div>
 
       {/* ── Recent Orders ─────────────────────────────────────────────────── */}
