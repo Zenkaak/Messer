@@ -9,6 +9,7 @@ import {
   Smartphone, Zap, Ban, Trash2, UserCheck, MoreVertical,
   MessageSquare, Send, Cpu, UserPlus, Phone, Headphones, WifiOff, Bell,
   Store, ExternalLink, Image, Menu, Megaphone, RotateCcw, Wallet,
+  Download, Tag,
 } from "lucide-react";
 
 // ─── types ────────────────────────────────────────────────────────────────────
@@ -310,6 +311,15 @@ function ChangePasswordModal({ pwd, onSuccess, onDismiss, isForced }: {
 }
 
 // ─── overview ─────────────────────────────────────────────────────────────────
+interface ApkRelease {
+  tag: string;
+  name: string;
+  published: string;
+  downloadUrl: string;
+  size: number;
+  body: string;
+}
+
 function OverviewPanel({ pwd, onNavigate }: { pwd: string; onNavigate: (tab: Tab) => void }) {
   const { toast } = useToast();
   const [stats, setStats] = useState<Stats | null>(null);
@@ -317,6 +327,9 @@ function OverviewPanel({ pwd, onNavigate }: { pwd: string; onNavigate: (tab: Tab
   const [liveRequests, setLiveRequests] = useState<{ waiting: number; active: number } | null>(null);
   const [cascadeStatus, setCascadeStatus] = useState<{ models: string[]; updatedAt: string | null; isDefault: boolean } | null>(null);
   const [cascadeRefreshing, setCascadeRefreshing] = useState(false);
+  const [apkRelease, setApkRelease] = useState<ApkRelease | null>(null);
+  const [apkLoading, setApkLoading] = useState(true);
+  const [apkError, setApkError] = useState(false);
 
   async function refreshCascade() {
     setCascadeRefreshing(true);
@@ -353,7 +366,39 @@ function OverviewPanel({ pwd, onNavigate }: { pwd: string; onNavigate: (tab: Tab
       .catch(() => {});
   }, [pwd]);
 
+  // Fetch latest admin APK release from GitHub
+  const fetchApkRelease = useCallback(async () => {
+    setApkLoading(true);
+    setApkError(false);
+    try {
+      const r = await fetch(
+        "https://api.github.com/repos/Zenkaak/Messer/releases/latest",
+        { headers: { Accept: "application/vnd.github+json" } }
+      );
+      if (!r.ok) { setApkError(true); return; }
+      const data = await r.json() as {
+        tag_name: string; name: string; published_at: string; body: string;
+        assets: { name: string; browser_download_url: string; size: number }[];
+      };
+      const apkAsset = data.assets.find(a => a.name.endsWith(".apk"));
+      if (!apkAsset) { setApkError(true); return; }
+      setApkRelease({
+        tag: data.tag_name,
+        name: data.name,
+        published: data.published_at,
+        downloadUrl: apkAsset.browser_download_url,
+        size: apkAsset.size,
+        body: data.body ?? "",
+      });
+    } catch {
+      setApkError(true);
+    } finally {
+      setApkLoading(false);
+    }
+  }, []);
+
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { fetchApkRelease(); }, [fetchApkRelease]);
 
   const confirmed = stats?.paidOrders.count ?? 0;
   const pending = stats?.pendingOrders?.count ?? 0;
@@ -582,6 +627,90 @@ function OverviewPanel({ pwd, onNavigate }: { pwd: string; onNavigate: (tab: Tab
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* Admin APK Download */}
+          <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
+            <div className="px-4 py-3 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
+                <Smartphone size={11} /> Admin Android App
+              </p>
+              <button
+                onClick={fetchApkRelease}
+                disabled={apkLoading}
+                className="text-[11px] font-bold text-slate-400 hover:text-blue-600 transition-colors"
+              >
+                <RefreshCw size={11} className={apkLoading ? "animate-spin" : ""} />
+              </button>
+            </div>
+
+            {apkLoading && (
+              <div className="px-4 py-4 flex items-center gap-2">
+                <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                <p className="text-xs text-slate-400">Checking for latest build…</p>
+              </div>
+            )}
+
+            {!apkLoading && apkError && (
+              <div className="px-4 py-4 space-y-2">
+                <p className="text-xs text-slate-400">
+                  No APK release found yet. Push to <code className="bg-slate-100 px-1 rounded text-[10px]">main</code> to trigger the first build.
+                </p>
+                <a
+                  href="https://github.com/Zenkaak/Messer/actions"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-blue-600 hover:underline"
+                >
+                  <ExternalLink size={11} /> View GitHub Actions
+                </a>
+              </div>
+            )}
+
+            {!apkLoading && apkRelease && (
+              <div className="p-4 space-y-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-bold text-slate-800 leading-tight">{apkRelease.name}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-full">
+                        <Tag size={8} /> {apkRelease.tag}
+                      </span>
+                      <span className="text-[10px] text-slate-400">
+                        {(apkRelease.size / 1024 / 1024).toFixed(1)} MB
+                      </span>
+                      <span className="text-[10px] text-slate-400">
+                        {new Date(apkRelease.published).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-blue-50 border border-blue-100 rounded-xl px-3 py-2">
+                  <p className="text-[10px] text-blue-700 leading-relaxed">
+                    Auto-built from the latest <strong>main</strong> push. Installs on any Android 7+ device.
+                    Enable <em>"Install from unknown sources"</em> when prompted.
+                  </p>
+                </div>
+
+                <a
+                  href={apkRelease.downloadUrl}
+                  download
+                  className="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm transition-colors active:scale-95"
+                >
+                  <Download size={15} /> Download APK
+                </a>
+
+                <a
+                  href="https://github.com/Zenkaak/Messer/releases"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-1.5 text-[11px] font-semibold text-slate-400 hover:text-slate-600 transition-colors"
+                >
+                  <ExternalLink size={10} /> All releases on GitHub
+                </a>
+              </div>
+            )}
           </div>
         </>
       )}

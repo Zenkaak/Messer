@@ -1,0 +1,81 @@
+name: Build & Release Admin APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Create signing keystore
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android-admin-app/keystore.jks
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x android-admin-app/gradlew
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ hashFiles('android-admin-app/**/*.gradle.kts', 'android-admin-app/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: gradle-
+
+      - name: Build Release APK
+        working-directory: android-admin-app
+        run: |
+          ./gradlew assembleRelease \
+            -Pandroid.injected.signing.store.file=$GITHUB_WORKSPACE/android-admin-app/keystore.jks \
+            -Pandroid.injected.signing.store.password="${{ secrets.KEYSTORE_PASSWORD }}" \
+            -Pandroid.injected.signing.key.alias="${{ secrets.KEY_ALIAS }}" \
+            -Pandroid.injected.signing.key.password="${{ secrets.KEY_PASSWORD }}"
+
+      - name: Get short SHA
+        id: sha
+        run: echo "short=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+
+      - name: Get commit message
+        id: msg
+        run: echo "message=$(git log -1 --pretty=format:'%s')" >> $GITHUB_OUTPUT
+
+      - name: Rename APK
+        run: |
+          mv android-admin-app/app/build/outputs/apk/release/app-release.apk \
+             android-admin-app/app/build/outputs/apk/release/gsm-admin-${{ steps.sha.outputs.short }}.apk
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: admin-apk-${{ steps.sha.outputs.short }}
+          name: "GSM Admin APK — ${{ steps.sha.outputs.short }}"
+          body: |
+            **Commit:** ${{ steps.msg.outputs.message }}
+            **SHA:** `${{ github.sha }}`
+            **Pushed by:** @${{ github.actor }}
+            **Branch:** `${{ github.ref_name }}`
+
+            ---
+            Download and install `gsm-admin-${{ steps.sha.outputs.short }}.apk` on your Android device.
+            Enable "Install from unknown sources" if prompted.
+          files: android-admin-app/app/build/outputs/apk/release/gsm-admin-${{ steps.sha.outputs.short }}.apk
+          make_latest: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
