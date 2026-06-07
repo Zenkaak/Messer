@@ -114,7 +114,7 @@ function layout(preheader: string, accentColor: string, headerContent: string, b
                   <td style="text-align:center;">
                     <p style="margin:0 0 8px;font-size:12px;color:#94a3b8;line-height:1.6;">This message was sent to you because you have an account with GSM World.<br>If you did not request this email, please disregard it.</p>
                     <p style="margin:0;font-size:12px;color:#94a3b8;">
-                      <a href="${storeUrl}" style="color:#0ea5e9;text-decoration:none;font-weight:600;">gsmworld.co.ke</a>
+                      <a href="${storeUrl}" style="color:#0ea5e9;text-decoration:none;font-weight:600;">${new URL(storeUrl).hostname}</a>
                       &nbsp;&nbsp;·&nbsp;&nbsp;
                       <a href="${storeUrl}/account/orders" style="color:#0ea5e9;text-decoration:none;">Track Your Order</a>
                       &nbsp;&nbsp;·&nbsp;&nbsp;
