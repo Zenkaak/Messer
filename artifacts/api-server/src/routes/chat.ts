@@ -2698,12 +2698,11 @@ router.post("/chat/bot", async (req, res) => {
     const isOpenRouter = openaiBase.toLowerCase().includes("openrouter");
     const modelCascade = isOpenRouter
       ? [
-          "meta-llama/llama-3.3-70b-instruct:free",     // primary — fast 70B, great tool-calling
-          "meta-llama/llama-3.1-70b-instruct:free",     // fallback 70B llama
-          "qwen/qwen2.5-72b-instruct:free",             // Qwen 72B — strong tool-calling
-          "mistralai/mistral-7b-instruct:free",         // fast 7B fallback
-          "google/gemma-2-9b-it:free",                  // Google Gemma 9B
-          "deepseek/deepseek-chat:free",                // DeepSeek free — capable fallback
+          "openai/gpt-oss-120b:free",                    // primary — OpenAI OSS 120B, great tool-calling
+          "openai/gpt-oss-20b:free",                     // fast smaller fallback
+          "google/gemma-4-31b-it:free",                  // Google Gemma 4 31B
+          "nvidia/nemotron-3-super-120b-a12b:free",      // NVIDIA 120B — 1M context
+          "meta-llama/llama-3.3-70b-instruct:free",      // Llama 3.3 70B — may recover from rate-limit
         ]
       : ["gpt-4o-mini"];
 
