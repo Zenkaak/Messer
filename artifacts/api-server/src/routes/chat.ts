@@ -2656,18 +2656,19 @@ router.post("/chat/bot", async (req, res) => {
         });
       }
 
-      // Step 2: user just gave an email address in an OTP login context → force send_login_otp
+      // Step 2: user just gave an email in an OTP login context → force send_login_otp
+      // Reliable signal: any of the last 4 USER messages was the OTP choice keyword
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
       if (emailRegex.test(latestUserText)) {
-        const recentTexts = openaiMessages.slice(-8).map(m => String(m.content ?? "").toLowerCase());
-        const hasOtpLoginContext = recentTexts.some(t =>
-          t.includes("login code") || t.includes("send the login") || t.includes("send a login") ||
-          t.includes("send the otp") || t.includes("i will send") || t.includes("otp") && t.includes("email")
-        );
-        if (hasOtpLoginContext) {
+        const recentUserTexts = openaiMessages
+          .filter(m => m.role === "user")
+          .slice(-4)
+          .map(m => String(m.content ?? "").trim());
+        const hadOtpChoice = recentUserTexts.some(t => /^(otp|one.?time.?code|one.?time|code|1)$/i.test(t));
+        if (hadOtpChoice) {
           openaiMessages.push({
             role: "system",
-            content: `[FORCE ACTION: The user just provided their email "${latestUserText}" for OTP login. You MUST call send_login_otp with email="${latestUserText}" RIGHT NOW. Do NOT say anything before calling the tool. Do NOT say "Is there anything else". Call send_login_otp("${latestUserText}") immediately — that is the only correct next action.]`,
+            content: `[FORCE ACTION: The user just provided their email "${latestUserText}" for OTP login. You MUST call the tool send_login_otp with email="${latestUserText}" RIGHT NOW. Do NOT say anything else first. Do NOT say "Is there anything else I can help you with?". Your only response is to call send_login_otp("${latestUserText}") — nothing else.]`,
           });
         }
       }
