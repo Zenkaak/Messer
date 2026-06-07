@@ -41,6 +41,10 @@ public class MainActivity extends AppCompatActivity {
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
 
+        // Custom user-agent so the React app can identify the admin APK
+        String defaultUa = settings.getUserAgentString();
+        settings.setUserAgentString(defaultUa + " GSMAdminApp/1.0");
+
         // Keep cookies/session across opens
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);

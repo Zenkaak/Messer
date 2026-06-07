@@ -994,7 +994,7 @@ router.post("/admin/orders/:id/refund", async (req, res) => {
   const orderId = parseInt(req.params.id, 10);
   if (isNaN(orderId)) { res.status(400).json({ error: "Invalid order ID" }); return; }
 
-  const { amount, reason } = req.body || {};
+  const { amount, reason, correctionNote } = req.body || {};
   const refundAmount = parseFloat(amount);
   if (!refundAmount || refundAmount <= 0) {
     res.status(400).json({ error: "Refund amount must be greater than 0" });
@@ -1039,9 +1039,14 @@ router.post("/admin/orders/:id/refund", async (req, res) => {
       note: `Refund for order #${orderId}${reason ? ` — ${reason}` : ""}`,
     });
 
-    // Mark order as refunded
+    // Mark order as refunded + save correction note
+    const correctionNoteText = correctionNote ? String(correctionNote).trim() : null;
     await db.update(ordersTable)
-      .set({ paymentStatus: "refunded", updatedAt: new Date() })
+      .set({
+        paymentStatus: "refunded",
+        updatedAt: new Date(),
+        ...(correctionNoteText ? { correctionNote: correctionNoteText } : {}),
+      })
       .where(eq(ordersTable.id, orderId));
 
     // Notify customer via email

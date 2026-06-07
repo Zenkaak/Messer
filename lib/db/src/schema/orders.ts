@@ -14,6 +14,7 @@ export const ordersTable = pgTable("orders", {
   total: numeric("total").notNull(),
   currency: text("currency").notNull().default("USD"),
   notes: text("notes"),
+  correctionNote: text("correction_note"),
   deviceIdentifier: text("device_identifier"),
   orderType: text("order_type").notNull().default("product"),
   resellerSlug: text("reseller_slug"),

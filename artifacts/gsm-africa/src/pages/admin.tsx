@@ -71,7 +71,7 @@ interface Order {
   id: number; customerName: string | null; customerEmail: string | null;
   customerPhone: string | null; paymentMethod: string | null;
   paymentStatus: string; total: string; currency: string; createdAt: string;
-  notes: string | null; deviceIdentifier: string | null; orderType: string | null;
+  notes: string | null; correctionNote: string | null; deviceIdentifier: string | null; orderType: string | null;
 }
 interface OrderMsg {
   id: number; orderId: number; senderType: string; senderEmail: string;
@@ -738,6 +738,7 @@ function OrderDetailView({ order: initialOrder, pwd, onBack }: { order: Order; p
   const [showRefund, setShowRefund] = useState(false);
   const [refundAmount, setRefundAmount] = useState(String(Number(initialOrder.total).toFixed(2)));
   const [refundReason, setRefundReason] = useState("");
+  const [correctionNote, setCorrectionNote] = useState("");
   const [refunding, setRefunding] = useState(false);
   const [refundSuccess, setRefundSuccess] = useState<string | null>(null);
 
@@ -812,12 +813,16 @@ function OrderDetailView({ order: initialOrder, pwd, onBack }: { order: Order; p
     try {
       const r = await adminFetch(apiPath(`/api/admin/orders/${order.id}/refund`), pwd, {
         method: "POST",
-        body: JSON.stringify({ amount: amt, reason: refundReason.trim() || "Order correction" }),
+        body: JSON.stringify({
+          amount: amt,
+          reason: refundReason.trim() || "Order correction",
+          correctionNote: correctionNote.trim() || undefined,
+        }),
       });
       const data = await r.json() as { success?: boolean; message?: string; error?: string };
       if (r.ok && data.success) {
         setRefundSuccess(data.message ?? `$${amt.toFixed(2)} queued for GSM Wallet.`);
-        setOrder(prev => ({ ...prev, paymentStatus: "refunded" }));
+        setOrder(prev => ({ ...prev, paymentStatus: "refunded", correctionNote: correctionNote.trim() || prev.correctionNote }));
         setShowRefund(false);
         toast({ title: "Refund issued", description: data.message });
       } else {
@@ -865,6 +870,17 @@ function OrderDetailView({ order: initialOrder, pwd, onBack }: { order: Order; p
         <span className="text-sm font-semibold capitalize">{order.paymentStatus} payment</span>
         <span className="ml-auto text-xs font-medium opacity-70">{new Date(order.createdAt).toLocaleString()}</span>
       </div>
+
+      {/* Correction note — permanent banner once set */}
+      {order.correctionNote && (
+        <div className="flex gap-3 border border-rose-300 bg-rose-50 rounded-2xl px-4 py-3">
+          <AlertTriangle size={15} className="text-rose-500 shrink-0 mt-0.5" />
+          <div className="min-w-0">
+            <p className="text-[10px] font-black text-rose-400 uppercase tracking-widest mb-1">Correction Note</p>
+            <p className="text-sm text-rose-800 leading-snug break-words">{order.correctionNote}</p>
+          </div>
+        </div>
+      )}
 
       {/* Status update buttons */}
       <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
@@ -1057,13 +1073,27 @@ function OrderDetailView({ order: initialOrder, pwd, onBack }: { order: Order; p
             </div>
 
             <div className="space-y-2">
-              <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Reason</label>
+              <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Reason (sent to customer)</label>
               <input
                 type="text"
                 placeholder="e.g. Wrong product charged by bot"
                 value={refundReason}
                 onChange={e => setRefundReason(e.target.value)}
                 className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-400"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">
+                Correction Note <span className="text-rose-500">*</span>
+                <span className="ml-1 text-slate-400 font-normal normal-case tracking-normal">— internal, saved on order forever</span>
+              </label>
+              <textarea
+                rows={3}
+                placeholder='e.g. "Bot added iSunshare instead of Google Play $50 — issued full refund to wallet"'
+                value={correctionNote}
+                onChange={e => setCorrectionNote(e.target.value)}
+                className="w-full border border-rose-200 bg-rose-50 rounded-xl px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-400 resize-none"
               />
             </div>
 
@@ -3736,6 +3766,23 @@ function ImeiLogsPanel({ pwd }: { pwd: string }) {
 }
 
 export function AdminPage() {
+  // Block browser access — admin is only accessible via the Android admin app
+  const isAdminApp = navigator.userAgent.includes("GSMAdminApp");
+  if (!isAdminApp) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-16 h-16 rounded-2xl bg-slate-800 flex items-center justify-center mb-4">
+          <Shield size={28} className="text-slate-400" />
+        </div>
+        <h1 className="text-white font-black text-xl mb-2">Admin Access Restricted</h1>
+        <p className="text-slate-400 text-sm max-w-xs leading-relaxed">
+          The admin panel is only accessible through the <strong className="text-slate-200">GSM Admin Android app</strong>.
+          Download it from the admin app page.
+        </p>
+      </div>
+    );
+  }
+
   const ADMIN_KEY = "gsm_admin_session";
   const [pwd, setPwd] = useState(() => {
     try { return sessionStorage.getItem(ADMIN_KEY + "_pwd") ?? ""; } catch { return ""; }
