@@ -157,3 +157,7 @@ html, body {
   overscroll-behavior: none;
   overscroll-behavior-y: none;
 }
+/* Also block pull-to-refresh on any scrollable child containers */
+* {
+  overscroll-behavior-y: none;
+}

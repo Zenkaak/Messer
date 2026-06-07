@@ -4177,7 +4177,7 @@ export function AdminPage() {
           </header>
 
           {/* ── scrollable content ── */}
-          <main className="flex-1 overflow-y-auto overscroll-y-contain pb-16 md:pb-0">
+          <main className="flex-1 overflow-y-auto overscroll-y-none pb-16 md:pb-0">
             {tab === "overview"   && <OverviewPanel   pwd={pwd} onNavigate={setTab} />}
             {tab === "orders"     && <OrdersPanel     pwd={pwd} />}
             {tab === "products"   && <ProductsPanel   pwd={pwd} />}
