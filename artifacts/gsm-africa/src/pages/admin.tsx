@@ -1278,12 +1278,8 @@ function OrdersPanel({ pwd }: { pwd: string }) {
     scrollContainerRef.current = document.querySelector("main[class*='overflow-y-auto']") as HTMLElement | null;
   }, []);
 
-  const getScroll = () =>
-    window.innerWidth < 768 ? window.scrollY : (scrollContainerRef.current?.scrollTop ?? 0);
-  const restoreScroll = (y: number) => {
-    if (window.innerWidth < 768) window.scrollTo({ top: y, behavior: "instant" as ScrollBehavior });
-    else if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = y;
-  };
+  const getScroll = () => scrollContainerRef.current?.scrollTop ?? 0;
+  const restoreScroll = (y: number) => { if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = y; };
 
   useEffect(() => {
     load(page, filterType);
@@ -4026,8 +4022,30 @@ export function AdminPage() {
     fetchAdminApkVersion();
   }, []);
 
-  // (pull-to-refresh handled natively: body scrolls on mobile so Android SwipeRefreshLayout
-  //  correctly reads scroll position — no JS intervention needed)
+  // Block SwipeRefreshLayout when scrolled down by redirecting the drag gesture manually
+  useEffect(() => {
+    const el = mainRef.current;
+    if (!el) return;
+    let startY = 0;
+    const onStart = (e: TouchEvent) => { startY = e.touches[0]?.clientY ?? 0; };
+    const onMove = (e: TouchEvent) => {
+      const currentY = e.touches[0]?.clientY ?? 0;
+      const dragDown = currentY > startY; // finger moving downward
+      if (el.scrollTop > 0 && dragDown) {
+        // Content exists above — redirect the drag as an upward scroll manually
+        const delta = currentY - startY;
+        el.scrollTop = Math.max(0, el.scrollTop - delta);
+        startY = currentY;
+        e.preventDefault(); // stops SwipeRefreshLayout from intercepting
+      }
+    };
+    el.addEventListener("touchstart", onStart, { passive: true });
+    el.addEventListener("touchmove", onMove, { passive: false });
+    return () => {
+      el.removeEventListener("touchstart", onStart);
+      el.removeEventListener("touchmove", onMove);
+    };
+  }, [authed]);
 
   useEffect(() => {
     if (!authed) return;
@@ -4079,7 +4097,7 @@ export function AdminPage() {
         />
       )}
 
-      <div className="flex flex-col min-h-screen bg-slate-50 md:flex-row md:h-screen md:overflow-hidden">
+      <div className="flex h-screen bg-slate-50 overflow-hidden">
 
         {/* ── Desktop Left Sidebar ── */}
         <aside className="hidden md:flex flex-col w-56 bg-slate-900 shrink-0">
@@ -4128,10 +4146,10 @@ export function AdminPage() {
         </aside>
 
         {/* ── Main Area ── */}
-        <div className="flex-1 flex flex-col md:overflow-hidden">
+        <div className="flex-1 flex flex-col overflow-hidden">
 
           {/* ── top header ── */}
-          <header className="sticky top-0 z-50 shrink-0 bg-slate-900 px-4">
+          <header className="shrink-0 bg-slate-900 px-4">
             {/* Mobile: brand row */}
             <div className="flex md:hidden items-center justify-between py-3 border-b border-white/5">
               <div className="flex items-center gap-2.5">
@@ -4201,7 +4219,7 @@ export function AdminPage() {
           </header>
 
           {/* ── scrollable content ── */}
-          <main ref={mainRef} className="flex-1 md:overflow-y-auto md:overscroll-y-none pb-16 md:pb-0">
+          <main ref={mainRef} className="flex-1 overflow-y-auto overscroll-y-none pb-16 md:pb-0" style={{ overscrollBehavior: "none" }}>
             {tab === "overview"   && <OverviewPanel   pwd={pwd} onNavigate={setTab} />}
             {tab === "orders"     && <OrdersPanel     pwd={pwd} />}
             {tab === "products"   && <ProductsPanel   pwd={pwd} />}
