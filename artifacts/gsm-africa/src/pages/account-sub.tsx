@@ -2374,22 +2374,48 @@ function OrdersContent() {
 }
 
 // ── Profile ──────────────────────────────────────────────────────────────────
-function ProfileContent({ user }: { user: { id?: number; name: string | null; email: string; username?: string | null } | null }) {
+function resizeImageToDataUrl(file: File, maxPx = 200, quality = 0.8): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const scale = Math.min(maxPx / img.width, maxPx / img.height, 1);
+      const w = Math.round(img.width * scale);
+      const h = Math.round(img.height * scale);
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) { reject(new Error("canvas not supported")); return; }
+      ctx.drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL("image/jpeg", quality));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Failed to load image")); };
+    img.src = url;
+  });
+}
+
+function ProfileContent({ user }: { user: { id?: number; name: string | null; email: string; username?: string | null; avatarUrl?: string | null } | null }) {
   const [name, setName] = useState(user?.name ?? "");
   const [saving, setSaving] = useState(false);
   const [username, setUsername] = useState<string | null>(user?.username ?? null);
   const [usernameCopied, setUsernameCopied] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(user?.avatarUrl ?? null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const { token, updateUser } = useAuth();
 
-  // Fetch fresh profile data to ensure username is always current
+  // Fetch fresh profile data to ensure username and avatar are always current
   useEffect(() => {
     if (!token) return;
     fetch("/api/auth/me", { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.ok ? r.json() : null)
-      .then((d: { user?: { username?: string | null; name?: string | null } } | null) => {
+      .then((d: { user?: { username?: string | null; name?: string | null; avatarUrl?: string | null } } | null) => {
         if (d?.user?.username) setUsername(d.user.username);
         if (d?.user?.name !== undefined) setName(d.user.name ?? "");
+        if (d?.user?.avatarUrl !== undefined) setAvatarUrl(d.user.avatarUrl ?? null);
       })
       .catch(() => {});
   }, [token]);
@@ -2401,11 +2427,62 @@ function ProfileContent({ user }: { user: { id?: number; name: string | null; em
     setTimeout(() => setUsernameCopied(false), 2000);
   }
 
+  async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "Please select an image file", variant: "destructive" });
+      return;
+    }
+    setAvatarUploading(true);
+    try {
+      const dataUrl = await resizeImageToDataUrl(file, 200, 0.82);
+      const res = await fetch("/api/auth/me", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ avatarUrl: dataUrl }),
+      });
+      if (!res.ok) {
+        const d = await res.json() as { error?: string };
+        throw new Error(d.error || "Upload failed");
+      }
+      const updated = await res.json() as { user: { id: number; email: string; name: string | null; username?: string | null; avatarUrl?: string | null } };
+      setAvatarUrl(updated.user.avatarUrl ?? null);
+      updateUser({ id: updated.user.id, email: updated.user.email, name: updated.user.name, username: updated.user.username, avatarUrl: updated.user.avatarUrl });
+      toast({ title: "Photo updated!", description: "Your profile picture has been saved." });
+    } catch (err) {
+      toast({ title: err instanceof Error ? err.message : "Upload failed", variant: "destructive" });
+    } finally {
+      setAvatarUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
+  async function removeAvatar() {
+    setAvatarUploading(true);
+    try {
+      const res = await fetch("/api/auth/me", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ avatarUrl: null }),
+      });
+      if (!res.ok) throw new Error("Failed to remove photo");
+      const updated = await res.json() as { user: { id: number; email: string; name: string | null; username?: string | null; avatarUrl?: string | null } };
+      setAvatarUrl(null);
+      updateUser({ id: updated.user.id, email: updated.user.email, name: updated.user.name, username: updated.user.username, avatarUrl: null });
+      toast({ title: "Photo removed" });
+    } catch (err) {
+      toast({ title: err instanceof Error ? err.message : "Failed to remove", variant: "destructive" });
+    } finally {
+      setAvatarUploading(false);
+    }
+  }
+
   async function saveProfile() {
     if (!user?.id) { toast({ title: "Not logged in", variant: "destructive" }); return; }
     setSaving(true);
     try {
-      const res = await fetch(`/api/users/${user.id}`, {
+      const res = await fetch("/api/auth/me", {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ name }),
@@ -2414,8 +2491,8 @@ function ProfileContent({ user }: { user: { id?: number; name: string | null; em
         const d = await res.json() as { error?: string };
         throw new Error(d.error || "Failed to save");
       }
-      const updated = await res.json() as { id: number; email: string; name: string | null };
-      updateUser({ id: updated.id, email: updated.email, name: updated.name });
+      const updated = await res.json() as { user: { id: number; email: string; name: string | null; username?: string | null; avatarUrl?: string | null } };
+      updateUser({ id: updated.user.id, email: updated.user.email, name: updated.user.name, username: updated.user.username, avatarUrl: updated.user.avatarUrl });
       toast({ title: "Profile saved!", description: "Your name has been updated." });
     } catch (err) {
       toast({ title: err instanceof Error ? err.message : "Save failed", variant: "destructive" });
@@ -2424,8 +2501,58 @@ function ProfileContent({ user }: { user: { id?: number; name: string | null; em
     }
   }
 
+  const displayName = user?.name || user?.email?.split("@")[0] || "User";
+  const initials = displayName.slice(0, 2).toUpperCase();
+
   return (
     <div className="space-y-4">
+      {/* Avatar section */}
+      <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100/80">
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Profile Photo</p>
+        <div className="flex items-center gap-4">
+          <div className="relative shrink-0">
+            {avatarUrl ? (
+              <img src={avatarUrl} alt={displayName} className="w-16 h-16 rounded-2xl object-cover ring-2 ring-blue-100" />
+            ) : (
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-400 to-blue-700 flex items-center justify-center shadow-md">
+                <span className="text-white font-black text-xl tracking-tight">{initials}</span>
+              </div>
+            )}
+            {avatarUploading && (
+              <div className="absolute inset-0 rounded-2xl bg-black/40 flex items-center justify-center">
+                <RefreshCw size={16} className="text-white animate-spin" />
+              </div>
+            )}
+          </div>
+          <div className="flex-1 flex flex-col gap-2">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleAvatarChange}
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={avatarUploading}
+              className="w-full py-2.5 text-sm font-bold bg-blue-600 text-white rounded-xl disabled:opacity-60 hover:bg-blue-500 active:bg-blue-700 transition-colors"
+            >
+              {avatarUrl ? "Change Photo" : "Upload Photo"}
+            </button>
+            {avatarUrl && (
+              <button
+                onClick={removeAvatar}
+                disabled={avatarUploading}
+                className="w-full py-2 text-xs font-semibold text-red-500 border border-red-100 rounded-xl bg-red-50/50 hover:bg-red-50 disabled:opacity-60 transition-colors"
+              >
+                Remove Photo
+              </button>
+            )}
+          </div>
+        </div>
+        <p className="text-[11px] text-gray-400 mt-2.5">JPG, PNG or GIF · Max 5MB · Resized to 200×200px</p>
+      </div>
+
       {/* Username card */}
       {username && (
         <div className="bg-gradient-to-br from-indigo-600 to-indigo-800 rounded-2xl px-4 py-4 shadow-md">

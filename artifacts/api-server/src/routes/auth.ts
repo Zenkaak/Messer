@@ -153,7 +153,7 @@ router.get("/auth/me", async (req, res) => {
     if (!authHeader?.startsWith("Bearer ")) { res.status(401).json({ error: "Unauthorized" }); return; }
     const payload = jwt.verify(authHeader.slice(7), _jwtSecret) as { userId: number; email: string };
     const rows = await db
-      .select({ id: usersTable.id, email: usersTable.email, name: usersTable.name, username: usersTable.username, walletBalance: usersTable.walletBalance, status: usersTable.status, createdAt: usersTable.createdAt })
+      .select({ id: usersTable.id, email: usersTable.email, name: usersTable.name, username: usersTable.username, avatarUrl: usersTable.avatarUrl, walletBalance: usersTable.walletBalance, status: usersTable.status, createdAt: usersTable.createdAt })
       .from(usersTable).where(eq(usersTable.id, payload.userId)).limit(1);
     if (rows.length === 0) { res.status(401).json({ error: "User not found" }); return; }
     const u = rows[0];
@@ -162,6 +162,48 @@ router.get("/auth/me", async (req, res) => {
       return;
     }
     res.json({ user: { ...u, walletBalance: parseFloat(u.walletBalance ?? "0") } });
+  } catch {
+    res.status(401).json({ error: "Invalid or expired token" });
+  }
+});
+
+router.patch("/auth/me", async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith("Bearer ")) { res.status(401).json({ error: "Unauthorized" }); return; }
+    const payload = jwt.verify(authHeader.slice(7), _jwtSecret) as { userId: number; email: string };
+
+    const { name, avatarUrl } = req.body as { name?: string; avatarUrl?: string | null };
+
+    const updates: Partial<{ name: string | null; avatarUrl: string | null }> = {};
+
+    if (name !== undefined) {
+      if (typeof name !== "string") { res.status(400).json({ error: "name must be a string" }); return; }
+      updates.name = name.trim() || null;
+    }
+
+    if (avatarUrl !== undefined) {
+      if (avatarUrl === null) {
+        updates.avatarUrl = null;
+      } else {
+        if (typeof avatarUrl !== "string") { res.status(400).json({ error: "avatarUrl must be a string" }); return; }
+        if (!avatarUrl.startsWith("data:image/")) { res.status(400).json({ error: "avatarUrl must be an image data URL" }); return; }
+        if (avatarUrl.length > 1_500_000) { res.status(413).json({ error: "Avatar too large (max ~1MB)" }); return; }
+        updates.avatarUrl = avatarUrl;
+      }
+    }
+
+    if (Object.keys(updates).length === 0) { res.status(400).json({ error: "No fields to update" }); return; }
+
+    const [updated] = await db
+      .update(usersTable)
+      .set(updates)
+      .where(eq(usersTable.id, payload.userId))
+      .returning({ id: usersTable.id, email: usersTable.email, name: usersTable.name, username: usersTable.username, avatarUrl: usersTable.avatarUrl });
+
+    if (!updated) { res.status(404).json({ error: "User not found" }); return; }
+
+    res.json({ user: updated });
   } catch {
     res.status(401).json({ error: "Invalid or expired token" });
   }

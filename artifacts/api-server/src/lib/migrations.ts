@@ -39,6 +39,7 @@ export async function runMigrations(): Promise<void> {
     // ── users table ───────────────────────────────────────────────────────────
     await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS username TEXT`);
     await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS users_username_unique ON users (lower(username)) WHERE username IS NOT NULL`);
+    await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT`);
 
     // ── imei_lookups table (may be missing in production) ─────────────────────
     await db.execute(sql`

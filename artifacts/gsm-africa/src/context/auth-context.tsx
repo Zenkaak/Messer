@@ -5,6 +5,7 @@ interface AuthUser {
   email: string;
   name: string | null;
   username?: string | null;
+  avatarUrl?: string | null;
 }
 
 interface AuthContextValue {

@@ -65,9 +65,17 @@ export function AccountPage() {
         {/* Top row: avatar + info + edit */}
         <div className="flex items-center gap-4 mb-5">
           <div className="relative shrink-0">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-400 to-blue-700 flex items-center justify-center shadow-xl shadow-blue-900/50">
-              <span className="text-white font-black text-xl tracking-tight">{initials}</span>
-            </div>
+            {user?.avatarUrl ? (
+              <img
+                src={user.avatarUrl}
+                alt={displayName}
+                className="w-16 h-16 rounded-2xl object-cover shadow-xl shadow-blue-900/50"
+              />
+            ) : (
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-400 to-blue-700 flex items-center justify-center shadow-xl shadow-blue-900/50">
+                <span className="text-white font-black text-xl tracking-tight">{initials}</span>
+              </div>
+            )}
             <span className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-400 border-2 border-[#0d1623] rounded-full" />
           </div>
           <div className="flex-1 min-w-0">
