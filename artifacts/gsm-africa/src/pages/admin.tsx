@@ -4484,7 +4484,7 @@ export function AdminPage() {
           </header>
 
           {/* ── scrollable content ── */}
-          <main ref={mainRef} className="flex-1 overflow-y-auto overscroll-y-none pb-16 md:pb-0" style={{ overscrollBehavior: "none" }}>
+          <main ref={mainRef} className="flex-1 overflow-y-auto overscroll-contain pb-16 md:pb-0" style={{ overscrollBehavior: "contain" }}>
             {tab === "overview"   && <OverviewPanel   pwd={pwd} onNavigate={setTab} />}
             {tab === "orders"     && <OrdersPanel     pwd={pwd} />}
             {tab === "products"   && <ProductsPanel   pwd={pwd} />}
@@ -4499,7 +4499,7 @@ export function AdminPage() {
           {/* ── Mobile hybrid bottom nav ── */}
           <nav
             className="fixed bottom-0 inset-x-0 z-50 md:hidden bg-slate-900 border-t border-white/10 flex safe-bottom"
-            style={{ transform: "translateZ(0)", overscrollBehavior: "none", touchAction: "none" }}
+            style={{ transform: "translateZ(0)", touchAction: "manipulation" }}
           >
             {BOTTOM_NAV.map(item => {
               const active = tab === item.id;
