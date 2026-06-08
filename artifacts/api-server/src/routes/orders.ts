@@ -261,6 +261,12 @@ router.get("/orders", async (req, res) => {
     if (req.query.payment_status) {
       conditions.push(eq(ordersTable.paymentStatus, String(req.query.payment_status)));
     }
+    if (req.query.customerEmail) {
+      conditions.push(eq(ordersTable.customerEmail, String(req.query.customerEmail).toLowerCase()));
+    }
+    if (req.query.resellerSlug) {
+      conditions.push(eq(ordersTable.resellerSlug, String(req.query.resellerSlug)));
+    }
     const orders = conditions.length
       ? await db.select().from(ordersTable).where(and(...conditions)).orderBy(desc(ordersTable.createdAt))
       : await db.select().from(ordersTable).orderBy(desc(ordersTable.createdAt));

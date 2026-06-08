@@ -487,35 +487,35 @@ router.post("/wallet/transfer", async (req, res) => {
       logWalletTxn(recipient.id, "transfer_received", amountNum, 0, sender?.username ?? null, `Received from @${sender?.username ?? "someone"}`),
     ]);
 
-    // Email + in-app notification for recipient
-    sendEmail({
-      to: recipient.email,
-      subject: "You received a wallet transfer — GSM World",
-      text: `You received $${amountNum.toFixed(2)} from @${sender?.username ?? payload.email} to your GSM World wallet.`,
-    }).catch(() => {});
-
-    db.insert(notificationsTable).values({
-      userEmail: recipient.email,
-      title: "Wallet Transfer Received",
-      message: `You received $${amountNum.toFixed(2)} from @${sender?.username ?? "someone"}.`,
-      type: "success",
-      read: false,
-    }).catch(() => {});
-
-    // Email + in-app notification for sender
-    sendEmail({
-      to: payload.email,
-      subject: "Wallet transfer sent — GSM World",
-      text: `You sent $${amountNum.toFixed(2)} to @${toUsername.trim()}. A fee of $${fee.toFixed(2)} was charged. Total deducted: $${totalDeduct.toFixed(2)}.`,
-    }).catch(() => {});
-
-    db.insert(notificationsTable).values({
-      userEmail: payload.email,
-      title: "Wallet Transfer Sent",
-      message: `You sent $${amountNum.toFixed(2)} to @${toUsername.trim()} (fee: $${fee.toFixed(2)}).`,
-      type: "info",
-      read: false,
-    }).catch(() => {});
+    // Await all notifications + emails before res.json() —
+    // Vercel kills the Lambda as soon as the response is sent,
+    // so fire-and-forget promises after res.json() never execute.
+    await Promise.all([
+      sendEmail({
+        to: recipient.email,
+        subject: "You received a wallet transfer — GSM World",
+        text: `You received $${amountNum.toFixed(2)} from @${sender?.username ?? payload.email} to your GSM World wallet.`,
+      }).catch(() => {}),
+      sendEmail({
+        to: payload.email,
+        subject: "Wallet transfer sent — GSM World",
+        text: `You sent $${amountNum.toFixed(2)} to @${toUsername.trim()}. A fee of $${fee.toFixed(2)} was charged. Total deducted: $${totalDeduct.toFixed(2)}.`,
+      }).catch(() => {}),
+      db.insert(notificationsTable).values({
+        userEmail: recipient.email,
+        title: "Wallet Transfer Received",
+        message: `You received $${amountNum.toFixed(2)} from @${sender?.username ?? "someone"}.`,
+        type: "success",
+        read: false,
+      }).catch(() => {}),
+      db.insert(notificationsTable).values({
+        userEmail: payload.email,
+        title: "Wallet Transfer Sent",
+        message: `You sent $${amountNum.toFixed(2)} to @${toUsername.trim()} (fee: $${fee.toFixed(2)}).`,
+        type: "info",
+        read: false,
+      }).catch(() => {}),
+    ]);
 
     res.json({
       success: true,

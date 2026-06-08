@@ -443,58 +443,62 @@ function OverviewPanel({ pwd, onNavigate }: { pwd: string; onNavigate: (tab: Tab
 
   return (
     <div className="pb-8">
-      {/* ── Hero band ─────────────────────────────── */}
-      <div className="relative overflow-hidden px-4 pt-5 pb-6"
-        style={{ background: "linear-gradient(145deg,#0f172a 0%,#1e293b 60%,#0f172a 100%)" }}>
-        {/* decorative blobs */}
+      {/* ── Hero ─────────────────────────────────── */}
+      <div className="relative overflow-hidden px-4 pt-5 pb-5"
+        style={{ background: "linear-gradient(150deg,#0c1220 0%,#162032 55%,#0c1220 100%)" }}>
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          <div className="absolute -top-10 -right-10 w-56 h-56 rounded-full opacity-20"
-            style={{ background: "radial-gradient(circle,#3b82f6 0%,transparent 70%)" }} />
-          <div className="absolute bottom-0 -left-8 w-40 h-40 rounded-full opacity-10"
-            style={{ background: "radial-gradient(circle,#8b5cf6 0%,transparent 70%)" }} />
+          <div className="absolute -top-16 -right-16 w-72 h-72 rounded-full opacity-20"
+            style={{ background: "radial-gradient(circle,#3b82f6,transparent 65%)" }} />
+          <div className="absolute -bottom-8 -left-8 w-48 h-48 rounded-full opacity-10"
+            style={{ background: "radial-gradient(circle,#8b5cf6,transparent 65%)" }} />
         </div>
-        {/* top row */}
-        <div className="relative flex items-start justify-between mb-5">
+        <div className="relative flex items-center justify-between mb-5">
           <div>
-            <p className="text-[11px] font-semibold text-blue-400/80 tracking-widest uppercase">
-              {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
+            <p className="text-[10px] font-bold text-blue-400/60 uppercase tracking-widest">
+              {new Date().toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"})}
             </p>
-            <h2 className="text-2xl font-black text-white mt-0.5 tracking-tight">Dashboard</h2>
+            <h2 className="text-2xl font-black text-white tracking-tight mt-0.5">Dashboard</h2>
           </div>
           <button onClick={load}
-            className="mt-1 w-9 h-9 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-white/60 hover:text-white hover:bg-white/20 transition-all active:scale-90">
+            className="w-9 h-9 rounded-full bg-white/10 border border-white/15 flex items-center justify-center text-white/50 hover:text-white hover:bg-white/20 transition-all active:scale-90">
             <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
           </button>
         </div>
 
-        {/* revenue */}
         {loading ? (
           <div className="space-y-2">
-            <div className="h-3 w-28 bg-white/10 rounded-full animate-pulse" />
-            <div className="h-10 w-44 bg-white/10 rounded-xl animate-pulse" />
-            <div className="h-3 w-20 bg-white/10 rounded-full animate-pulse" />
+            <div className="h-3 w-32 bg-white/10 rounded-full animate-pulse" />
+            <div className="h-12 w-48 bg-white/10 rounded-xl animate-pulse" />
+            <div className="h-px w-full bg-white/10 my-3" />
+            <div className="flex gap-4">{[1,2,3,4].map(i => <div key={i} className="flex-1 h-10 bg-white/10 rounded-xl animate-pulse" />)}</div>
           </div>
         ) : (
-          <div className="relative flex items-end justify-between">
-            <div>
-              <div className="flex items-center gap-1.5 mb-1">
-                <TrendingUp size={11} className="text-blue-400" />
-                <span className="text-[10px] font-bold text-blue-400/90 uppercase tracking-widest">Confirmed Revenue</span>
-              </div>
-              <p className="text-5xl font-black text-white tracking-tight leading-none">
-                ${(stats?.paidOrders.revenue ?? 0).toFixed(2)}
-              </p>
-              <p className="text-slate-400 text-[11px] mt-2">
-                from <span className="text-white font-bold">{stats?.paidOrders.count ?? 0}</span> paid orders
-              </p>
+          <div className="relative">
+            <div className="flex items-center gap-1.5 mb-1">
+              <TrendingUp size={10} className="text-emerald-400" />
+              <span className="text-[9px] font-bold text-emerald-400/70 uppercase tracking-widest">Confirmed Revenue</span>
             </div>
-            <div className="text-right pb-1">
-              <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-1">Avg. Order</p>
-              <p className="text-2xl font-black text-white">${avgOrder}</p>
-              <div className="flex items-center gap-1 justify-end mt-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-wider">Live</span>
-              </div>
+            <p className="text-[52px] font-black text-white leading-none tracking-tight">
+              ${(stats?.paidOrders.revenue ?? 0).toFixed(2)}
+            </p>
+            <p className="text-slate-500 text-[11px] mt-1.5">
+              from <span className="text-slate-300 font-bold">{stats?.paidOrders.count ?? 0}</span> paid orders
+            </p>
+            <div className="flex items-center gap-0 mt-4 pt-3.5 border-t border-white/10">
+              {[
+                { label: "Paid",    value: confirmed, color: "text-emerald-400" },
+                { label: "Pending", value: pending,   color: "text-amber-400"   },
+                { label: "Failed",  value: failed,    color: "text-red-400"     },
+                { label: "Avg",     value: `$${avgOrder}`, color: "text-blue-300" },
+              ].map((k, i, arr) => (
+                <div key={k.label} className="flex-1 text-center">
+                  <p className={`text-xl font-black ${k.color}`}>{k.value}</p>
+                  <p className={`text-[9px] font-bold uppercase tracking-wider ${k.color} opacity-60`}>{k.label}</p>
+                  {i < arr.length - 1 && (
+                    <div className="absolute" style={{ display: "none" }} />
+                  )}
+                </div>
+              ))}
             </div>
           </div>
         )}
@@ -503,80 +507,31 @@ function OverviewPanel({ pwd, onNavigate }: { pwd: string; onNavigate: (tab: Tab
       <div className="px-4 space-y-4 mt-4">
         {loading ? (
           <div className="space-y-3">
-            <div className="grid grid-cols-3 gap-2">{[1,2,3].map(i=><Skeleton key={i} h="h-20"/>)}</div>
-            <div className="grid grid-cols-2 gap-3">{[1,2,3,4].map(i=><Skeleton key={i} h="h-24"/>)}</div>
+            <div className="grid grid-cols-2 gap-3">{[1,2,3,4].map(i=><Skeleton key={i} h="h-28"/>)}</div>
             <Skeleton h="h-48"/>
           </div>
         ) : (
           <>
-            {/* ── Status strip ────────────────────── */}
-            <div className="grid grid-cols-3 gap-2">
-              {[
-                {
-                  label: "Confirmed", value: confirmed, icon: <CheckCircle2 size={14} />,
-                  bg: "bg-emerald-500", ring: "ring-emerald-100",
-                  text: "text-emerald-700", soft: "bg-emerald-50",
-                },
-                {
-                  label: "Pending", value: pending, icon: <Clock size={14} />,
-                  bg: "bg-amber-500", ring: "ring-amber-100",
-                  text: "text-amber-700", soft: "bg-amber-50",
-                },
-                {
-                  label: "Failed", value: failed, icon: <XCircle size={14} />,
-                  bg: "bg-red-500", ring: "ring-red-100",
-                  text: "text-red-700", soft: "bg-red-50",
-                },
-              ].map(c => (
-                <div key={c.label}
-                  className={`bg-white rounded-2xl border border-slate-100 p-3 shadow-sm ring-2 ${c.ring} flex flex-col gap-2`}>
-                  <div className={`w-7 h-7 rounded-xl ${c.bg} flex items-center justify-center text-white`}>
-                    {c.icon}
-                  </div>
-                  <div>
-                    <p className="text-2xl font-black text-slate-900 leading-none">{c.value}</p>
-                    <p className={`text-[10px] font-bold mt-1 ${c.text}`}>{c.label}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-
             {/* ── Metric grid ─────────────────────── */}
             <div className="grid grid-cols-2 gap-3">
               {[
-                {
-                  label: "Total Orders", value: stats?.orders.total ?? 0,
-                  sub: `${confirmed} confirmed`,
-                  icon: <ShoppingBag size={16} />, accent: "#3b82f6",
-                },
-                {
-                  label: "Users",        value: stats?.users ?? 0,
-                  sub: "registered accounts",
-                  icon: <Users size={16} />, accent: "#8b5cf6",
-                },
-                {
-                  label: "Products",     value: stats?.products ?? 0,
-                  sub: "in catalog",
-                  icon: <Package size={16} />, accent: "#f59e0b",
-                },
-                {
-                  label: "Avg. Order",   value: `$${avgOrder}`,
-                  sub: "per confirmed order",
-                  icon: <TrendingUp size={16} />, accent: "#10b981",
-                },
+                { label: "Total Orders", value: stats?.orders.total ?? 0, sub: `${confirmed} confirmed`, icon: <ShoppingBag size={15}/>, accent: "#3b82f6", tab: "orders" as Tab },
+                { label: "Customers",    value: stats?.users ?? 0,         sub: "registered accounts",  icon: <Users size={15}/>,       accent: "#8b5cf6", tab: "users"   as Tab },
+                { label: "Products",     value: stats?.products ?? 0,      sub: "in catalog",           icon: <Package size={15}/>,     accent: "#f59e0b", tab: "products" as Tab },
+                { label: "Avg. Order",   value: `$${avgOrder}`,            sub: "per paid order",       icon: <TrendingUp size={15}/>,  accent: "#10b981", tab: null as unknown as Tab },
               ].map(c => (
-                <div key={c.label}
-                  className="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm overflow-hidden relative">
-                  <div className="absolute -right-4 -top-4 w-16 h-16 rounded-full opacity-8"
-                    style={{ background: `radial-gradient(circle,${c.accent} 0%,transparent 70%)` }} />
-                  <div className="w-9 h-9 rounded-2xl flex items-center justify-center text-white mb-3"
-                    style={{ background: `linear-gradient(135deg,${c.accent}dd,${c.accent}99)` }}>
+                <button key={c.label} onClick={() => c.tab && onNavigate(c.tab)}
+                  className="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm hover:shadow-md hover:border-slate-200 active:scale-95 transition-all text-left relative overflow-hidden">
+                  <div className="absolute inset-0 pointer-events-none"
+                    style={{ background: `radial-gradient(circle at 95% 5%,${c.accent}18,transparent 55%)` }} />
+                  <div className="w-8 h-8 rounded-xl flex items-center justify-center text-white mb-3"
+                    style={{ background: `linear-gradient(135deg,${c.accent},${c.accent}99)` }}>
                     {c.icon}
                   </div>
-                  <p className="text-[28px] font-black text-slate-900 leading-none">{c.value}</p>
-                  <p className="text-xs font-bold text-slate-600 mt-1.5">{c.label}</p>
+                  <p className="text-[30px] font-black text-slate-900 leading-none">{c.value}</p>
+                  <p className="text-xs font-black text-slate-700 mt-1.5">{c.label}</p>
                   <p className="text-[10px] text-slate-400 mt-0.5 leading-tight">{c.sub}</p>
-                </div>
+                </button>
               ))}
             </div>
 
@@ -2043,143 +1998,176 @@ function ResellersPanel({ pwd }: { pwd: string }) {
         </>
       )}
 
-      {/* Reseller detail modal */}
+      {/* Reseller full-page detail */}
       {selectedReseller && (
-        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.5)" }}
-          onClick={() => setSelectedReseller(null)}>
-          <div className="bg-white w-full max-w-md rounded-3xl overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
-            {/* Header */}
-            <div className="bg-slate-900 px-5 py-4 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
-                  <Store size={18} className="text-white" />
-                </div>
-                <div>
-                  <p className="font-black text-white text-sm">{selectedReseller.storeName ?? selectedReseller.storeSlug}</p>
-                  <p className="text-slate-400 text-[10px] font-mono">/store/{selectedReseller.storeSlug}</p>
-                </div>
+        <div className="fixed inset-0 z-50 bg-slate-50 overflow-y-auto" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
+          {/* Sticky header */}
+          <div className="sticky top-0 z-10 bg-slate-900 flex items-center gap-3 px-4 py-3">
+            <button onClick={() => setSelectedReseller(null)}
+              className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-white shrink-0">
+              <ChevronLeft size={18} />
+            </button>
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] text-slate-400 font-mono">/store/{selectedReseller.storeSlug}</p>
+              <h2 className="text-base font-black text-white truncate">{selectedReseller.storeName ?? selectedReseller.storeSlug}</h2>
+            </div>
+            <ResellerStatusBadge status={selectedReseller.status} />
+          </div>
+
+          {/* Store hero */}
+          <div className="bg-slate-900 px-4 pb-5">
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center shrink-0">
+                <Store size={28} className="text-white" />
               </div>
-              <div className="flex items-center gap-2">
-                <ResellerStatusBadge status={selectedReseller.status} />
-                <button onClick={() => setSelectedReseller(null)} className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-white text-xs hover:bg-white/20">✕</button>
+              <div>
+                <h3 className="text-xl font-black text-white">{selectedReseller.storeName ?? selectedReseller.storeSlug}</h3>
+                <p className="text-slate-400 text-sm">{selectedReseller.email}</p>
+                {selectedReseller.ownerName && <p className="text-slate-300 text-xs mt-0.5">Owner: {selectedReseller.ownerName}</p>}
               </div>
             </div>
-            {/* Body */}
-            <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
-              {/* Owner info */}
-              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Owner Details</p>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-slate-500">Name</span>
-                  <span className="font-semibold text-slate-800">{selectedReseller.ownerName ?? "—"}</span>
+            {/* KPI row */}
+            <div className="flex items-center gap-0 mt-4 pt-3.5 border-t border-white/10">
+              {[
+                { label: "Earned",     value: `$${parseFloat(selectedReseller.totalEarned).toFixed(2)}`, color: "text-emerald-400" },
+                { label: "Orders",     value: String(selectedReseller.totalOrders),                       color: "text-white"       },
+                { label: "Commission", value: `${selectedReseller.commissionRate}%`,                      color: "text-blue-300"    },
+              ].map(k => (
+                <div key={k.label} className="flex-1 text-center">
+                  <p className={`text-xl font-black ${k.color}`}>{k.value}</p>
+                  <p className={`text-[9px] font-bold uppercase tracking-wider ${k.color} opacity-60`}>{k.label}</p>
                 </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-slate-500">Email</span>
-                  <span className="font-semibold text-slate-800 text-xs">{selectedReseller.email}</span>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-slate-500">User ID</span>
-                  <span className="font-mono text-slate-600 text-xs">#{selectedReseller.userId}</span>
-                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="px-4 py-4 space-y-4">
+            {/* Owner info */}
+            <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
+              <div className="px-4 py-3 border-b border-slate-50">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Owner Details</p>
               </div>
-              {/* Performance */}
-              <div className="grid grid-cols-3 gap-2">
-                <div className="bg-white border border-slate-200 rounded-2xl p-3 text-center">
-                  <p className="text-lg font-black text-emerald-600">${parseFloat(selectedReseller.totalEarned).toFixed(2)}</p>
-                  <p className="text-[9px] text-slate-400 font-semibold mt-0.5">Total Earned</p>
-                </div>
-                <div className="bg-white border border-slate-200 rounded-2xl p-3 text-center">
-                  <p className="text-lg font-black text-slate-700">{selectedReseller.totalOrders}</p>
-                  <p className="text-[9px] text-slate-400 font-semibold mt-0.5">Orders</p>
-                </div>
-                <div className="bg-white border border-slate-200 rounded-2xl p-3 text-center">
-                  <p className="text-lg font-black text-blue-600">{selectedReseller.commissionRate}%</p>
-                  <p className="text-[9px] text-slate-400 font-semibold mt-0.5">Commission</p>
-                </div>
-              </div>
-              {/* Payment info */}
-              {(selectedReseller.paymentMethod || selectedReseller.paymentReference) && (
-                <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 space-y-2">
-                  <p className="text-[10px] font-bold text-blue-400 uppercase tracking-wider">Security Fee Payment</p>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-blue-600">Method</span>
-                    <span className="font-semibold text-blue-800">{selectedReseller.paymentMethod ?? "—"}</span>
+              <div className="divide-y divide-slate-50">
+                {[
+                  { label: "Name",    value: selectedReseller.ownerName ?? "—" },
+                  { label: "Email",   value: selectedReseller.email             },
+                  { label: "User ID", value: `#${selectedReseller.userId}`      },
+                ].map(row => (
+                  <div key={row.label} className="flex items-center justify-between px-4 py-2.5">
+                    <span className="text-xs font-semibold text-slate-400">{row.label}</span>
+                    <span className="text-xs font-bold text-slate-700 text-right max-w-[65%] break-all">{row.value}</span>
                   </div>
-                  {selectedReseller.paymentReference && (
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-blue-600">Reference</span>
-                      <span className="font-mono text-blue-800 text-xs">{selectedReseller.paymentReference}</span>
+                ))}
+              </div>
+            </div>
+
+            {/* Store details */}
+            <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
+              <div className="px-4 py-3 border-b border-slate-50">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Store Details</p>
+              </div>
+              <div className="divide-y divide-slate-50">
+                {[
+                  { label: "Store Name",  value: selectedReseller.storeName ?? "—"   },
+                  { label: "Store Slug",  value: selectedReseller.storeSlug           },
+                  { label: "Status",      value: selectedReseller.status              },
+                  { label: "Security Fee Paid", value: selectedReseller.securityFeePaid ? "✓ Yes" : "✗ No" },
+                ].map(row => (
+                  <div key={row.label} className="flex items-center justify-between px-4 py-2.5">
+                    <span className="text-xs font-semibold text-slate-400">{row.label}</span>
+                    <span className="text-xs font-bold text-slate-700 text-right">{row.value}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Payment info */}
+            {(selectedReseller.paymentMethod || selectedReseller.paymentReference) && (
+              <div className="bg-blue-50 rounded-2xl border border-blue-100 overflow-hidden">
+                <div className="px-4 py-3 border-b border-blue-100">
+                  <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest">Security Fee Payment</p>
+                </div>
+                <div className="divide-y divide-blue-50">
+                  {[
+                    { label: "Method",    value: selectedReseller.paymentMethod ?? "—"    },
+                    { label: "Reference", value: selectedReseller.paymentReference ?? "—"  },
+                  ].map(row => (
+                    <div key={row.label} className="flex items-center justify-between px-4 py-2.5">
+                      <span className="text-xs font-semibold text-blue-500">{row.label}</span>
+                      <span className="text-xs font-bold text-blue-800 font-mono text-right max-w-[65%] break-all">{row.value}</span>
                     </div>
-                  )}
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-blue-600">Fee Paid</span>
-                    <span className={`font-bold text-xs ${selectedReseller.securityFeePaid ? "text-emerald-600" : "text-amber-600"}`}>
-                      {selectedReseller.securityFeePaid ? "✓ Yes" : "✗ No"}
-                    </span>
-                  </div>
+                  ))}
                 </div>
-              )}
-              {/* Dates */}
-              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Timeline</p>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-slate-500">Applied</span>
-                  <span className="text-slate-700">{new Date(selectedReseller.createdAt).toLocaleDateString()}</span>
+              </div>
+            )}
+
+            {/* Timeline */}
+            <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
+              <div className="px-4 py-3 border-b border-slate-50">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Timeline</p>
+              </div>
+              <div className="divide-y divide-slate-50">
+                <div className="flex items-center justify-between px-4 py-2.5">
+                  <span className="text-xs font-semibold text-slate-400">Applied</span>
+                  <span className="text-xs font-bold text-slate-700">{new Date(selectedReseller.createdAt).toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"})}</span>
                 </div>
                 {selectedReseller.approvedAt && (
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-slate-500">Approved</span>
-                    <span className="text-emerald-600">{new Date(selectedReseller.approvedAt).toLocaleDateString()}</span>
+                  <div className="flex items-center justify-between px-4 py-2.5">
+                    <span className="text-xs font-semibold text-slate-400">Approved</span>
+                    <span className="text-xs font-bold text-emerald-600">{new Date(selectedReseller.approvedAt).toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"})}</span>
                   </div>
                 )}
               </div>
-              {/* Rejection reason */}
-              {selectedReseller.rejectionReason && (
-                <div className="bg-red-50 border border-red-100 rounded-2xl p-4">
-                  <p className="text-[10px] font-bold text-red-400 uppercase tracking-wider mb-1">Rejection Reason</p>
-                  <p className="text-sm text-red-700">{selectedReseller.rejectionReason}</p>
-                </div>
-              )}
-              {/* Links */}
-              {selectedReseller.status === "approved" && (
-                <a href={`${base}/store/${selectedReseller.storeSlug}`} target="_blank" rel="noopener noreferrer"
-                  className="flex items-center justify-center gap-2 w-full py-3 border border-blue-200 text-blue-600 font-bold rounded-2xl text-sm hover:bg-blue-50 transition-colors">
-                  <ExternalLink size={13} /> View Live Store
-                </a>
-              )}
-              {/* Actions */}
-              <div className="flex gap-2 flex-wrap" onClick={e => e.stopPropagation()}>
-                {selectedReseller.status === "pending_approval" && (
-                  <>
-                    <button onClick={() => { approve(selectedReseller.id); setSelectedReseller(null); }} disabled={actingId === selectedReseller.id}
-                      className="flex-1 flex items-center justify-center gap-1.5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-2xl disabled:opacity-50">
-                      <CheckCircle2 size={13} /> Approve
-                    </button>
-                    <button onClick={() => { setRejectModal(selectedReseller); setRejectReason(""); setSelectedReseller(null); }}
-                      className="flex-1 flex items-center justify-center gap-1.5 py-3 bg-red-50 border border-red-200 text-red-600 text-sm font-bold rounded-2xl">
-                      <XCircle size={13} /> Reject
-                    </button>
-                  </>
-                )}
-                {selectedReseller.status === "pending_payment" && (
-                  <>
-                    <button onClick={() => { confirmPayment(selectedReseller.id); setSelectedReseller(null); }} disabled={actingId === selectedReseller.id}
-                      className="flex-1 flex items-center justify-center gap-1.5 py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-2xl disabled:opacity-50">
-                      <CheckCircle2 size={13} /> Confirm Payment
-                    </button>
-                    <button onClick={() => { setRejectModal(selectedReseller); setRejectReason(""); setSelectedReseller(null); }}
-                      className="flex-1 flex items-center justify-center gap-1.5 py-3 bg-red-50 border border-red-200 text-red-600 text-sm font-bold rounded-2xl">
-                      <XCircle size={13} /> Reject
-                    </button>
-                  </>
-                )}
-                {selectedReseller.status === "rejected" && (
-                  <button onClick={() => { approve(selectedReseller.id); setSelectedReseller(null); }} disabled={actingId === selectedReseller.id}
-                    className="flex-1 flex items-center justify-center gap-1.5 py-3 bg-emerald-50 border border-emerald-200 text-emerald-600 text-sm font-bold rounded-2xl disabled:opacity-50">
-                    <CheckCircle2 size={13} /> Approve Anyway
-                  </button>
-                )}
+            </div>
+
+            {/* Rejection reason */}
+            {selectedReseller.rejectionReason && (
+              <div className="bg-red-50 border border-red-100 rounded-2xl p-4">
+                <p className="text-[10px] font-black text-red-400 uppercase tracking-widest mb-2">Rejection Reason</p>
+                <p className="text-sm text-red-700 leading-relaxed">{selectedReseller.rejectionReason}</p>
               </div>
+            )}
+
+            {/* Live store link */}
+            {selectedReseller.status === "approved" && (
+              <a href={`${base}/store/${selectedReseller.storeSlug}`} target="_blank" rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl text-sm active:scale-95 transition-all">
+                <ExternalLink size={14} /> View Live Store
+              </a>
+            )}
+
+            {/* Actions */}
+            <div className="flex gap-2 flex-wrap">
+              {selectedReseller.status === "pending_approval" && (
+                <>
+                  <button onClick={() => { approve(selectedReseller.id); setSelectedReseller(null); }} disabled={actingId === selectedReseller.id}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-2xl disabled:opacity-50 active:scale-95 transition-all">
+                    <CheckCircle2 size={14} /> Approve
+                  </button>
+                  <button onClick={() => { setRejectModal(selectedReseller); setRejectReason(""); setSelectedReseller(null); }}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-3 bg-red-50 border border-red-200 text-red-600 text-sm font-bold rounded-2xl">
+                    <XCircle size={14} /> Reject
+                  </button>
+                </>
+              )}
+              {selectedReseller.status === "pending_payment" && (
+                <>
+                  <button onClick={() => { confirmPayment(selectedReseller.id); setSelectedReseller(null); }} disabled={actingId === selectedReseller.id}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-2xl disabled:opacity-50 active:scale-95 transition-all">
+                    <CheckCircle2 size={14} /> Confirm Payment
+                  </button>
+                  <button onClick={() => { setRejectModal(selectedReseller); setRejectReason(""); setSelectedReseller(null); }}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-3 bg-red-50 border border-red-200 text-red-600 text-sm font-bold rounded-2xl">
+                    <XCircle size={14} /> Reject
+                  </button>
+                </>
+              )}
+              {selectedReseller.status === "rejected" && (
+                <button onClick={() => { approve(selectedReseller.id); setSelectedReseller(null); }} disabled={actingId === selectedReseller.id}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-3 bg-emerald-50 border border-emerald-200 text-emerald-600 text-sm font-bold rounded-2xl disabled:opacity-50">
+                  <CheckCircle2 size={14} /> Approve Anyway
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -2266,25 +2254,386 @@ function UserStatusBadge({ status }: { status: string }) {
   );
 }
 
+// ─── full user detail view ─────────────────────────────────────────────────────
+function UserDetailView({ user: initUser, pwd, onBack, onUserUpdated, onUserDeleted }: {
+  user: AdminUser; pwd: string;
+  onBack: () => void;
+  onUserUpdated?: (u: AdminUser) => void;
+  onUserDeleted?: (id: number) => void;
+}) {
+  const [user, setUser] = useState(initUser);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(true);
+  const [walletModal, setWalletModal] = useState<{ action: "add" | "deduct" } | null>(null);
+  const [walletAmount, setWalletAmount] = useState("");
+  const [walletSaving, setWalletSaving] = useState(false);
+  const [acting, setActing] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [msgOpen, setMsgOpen] = useState(false);
+  const [msgText, setMsgText] = useState("");
+  const [msgSending, setMsgSending] = useState(false);
+  const [chatHistory, setChatHistory] = useState<{ id: number; senderType: string; message: string; createdAt: string }[]>([]);
+  const [chatLoading, setChatLoading] = useState(false);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    setOrdersLoading(true);
+    fetch(`/api/orders?customerEmail=${encodeURIComponent(user.email)}`)
+      .then(r => r.ok ? r.json() as Promise<Order[]> : [])
+      .then(d => setOrders(Array.isArray(d) ? d : []))
+      .catch(() => setOrders([]))
+      .finally(() => setOrdersLoading(false));
+  }, [user.email]);
+
+  async function loadChat() {
+    setChatLoading(true);
+    try {
+      const r = await adminFetch(`/api/admin/users/${user.id}/messages`, pwd);
+      if (r.ok) {
+        const d = await r.json() as { messages: { id: number; senderType: string; message: string; createdAt: string }[] };
+        setChatHistory(d.messages ?? []);
+      }
+    } finally { setChatLoading(false); }
+  }
+
+  async function setStatus(status: string) {
+    setActing(true);
+    try {
+      const r = await adminFetch(`/api/admin/users/${user.id}`, pwd, { method: "PATCH", body: JSON.stringify({ status }) });
+      if (r.ok) {
+        const updated = { ...user, status };
+        setUser(updated);
+        onUserUpdated?.(updated);
+        toast({ title: status === "active" ? "User activated" : status === "disabled" ? "User disabled" : "User banned" });
+      } else toast({ variant: "destructive", title: "Action failed" });
+    } finally { setActing(false); }
+  }
+
+  async function adjustWallet() {
+    const amt = parseFloat(walletAmount);
+    if (isNaN(amt) || amt <= 0 || !walletModal) { toast({ variant: "destructive", title: "Enter a valid amount" }); return; }
+    setWalletSaving(true);
+    try {
+      const r = await adminFetch(`/api/admin/users/${user.id}/wallet`, pwd, {
+        method: "POST",
+        body: JSON.stringify({ action: walletModal.action, amount: amt }),
+      });
+      const d = await r.json() as { walletBalance?: string; error?: string };
+      if (!r.ok) throw new Error(d.error || "Failed");
+      const updated = { ...user, walletBalance: d.walletBalance ?? "0" };
+      setUser(updated);
+      onUserUpdated?.(updated);
+      toast({ title: walletModal.action === "add" ? `Added $${amt.toFixed(2)}` : `Deducted $${amt.toFixed(2)}`, description: `New balance: $${Number(d.walletBalance ?? 0).toFixed(2)}` });
+      setWalletModal(null); setWalletAmount("");
+    } catch (err) {
+      toast({ variant: "destructive", title: err instanceof Error ? err.message : "Wallet update failed" });
+    } finally { setWalletSaving(false); }
+  }
+
+  async function deleteUser() {
+    setActing(true);
+    try {
+      const r = await adminFetch(`/api/admin/users/${user.id}`, pwd, { method: "DELETE" });
+      if (r.ok) {
+        toast({ title: "User deleted" });
+        onUserDeleted?.(user.id);
+        onBack();
+      } else toast({ variant: "destructive", title: "Delete failed" });
+    } finally { setActing(false); }
+  }
+
+  async function sendDirectMessage() {
+    if (!msgText.trim()) return;
+    setMsgSending(true);
+    const text = msgText.trim();
+    try {
+      const r = await adminFetch(`/api/admin/users/${user.id}/message`, pwd, { method: "POST", body: JSON.stringify({ message: text }) });
+      const d = await r.json() as { error?: string; id?: number };
+      if (!r.ok) throw new Error(d.error || "Failed");
+      setChatHistory(prev => [...prev, { id: d.id ?? Date.now(), senderType: "admin", message: text, createdAt: new Date().toISOString() }]);
+      setMsgText("");
+    } catch (err) {
+      toast({ variant: "destructive", title: err instanceof Error ? err.message : "Send failed" });
+    } finally { setMsgSending(false); }
+  }
+
+  const COLORS = ["from-blue-500 to-blue-700","from-purple-500 to-purple-700","from-emerald-500 to-emerald-700","from-rose-500 to-rose-700","from-amber-500 to-amber-700"];
+  const avatarGrad = COLORS[user.id % COLORS.length];
+
+  return (
+    <div className="fixed inset-0 z-50 bg-slate-50 overflow-y-auto" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
+      {/* Wallet modal */}
+      {walletModal && (
+        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 backdrop-blur-sm" onClick={() => { setWalletModal(null); setWalletAmount(""); }}>
+          <div className="bg-white w-full max-w-sm rounded-t-3xl p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-3 ${walletModal.action === "add" ? "bg-emerald-100" : "bg-red-100"}`}>
+              <DollarSign size={22} className={walletModal.action === "add" ? "text-emerald-600" : "text-red-500"} />
+            </div>
+            <h3 className="text-base font-black text-slate-900 text-center mb-1">{walletModal.action === "add" ? "Add Funds" : "Deduct Funds"}</h3>
+            <p className="text-sm text-slate-500 text-center mb-4">Current: <span className="font-bold text-slate-700">${Number(user.walletBalance).toFixed(2)}</span></p>
+            <div className="flex items-center gap-2 mb-4">
+              <span className="text-lg font-black text-slate-400">$</span>
+              <input type="number" min="0.01" step="0.01" value={walletAmount} onChange={e => setWalletAmount(e.target.value)}
+                placeholder="0.00" autoFocus
+                className="flex-1 border-2 border-slate-200 rounded-xl px-3 py-3 text-lg font-bold text-center focus:outline-none focus:border-blue-400" />
+            </div>
+            <div className="grid grid-cols-4 gap-1.5 mb-4">
+              {["1","5","10","20","50","100","200","500"].map(v => (
+                <button key={v} onClick={() => setWalletAmount(v)}
+                  className="py-2 rounded-xl border border-slate-200 text-sm font-bold text-slate-600 hover:bg-slate-50">${v}</button>
+              ))}
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => { setWalletModal(null); setWalletAmount(""); }}
+                className="flex-1 py-3 rounded-2xl border border-slate-200 text-sm font-bold text-slate-600">Cancel</button>
+              <button onClick={adjustWallet} disabled={walletSaving || !walletAmount}
+                className={`flex-1 py-3 rounded-2xl text-white text-sm font-bold disabled:opacity-60 ${walletModal.action === "add" ? "bg-emerald-500" : "bg-red-500"}`}>
+                {walletSaving ? "Saving…" : walletModal.action === "add" ? "Add Balance" : "Deduct Balance"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm delete */}
+      {confirmDelete && (
+        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 backdrop-blur-sm" onClick={() => setConfirmDelete(false)}>
+          <div className="bg-white w-full max-w-sm rounded-t-3xl p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="w-12 h-12 rounded-2xl bg-red-100 flex items-center justify-center mx-auto mb-3">
+              <Trash2 size={22} className="text-red-500" />
+            </div>
+            <h3 className="text-base font-black text-slate-900 text-center mb-1">Delete user?</h3>
+            <p className="text-sm text-slate-500 text-center mb-5"><span className="font-semibold text-slate-700">{user.email}</span> will be permanently removed.</p>
+            <div className="flex gap-3">
+              <button onClick={() => setConfirmDelete(false)} className="flex-1 py-3 rounded-2xl border border-slate-200 text-sm font-bold text-slate-600">Cancel</button>
+              <button onClick={deleteUser} disabled={acting}
+                className="flex-1 py-3 rounded-2xl bg-red-500 text-white text-sm font-bold disabled:opacity-60">
+                {acting ? "Deleting…" : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Message drawer */}
+      {msgOpen && (
+        <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm" onClick={e => { if (e.target === e.currentTarget) { setMsgOpen(false); setMsgText(""); setChatHistory([]); } }}>
+          <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col" style={{ maxHeight: "88vh" }}>
+            <div className="flex items-center gap-3 px-5 pt-5 pb-3.5 border-b border-slate-100">
+              <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${avatarGrad} flex items-center justify-center text-white font-black text-sm shrink-0`}>
+                {(user.name || user.email).charAt(0).toUpperCase()}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-black text-slate-900 truncate">{user.name || "No name"}</p>
+                <p className="text-[10px] text-slate-400 truncate">{user.email}</p>
+              </div>
+              <button onClick={() => { setMsgOpen(false); setMsgText(""); setChatHistory([]); }}
+                className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 hover:bg-slate-200">✕</button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2.5" style={{ minHeight: 160 }}>
+              {chatLoading ? (
+                <div className="flex justify-center py-8"><div className="w-5 h-5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" /></div>
+              ) : chatHistory.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-10 text-center">
+                  <MessageSquare size={28} className="text-slate-200 mb-2" />
+                  <p className="text-xs text-slate-400 font-medium">No messages yet</p>
+                </div>
+              ) : chatHistory.map(m => (
+                <div key={m.id} className={`flex ${m.senderType === "admin" ? "justify-end" : "justify-start"}`}>
+                  <div className={`max-w-[78%] px-3 py-2 rounded-2xl text-sm leading-relaxed ${m.senderType === "admin" ? "bg-blue-600 text-white rounded-br-sm" : "bg-slate-100 text-slate-800 rounded-bl-sm"}`}>
+                    <p className="whitespace-pre-wrap break-words">{m.message}</p>
+                    <p className={`text-[9px] mt-0.5 ${m.senderType === "admin" ? "text-blue-200" : "text-slate-400"}`}>{new Date(m.createdAt).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="flex items-end gap-2 px-4 py-3 border-t border-slate-100">
+              <textarea value={msgText} onChange={e => setMsgText(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendDirectMessage(); } }}
+                rows={2} placeholder="Type a message…"
+                className="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none" />
+              <button onClick={sendDirectMessage} disabled={msgSending || !msgText.trim()}
+                className="w-10 h-10 flex items-center justify-center bg-blue-600 text-white rounded-xl disabled:opacity-40 shrink-0">
+                {msgSending ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Send size={15} />}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Sticky header ── */}
+      <div className="sticky top-0 z-10 bg-white border-b border-slate-100 flex items-center gap-3 px-4 py-3 shadow-sm">
+        <button onClick={onBack} className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 hover:bg-slate-200 shrink-0">
+          <ChevronLeft size={18} />
+        </button>
+        <div className="flex-1 min-w-0">
+          <p className="text-xs text-slate-400 font-medium">User #{user.id}</p>
+          <h2 className="text-base font-black text-slate-900 truncate">{user.name || user.email}</h2>
+        </div>
+        <UserStatusBadge status={user.status} />
+      </div>
+
+      {/* ── Profile ── */}
+      <div className="bg-white border-b border-slate-100 px-5 py-5">
+        <div className="flex items-start gap-4">
+          <div className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${avatarGrad} flex items-center justify-center text-white font-black text-2xl shrink-0 ${user.status !== "active" ? "opacity-60" : ""}`}>
+            {(user.name || user.email).charAt(0).toUpperCase()}
+          </div>
+          <div className="flex-1 min-w-0">
+            <h3 className="font-black text-slate-900 text-lg leading-tight">{user.name || "No name set"}</h3>
+            <p className="text-slate-500 text-sm truncate">{user.email}</p>
+            {user.username && <p className="text-blue-500 text-sm font-bold mt-0.5">@{user.username}</p>}
+            <p className="text-slate-400 text-xs mt-1.5">
+              Member since {new Date(user.createdAt).toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"})}
+            </p>
+          </div>
+        </div>
+
+        {/* Key stats row */}
+        <div className="grid grid-cols-2 gap-3 mt-4">
+          <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-3 text-center">
+            <p className="text-2xl font-black text-emerald-600">${Number(user.walletBalance).toFixed(2)}</p>
+            <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-wider mt-0.5">Wallet Balance</p>
+          </div>
+          <div className="bg-slate-50 border border-slate-100 rounded-2xl p-3 text-center">
+            <p className="text-2xl font-black text-slate-800">{ordersLoading ? "—" : orders.length}</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">Total Orders</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="px-4 py-4 space-y-4">
+        {/* Account info */}
+        <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-50">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Account Details</p>
+          </div>
+          <div className="divide-y divide-slate-50">
+            {[
+              { label: "User ID",   value: `#${user.id}`,       mono: false },
+              ...(user.username ? [{ label: "Username", value: `@${user.username}`, mono: false }] : []),
+              { label: "Status",    value: user.status,          mono: false },
+              { label: "Joined",    value: new Date(user.createdAt).toLocaleDateString(), mono: false },
+              ...(user.registrationIp ? [{ label: "Reg. IP", value: user.registrationIp, mono: true }] : []),
+            ].map(row => (
+              <div key={row.label} className="flex items-center justify-between px-4 py-2.5">
+                <span className="text-xs font-semibold text-slate-400">{row.label}</span>
+                <span className={`text-xs font-bold text-slate-700 ${row.mono ? "font-mono" : ""} text-right max-w-[60%] break-all`}>{row.value}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Wallet actions */}
+        <div>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 px-1">Wallet</p>
+          <div className="grid grid-cols-2 gap-2">
+            <button onClick={() => { setWalletModal({ action: "add" }); setWalletAmount(""); }}
+              className="flex items-center justify-center gap-1.5 py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-bold active:scale-95 transition-all">
+              <DollarSign size={14} /> Add Funds
+            </button>
+            <button onClick={() => { setWalletModal({ action: "deduct" }); setWalletAmount(""); }}
+              className="flex items-center justify-center gap-1.5 py-3 rounded-2xl bg-rose-500 hover:bg-rose-600 text-white text-sm font-bold active:scale-95 transition-all">
+              <DollarSign size={14} /> Deduct
+            </button>
+          </div>
+        </div>
+
+        {/* Message */}
+        <button onClick={() => { loadChat(); setMsgOpen(true); }}
+          className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold active:scale-95 transition-all">
+          <MessageSquare size={14} /> Send Direct Message
+        </button>
+
+        {/* Status actions */}
+        <div>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 px-1">Account Status</p>
+          <div className="flex gap-2 flex-wrap">
+            {user.status !== "active" && (
+              <button onClick={() => setStatus("active")} disabled={acting}
+                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-2xl bg-blue-500 hover:bg-blue-600 text-white text-xs font-bold disabled:opacity-60">
+                <UserCheck size={13} /> Activate
+              </button>
+            )}
+            {user.status !== "disabled" && (
+              <button onClick={() => setStatus("disabled")} disabled={acting}
+                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold disabled:opacity-60">
+                <XCircle size={13} /> Disable
+              </button>
+            )}
+            {user.status !== "banned" && (
+              <button onClick={() => setStatus("banned")} disabled={acting}
+                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-2xl bg-orange-600 hover:bg-orange-700 text-white text-xs font-bold disabled:opacity-60">
+                <Ban size={13} /> Ban
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Orders */}
+        <div>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 px-1">
+            Order History ({ordersLoading ? "…" : orders.length})
+          </p>
+          {ordersLoading ? (
+            <div className="space-y-2">{[1,2,3].map(i => <Skeleton key={i} />)}</div>
+          ) : orders.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-slate-100 p-6 text-center">
+              <ShoppingBag size={24} className="text-slate-200 mx-auto mb-2" />
+              <p className="text-sm font-bold text-slate-400">No orders yet</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {orders.map(o => {
+                const statusColors: Record<string, string> = {
+                  paid: "bg-emerald-100 text-emerald-700",
+                  pending: "bg-amber-100 text-amber-700",
+                  failed: "bg-red-100 text-red-700",
+                };
+                return (
+                  <div key={o.id} className="bg-white rounded-2xl border border-slate-100 px-4 py-3 flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center shrink-0">
+                      <ShoppingBag size={14} className="text-slate-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-slate-800 truncate">Order #{o.id}</p>
+                      <p className="text-[11px] text-slate-400">{new Date(o.createdAt).toLocaleDateString()} · {o.orderType ?? "order"}</p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-sm font-black text-slate-900">${Number(o.total).toFixed(2)}</p>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${statusColors[o.paymentStatus] ?? "bg-slate-100 text-slate-500"}`}>
+                        {o.paymentStatus}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Danger zone */}
+        <div className="border border-red-100 rounded-2xl p-4">
+          <p className="text-[10px] font-black text-red-400 uppercase tracking-widest mb-3">Danger Zone</p>
+          <button onClick={() => setConfirmDelete(true)} disabled={acting}
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl border-2 border-red-200 text-red-600 text-sm font-bold hover:bg-red-50 active:scale-95 transition-all disabled:opacity-60">
+            <Trash2 size={14} /> Delete User Account
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── users panel ───────────────────────────────────────────────────────────────
 function UsersPanel({ pwd }: { pwd: string }) {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
-  const [expandedId, setExpandedId] = useState<number | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState<AdminUser | null>(null);
-  const [acting, setActing] = useState<number | null>(null);
-  const [walletModal, setWalletModal] = useState<{ user: AdminUser; action: "add" | "deduct" } | null>(null);
-  const [walletAmount, setWalletAmount] = useState("");
-  const [walletSaving, setWalletSaving] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
   const [createModal, setCreateModal] = useState(false);
   const [createForm, setCreateForm] = useState({ email: "", password: "", name: "", walletBalance: "" });
   const [creating, setCreating] = useState(false);
-  const [msgModal, setMsgModal] = useState<AdminUser | null>(null);
-  const [msgText, setMsgText] = useState("");
-  const [msgSending, setMsgSending] = useState(false);
-  const [chatHistory, setChatHistory] = useState<{id: number; senderType: string; message: string; createdAt: string}[]>([]);
-  const [chatLoading, setChatLoading] = useState(false);
   const { toast } = useToast();
   const PER = 30;
 
@@ -2298,63 +2647,6 @@ function UsersPanel({ pwd }: { pwd: string }) {
 
   useEffect(() => { load(page); }, [load, page]);
   const pages = Math.ceil(total / PER);
-
-  async function setStatus(user: AdminUser, status: string) {
-    setActing(user.id);
-    try {
-      const r = await adminFetch(`/api/admin/users/${user.id}`, pwd, {
-        method: "PATCH",
-        body: JSON.stringify({ status }),
-      });
-      if (r.ok) {
-        setUsers(prev => prev.map(u => u.id === user.id ? { ...u, status } : u));
-        toast({ title: status === "active" ? "User re-activated" : status === "disabled" ? "User disabled" : "User banned" });
-        setExpandedId(null);
-      } else {
-        toast({ variant: "destructive", title: "Action failed" });
-      }
-    } finally { setActing(null); }
-  }
-
-  async function adjustWallet() {
-    if (!walletModal) return;
-    const amt = parseFloat(walletAmount);
-    if (isNaN(amt) || amt <= 0) { toast({ variant: "destructive", title: "Enter a valid amount" }); return; }
-    setWalletSaving(true);
-    try {
-      const r = await adminFetch(`/api/admin/users/${walletModal.user.id}/wallet`, pwd, {
-        method: "POST",
-        body: JSON.stringify({ action: walletModal.action, amount: amt }),
-      });
-      const d = await r.json() as { walletBalance?: string; error?: string };
-      if (!r.ok) throw new Error(d.error || "Failed");
-      const newBalance = d.walletBalance ?? "0";
-      setUsers(prev => prev.map(u => u.id === walletModal.user.id ? { ...u, walletBalance: newBalance } : u));
-      toast({ title: walletModal.action === "add" ? `Added $${amt.toFixed(2)}` : `Deducted $${amt.toFixed(2)}`, description: `New balance: $${Number(newBalance).toFixed(2)}` });
-      setWalletModal(null);
-      setWalletAmount("");
-    } catch (err) {
-      toast({ variant: "destructive", title: err instanceof Error ? err.message : "Wallet update failed" });
-    } finally {
-      setWalletSaving(false);
-    }
-  }
-
-  async function deleteUser(user: AdminUser) {
-    setActing(user.id);
-    try {
-      const r = await adminFetch(`/api/admin/users/${user.id}`, pwd, { method: "DELETE" });
-      if (r.ok) {
-        setUsers(prev => prev.filter(u => u.id !== user.id));
-        setTotal(t => t - 1);
-        toast({ title: "User deleted" });
-        setConfirmDelete(null);
-        setExpandedId(null);
-      } else {
-        toast({ variant: "destructive", title: "Delete failed" });
-      }
-    } finally { setActing(null); }
-  }
 
   async function createUser() {
     if (!createForm.email || !createForm.password) { toast({ variant: "destructive", title: "Email and password are required" }); return; }
@@ -2376,111 +2668,22 @@ function UsersPanel({ pwd }: { pwd: string }) {
     } finally { setCreating(false); }
   }
 
-  async function loadChatHistory(userId: number) {
-    setChatLoading(true);
-    try {
-      const r = await adminFetch(`/api/admin/users/${userId}/messages`, pwd);
-      if (r.ok) {
-        const d = await r.json() as { messages: {id: number; senderType: string; message: string; createdAt: string}[] };
-        setChatHistory(d.messages ?? []);
-      }
-    } finally { setChatLoading(false); }
-  }
-
-  async function sendDirectMessage() {
-    if (!msgModal || !msgText.trim()) return;
-    setMsgSending(true);
-    const text = msgText.trim();
-    try {
-      const r = await adminFetch(`/api/admin/users/${msgModal.id}/message`, pwd, { method: "POST", body: JSON.stringify({ message: text }) });
-      const d = await r.json() as { error?: string; id?: number };
-      if (!r.ok) throw new Error(d.error || "Failed");
-      setChatHistory(prev => [...prev, { id: d.id ?? Date.now(), senderType: "admin", message: text, createdAt: new Date().toISOString() }]);
-      setMsgText("");
-    } catch (err) {
-      toast({ variant: "destructive", title: err instanceof Error ? err.message : "Send failed" });
-    } finally { setMsgSending(false); }
-  }
-
   const COLORS = ["from-blue-500 to-blue-700","from-purple-500 to-purple-700","from-emerald-500 to-emerald-700","from-rose-500 to-rose-700","from-amber-500 to-amber-700"];
+
+  if (selectedUser) {
+    return (
+      <UserDetailView
+        user={selectedUser}
+        pwd={pwd}
+        onBack={() => setSelectedUser(null)}
+        onUserUpdated={u => setUsers(prev => prev.map(x => x.id === u.id ? u : x))}
+        onUserDeleted={id => { setUsers(prev => prev.filter(x => x.id !== id)); setTotal(t => t - 1); }}
+      />
+    );
+  }
 
   return (
     <div className="p-4 pb-6 space-y-3">
-      {/* wallet modal */}
-      {walletModal && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm" onClick={() => { setWalletModal(null); setWalletAmount(""); }}>
-          <div className="bg-white w-full max-w-sm rounded-t-3xl p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
-            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-3 ${walletModal.action === "add" ? "bg-emerald-100" : "bg-red-100"}`}>
-              <DollarSign size={22} className={walletModal.action === "add" ? "text-emerald-600" : "text-red-500"} />
-            </div>
-            <h3 className="text-base font-black text-slate-900 text-center mb-1">
-              {walletModal.action === "add" ? "Add Funds" : "Deduct Funds"}
-            </h3>
-            <p className="text-sm text-slate-500 text-center mb-4">
-              {walletModal.action === "add" ? "Add" : "Deduct"} balance for{" "}
-              <span className="font-semibold text-slate-700">{walletModal.user.email}</span>
-            </p>
-            <p className="text-xs text-slate-400 mb-1">Current balance: <span className="font-bold text-slate-600">${Number(walletModal.user.walletBalance).toFixed(2)}</span></p>
-            <div className="flex items-center gap-2 mb-4">
-              <span className="text-lg font-black text-slate-400">$</span>
-              <input
-                type="number"
-                min="0.01"
-                step="0.01"
-                value={walletAmount}
-                onChange={e => setWalletAmount(e.target.value)}
-                placeholder="0.00"
-                className="flex-1 border-2 border-slate-200 rounded-xl px-3 py-3 text-lg font-bold text-center focus:outline-none focus:border-blue-400"
-                autoFocus
-              />
-            </div>
-            <div className="grid grid-cols-4 gap-1.5 mb-4">
-              {["1", "5", "10", "20", "50", "100", "200", "500"].map(v => (
-                <button key={v} onClick={() => setWalletAmount(v)}
-                  className="py-2 rounded-xl border border-slate-200 text-sm font-bold text-slate-600 hover:bg-slate-50">
-                  ${v}
-                </button>
-              ))}
-            </div>
-            <div className="flex gap-3">
-              <button onClick={() => { setWalletModal(null); setWalletAmount(""); }}
-                className="flex-1 py-3 rounded-2xl border border-slate-200 text-sm font-bold text-slate-600">
-                Cancel
-              </button>
-              <button onClick={adjustWallet} disabled={walletSaving || !walletAmount}
-                className={`flex-1 py-3 rounded-2xl text-white text-sm font-bold disabled:opacity-60 ${walletModal.action === "add" ? "bg-emerald-500" : "bg-red-500"}`}>
-                {walletSaving ? "Saving…" : walletModal.action === "add" ? "Add Balance" : "Deduct Balance"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* confirm delete modal */}
-      {confirmDelete && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm" onClick={() => setConfirmDelete(null)}>
-          <div className="bg-white w-full max-w-sm rounded-t-3xl p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
-            <div className="w-12 h-12 rounded-2xl bg-red-100 flex items-center justify-center mx-auto mb-3">
-              <Trash2 size={22} className="text-red-500" />
-            </div>
-            <h3 className="text-base font-black text-slate-900 text-center mb-1">Delete user?</h3>
-            <p className="text-sm text-slate-500 text-center mb-5">
-              <span className="font-semibold text-slate-700">{confirmDelete.email}</span> will be permanently removed. This cannot be undone.
-            </p>
-            <div className="flex gap-3">
-              <button onClick={() => setConfirmDelete(null)}
-                className="flex-1 py-3 rounded-2xl border border-slate-200 text-sm font-bold text-slate-600">
-                Cancel
-              </button>
-              <button onClick={() => deleteUser(confirmDelete)} disabled={acting === confirmDelete.id}
-                className="flex-1 py-3 rounded-2xl bg-red-500 text-white text-sm font-bold disabled:opacity-60">
-                {acting === confirmDelete.id ? "Deleting…" : "Delete"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Create User Modal */}
       {createModal && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm" onClick={e => { if (e.target === e.currentTarget) setCreateModal(false); }}>
@@ -2498,70 +2701,6 @@ function UsersPanel({ pwd }: { pwd: string }) {
             <div className="flex gap-2 pt-1">
               <button onClick={() => setCreateModal(false)} className="flex-1 py-3 border border-slate-200 text-slate-600 font-bold rounded-2xl text-sm">Cancel</button>
               <button onClick={createUser} disabled={creating} className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-2xl text-sm disabled:opacity-60">{creating ? "Creating…" : "Create User"}</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Send Direct Message Modal */}
-      {msgModal && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm pb-16 sm:pb-0" onClick={e => { if (e.target === e.currentTarget) { setMsgModal(null); setMsgText(""); setChatHistory([]); } }}>
-          <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col" style={{ maxHeight: "88vh" }}>
-            {/* Chat header */}
-            <div className="flex items-center gap-3 px-5 pt-5 pb-3.5 border-b border-slate-100">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white font-black text-sm shrink-0">
-                {(msgModal.name || msgModal.email).charAt(0).toUpperCase()}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-black text-slate-900 truncate">{msgModal.name || "No name"}</p>
-                <p className="text-[10px] text-slate-400 truncate">{msgModal.email}{msgModal.username ? ` · @${msgModal.username}` : ""}</p>
-              </div>
-              <button onClick={() => { setMsgModal(null); setMsgText(""); setChatHistory([]); }} className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 hover:bg-slate-200 shrink-0">✕</button>
-            </div>
-            {/* Chat history */}
-            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2.5" style={{ minHeight: 160 }}>
-              {chatLoading ? (
-                <div className="flex justify-center py-8"><div className="w-5 h-5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" /></div>
-              ) : chatHistory.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-10 text-center">
-                  <MessageSquare size={28} className="text-slate-200 mb-2" />
-                  <p className="text-xs text-slate-400 font-medium">No messages yet</p>
-                  <p className="text-[10px] text-slate-300">Send the first message below.</p>
-                </div>
-              ) : (
-                chatHistory.map(m => (
-                  <div key={m.id} className={`flex ${m.senderType === "admin" ? "justify-end" : "justify-start"}`}>
-                    <div className={`max-w-[78%] px-3 py-2 rounded-2xl text-sm leading-relaxed ${m.senderType === "admin" ? "bg-blue-600 text-white rounded-br-sm" : "bg-slate-100 text-slate-800 rounded-bl-sm"}`}>
-                      <p className="whitespace-pre-wrap break-words">{m.message}</p>
-                      <p className={`text-[9px] mt-0.5 ${m.senderType === "admin" ? "text-blue-200" : "text-slate-400"}`}>{new Date(m.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-            {/* Reg IP strip */}
-            {msgModal.registrationIp && (
-              <div className="px-4 py-1 bg-slate-50 border-t border-slate-100">
-                <p className="text-[9px] text-slate-300 font-mono">IP {msgModal.registrationIp}</p>
-              </div>
-            )}
-            {/* Compose bar */}
-            <div className="flex items-end gap-2 px-4 py-3 border-t border-slate-100">
-              <textarea
-                value={msgText}
-                onChange={e => setMsgText(e.target.value)}
-                onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendDirectMessage(); } }}
-                rows={2}
-                placeholder="Type a message… Enter to send"
-                className="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
-              />
-              <button
-                onClick={sendDirectMessage}
-                disabled={msgSending || !msgText.trim()}
-                className="w-10 h-10 flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white rounded-xl disabled:opacity-40 transition-colors shrink-0"
-              >
-                {msgSending ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Send size={15} />}
-              </button>
             </div>
           </div>
         </div>
@@ -2594,92 +2733,29 @@ function UsersPanel({ pwd }: { pwd: string }) {
           </div>
         ) : (
           <div className="space-y-2">
-            {users.map((u, i) => {
-              const isExpanded = expandedId === u.id;
-              return (
-                <div key={u.id} className={`bg-white border rounded-2xl shadow-sm overflow-hidden transition-all ${u.status === "banned" ? "border-red-100" : u.status === "disabled" ? "border-amber-100" : "border-slate-100"}`}>
-                  <div className="flex items-center gap-3 px-4 py-3.5">
-                    <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${COLORS[i % COLORS.length]} flex items-center justify-center text-white font-black text-sm shrink-0 ${u.status !== "active" ? "opacity-50" : ""}`}>
-                      {(u.name || u.email).charAt(0).toUpperCase()}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-sm font-bold text-slate-800 truncate">{u.name || "No name set"}</p>
-                        <UserStatusBadge status={u.status} />
-                      </div>
-                      <p className="text-[11px] text-slate-400 truncate">{u.email}</p>
-                      {u.username && <p className="text-[10px] font-semibold text-blue-500 truncate">@{u.username}</p>}
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <div className="text-right">
-                        <p className="text-sm font-black text-emerald-600">${Number(u.walletBalance).toFixed(2)}</p>
-                        <p className="text-[10px] text-slate-400">{new Date(u.createdAt).toLocaleDateString()}</p>
-                      </div>
-                      <button onClick={() => setExpandedId(isExpanded ? null : u.id)}
-                        className="w-8 h-8 rounded-full border border-slate-200 flex items-center justify-center text-slate-400 hover:text-blue-600 hover:border-blue-300 transition-colors">
-                        <MoreVertical size={14} />
-                      </button>
-                    </div>
+            {users.map((u, i) => (
+              <button key={u.id} onClick={() => setSelectedUser(u)}
+                className={`w-full bg-white border rounded-2xl shadow-sm active:scale-[.98] transition-all text-left ${u.status === "banned" ? "border-red-100" : u.status === "disabled" ? "border-amber-100" : "border-slate-100"}`}>
+                <div className="flex items-center gap-3 px-4 py-3.5">
+                  <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${COLORS[i % COLORS.length]} flex items-center justify-center text-white font-black text-sm shrink-0 ${u.status !== "active" ? "opacity-50" : ""}`}>
+                    {(u.name || u.email).charAt(0).toUpperCase()}
                   </div>
-
-                  {isExpanded && (
-                    <div className="border-t border-slate-100 px-4 py-3 space-y-2 bg-slate-50/60">
-                      {/* User details */}
-                      <div className="bg-white border border-slate-100 rounded-xl p-3 space-y-1.5">
-                        <div className="flex justify-between text-[11px]"><span className="text-slate-400 font-semibold">User ID</span><span className="font-black text-slate-700">#{u.id}</span></div>
-                        {u.username && <div className="flex justify-between text-[11px]"><span className="text-slate-400 font-semibold">Username</span><span className="font-bold text-blue-600">@{u.username}</span></div>}
-                        <div className="flex justify-between text-[11px]"><span className="text-slate-400 font-semibold">Wallet</span><span className="font-black text-emerald-600">${Number(u.walletBalance).toFixed(2)}</span></div>
-                        <div className="flex justify-between text-[11px]"><span className="text-slate-400 font-semibold">Joined</span><span className="font-bold text-slate-700">{new Date(u.createdAt).toLocaleDateString()}</span></div>
-                        {u.registrationIp && <div className="flex justify-between text-[11px] items-center gap-2"><span className="text-slate-400 font-semibold shrink-0">Reg. IP</span><span className="font-mono text-slate-500 text-right break-all">{u.registrationIp}</span></div>}
-                      </div>
-                      {/* Wallet management row */}
-                      <div className="flex gap-2">
-                        <button onClick={() => { setWalletModal({ user: u, action: "add" }); setWalletAmount(""); setExpandedId(null); }}
-                          className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-emerald-500 text-white text-xs font-bold">
-                          <DollarSign size={13} /> Add Balance
-                        </button>
-                        <button onClick={() => { setWalletModal({ user: u, action: "deduct" }); setWalletAmount(""); setExpandedId(null); }}
-                          className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-rose-500 text-white text-xs font-bold">
-                          <DollarSign size={13} /> Deduct
-                        </button>
-                      </div>
-                      {/* Send message row */}
-                      <div className="flex gap-2">
-                        <button onClick={() => { setMsgModal(u); setMsgText(""); setChatHistory([]); loadChatHistory(u.id); setExpandedId(null); }}
-                          className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 transition-colors">
-                          <MessageSquare size={13} /> Send Message
-                        </button>
-                      </div>
-                      {/* Status / admin actions row */}
-                      <div className="flex gap-2 flex-wrap">
-                        {u.status !== "active" && (
-                          <button onClick={() => setStatus(u, "active")} disabled={acting === u.id}
-                            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-blue-500 text-white text-xs font-bold disabled:opacity-60">
-                            <UserCheck size={13} /> Activate
-                          </button>
-                        )}
-                        {u.status !== "disabled" && (
-                          <button onClick={() => setStatus(u, "disabled")} disabled={acting === u.id}
-                            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-amber-500 text-white text-xs font-bold disabled:opacity-60">
-                            <XCircle size={13} /> Disable
-                          </button>
-                        )}
-                        {u.status !== "banned" && (
-                          <button onClick={() => setStatus(u, "banned")} disabled={acting === u.id}
-                            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-orange-600 text-white text-xs font-bold disabled:opacity-60">
-                            <Ban size={13} /> Ban
-                          </button>
-                        )}
-                        <button onClick={() => { setConfirmDelete(u); setExpandedId(null); }} disabled={acting === u.id}
-                          className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-red-500 text-white text-xs font-bold disabled:opacity-60">
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-sm font-bold text-slate-800 truncate">{u.name || "No name set"}</p>
+                      <UserStatusBadge status={u.status} />
                     </div>
-                  )}
+                    <p className="text-[11px] text-slate-400 truncate">{u.email}</p>
+                    {u.username && <p className="text-[10px] font-semibold text-blue-500 truncate">@{u.username}</p>}
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="text-sm font-black text-emerald-600">${Number(u.walletBalance).toFixed(2)}</p>
+                    <p className="text-[10px] text-slate-400">{new Date(u.createdAt).toLocaleDateString()}</p>
+                  </div>
+                  <ChevronRight size={14} className="text-slate-300 shrink-0 ml-1" />
                 </div>
-              );
-            })}
+              </button>
+            ))}
           </div>
         )
       }
