@@ -753,7 +753,7 @@ function OverviewPanel({ pwd, onNavigate }: { pwd: string; onNavigate: (tab: Tab
                       DownloadListener intercepts the response and hands it
                       to the native install flow. Direct github.com links
                       get blocked by shouldOverrideUrlLoading. */}
-                  <a href={apiPath("/api/download/apk")} download
+                  <a href={apiPath("/api/admin/download/apk")} download
                     className="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm transition-colors active:scale-95">
                     <Download size={15}/> Download APK
                   </a>

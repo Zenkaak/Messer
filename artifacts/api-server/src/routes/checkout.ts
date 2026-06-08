@@ -427,7 +427,9 @@ router.post("/checkout", async (req, res) => {
       price: r.cartItem.priceAtAdd,
     }));
     if (paymentMethod !== "binance_pay" && paymentMethod !== "usdt_manual") {
-      sendEmail({
+      // await before res.json() — Vercel terminates the lambda as soon as the response
+      // is sent, so fire-and-forget emails never actually send on serverless.
+      await sendEmail({
         to: customerEmail,
         ...orderSubmittedEmail({ orderId: order.id, orderCode: order.orderCode, customerName, items: itemsForEmail, total: String(total), paymentMethod }),
       }).catch((err) => logger.error({ err }, "Failed to send order confirmation email"));

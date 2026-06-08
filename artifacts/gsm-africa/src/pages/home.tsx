@@ -357,8 +357,6 @@ export function Home() {
       grad: "linear-gradient(135deg,rgba(56,189,248,0.12),rgba(14,165,233,0.04))", border: "rgba(56,189,248,0.22)", glow: "rgba(56,189,248,0.15)" },
     { icon: <Cpu size={22} />, iconColor: "#a78bfa", label: "Server Credits", desc: "DC-Unlocker, Octoplus, Z3X & 26+", href: "/credits",
       grad: "linear-gradient(135deg,rgba(139,92,246,0.12),rgba(109,40,217,0.04))", border: "rgba(139,92,246,0.22)", glow: "rgba(139,92,246,0.15)" },
-    { icon: <CreditCard size={22} />, iconColor: "#34d399", label: "Gift Cards", desc: "PlayStation, Xbox, Steam, Netflix", href: "/gift-cards",
-      grad: "linear-gradient(135deg,rgba(52,211,153,0.12),rgba(16,185,129,0.04))", border: "rgba(52,211,153,0.22)", glow: "rgba(52,211,153,0.15)" },
   ];
 
   const categories = [

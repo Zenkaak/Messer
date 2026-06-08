@@ -83,10 +83,10 @@ router.get("/app/version", async (_req, res) => {
   });
 });
 
-// APK download — proxies the latest admin APK from GitHub releases.
-// Going through our own domain avoids WebView host-blocking and lets
-// the DownloadListener in MainActivity.java intercept the response.
-router.get("/download/apk", async (_req, res) => {
+// APK download — proxies the latest ADMIN APK from GitHub releases.
+// Uses a separate path (/admin/download/apk) so it never conflicts with
+// the user-facing /download/apk endpoint (download.ts → GSMWorld.apk).
+router.get("/admin/download/apk", async (_req, res) => {
   const release = await getLatestApkRelease();
   if (!release) {
     res.status(404).json({ error: "No admin APK release found" });
