@@ -1,4 +1,4 @@
-const CACHE_VERSION = "gsm-world-v2.1.0";
+const CACHE_VERSION = "gsm-world-v3.0.0";
 const CACHE_NAME = `gsm-world-${CACHE_VERSION}`;
 
 self.addEventListener("install", (event) => {
@@ -22,6 +22,14 @@ self.addEventListener("message", (event) => {
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
   if (url.pathname.startsWith("/api/") || event.request.method !== "GET") {
+    return;
+  }
+  // Never cache HTML — always fetch fresh so new deployments are served immediately
+  if (
+    url.pathname === "/" ||
+    url.pathname.endsWith(".html") ||
+    !url.pathname.includes(".")
+  ) {
     return;
   }
   event.respondWith(

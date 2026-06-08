@@ -2,8 +2,7 @@ import { Router, type IRouter } from "express";
 
 const router: IRouter = Router();
 
-const GH_RELEASES_URL =
-  "https://api.github.com/repos/Zenkaak/Messer/releases?per_page=20";
+const GH_API = "https://api.github.com/repos/Zenkaak/Messer";
 const GH_TOKEN = process.env.GITHUB_PERSONAL_ACCESS_TOKEN ?? "";
 const GH_HEADERS: Record<string, string> = {
   "User-Agent": "GSMWorld/1.0",
@@ -32,21 +31,41 @@ interface CachedAsset {
 let cachedAsset: CachedAsset | null = null;
 let cacheExpiry = 0;
 
-// Searches releases for the user APK (GSMWorld.apk) specifically.
+// Searches for GSMWorld.apk by fetching the "latest"-tagged release directly.
+// Falls back to scanning the first 100 releases if the tag lookup fails.
 // Skips admin-apk-* releases so they never interfere with user downloads.
 async function getApkAsset(): Promise<CachedAsset | null> {
   const now = Date.now();
   if (now < cacheExpiry) return cachedAsset;
 
   try {
-    const res = await fetch(GH_RELEASES_URL, { headers: GH_HEADERS });
-    if (!res.ok) {
+    // Primary: fetch the release tagged exactly "latest" — this is where
+    // GSMWorld.apk lives and won't be displaced by admin APK releases.
+    const tagRes = await fetch(`${GH_API}/releases/tags/latest`, {
+      headers: GH_HEADERS,
+    });
+    if (tagRes.ok) {
+      const release = (await tagRes.json()) as GhRelease;
+      const asset = release.assets?.find(
+        (a) => a.name === "GSMWorld.apk" && a.state === "uploaded",
+      );
+      if (asset) {
+        cachedAsset = { id: asset.id, url: asset.browser_download_url };
+        cacheExpiry = now + 60_000;
+        return cachedAsset;
+      }
+    }
+
+    // Fallback: scan up to 100 releases, skipping admin-apk-* ones.
+    const listRes = await fetch(`${GH_API}/releases?per_page=100`, {
+      headers: GH_HEADERS,
+    });
+    if (!listRes.ok) {
       cachedAsset = null;
       cacheExpiry = now + 30_000;
       return null;
     }
-    const releases = (await res.json()) as GhRelease[];
-    // Find first release that has GSMWorld.apk — skip any admin-apk-* releases
+    const releases = (await listRes.json()) as GhRelease[];
     for (const release of releases) {
       if (release.tag_name?.startsWith("admin-apk-")) continue;
       const asset = release.assets?.find(
@@ -58,6 +77,7 @@ async function getApkAsset(): Promise<CachedAsset | null> {
         return cachedAsset;
       }
     }
+
     cachedAsset = null;
     cacheExpiry = now + 60_000;
     return null;
@@ -98,7 +118,7 @@ router.get("/download/apk", async (_req, res) => {
   }
 
   // Step 1: hit the GitHub API asset endpoint; get the pre-signed CDN URL.
-  const apiAssetUrl = `https://api.github.com/repos/Zenkaak/Messer/releases/assets/${asset.id}`;
+  const apiAssetUrl = `${GH_API}/releases/assets/${asset.id}`;
   let cdnUrl: string;
   try {
     const r1 = await fetch(apiAssetUrl, {
