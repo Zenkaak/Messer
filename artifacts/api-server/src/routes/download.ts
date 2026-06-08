@@ -12,6 +12,7 @@ const GH_HEADERS: Record<string, string> = {
 };
 
 interface GhAsset {
+  id: number;
   name: string;
   browser_download_url: string;
   size: number;
@@ -22,20 +23,25 @@ interface GhRelease {
   assets?: GhAsset[];
 }
 
+interface CachedAsset {
+  id: number;
+  url: string;
+}
+
 // 1-minute in-memory cache so rapid HEAD + GET don't hit the API twice.
-let cachedUrl: string | null = null;
+let cachedAsset: CachedAsset | null = null;
 let cacheExpiry = 0;
 
 // Searches releases for the user APK (GSMWorld.apk) specifically.
 // Skips admin-apk-* releases so they never interfere with user downloads.
-async function getApkAssetUrl(): Promise<string | null> {
+async function getApkAsset(): Promise<CachedAsset | null> {
   const now = Date.now();
-  if (now < cacheExpiry) return cachedUrl;
+  if (now < cacheExpiry) return cachedAsset;
 
   try {
     const res = await fetch(GH_RELEASES_URL, { headers: GH_HEADERS });
     if (!res.ok) {
-      cachedUrl = null;
+      cachedAsset = null;
       cacheExpiry = now + 30_000;
       return null;
     }
@@ -47,16 +53,16 @@ async function getApkAssetUrl(): Promise<string | null> {
         (a) => a.name === "GSMWorld.apk" && a.state === "uploaded",
       );
       if (asset) {
-        cachedUrl = asset.browser_download_url;
+        cachedAsset = { id: asset.id, url: asset.browser_download_url };
         cacheExpiry = now + 60_000;
-        return cachedUrl;
+        return cachedAsset;
       }
     }
-    cachedUrl = null;
+    cachedAsset = null;
     cacheExpiry = now + 60_000;
     return null;
   } catch {
-    cachedUrl = null;
+    cachedAsset = null;
     cacheExpiry = now + 30_000;
     return null;
   }
@@ -64,38 +70,83 @@ async function getApkAssetUrl(): Promise<string | null> {
 
 // HEAD — tells the frontend whether the APK is actually available.
 router.head("/download/apk", async (_req, res) => {
-  const url = await getApkAssetUrl();
-  res.status(url ? 200 : 503).end();
+  const asset = await getApkAsset();
+  res.status(asset ? 200 : 503).end();
 });
 
 // GET — stream the APK binary server-side.
-// A 302 redirect to a GitHub browser_download_url causes Android's download
-// manager to receive a JSON error from GitHub's CDN (missing Accept header
-// on the redirect), saving the file as *.apk.json and marking it failed.
-// Proxying the bytes here ensures the correct Content-Type reaches the client.
+//
+// WHY not a simple 302 to browser_download_url:
+//   Android's download manager follows the redirect but loses the correct
+//   Accept header, so GitHub's CDN returns JSON → file saves as *.apk.json.
+//
+// WHY not fetch(browser_download_url, { redirect:"follow" }) with auth:
+//   GitHub redirects to a pre-signed S3 URL. S3 rejects requests that carry
+//   an Authorization header (it collides with the embedded query-string sig),
+//   returning an XML/JSON error instead of the binary.
+//
+// CORRECT approach (GitHub docs):
+//   1. Call the API asset endpoint with Accept: application/octet-stream and
+//      the GitHub token — GitHub returns a 302 to a pre-signed S3/CDN URL.
+//   2. Follow the redirect WITHOUT the Authorization header — the pre-signed
+//      URL already embeds the credentials in the query string.
 router.get("/download/apk", async (_req, res) => {
-  const assetUrl = await getApkAssetUrl();
-  if (!assetUrl) {
+  const asset = await getApkAsset();
+  if (!asset) {
     res.status(503).json({ error: "APK not available yet. Please try again later." });
     return;
   }
 
-  let upstream: Response;
+  // Step 1: hit the GitHub API asset endpoint; get the pre-signed CDN URL.
+  const apiAssetUrl = `https://api.github.com/repos/Zenkaak/Messer/releases/assets/${asset.id}`;
+  let cdnUrl: string;
   try {
-    upstream = await fetch(assetUrl, {
+    const r1 = await fetch(apiAssetUrl, {
       headers: {
+        "User-Agent": "GSMWorld/1.0",
         Accept: "application/octet-stream",
         ...(GH_TOKEN ? { Authorization: `token ${GH_TOKEN}` } : {}),
       },
+      redirect: "manual", // capture the 302 Location instead of following it
+    });
+
+    const loc = r1.headers.get("location");
+    if (!loc) {
+      // Some GitHub configurations return 200 with body directly — handle that too.
+      if (r1.ok && r1.body) {
+        res.setHeader("Content-Type", "application/vnd.android.package-archive");
+        res.setHeader("Content-Disposition", 'attachment; filename="GSMWorld.apk"');
+        res.setHeader("X-Content-Type-Options", "nosniff");
+        res.setHeader("Cache-Control", "no-store");
+        const cl = r1.headers.get("content-length");
+        if (cl) res.setHeader("Content-Length", cl);
+        const { Readable } = await import("stream");
+        Readable.fromWeb(r1.body as Parameters<typeof Readable.fromWeb>[0]).pipe(res);
+        return;
+      }
+      res.status(502).json({ error: `GitHub API returned ${r1.status} with no redirect` });
+      return;
+    }
+    cdnUrl = loc;
+  } catch (err) {
+    res.status(502).json({ error: "Failed to reach GitHub API", detail: String(err) });
+    return;
+  }
+
+  // Step 2: fetch the pre-signed CDN URL — NO Authorization header (S3 rejects it).
+  let upstream: Response;
+  try {
+    upstream = await fetch(cdnUrl, {
+      headers: { "User-Agent": "GSMWorld/1.0" },
       redirect: "follow",
     });
   } catch (err) {
-    res.status(502).json({ error: "Failed to reach GitHub CDN", detail: String(err) });
+    res.status(502).json({ error: "Failed to reach CDN", detail: String(err) });
     return;
   }
 
   if (!upstream.ok || !upstream.body) {
-    res.status(502).json({ error: `GitHub CDN returned ${upstream.status}` });
+    res.status(502).json({ error: `CDN returned ${upstream.status}` });
     return;
   }
 
