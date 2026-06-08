@@ -41,8 +41,14 @@ public class MainActivity extends AppCompatActivity {
     private static final String TAG        = "GSMAdmin";
     private static final String ADMIN_URL  = "https://gsmworld.vercel.app/admin";
     private static final String ADMIN_HOST = "gsmworld.vercel.app";
-    private static final String GH_RELEASES_API =
-        "https://api.github.com/repos/Zenkaak/Messer/releases?per_page=10";
+    // Version-check endpoint on the GSMWorld server — avoids hitting GitHub API
+    // directly and also works if the repo is ever made private.
+    private static final String ADMIN_APK_VERSION_API =
+        "https://gsmworld.vercel.app/api/download/admin-apk-version";
+    // Server-side streaming download — uses GitHub token on the server so
+    // direct CDN auth issues can never corrupt the download.
+    private static final String ADMIN_APK_DOWNLOAD_URL =
+        "https://gsmworld.vercel.app/api/download/admin-apk";
     private static final int    REQUEST_INSTALL_PERMISSION = 1001;
     private static final String WEB_VERSION_API =
         "https://gsmworld.vercel.app/api/web-version";
@@ -288,52 +294,45 @@ public class MainActivity extends AppCompatActivity {
         webView.loadUrl(ADMIN_URL);
     }
 
-    // ── Auto-update: check GitHub ─────────────────────────────────────────────
+    // ── Auto-update: check server version endpoint ────────────────────────────
+    //
+    // Queries /api/download/admin-apk-version (GSMWorld server) instead of the
+    // GitHub API directly.  Benefits:
+    //   • Works if the repo is ever made private (server uses a token).
+    //   • Single authoritative source — same logic the server uses.
+    //   • The actual APK is also streamed through the server, so GitHub CDN
+    //     auth issues can never produce a corrupted / HTML "APK" file.
 
     private void checkForUpdate() {
         executor.execute(() -> {
             try {
-                HttpURLConnection conn = openGet(GH_RELEASES_API);
-                if (conn.getResponseCode() != 200) return;
-
-                String    body     = readString(conn.getInputStream());
-                JSONArray releases = new JSONArray(body);
-
-                String latestTag   = null;
-                String downloadUrl = null;
-
-                for (int i = 0; i < releases.length(); i++) {
-                    JSONObject r   = releases.getJSONObject(i);
-                    String    tag  = r.optString("tag_name", "");
-                    if (!tag.startsWith("admin-apk-")) continue;
-
-                    JSONArray assets = r.optJSONArray("assets");
-                    if (assets == null) continue;
-
-                    for (int j = 0; j < assets.length(); j++) {
-                        JSONObject a = assets.getJSONObject(j);
-                        if (a.optString("name").endsWith(".apk")
-                                && "uploaded".equals(a.optString("state"))) {
-                            latestTag   = tag;
-                            downloadUrl = a.getString("browser_download_url");
-                            break;
-                        }
-                    }
-                    if (latestTag != null) break;
+                HttpURLConnection conn = openGet(ADMIN_APK_VERSION_API);
+                if (conn.getResponseCode() != 200) {
+                    Log.w(TAG, "Version check returned HTTP " + conn.getResponseCode());
+                    return;
                 }
 
-                if (latestTag == null) return;
+                String     body    = readString(conn.getInputStream());
+                JSONObject json    = new JSONObject(body);
+                String     latestTag = json.optString("tag", "");
+
+                if (latestTag.isEmpty()) {
+                    Log.w(TAG, "Version check: no tag in response");
+                    return;
+                }
 
                 String currentTag = BuildConfig.APK_TAG;
                 Log.i(TAG, "Current: " + currentTag + "  Latest: " + latestTag);
                 if (latestTag.equals(currentTag)) return;
 
-                final String url = downloadUrl;
-                Log.i(TAG, "Update available " + currentTag + " → " + latestTag + ". Downloading silently.");
+                Log.i(TAG, "Update available " + currentTag + " → " + latestTag + ". Downloading via server.");
                 mainHandler.post(() -> {
                     Toast.makeText(MainActivity.this, "Update found — downloading…",
                         Toast.LENGTH_LONG).show();
-                    executor.execute(() -> downloadAndInstallSilent(url));
+                    // Download from server endpoint (uses GitHub token server-side;
+                    // prevents corrupted/HTML downloads that Android rejects as
+                    // "package appears to be invalid").
+                    executor.execute(() -> downloadAndInstallSilent(ADMIN_APK_DOWNLOAD_URL));
                 });
 
             } catch (Exception e) {

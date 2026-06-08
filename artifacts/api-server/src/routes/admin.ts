@@ -1329,6 +1329,46 @@ router.post("/admin/cron/daily-marketing", async (req, res) => {
   }
 });
 
+// POST /admin/notify-all
+// Inserts an in-app notification row for every active user.
+// Users see it immediately in their notification bell — no email needed.
+router.post("/admin/notify-all", async (req, res) => {
+  if (!(await checkAdminAuth(req, res))) return;
+  const { title, message, type } = req.body ?? {};
+  if (!String(title ?? "").trim() || !String(message ?? "").trim()) {
+    res.status(400).json({ error: "Title and message are required" });
+    return;
+  }
+  const notifType = ["info", "success", "warning", "error"].includes(type) ? type : "info";
+  try {
+    const allUsers = await db
+      .select({ email: usersTable.email })
+      .from(usersTable)
+      .where(eq(usersTable.status, "active"));
+
+    if (allUsers.length === 0) {
+      res.json({ ok: true, count: 0 });
+      return;
+    }
+
+    await db.insert(notificationsTable).values(
+      allUsers.map((u) => ({
+        userEmail: u.email,
+        title: String(title).trim(),
+        message: String(message).trim(),
+        type: notifType,
+        read: false,
+      })),
+    );
+
+    req.log.info({ count: allUsers.length, title, type: notifType }, "Broadcast in-app notification sent");
+    res.json({ ok: true, count: allUsers.length });
+  } catch (err) {
+    req.log.error({ err }, "Failed to send broadcast notification");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // POST /admin/cron/refresh-models — called weekly by Vercel cron (CRON_SECRET auth)
 router.post("/admin/cron/refresh-models", async (req, res) => {
   const cronSecret = process.env.CRON_SECRET;

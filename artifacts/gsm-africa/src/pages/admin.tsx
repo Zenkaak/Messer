@@ -3965,6 +3965,105 @@ function AnnouncementsPanel({ pwd }: { pwd: string }) {
           <p className="text-sm text-emerald-600">Email delivered to {sent.count} users</p>
         </div>
       )}
+
+      {/* ── In-App Broadcast ──────────────────────────────────────────────── */}
+      <InAppBroadcastPanel pwd={pwd} />
+    </div>
+  );
+}
+
+function InAppBroadcastPanel({ pwd }: { pwd: string }) {
+  const [title, setTitle] = useState("");
+  const [message, setMessage] = useState("");
+  const [type, setType] = useState<"info" | "success" | "warning" | "error">("info");
+  const [sending, setSending] = useState(false);
+  const [result, setResult] = useState<{ count: number } | null>(null);
+  const { toast } = useToast();
+
+  async function sendBroadcast() {
+    if (!title.trim() || !message.trim()) {
+      toast({ variant: "destructive", title: "Title and message are required" });
+      return;
+    }
+    setSending(true);
+    setResult(null);
+    try {
+      const r = await adminFetch(apiPath("/api/admin/notify-all"), pwd, {
+        method: "POST",
+        body: JSON.stringify({ title: title.trim(), message: message.trim(), type }),
+      });
+      const d = await r.json() as { ok?: boolean; count?: number; error?: string };
+      if (r.ok && d.ok) {
+        setResult({ count: d.count ?? 0 });
+        toast({ title: `🔔 Sent to ${d.count ?? 0} users!` });
+        setTitle(""); setMessage("");
+      } else {
+        toast({ variant: "destructive", title: d.error ?? "Failed to send" });
+      }
+    } catch {
+      toast({ variant: "destructive", title: "Network error" });
+    } finally {
+      setSending(false);
+    }
+  }
+
+  const typeOptions: Array<{ value: typeof type; label: string; dot: string }> = [
+    { value: "info",    label: "ℹ️ Info",    dot: "bg-blue-400" },
+    { value: "success", label: "✅ Success", dot: "bg-emerald-400" },
+    { value: "warning", label: "⚠️ Warning", dot: "bg-amber-400" },
+    { value: "error",   label: "🚨 Error",   dot: "bg-red-400" },
+  ];
+
+  return (
+    <div className="bg-white border border-slate-100 rounded-2xl p-4 space-y-3 shadow-sm">
+      <div className="flex items-center gap-2 mb-1">
+        <div className="w-6 h-6 rounded-lg bg-blue-600 flex items-center justify-center">
+          <Bell size={12} className="text-white" />
+        </div>
+        <p className="text-sm font-bold text-slate-700">Notify All Users (In-App)</p>
+        <span className="text-[10px] bg-blue-100 text-blue-700 font-bold px-1.5 py-0.5 rounded-full">instant</span>
+      </div>
+      <p className="text-xs text-slate-400">Appears as a bell notification inside the GSMWorld app — no email required.</p>
+
+      <div>
+        <label className="text-xs font-semibold text-slate-500 block mb-1.5">Notification Type</label>
+        <div className="flex gap-2 flex-wrap">
+          {typeOptions.map(o => (
+            <button key={o.value} type="button" onClick={() => setType(o.value)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors ${type === o.value ? "border-blue-500 bg-blue-50 text-blue-700" : "border-slate-200 text-slate-500 hover:bg-slate-50"}`}>
+              <span className={`w-2 h-2 rounded-full ${o.dot}`} />
+              {o.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <label className="text-xs font-semibold text-slate-500 block mb-1.5">Title</label>
+        <input value={title} onChange={e => setTitle(e.target.value)}
+          placeholder="e.g. 🎉 New Samsung Tools Available!"
+          className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+      </div>
+      <div>
+        <label className="text-xs font-semibold text-slate-500 block mb-1.5">Message</label>
+        <textarea value={message} onChange={e => setMessage(e.target.value)}
+          placeholder="Write a short message users will see in their notification bell…"
+          rows={3}
+          className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+      </div>
+
+      <button onClick={sendBroadcast} disabled={!title.trim() || !message.trim() || sending}
+        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-2xl text-sm disabled:opacity-40 flex items-center justify-center gap-2 transition-colors shadow-sm">
+        {sending ? <><RefreshCw size={13} className="animate-spin" /> Sending…</> : <><Bell size={13} /> Notify All Users</>}
+      </button>
+
+      {result && (
+        <div className="bg-blue-50 border border-blue-200 rounded-2xl p-3 text-center">
+          <CheckCircle2 size={20} className="text-blue-500 mx-auto mb-1" />
+          <p className="font-bold text-blue-800 text-sm">Notification sent!</p>
+          <p className="text-xs text-blue-600">Delivered to {result.count} users</p>
+        </div>
+      )}
     </div>
   );
 }
