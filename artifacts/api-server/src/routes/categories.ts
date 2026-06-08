@@ -6,6 +6,8 @@ const router: IRouter = Router();
 
 router.get("/categories", async (req, res) => {
   try {
+    // Public read-only — cache at edge for 5 min, stale-while-revalidate for 60 s.
+    res.setHeader("Cache-Control", "public, s-maxage=300, stale-while-revalidate=60");
     const rows = await db
       .select({
         id: categoriesTable.id,

@@ -6,6 +6,8 @@ const router: IRouter = Router();
 
 router.get("/products", async (req, res) => {
   try {
+    // Public read-only — safe to cache at edge for 60 s, browsers revalidate after 30 s.
+    res.setHeader("Cache-Control", "public, s-maxage=60, stale-while-revalidate=30");
     const { search, category, category_id, featured, in_stock, sort, page, limit, min_price, max_price } = req.query;
 
     const pageNum = Math.max(1, Number(page) || 1);

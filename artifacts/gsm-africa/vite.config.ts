@@ -45,6 +45,20 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    // Split vendor libs into separate long-lived cached chunks.
+    // Each vendor chunk is fingerprinted and cached by the browser/CDN until
+    // the library version actually changes — completely independent of app code.
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes("node_modules/react-dom") || id.includes("node_modules/react/")) return "vendor-react";
+          if (id.includes("node_modules/@tanstack")) return "vendor-query";
+          if (id.includes("node_modules/lucide-react")) return "vendor-lucide";
+          if (id.includes("node_modules/wouter")) return "vendor-router";
+          if (id.includes("node_modules/")) return "vendor-misc";
+        },
+      },
+    },
   },
   server: {
     port,
