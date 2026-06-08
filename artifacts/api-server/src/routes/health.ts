@@ -86,17 +86,47 @@ router.get("/app/version", async (_req, res) => {
 // APK download — proxies the latest ADMIN APK from GitHub releases.
 // Uses a separate path (/admin/download/apk) so it never conflicts with
 // the user-facing /download/apk endpoint (download.ts → GSMWorld.apk).
+// IMPORTANT: We stream the binary server-side rather than issuing a 302
+// redirect.  A redirect to a GitHub browser_download_url causes the Android
+// download manager (and the WebView DownloadListener) to receive a JSON
+// error body from GitHub's CDN, which then saves the file as *.apk.json.
 router.get("/admin/download/apk", async (_req, res) => {
   const release = await getLatestApkRelease();
   if (!release) {
     res.status(404).json({ error: "No admin APK release found" });
     return;
   }
+
+  // Fetch the APK binary server-side, following any redirects GitHub issues.
+  let upstream: Response;
+  try {
+    upstream = await fetch(release.url, {
+      headers: { Accept: "application/octet-stream" },
+      redirect: "follow",
+    });
+  } catch (err) {
+    res.status(502).json({ error: "Failed to reach GitHub CDN", detail: String(err) });
+    return;
+  }
+
+  if (!upstream.ok || !upstream.body) {
+    res.status(502).json({ error: `GitHub CDN returned ${upstream.status}` });
+    return;
+  }
+
   const filename = `gsm-admin-${release.version}.apk`;
   res.setHeader("Content-Type", "application/vnd.android.package-archive");
   res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
   res.setHeader("X-Content-Type-Options", "nosniff");
-  res.redirect(302, release.url);
+  res.setHeader("Cache-Control", "no-store");
+
+  // Forward Content-Length if GitHub sends it (enables progress bars).
+  const cl = upstream.headers.get("content-length");
+  if (cl) res.setHeader("Content-Length", cl);
+
+  // Stream the binary body directly to the client.
+  const { Readable } = await import("stream");
+  Readable.fromWeb(upstream.body as Parameters<typeof Readable.fromWeb>[0]).pipe(res);
 });
 
 export default router;
