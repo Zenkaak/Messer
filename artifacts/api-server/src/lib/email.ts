@@ -554,7 +554,104 @@ export function paymentConfirmedEmail(params: {
   };
 }
 
-// ── 5. Order status update ────────────────────────────────────────────────────
+// ── 5. Wallet transfer — sender receipt ───────────────────────────────────────
+
+export function walletTransferSentEmail(params: {
+  senderName?: string | null;
+  recipientUsername: string;
+  amount: number;
+  fee: number;
+  totalDeducted: number;
+  newBalance?: number | null;
+}) {
+  const name = params.senderName || "Valued Customer";
+  const walletUrl = appUrl("/account/wallet");
+  const sentAt = new Date().toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" }) + " UTC";
+
+  const h = header(
+    "linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%)",
+    "Transfer Sent",
+    `Your wallet transfer to @${params.recipientUsername} was successful`
+  );
+
+  const infoRows: Array<[string, string]> = [
+    ["Recipient",      `@${params.recipientUsername}`],
+    ["Amount Sent",    `$${params.amount.toFixed(2)} USD`],
+    ["Transfer Fee",   `$${params.fee.toFixed(2)} USD`],
+    ["Total Deducted", `$${params.totalDeducted.toFixed(2)} USD`],
+    ["Date & Time",    sentAt],
+  ];
+  if (params.newBalance != null) {
+    infoRows.push(["Remaining Balance", `$${params.newBalance.toFixed(2)} USD`]);
+  }
+
+  const body = `
+    <p style="margin:0 0 20px;font-size:15px;color:#475569;">Dear <strong style="color:#0f172a;">${name}</strong>,</p>
+    <p style="margin:0 0 20px;font-size:15px;color:#475569;">Your wallet transfer has been processed successfully. Here is a summary of the transaction:</p>
+    ${infoTable(infoRows)}
+    ${statusChip("Transfer Successful", "#0ea5e9")}
+    <p style="margin:16px 0 0;font-size:14px;color:#475569;">If you did not authorise this transfer, please contact our support team immediately.</p>
+    ${btn("View My Wallet", walletUrl)}
+    <div style="margin-top:32px;padding-top:20px;border-top:1px solid #f1f5f9;">
+      <p style="margin:0;font-size:13px;color:#64748b;">Keep this email as your transfer receipt.</p>
+      <p style="margin:12px 0 0;font-size:14px;color:#475569;">Regards,<br><strong style="color:#0f172a;">GSM World Team</strong></p>
+    </div>
+  `;
+
+  return {
+    subject: `Transfer Sent — $${params.amount.toFixed(2)} to @${params.recipientUsername} | GSM World`,
+    text: `Dear ${name},\n\nYour transfer of $${params.amount.toFixed(2)} to @${params.recipientUsername} was successful.\n\nFee: $${params.fee.toFixed(2)}\nTotal deducted: $${params.totalDeducted.toFixed(2)}\nDate: ${sentAt}${params.newBalance != null ? `\nNew balance: $${params.newBalance.toFixed(2)}` : ""}\n\nIf you did not authorise this transfer, contact support immediately.\n\nView your wallet: ${walletUrl}\n\n— GSM World Team`,
+    html: layout(`$${params.amount.toFixed(2)} sent to @${params.recipientUsername} — transfer complete.`, "#0ea5e9", h, body),
+  };
+}
+
+// ── 5b. Wallet transfer — recipient notification ───────────────────────────────
+
+export function walletTransferReceivedEmail(params: {
+  recipientName?: string | null;
+  senderUsername: string;
+  amount: number;
+  newBalance?: number | null;
+}) {
+  const name = params.recipientName || "Valued Customer";
+  const walletUrl = appUrl("/account/wallet");
+  const receivedAt = new Date().toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" }) + " UTC";
+
+  const h = header(
+    "linear-gradient(135deg,#064e3b 0%,#059669 100%)",
+    "You Received Money! 🎉",
+    `@${params.senderUsername} just sent you $${params.amount.toFixed(2)}`
+  );
+
+  const infoRows: Array<[string, string]> = [
+    ["Sender",          `@${params.senderUsername}`],
+    ["Amount Received", `$${params.amount.toFixed(2)} USD`],
+    ["Date & Time",     receivedAt],
+  ];
+  if (params.newBalance != null) {
+    infoRows.push(["New Wallet Balance", `$${params.newBalance.toFixed(2)} USD`]);
+  }
+
+  const body = `
+    <p style="margin:0 0 20px;font-size:15px;color:#475569;">Hi <strong style="color:#0f172a;">${name}</strong>,</p>
+    <p style="margin:0 0 20px;font-size:15px;color:#475569;">Great news — <strong style="color:#0f172a;">@${params.senderUsername}</strong> has just sent you money through your GSM World wallet. The funds are available in your account right now.</p>
+    ${infoTable(infoRows)}
+    ${statusChip("Funds Added to Your Wallet", "#059669")}
+    <p style="margin:16px 0 0;font-size:14px;color:#475569;">You can use these funds immediately to place orders or transfer them onwards.</p>
+    ${btn("View My Wallet", walletUrl, "#059669")}
+    <div style="margin-top:32px;padding-top:20px;border-top:1px solid #f1f5f9;">
+      <p style="margin:0;font-size:14px;color:#475569;">Regards,<br><strong style="color:#0f172a;">GSM World Team</strong></p>
+    </div>
+  `;
+
+  return {
+    subject: `You Received $${params.amount.toFixed(2)} from @${params.senderUsername} — GSM World`,
+    text: `Hi ${name},\n\n@${params.senderUsername} has sent you $${params.amount.toFixed(2)} to your GSM World wallet.\n\nDate: ${receivedAt}${params.newBalance != null ? `\nNew balance: $${params.newBalance.toFixed(2)}` : ""}\n\nYour funds are ready to use.\n\nView your wallet: ${walletUrl}\n\n— GSM World Team`,
+    html: layout(`You received $${params.amount.toFixed(2)} from @${params.senderUsername} — funds are in your wallet.`, "#059669", h, body),
+  };
+}
+
+// ── 6. Order status update ────────────────────────────────────────────────────
 
 export function orderStatusUpdateEmail(params: {
   orderId: number;

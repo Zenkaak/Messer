@@ -5,7 +5,7 @@ import { eq, sql, desc } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { initiateSTKPush } from "../lib/mpesa";
 import { getUsdtWallet, getUsdtNetwork } from "../lib/admin-settings";
-import { sendEmail } from "../lib/email";
+import { sendEmail, walletTransferSentEmail, walletTransferReceivedEmail } from "../lib/email";
 import {
   createPayment,
   getPaymentStatus,
@@ -481,6 +481,18 @@ router.post("/wallet/transfer", async (req, res) => {
 
     logger.info({ from: payload.userId, to: recipient.id, amount: amountNum, fee }, "Wallet transfer");
 
+    // Fetch updated balances so emails can show the new balance to each party.
+    const [senderRow, recipientRow] = await Promise.all([
+      db.select({ walletBalance: usersTable.walletBalance, name: usersTable.name })
+        .from(usersTable).where(eq(usersTable.id, payload.userId)).limit(1),
+      db.select({ walletBalance: usersTable.walletBalance, name: usersTable.name })
+        .from(usersTable).where(eq(usersTable.id, recipient.id)).limit(1),
+    ]);
+    const senderNewBalance = parseFloat(senderRow[0]?.walletBalance ?? "0");
+    const recipientNewBalance = parseFloat(recipientRow[0]?.walletBalance ?? "0");
+    const senderName = senderRow[0]?.name ?? sender?.username ?? null;
+    const recipientName = recipientRow[0]?.name ?? null;
+
     // Log both sides of the transfer
     void Promise.all([
       logWalletTxn(payload.userId, "transfer_sent", amountNum, fee, toUsername.trim(), `Sent to @${toUsername.trim()}`),
@@ -490,17 +502,24 @@ router.post("/wallet/transfer", async (req, res) => {
     // Await all notifications + emails before res.json() —
     // Vercel kills the Lambda as soon as the response is sent,
     // so fire-and-forget promises after res.json() never execute.
+    const senderEmailContent = walletTransferSentEmail({
+      senderName,
+      recipientUsername: toUsername.trim(),
+      amount: amountNum,
+      fee,
+      totalDeducted: totalDeduct,
+      newBalance: senderNewBalance,
+    });
+    const recipientEmailContent = walletTransferReceivedEmail({
+      recipientName,
+      senderUsername: sender?.username ?? "someone",
+      amount: amountNum,
+      newBalance: recipientNewBalance,
+    });
+
     await Promise.all([
-      sendEmail({
-        to: recipient.email,
-        subject: "You received a wallet transfer — GSM World",
-        text: `You received $${amountNum.toFixed(2)} from @${sender?.username ?? payload.email} to your GSM World wallet.`,
-      }).catch(() => {}),
-      sendEmail({
-        to: payload.email,
-        subject: "Wallet transfer sent — GSM World",
-        text: `You sent $${amountNum.toFixed(2)} to @${toUsername.trim()}. A fee of $${fee.toFixed(2)} was charged. Total deducted: $${totalDeduct.toFixed(2)}.`,
-      }).catch(() => {}),
+      sendEmail({ to: payload.email, ...senderEmailContent }).catch(() => {}),
+      sendEmail({ to: recipient.email, ...recipientEmailContent }).catch(() => {}),
       db.insert(notificationsTable).values({
         userEmail: recipient.email,
         title: "Wallet Transfer Received",
