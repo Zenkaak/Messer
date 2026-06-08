@@ -1276,6 +1276,26 @@ router.post("/admin/cascade/refresh", async (req, res) => {
   }
 });
 
+// POST /admin/cron/daily-marketing — called daily at 3:50 AM EAT by Vercel cron
+// Also triggered by the self-hosted minute-ticker in index.ts.
+router.post("/admin/cron/daily-marketing", async (req, res) => {
+  const cronSecret = process.env.CRON_SECRET;
+  const authHeader = req.headers.authorization;
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  try {
+    const { runDailyMarketingEmail } = await import("../lib/daily-marketing");
+    const result = await runDailyMarketingEmail();
+    req.log.info(result, "Daily marketing cron complete");
+    res.json(result);
+  } catch (err) {
+    req.log.error({ err }, "Daily marketing cron failed");
+    res.status(500).json({ error: "Daily marketing failed" });
+  }
+});
+
 // POST /admin/cron/refresh-models — called weekly by Vercel cron (CRON_SECRET auth)
 router.post("/admin/cron/refresh-models", async (req, res) => {
   const cronSecret = process.env.CRON_SECRET;

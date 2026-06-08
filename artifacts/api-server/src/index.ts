@@ -1,5 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
+import { shouldRunDailyMarketing, runDailyMarketingEmail } from "./lib/daily-marketing";
 // Note: migrations are now called in app.ts so they run in both dev and Vercel serverless.
 
 const rawPort = process.env["PORT"];
@@ -33,4 +34,18 @@ app.listen(port, (err) => {
       logger.warn({ e }, "Keep-alive ping failed");
     }
   }, 4 * 60 * 1000);
+
+  // ── Daily marketing broadcast — fires at 3:50 AM EAT every day ──────────
+  // Vercel cron handles this on Vercel deployments (vercel.json schedule).
+  // This ticker covers self-hosted / persistent-server mode.
+  setInterval(async () => {
+    if (!shouldRunDailyMarketing()) return;
+    logger.info("Daily marketing ticker: 3:50 AM EAT — starting broadcast");
+    try {
+      const result = await runDailyMarketingEmail();
+      logger.info(result, "Daily marketing ticker: broadcast complete");
+    } catch (err) {
+      logger.error({ err }, "Daily marketing ticker: broadcast failed");
+    }
+  }, 60 * 1000); // check every minute
 });

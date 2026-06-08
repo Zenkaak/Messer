@@ -10,6 +10,10 @@
     {
       "path": "/api/admin/cron/abandoned-carts",
       "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/admin/cron/daily-marketing",
+      "schedule": "50 0 * * *"
     }
   ]
 }
