@@ -230,7 +230,7 @@ function ChangePasswordModal({ pwd, onSuccess, onDismiss, isForced }: {
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={!isForced ? onDismiss : undefined} />
-      <div className="relative w-full max-w-sm mx-4 mb-4 sm:mb-0 bg-white rounded-3xl shadow-2xl overflow-hidden">
+      <div className="relative w-full max-w-sm mx-4 mb-20 sm:mb-0 bg-white rounded-3xl shadow-2xl overflow-hidden">
         <div className="bg-slate-900 px-5 pt-5 pb-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -2176,7 +2176,7 @@ function ResellersPanel({ pwd }: { pwd: string }) {
       {/* Reject application modal */}
       {rejectModal && (
         <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.4)" }}>
-          <div className="bg-white w-full max-w-sm rounded-3xl p-5 space-y-4">
+          <div className="bg-white w-full max-w-sm rounded-3xl p-5 pb-20 md:pb-5 space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="font-black text-slate-900">Reject Application</h3>
               <button onClick={() => setRejectModal(null)} className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 text-sm">✕</button>
@@ -2199,7 +2199,7 @@ function ResellersPanel({ pwd }: { pwd: string }) {
       {/* Withdrawal action modal */}
       {wActionModal && (
         <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.4)" }}>
-          <div className="bg-white w-full max-w-sm rounded-3xl p-5 space-y-4">
+          <div className="bg-white w-full max-w-sm rounded-3xl p-5 pb-20 md:pb-5 space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="font-black text-slate-900">
                 {wActionModal.action === "approve" ? "Mark as Paid" : "Reject Withdrawal"}
@@ -2365,7 +2365,7 @@ function UserDetailView({ user: initUser, pwd, onBack, onUserUpdated, onUserDele
       {/* Wallet modal */}
       {walletModal && (
         <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 backdrop-blur-sm" onClick={() => { setWalletModal(null); setWalletAmount(""); }}>
-          <div className="bg-white w-full max-w-sm rounded-t-3xl p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
+          <div className="bg-white w-full max-w-sm rounded-t-3xl p-6 pb-24 shadow-2xl" onClick={e => e.stopPropagation()}>
             <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-3 ${walletModal.action === "add" ? "bg-emerald-100" : "bg-red-100"}`}>
               <DollarSign size={22} className={walletModal.action === "add" ? "text-emerald-600" : "text-red-500"} />
             </div>
@@ -2398,7 +2398,7 @@ function UserDetailView({ user: initUser, pwd, onBack, onUserUpdated, onUserDele
       {/* Confirm delete */}
       {confirmDelete && (
         <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 backdrop-blur-sm" onClick={() => setConfirmDelete(false)}>
-          <div className="bg-white w-full max-w-sm rounded-t-3xl p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
+          <div className="bg-white w-full max-w-sm rounded-t-3xl p-6 pb-24 shadow-2xl" onClick={e => e.stopPropagation()}>
             <div className="w-12 h-12 rounded-2xl bg-red-100 flex items-center justify-center mx-auto mb-3">
               <Trash2 size={22} className="text-red-500" />
             </div>

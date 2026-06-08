@@ -23,9 +23,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const APP_VERSION = "1.0.2";
 
   // "Get the App" prompt — browser mobile only, not shown if already in the Android WebView app
+  // Also suppressed on /admin (admin WebView has its own APK, this prompt is for users only)
   useEffect(() => {
     const isAndroidWebApp = navigator.userAgent.includes("GSMWorldApp");
     if (isAndroidWebApp) return; // already in the app — no download prompt
+    if (location.startsWith("/admin")) return; // admin panel — never prompt to install user APK
     const isMobile = window.innerWidth < 768;
     const lastPrompt = Number(localStorage.getItem("gsm_download_prompt") || "0");
     const weekMs = 7 * 24 * 60 * 60 * 1000;
