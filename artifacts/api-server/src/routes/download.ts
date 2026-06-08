@@ -66,15 +66,44 @@ router.head("/download/apk", async (_req, res) => {
   res.status(url ? 200 : 503).end();
 });
 
-// GET — redirect to the GitHub CDN asset URL so the real APK bytes are
-// served directly. No streaming, no content-type guessing.
+// GET — stream the APK binary server-side.
+// A 302 redirect to a GitHub browser_download_url causes Android's download
+// manager to receive a JSON error from GitHub's CDN (missing Accept header
+// on the redirect), saving the file as *.apk.json and marking it failed.
+// Proxying the bytes here ensures the correct Content-Type reaches the client.
 router.get("/download/apk", async (_req, res) => {
   const assetUrl = await getApkAssetUrl();
   if (!assetUrl) {
     res.status(503).json({ error: "APK not available yet. Please try again later." });
     return;
   }
-  res.redirect(302, assetUrl);
+
+  let upstream: Response;
+  try {
+    upstream = await fetch(assetUrl, {
+      headers: { Accept: "application/octet-stream" },
+      redirect: "follow",
+    });
+  } catch (err) {
+    res.status(502).json({ error: "Failed to reach GitHub CDN", detail: String(err) });
+    return;
+  }
+
+  if (!upstream.ok || !upstream.body) {
+    res.status(502).json({ error: `GitHub CDN returned ${upstream.status}` });
+    return;
+  }
+
+  res.setHeader("Content-Type", "application/vnd.android.package-archive");
+  res.setHeader("Content-Disposition", 'attachment; filename="GSMWorld.apk"');
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Cache-Control", "no-store");
+
+  const cl = upstream.headers.get("content-length");
+  if (cl) res.setHeader("Content-Length", cl);
+
+  const { Readable } = await import("stream");
+  Readable.fromWeb(upstream.body as Parameters<typeof Readable.fromWeb>[0]).pipe(res);
 });
 
 export default router;

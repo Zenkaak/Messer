@@ -16,7 +16,7 @@ import {
   liveChatSessionsTable,
   liveChatMessagesTable,
 } from "@workspace/db";
-import { productsTable, categoriesTable } from "@workspace/db";
+import { productsTable, categoriesTable, resellerApplicationsTable, resellerWithdrawalsTable } from "@workspace/db";
 import { z } from "zod";
 import { getAllSettings, updateSettings, getAdminPassword, hasAdminPasswordBeenSet, getOpenAiKey, getOpenAiBaseUrl, getWorkingCascade, setWorkingCascade, getCascadeStatus } from "../lib/admin-settings";
 import {
@@ -285,11 +285,44 @@ router.delete("/admin/users/:id", async (req, res) => {
   try {
     if (!(await checkAdminAuth(req, res))) return;
     const id = Number(req.params.id);
+    if (!id || isNaN(id)) { res.status(400).json({ error: "Invalid user id" }); return; }
+
+    // Fetch email first (needed for notifications cleanup).
+    const [userRow] = await db
+      .select({ email: usersTable.email })
+      .from(usersTable)
+      .where(eq(usersTable.id, id))
+      .limit(1);
+    if (!userRow) { res.status(404).json({ error: "User not found" }); return; }
+
+    // Delete in FK-safe order so Postgres never rejects the final user delete.
+    // 1. Reseller withdrawals → reseller applications → then the user row.
+    const resellerApps = await db
+      .select({ id: resellerApplicationsTable.id })
+      .from(resellerApplicationsTable)
+      .where(eq(resellerApplicationsTable.userId, id));
+    for (const app of resellerApps) {
+      await db.delete(resellerWithdrawalsTable)
+        .where(eq(resellerWithdrawalsTable.resellerId, app.id));
+    }
+    await db.delete(resellerApplicationsTable).where(eq(resellerApplicationsTable.userId, id));
+
+    // 2. Wallet transactions (FK → usersTable.id)
+    await db.delete(walletTransactionsTable).where(eq(walletTransactionsTable.userId, id));
+
+    // 3. Tool activations (FK → usersTable.id)
+    await db.delete(toolActivationsTable).where(eq(toolActivationsTable.userId, id));
+
+    // 4. Notifications (keyed by email — no FK but cleanup)
+    await db.delete(notificationsTable).where(eq(notificationsTable.userEmail, userRow.email));
+
+    // 5. Finally delete the user.
     await db.delete(usersTable).where(eq(usersTable.id, id));
+
     res.status(204).send();
   } catch (err) {
     req.log.error({ err }, "Failed to delete user");
-    res.status(500).json({ error: "Internal server error" });
+    res.status(500).json({ error: "Delete failed. The account may have linked data that could not be removed." });
   }
 });
 
