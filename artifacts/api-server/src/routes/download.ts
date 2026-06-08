@@ -4,9 +4,11 @@ const router: IRouter = Router();
 
 const GH_RELEASES_URL =
   "https://api.github.com/repos/Zenkaak/Messer/releases?per_page=20";
-const GH_HEADERS = {
+const GH_TOKEN = process.env.GITHUB_PERSONAL_ACCESS_TOKEN ?? "";
+const GH_HEADERS: Record<string, string> = {
   "User-Agent": "GSMWorld/1.0",
   Accept: "application/vnd.github.v3+json",
+  ...(GH_TOKEN ? { Authorization: `token ${GH_TOKEN}` } : {}),
 };
 
 interface GhAsset {
@@ -81,7 +83,10 @@ router.get("/download/apk", async (_req, res) => {
   let upstream: Response;
   try {
     upstream = await fetch(assetUrl, {
-      headers: { Accept: "application/octet-stream" },
+      headers: {
+        Accept: "application/octet-stream",
+        ...(GH_TOKEN ? { Authorization: `token ${GH_TOKEN}` } : {}),
+      },
       redirect: "follow",
     });
   } catch (err) {

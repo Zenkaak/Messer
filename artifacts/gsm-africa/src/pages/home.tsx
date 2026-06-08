@@ -496,7 +496,7 @@ export function Home() {
             <AppBannerContent isUpdate />
           </button>
         ) : (
-          <a href="/api/download/apk" download="GSMWorld.apk"
+          <a href={`${apiBase()}/api/download/apk`} download="GSMWorld.apk"
             className="flex items-center gap-4 rounded-2xl px-4 py-4 active:scale-[0.98] transition-transform select-none"
             style={{ background: "linear-gradient(135deg,#14532d,#166534 60%,#15803d)", border: "1px solid rgba(74,222,128,0.25)", boxShadow: "0 4px 28px rgba(22,101,52,0.45)" }}>
             <AppBannerContent isUpdate={false} />
