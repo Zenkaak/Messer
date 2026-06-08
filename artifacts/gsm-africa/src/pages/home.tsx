@@ -7,6 +7,7 @@ import {
   Shield, AlertTriangle, Loader2, CheckCircle2,
 } from "lucide-react";
 import { useListCategories, useListProducts } from "@workspace/api-client-react";
+import { useToast } from "@/hooks/use-toast";
 
 const GSM_STYLES = `
   @keyframes gsmFadeUp {
@@ -341,10 +342,26 @@ export function Home() {
     return () => { el.remove(); };
   }, []);
 
+  const { toast } = useToast();
+
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
     const q = searchQuery.trim();
     if (q) navigate(`/products?search=${encodeURIComponent(q)}`);
+  }
+
+  async function handleDownloadApp() {
+    const base = (import.meta.env.BASE_URL as string).replace(/\/$/, '');
+    try {
+      const head = await fetch(`${base}/api/download/apk`, { method: 'HEAD' });
+      if (head.ok) {
+        window.location.href = `${base}/api/download/apk`;
+      } else {
+        toast({ title: 'APK not available yet', description: 'The Android app is being built. Please check back in a few minutes.' });
+      }
+    } catch {
+      toast({ title: 'Connection error', description: 'Could not reach the server. Please try again.' });
+    }
   }
 
   const totalProducts = productTotalData?.total ?? null;
@@ -496,11 +513,11 @@ export function Home() {
             <AppBannerContent isUpdate />
           </button>
         ) : (
-          <a href={`${(import.meta.env.BASE_URL as string).replace(/\/$/, "")}/api/download/apk`} download="GSMWorld.apk"
-            className="flex items-center gap-4 rounded-2xl px-4 py-4 active:scale-[0.98] transition-transform select-none"
+          <button onClick={handleDownloadApp}
+            className="w-full flex items-center gap-4 rounded-2xl px-4 py-4 active:scale-[0.98] transition-transform select-none text-left"
             style={{ background: "linear-gradient(135deg,#14532d,#166534 60%,#15803d)", border: "1px solid rgba(74,222,128,0.25)", boxShadow: "0 4px 28px rgba(22,101,52,0.45)" }}>
             <AppBannerContent isUpdate={false} />
-          </a>
+          </button>
         )}
       </AnimSection>
 

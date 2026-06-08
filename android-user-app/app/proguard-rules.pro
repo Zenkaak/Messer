@@ -1,0 +1,2 @@
+-keep public class * extends android.app.Activity
+-keepattributes *Annotation*

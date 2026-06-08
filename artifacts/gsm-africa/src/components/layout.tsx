@@ -336,23 +336,32 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   <span className="text-[9px] font-black bg-blue-600 text-white px-1.5 py-0.5 rounded-full">AUTO</span>
                 </button>
               ) : (
-                /* Browser — download the APK with a helpful warning */
-                <a
-                  href={`${basePath}/api/download/apk`}
-                  onClick={() => {
+                              /* Browser — download the APK with availability check */
+                <button
+                  onClick={async () => {
                     setSidebarOpen(false);
-                    setTimeout(() => {
-                      toast({ title: "📥 Download started", description: "If Chrome warns you, tap \"Keep\" — our APK is signed and safe." });
-                    }, 600);
+                    try {
+                      const head = await fetch(`${basePath}/api/download/apk`, { method: 'HEAD' });
+                      if (head.ok) {
+                        window.location.href = `${basePath}/api/download/apk`;
+                        setTimeout(() => {
+                          toast({ title: '📥 Download started', description: 'If Chrome warns you, tap \"Keep\" — our APK is signed and safe.' });
+                        }, 600);
+                      } else {
+                        toast({ title: 'APK not available yet', description: 'The Android app is being built. Please check back in a few minutes.' });
+                      }
+                    } catch {
+                      toast({ title: 'Connection error', description: 'Could not reach the server. Please try again.' });
+                    }
                   }}
-                  className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-gray-300 hover:bg-white/8 transition-colors"
+                  className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-gray-300 hover:bg-white/8 transition-colors"
                 >
                   <div className="w-7 h-7 rounded-lg bg-green-900/40 text-green-400 flex items-center justify-center shrink-0">
                     <Download size={14} />
                   </div>
-                  <span className="flex-1 text-[12.5px] font-bold">Download App</span>
+                  <span className="flex-1 text-left text-[12.5px] font-bold">Download App</span>
                   <span className="text-[9px] font-black bg-green-600 text-white px-1.5 py-0.5 rounded-full">FREE</span>
-                </a>
+                </button>
               )}
             </nav>
 
