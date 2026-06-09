@@ -393,8 +393,20 @@ router.post("/auth/otp-login/verify", async (req, res) => {
 });
 
 // ─── Password reset via OTP ───────────────────────────────────────────────────
+const RESET_SEND_MAX = 5;
+const RESET_SEND_WINDOW_MS = 60 * 60 * 1000; // 5 attempts per hour per IP
+
 router.post("/auth/password-reset/send", async (req, res) => {
   try {
+    const ip = (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ?? req.socket.remoteAddress ?? "unknown";
+    const { blocked, retryAfterSec } = await checkRateLimit(`rl:reset_send:${ip}`, RESET_SEND_MAX, RESET_SEND_WINDOW_MS);
+    if (blocked) {
+      res.setHeader("Retry-After", String(retryAfterSec ?? 3600));
+      res.status(429).json({ error: `Too many reset requests. Try again in ${Math.ceil((retryAfterSec ?? 3600) / 60)} minute(s).` });
+      return;
+    }
+    await recordRateLimitAttempt(`rl:reset_send:${ip}`, RESET_SEND_WINDOW_MS);
+
     const { email } = req.body || {};
     if (!email || typeof email !== "string") { res.status(400).json({ error: "Email is required" }); return; }
     const rows = await db.select({ id: usersTable.id, status: usersTable.status })

@@ -285,9 +285,20 @@ router.post("/wallet/add-fund/nowpayments/ipn", async (req, res) => {
         const parts = order_id.split("-");
         const userId = parseInt(parts[1] ?? "0", 10);
         const priceAmount = data.price_amount ?? 0;
-        if (userId && priceAmount > 0) {
-          await db.update(usersTable).set({ walletBalance: sql`wallet_balance + ${priceAmount.toFixed(2)}` }).where(eq(usersTable.id, userId));
-          logger.info({ userId, priceAmount }, "Wallet credited via NOWPayments IPN (order_id recovery)");
+        if (userId && priceAmount > 0 && payment_id) {
+          // Write dedup key first to prevent double-credit on repeated IPN deliveries
+          const dedupKey = `np_wallet_ipn:${String(payment_id)}`;
+          const existing = await db.select({ value: adminSettingsTable.value })
+            .from(adminSettingsTable).where(eq(adminSettingsTable.key, dedupKey)).limit(1);
+          if (existing.length === 0) {
+            await db.insert(adminSettingsTable)
+              .values({ key: dedupKey, value: "1" })
+              .onConflictDoNothing();
+            await db.update(usersTable).set({ walletBalance: sql`wallet_balance + ${priceAmount.toFixed(2)}` }).where(eq(usersTable.id, userId));
+            logger.info({ userId, priceAmount, dedupKey }, "Wallet credited via NOWPayments IPN (order_id recovery)");
+          } else {
+            logger.warn({ payment_id, userId }, "Duplicate NOWPayments IPN (order_id recovery) ignored");
+          }
         }
       }
     }

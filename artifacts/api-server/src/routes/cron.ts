@@ -8,7 +8,11 @@ const router: IRouter = Router();
 
 function verifyCronSecret(req: import("express").Request, res: import("express").Response): boolean {
   const secret = process.env.CRON_SECRET;
-  if (!secret) return true; // No secret configured — allow (useful in dev)
+  if (!secret) {
+    // No secret configured — allow, but warn loudly so operators notice
+    logger.warn("CRON_SECRET is not set — cron endpoints are unprotected. Set CRON_SECRET in production.");
+    return true;
+  }
   if (req.headers.authorization !== `Bearer ${secret}`) {
     res.status(401).json({ error: "Unauthorized" });
     return false;

@@ -253,33 +253,61 @@ const createOrderSchema = z.object({
 
 router.get("/orders", async (req, res) => {
   try {
+    const user = getUserFromToken(req.headers.authorization);
+    const adminPwd =
+      (req.headers["x-admin-password"] as string | undefined) ||
+      (req.query.adminPassword as string | undefined);
+    const isAdmin = adminPwd ? await checkAdminPassword(adminPwd) : false;
+
     const conditions = [];
+
+    // session_id filter: usable by anyone (random UUID — acts as a capability token for guest sessions)
     if (req.query.session_id) {
       conditions.push(eq(ordersTable.sessionId, String(req.query.session_id)));
     }
+
+    // payment_status filter: admin-only (exposes order volumes / business data)
     if (req.query.payment_status) {
+      if (!isAdmin) {
+        res.status(401).json({ error: "Admin authentication required to filter by payment_status" });
+        return;
+      }
       conditions.push(eq(ordersTable.paymentStatus, String(req.query.payment_status)));
     }
+
+    // customerEmail filter: require JWT whose email matches, or admin
     if (req.query.customerEmail) {
-      conditions.push(eq(ordersTable.customerEmail, String(req.query.customerEmail).toLowerCase()));
+      const requestedEmail = String(req.query.customerEmail).toLowerCase();
+      if (!isAdmin) {
+        if (!user) {
+          res.status(401).json({ error: "Authentication required to filter by customerEmail" });
+          return;
+        }
+        if (user.email.toLowerCase() !== requestedEmail) {
+          res.status(403).json({ error: "Access denied: email does not match authenticated user" });
+          return;
+        }
+      }
+      conditions.push(eq(ordersTable.customerEmail, requestedEmail));
     }
+
+    // resellerSlug filter: admin-only
     if (req.query.resellerSlug) {
+      if (!isAdmin) {
+        res.status(401).json({ error: "Admin authentication required to filter by resellerSlug" });
+        return;
+      }
       conditions.push(eq(ordersTable.resellerSlug, String(req.query.resellerSlug)));
     }
+
     if (conditions.length === 0) {
       // Unfiltered dump of all orders requires admin authentication.
-      const adminPassword =
-        (req.headers["x-admin-password"] as string | undefined) ||
-        String((req.query.adminPassword as string | undefined) ?? "");
-      if (!adminPassword) {
+      if (!isAdmin) {
         res.status(400).json({ error: "At least one filter parameter is required (session_id, customerEmail, payment_status, resellerSlug)" });
         return;
       }
-      if (!(await checkAdminPassword(adminPassword))) {
-        res.status(401).json({ error: "Unauthorized" });
-        return;
-      }
     }
+
     const orders = conditions.length
       ? await db.select().from(ordersTable).where(and(...conditions)).orderBy(desc(ordersTable.createdAt))
       : await db.select().from(ordersTable).orderBy(desc(ordersTable.createdAt));
@@ -304,16 +332,19 @@ router.post("/orders", async (req, res) => {
     if (orderData.paymentMethod === "wallet") {
       if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
       const amount = parseFloat(orderData.total);
-      const [row] = await db.select({ walletBalance: usersTable.walletBalance })
-        .from(usersTable).where(eq(usersTable.id, user.userId)).limit(1);
-      const balance = parseFloat(row?.walletBalance ?? "0");
-      if (balance < amount) {
+      // Atomic deduction: only deduct if wallet_balance >= amount (prevents race conditions)
+      const deducted = await db.update(usersTable)
+        .set({ walletBalance: sql`wallet_balance - ${amount.toFixed(2)}` })
+        .where(and(eq(usersTable.id, user.userId), sql`wallet_balance >= ${amount.toFixed(2)}`))
+        .returning({ id: usersTable.id });
+      if (deducted.length === 0) {
+        // Fetch balance to return an informative error message
+        const [row] = await db.select({ walletBalance: usersTable.walletBalance })
+          .from(usersTable).where(eq(usersTable.id, user.userId)).limit(1);
+        const balance = parseFloat(row?.walletBalance ?? "0");
         res.status(402).json({ error: `Insufficient wallet balance. Have ${balance.toFixed(2)}, need ${amount.toFixed(2)}.` });
         return;
       }
-      await db.update(usersTable)
-        .set({ walletBalance: sql`wallet_balance - ${amount.toFixed(2)}` })
-        .where(eq(usersTable.id, user.userId));
       orderData.paymentStatus = "paid";
     }
 
@@ -360,11 +391,32 @@ router.post("/orders", async (req, res) => {
 router.get("/orders/:id", async (req, res) => {
   try {
     const id = Number(req.params.id);
+    const user = getUserFromToken(req.headers.authorization);
+    const adminPwd =
+      (req.headers["x-admin-password"] as string | undefined) ||
+      (req.query.adminPassword as string | undefined);
+    const isAdmin = adminPwd ? await checkAdminPassword(adminPwd) : false;
+
+    if (!user && !isAdmin) {
+      res.status(401).json({ error: "Authentication required" });
+      return;
+    }
+
     const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, id));
     if (!order) {
       res.status(404).json({ error: "Order not found" });
       return;
     }
+
+    if (!isAdmin) {
+      const emailMatch = user && order.customerEmail.toLowerCase() === user.email.toLowerCase();
+      const userIdMatch = user && order.userId != null && order.userId === user.userId;
+      if (!emailMatch && !userIdMatch) {
+        res.status(403).json({ error: "Access denied" });
+        return;
+      }
+    }
+
     const items = await db.select().from(orderItemsTable).where(eq(orderItemsTable.orderId, id));
     res.json({ ...order, items });
   } catch (err) {
@@ -564,14 +616,18 @@ router.post("/orders/:id/pay-wallet", async (req, res) => {
     if (order.paymentStatus !== "pending") { res.status(400).json({ error: "Order is not awaiting payment" }); return; }
     if (order.paymentMethod !== "wallet") { res.status(400).json({ error: "This order does not use wallet payment" }); return; }
 
-    const [userRow] = await db.select({ walletBalance: usersTable.walletBalance }).from(usersTable).where(eq(usersTable.id, user.userId)).limit(1);
-    const bal = parseFloat(userRow?.walletBalance ?? "0");
     const total = parseFloat(order.total);
-    if (bal < total) { res.status(400).json({ error: `Insufficient wallet balance ($${bal.toFixed(2)}). Need $${total.toFixed(2)}` }); return; }
-
-    await db.update(usersTable)
+    // Atomic deduction: only update if wallet_balance >= total (prevents double-spend race)
+    const deducted = await db.update(usersTable)
       .set({ walletBalance: sql`wallet_balance - ${total.toFixed(2)}` })
-      .where(eq(usersTable.id, user.userId));
+      .where(and(eq(usersTable.id, user.userId), sql`wallet_balance >= ${total.toFixed(2)}`))
+      .returning({ id: usersTable.id });
+    if (deducted.length === 0) {
+      const [userRow] = await db.select({ walletBalance: usersTable.walletBalance }).from(usersTable).where(eq(usersTable.id, user.userId)).limit(1);
+      const bal = parseFloat(userRow?.walletBalance ?? "0");
+      res.status(400).json({ error: `Insufficient wallet balance ($${bal.toFixed(2)}). Need $${total.toFixed(2)}` });
+      return;
+    }
 
     const [updated] = await db.update(ordersTable)
       .set({ paymentStatus: "paid", paidAt: new Date(), updatedAt: new Date() })
