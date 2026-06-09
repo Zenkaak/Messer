@@ -4,7 +4,7 @@ import { db } from "@workspace/db";
 import {
   toolActivationsTable, usersTable, ordersTable, orderItemsTable, paymentTransactionsTable,
 } from "@workspace/db";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, and } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import {
   sendEmail, appUrl, pendingManualPaymentEmail, paymentConfirmedEmail, adminNewOrderAlertEmail,
@@ -93,13 +93,17 @@ router.post("/unlock-rentals/checkout", async (req, res) => {
     let mpesaData: { checkoutRequestId: string; message: string } | null = null;
 
     if (paymentMethod === "wallet") {
-      const userRows = await db.select({ walletBalance: usersTable.walletBalance }).from(usersTable).where(eq(usersTable.id, payload.userId)).limit(1);
-      const balance = parseFloat(userRows[0]?.walletBalance ?? "0");
-      if (balance < price) {
+      // Atomic deduction: only deduct if wallet_balance >= price (prevents double-spend race)
+      const deducted = await db.update(usersTable)
+        .set({ walletBalance: sql`wallet_balance - ${price.toFixed(2)}` })
+        .where(and(eq(usersTable.id, payload.userId), sql`wallet_balance >= ${price.toFixed(2)}`))
+        .returning({ id: usersTable.id });
+      if (deducted.length === 0) {
+        const userRows = await db.select({ walletBalance: usersTable.walletBalance }).from(usersTable).where(eq(usersTable.id, payload.userId)).limit(1);
+        const balance = parseFloat(userRows[0]?.walletBalance ?? "0");
         res.status(400).json({ error: `Insufficient wallet balance. You have $${balance.toFixed(2)} but need $${price.toFixed(2)}.` });
         return;
       }
-      await db.update(usersTable).set({ walletBalance: sql`wallet_balance - ${price.toFixed(2)}` }).where(eq(usersTable.id, payload.userId));
       await db.update(ordersTable).set({ paymentStatus: "paid", paidAt: new Date() }).where(eq(ordersTable.id, order.id));
       await db.update(toolActivationsTable).set({ notes: `Rental: ${Number(durationDays)} day(s) | Payment: Wallet ($${price.toFixed(2)}) — paid` }).where(eq(toolActivationsTable.id, activation.id));
       sendEmail({

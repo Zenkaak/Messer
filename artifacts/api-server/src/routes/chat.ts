@@ -2205,10 +2205,16 @@ async function toolPlaceOrder(args: {
     // ── Payment-specific logic ──────────────────────────────────────────────
     if (pm === "wallet") {
       if (!loggedInUserId) return { success: false, error: "Must be logged in to pay with wallet" };
-      const [userRow] = await db.select({ walletBalance: usersTable.walletBalance }).from(usersTable).where(eq(usersTable.id, loggedInUserId)).limit(1);
-      const balance = parseFloat(userRow?.walletBalance ?? "0");
-      if (balance < total) return { success: false, error: `Insufficient wallet balance. You have $${balance.toFixed(2)} but need $${total.toFixed(2)}.` };
-      await db.update(usersTable).set({ walletBalance: sql`wallet_balance - ${total.toFixed(2)}` }).where(eq(usersTable.id, loggedInUserId));
+      // Atomic deduction: only deduct if wallet_balance >= total (prevents double-spend race)
+      const deducted = await db.update(usersTable)
+        .set({ walletBalance: sql`wallet_balance - ${total.toFixed(2)}` })
+        .where(and(eq(usersTable.id, loggedInUserId), sql`wallet_balance >= ${total.toFixed(2)}`))
+        .returning({ id: usersTable.id });
+      if (deducted.length === 0) {
+        const [userRow] = await db.select({ walletBalance: usersTable.walletBalance }).from(usersTable).where(eq(usersTable.id, loggedInUserId)).limit(1);
+        const balance = parseFloat(userRow?.walletBalance ?? "0");
+        return { success: false, error: `Insufficient wallet balance. You have $${balance.toFixed(2)} but need $${total.toFixed(2)}.` };
+      }
       await db.update(ordersTable).set({ paymentStatus: "paid" }).where(eq(ordersTable.id, order.id));
       await db.delete(cartItemsTable).where(eq(cartItemsTable.sessionId, resolvedSession));
       sendEmail({ to: customerEmail, ...orderSubmittedEmail({ orderId: order.id, orderCode, customerName, items: itemsForEmail, total: String(total), paymentMethod: pm }) }).catch(() => {});

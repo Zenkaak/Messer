@@ -27,6 +27,7 @@ import {
   getUsdtManualAddress,
   getUsdtManualNetwork,
   getSmtpConfig,
+  checkAdminPassword,
 } from "../lib/admin-settings";
 
 import { createPayment, getPaymentStatus } from "../lib/nowpayments";
@@ -882,11 +883,21 @@ router.post("/payments/nowpayments/retry", async (req, res) => {
   }
 });
 
-router.get("/admin/notifications", (_req, res) => {
+router.get("/admin/notifications", async (req, res) => {
+  const pwd = req.headers["x-admin-password"] as string | undefined;
+  if (!pwd || !(await checkAdminPassword(pwd))) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
   res.json({ notifications: _notifications });
 });
 
-router.post("/admin/notifications/mark-read", (_req, res) => {
+router.post("/admin/notifications/mark-read", async (req, res) => {
+  const pwd = req.headers["x-admin-password"] as string | undefined;
+  if (!pwd || !(await checkAdminPassword(pwd))) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
   _notifications.forEach(n => { n.read = true; });
   res.json({ ok: true });
 });
