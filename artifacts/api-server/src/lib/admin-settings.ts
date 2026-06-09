@@ -147,7 +147,7 @@ export async function getAllSettings() {
     resendApiKey: map["resend_api_key"] ? "***" : null,
     googleClientId: map["google_client_id"] ? "***" : null,
     googleClientSecret: map["google_client_secret"] ? "***" : null,
-    paymentMethods: map["payment_methods"] ? JSON.parse(map["payment_methods"]) : [],
+    paymentMethods: (() => { try { return map["payment_methods"] ? JSON.parse(map["payment_methods"]) : []; } catch { return []; } })(),
     otsApiToken: (map["ots_api_token"] || process.env.OTS_API_TOKEN) ? "***" : null,
     otsSenderId: map["ots_sender_id"] || process.env.SENDER_ID || null,
     otsAdminPhone: map["ots_admin_phone"] || process.env.ADMIN_PHONE || null,

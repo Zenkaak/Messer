@@ -113,12 +113,32 @@ router.get("/admin/settings", async (req, res) => {
   }
 });
 
+// Keys that the admin panel is allowed to write via POST /admin/settings
+const ALLOWED_SETTING_KEYS = new Set([
+  "mpesa_enabled", "mpesa_shortcode", "mpesa_consumer_key", "mpesa_consumer_secret",
+  "mpesa_passkey", "mpesa_callback_url", "mpesa_env", "whatsapp_contact",
+  "usdt_enabled", "usdt_wallet_address", "usdt_network",
+  "nowpayments_enabled", "nowpayments_api_key", "nowpayments_ipn_secret", "nowpayments_public_key",
+  "coingate_enabled", "coingate_api_key",
+  "email_from", "smtp_host", "smtp_port", "smtp_secure", "smtp_user", "smtp_pass",
+  "resend_api_key", "payment_methods", "admin_password",
+  "google_client_id", "google_client_secret",
+  "binance_pay_id", "usdt_manual_address", "usdt_manual_network",
+  "ots_api_token", "ots_sender_id", "ots_admin_phone",
+  "openai_api_key", "openai_api_url", "imei_info_api_token",
+  "bot_system_prompt", "cascade_models", "cascade_updated_at",
+]);
+
 router.post("/admin/settings", async (req, res) => {
   try {
     if (!(await checkAdminAuth(req, res))) return;
     const parsed = z.object({ key: z.string(), value: z.string().nullable().optional() }).safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    if (!ALLOWED_SETTING_KEYS.has(parsed.data.key)) {
+      res.status(400).json({ error: `Unknown setting key: ${parsed.data.key}` });
       return;
     }
     const [setting] = await db
