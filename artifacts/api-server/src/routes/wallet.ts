@@ -15,7 +15,7 @@ import {
 } from "../lib/nowpayments";
 
 const router: IRouter = Router();
-const JWT_SECRET = process.env.JWT_SECRET || "gsm-world-jwt-secret-change-in-prod";
+const JWT_SECRET = process.env.JWT_SECRET || "gsm-africa-jwt-secret-CHANGE-IN-PRODUCTION";
 const USD_TO_KES = 130;
 
 const walletTopUpPending = new Map<string, { userId: number; amountUsd: number; email: string }>();
@@ -254,10 +254,16 @@ router.post("/wallet/add-fund/nowpayments/status", async (req, res) => {
 router.post("/wallet/add-fund/nowpayments/ipn", async (req, res) => {
   try {
     const signature = req.headers["x-nowpayments-sig"] as string | undefined;
-    if (signature) {
+    const secret = await getIpnSecret();
+    if (secret) {
+      // IPN secret is configured — signature is mandatory.
+      if (!signature) {
+        logger.warn("NOWPayments IPN received with no signature — rejecting");
+        res.status(400).json({ error: "Missing IPN signature" });
+        return;
+      }
       const rawBody = JSON.stringify(req.body);
-      const secret = await getIpnSecret();
-      if (secret && !verifyIpnSignature(rawBody, signature, secret)) {
+      if (!verifyIpnSignature(rawBody, signature, secret)) {
         logger.warn("NOWPayments IPN signature mismatch");
         res.status(400).json({ error: "Invalid signature" });
         return;

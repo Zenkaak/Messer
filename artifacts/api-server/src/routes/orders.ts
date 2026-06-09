@@ -4,6 +4,7 @@ import { db, ordersTable, orderItemsTable, orderMessagesTable, usersTable, notif
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 import jwt from "jsonwebtoken";
+import { timingSafeEqual } from "crypto";
 import {
   sendEmail,
   orderCompletedEmail,
@@ -267,6 +268,24 @@ router.get("/orders", async (req, res) => {
     if (req.query.resellerSlug) {
       conditions.push(eq(ordersTable.resellerSlug, String(req.query.resellerSlug)));
     }
+    if (conditions.length === 0) {
+      // Unfiltered dump of all orders requires admin authentication.
+      const adminPassword =
+        (req.headers["x-admin-password"] as string | undefined) ||
+        String((req.query.adminPassword as string | undefined) ?? "");
+      if (!adminPassword) {
+        res.status(400).json({ error: "At least one filter parameter is required (session_id, customerEmail, payment_status, resellerSlug)" });
+        return;
+      }
+      const expected = await getAdminPassword();
+      const ba = Buffer.from(adminPassword);
+      const bb = Buffer.from(expected);
+      const authed = ba.length === bb.length && timingSafeEqual(ba, bb);
+      if (!authed) {
+        res.status(401).json({ error: "Unauthorized" });
+        return;
+      }
+    }
     const orders = conditions.length
       ? await db.select().from(ordersTable).where(and(...conditions)).orderBy(desc(ordersTable.createdAt))
       : await db.select().from(ordersTable).orderBy(desc(ordersTable.createdAt));
@@ -361,6 +380,22 @@ router.get("/orders/:id", async (req, res) => {
 });
 
 router.patch("/orders/:id", async (req, res) => {
+  // Require admin password — this endpoint can change paymentStatus and trigger emails.
+  const adminPassword =
+    (req.headers["x-admin-password"] as string | undefined) ||
+    (req.body as Record<string, unknown>)?.adminPassword as string | undefined;
+  if (!adminPassword) {
+    res.status(401).json({ error: "Admin authentication required" });
+    return;
+  }
+  const expected = await getAdminPassword();
+  const ba = Buffer.from(adminPassword);
+  const bb = Buffer.from(expected);
+  const authed = ba.length === bb.length && timingSafeEqual(ba, bb);
+  if (!authed) {
+    res.status(403).json({ error: "Invalid admin password" });
+    return;
+  }
   try {
     const id = Number(req.params.id);
     const parsed = z

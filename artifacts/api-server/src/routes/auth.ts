@@ -44,6 +44,39 @@ async function deleteOtp(key: string) {
 const OTP_MAX_ATTEMPTS = 10;
 const OTP_LOCK_MS = 15 * 60 * 1000; // 15 minutes
 
+// ─── In-memory rate limiter for password login ────────────────────────────────
+// Per-IP: 10 attempts per 15 minutes before lockout.
+const loginAttempts = new Map<string, { attempts: number; resetAt: number }>();
+const LOGIN_MAX_ATTEMPTS = 10;
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+
+function checkLoginRateLimit(ip: string): { blocked: boolean; retryAfterSec?: number } {
+  const now = Date.now();
+  const entry = loginAttempts.get(ip);
+  if (!entry || now >= entry.resetAt) {
+    loginAttempts.set(ip, { attempts: 0, resetAt: now + LOGIN_WINDOW_MS });
+    return { blocked: false };
+  }
+  if (entry.attempts >= LOGIN_MAX_ATTEMPTS) {
+    return { blocked: true, retryAfterSec: Math.ceil((entry.resetAt - now) / 1000) };
+  }
+  return { blocked: false };
+}
+
+function recordLoginAttempt(ip: string) {
+  const now = Date.now();
+  const entry = loginAttempts.get(ip);
+  if (!entry || now >= entry.resetAt) {
+    loginAttempts.set(ip, { attempts: 1, resetAt: now + LOGIN_WINDOW_MS });
+  } else {
+    entry.attempts += 1;
+  }
+}
+
+function clearLoginAttempts(ip: string) {
+  loginAttempts.delete(ip);
+}
+
 async function recordOtpAttempt(email: string): Promise<{ locked: boolean; attemptsLeft: number }> {
   const key = `otp_attempts:${email.toLowerCase()}`;
   const rows = await db.select({ value: adminSettingsTable.value })
@@ -166,18 +199,39 @@ router.post("/auth/verify-otp", async (req, res) => {
 });
 
 router.post("/auth/login", async (req, res) => {
+  const ip =
+    (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ||
+    req.socket?.remoteAddress ||
+    "unknown";
+  const rateLimit = checkLoginRateLimit(ip);
+  if (rateLimit.blocked) {
+    res.setHeader("Retry-After", String(rateLimit.retryAfterSec));
+    res.status(429).json({
+      error: `Too many login attempts. Please try again in ${Math.ceil((rateLimit.retryAfterSec ?? 900) / 60)} minute(s).`,
+    });
+    return;
+  }
   try {
     const { email, password } = req.body || {};
     if (!email || !password) { res.status(400).json({ error: "Email and password are required" }); return; }
     const rows = await db.select().from(usersTable).where(eq(usersTable.email, email.toLowerCase())).limit(1);
-    if (rows.length === 0) { res.status(401).json({ error: "Invalid email or password" }); return; }
+    if (rows.length === 0) {
+      recordLoginAttempt(ip);
+      res.status(401).json({ error: "Invalid email or password" });
+      return;
+    }
     const user = rows[0];
     if (isBlocked(user.status)) {
       res.status(403).json({ error: "You are not allowed to perform this action. Contact support." });
       return;
     }
     const valid = await bcrypt.compare(password, user.passwordHash);
-    if (!valid) { res.status(401).json({ error: "Invalid email or password" }); return; }
+    if (!valid) {
+      recordLoginAttempt(ip);
+      res.status(401).json({ error: "Invalid email or password" });
+      return;
+    }
+    clearLoginAttempts(ip);
     const token = makeToken(user.id, user.email);
     res.json({ token, user: { id: user.id, email: user.email, name: user.name } });
   } catch (err) {

@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, and, ilike, asc, desc, sql, count, gte, lte } from "drizzle-orm";
 import { db, productsTable, categoriesTable, insertProductSchema } from "@workspace/db";
+import { requireAdmin } from "../middlewares/auth";
 
 const router: IRouter = Router();
 
@@ -134,7 +135,7 @@ router.get("/products", async (req, res) => {
   }
 });
 
-router.post("/products", async (req, res) => {
+router.post("/products", requireAdmin, async (req, res) => {
   try {
     const parsed = insertProductSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -194,7 +195,7 @@ router.get("/products/:id", async (req, res) => {
   }
 });
 
-router.put("/products/:id", async (req, res) => {
+router.put("/products/:id", requireAdmin, async (req, res) => {
   try {
     const id = Number(req.params.id);
     const parsed = insertProductSchema.safeParse(req.body);
@@ -221,7 +222,7 @@ router.put("/products/:id", async (req, res) => {
   }
 });
 
-router.delete("/products/:id", async (req, res) => {
+router.delete("/products/:id", requireAdmin, async (req, res) => {
   try {
     const id = Number(req.params.id);
     await db.delete(productsTable).where(eq(productsTable.id, id));
