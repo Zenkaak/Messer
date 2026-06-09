@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import jwt from "jsonwebtoken";
 import { db, usersTable, adminSettingsTable, walletTransactionsTable, notificationsTable } from "@workspace/db";
-import { eq, sql, desc } from "drizzle-orm";
+import { eq, sql, desc, and } from "drizzle-orm";
 import { checkAdminPassword, getUsdtWallet, getUsdtNetwork } from "../lib/admin-settings";
 import { logger } from "../lib/logger";
 import { initiateSTKPush } from "../lib/mpesa";
@@ -495,23 +495,24 @@ router.post("/wallet/transfer", async (req, res) => {
       return;
     }
 
-    const [sender] = await db
-      .select({ walletBalance: usersTable.walletBalance, username: usersTable.username })
-      .from(usersTable)
-      .where(eq(usersTable.id, payload.userId))
-      .limit(1);
+    // Atomic deduction: only deduct if wallet_balance >= totalDeduct (prevents double-spend race)
+    const deducted = await db.update(usersTable)
+      .set({ walletBalance: sql`wallet_balance - ${totalDeduct.toFixed(2)}` })
+      .where(and(eq(usersTable.id, payload.userId), sql`wallet_balance >= ${totalDeduct.toFixed(2)}`))
+      .returning({ id: usersTable.id });
 
-    const senderBalance = parseFloat(sender?.walletBalance ?? "0");
-    if (senderBalance < totalDeduct) {
+    if (deducted.length === 0) {
+      const [sender] = await db
+        .select({ walletBalance: usersTable.walletBalance })
+        .from(usersTable)
+        .where(eq(usersTable.id, payload.userId))
+        .limit(1);
+      const senderBalance = parseFloat(sender?.walletBalance ?? "0");
       res.status(400).json({
         error: `Insufficient balance. Need $${totalDeduct.toFixed(2)} (includes $${fee.toFixed(2)} fee), have $${senderBalance.toFixed(2)}`,
       });
       return;
     }
-
-    await db.update(usersTable)
-      .set({ walletBalance: sql`wallet_balance - ${totalDeduct.toFixed(2)}` })
-      .where(eq(usersTable.id, payload.userId));
 
     await db.update(usersTable)
       .set({ walletBalance: sql`wallet_balance + ${amountNum.toFixed(2)}` })
