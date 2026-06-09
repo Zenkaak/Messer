@@ -619,35 +619,36 @@ export function walletTransferReceivedEmail(params: {
 
   const h = header(
     "linear-gradient(135deg,#064e3b 0%,#059669 100%)",
-    "You Received Money! 🎉",
-    `@${params.senderUsername} just sent you $${params.amount.toFixed(2)}`
+    "Wallet Credit Notification",
+    `Your GSM World wallet has been credited by @${params.senderUsername}`
   );
 
   const infoRows: Array<[string, string]> = [
-    ["Sender",          `@${params.senderUsername}`],
-    ["Amount Received", `$${params.amount.toFixed(2)} USD`],
+    ["Credited By",     `@${params.senderUsername}`],
+    ["Amount Credited", `$${params.amount.toFixed(2)} USD`],
     ["Date & Time",     receivedAt],
   ];
   if (params.newBalance != null) {
-    infoRows.push(["New Wallet Balance", `$${params.newBalance.toFixed(2)} USD`]);
+    infoRows.push(["Updated Wallet Balance", `$${params.newBalance.toFixed(2)} USD`]);
   }
 
   const body = `
-    <p style="margin:0 0 20px;font-size:15px;color:#475569;">Hi <strong style="color:#0f172a;">${name}</strong>,</p>
-    <p style="margin:0 0 20px;font-size:15px;color:#475569;">Great news — <strong style="color:#0f172a;">@${params.senderUsername}</strong> has just sent you money through your GSM World wallet. The funds are available in your account right now.</p>
+    <p style="margin:0 0 20px;font-size:15px;color:#475569;">Dear <strong style="color:#0f172a;">${name}</strong>,</p>
+    <p style="margin:0 0 20px;font-size:15px;color:#475569;">This is to inform you that your GSM World wallet has been credited. Below is a summary of the transaction:</p>
     ${infoTable(infoRows)}
-    ${statusChip("Funds Added to Your Wallet", "#059669")}
-    <p style="margin:16px 0 0;font-size:14px;color:#475569;">You can use these funds immediately to place orders or transfer them onwards.</p>
-    ${btn("View My Wallet", walletUrl, "#059669")}
+    ${statusChip("Wallet Balance Updated", "#059669")}
+    <p style="margin:16px 0 0;font-size:14px;color:#475569;">Your updated balance is available immediately for purchases or further transfers on your account.</p>
+    ${btn("View My Account", walletUrl, "#059669")}
     <div style="margin-top:32px;padding-top:20px;border-top:1px solid #f1f5f9;">
-      <p style="margin:0;font-size:14px;color:#475569;">Regards,<br><strong style="color:#0f172a;">GSM World Team</strong></p>
+      <p style="margin:0;font-size:13px;color:#94a3b8;">This is an automated account activity notification from GSM World. If you did not expect this credit, please contact our support team.</p>
+      <p style="margin:12px 0 0;font-size:14px;color:#475569;">Regards,<br><strong style="color:#0f172a;">GSM World Team</strong></p>
     </div>
   `;
 
   return {
-    subject: `You Received $${params.amount.toFixed(2)} from @${params.senderUsername} — GSM World`,
-    text: `Hi ${name},\n\n@${params.senderUsername} has sent you $${params.amount.toFixed(2)} to your GSM World wallet.\n\nDate: ${receivedAt}${params.newBalance != null ? `\nNew balance: $${params.newBalance.toFixed(2)}` : ""}\n\nYour funds are ready to use.\n\nView your wallet: ${walletUrl}\n\n— GSM World Team`,
-    html: layout(`You received $${params.amount.toFixed(2)} from @${params.senderUsername} — funds are in your wallet.`, "#059669", h, body),
+    subject: `GSM World: Wallet credit of $${params.amount.toFixed(2)} applied to your account`,
+    text: `Dear ${name},\n\nYour GSM World wallet has been credited.\n\nCredited By: @${params.senderUsername}\nAmount: $${params.amount.toFixed(2)} USD\nDate: ${receivedAt}${params.newBalance != null ? `\nUpdated Balance: $${params.newBalance.toFixed(2)} USD` : ""}\n\nThis credit is available immediately on your account.\n\nView your account: ${walletUrl}\n\nIf you did not expect this credit, contact our support team.\n\n— GSM World Team`,
+    html: layout(`Your GSM World wallet has been credited with $${params.amount.toFixed(2)} USD by @${params.senderUsername}.`, "#059669", h, body),
   };
 }
 

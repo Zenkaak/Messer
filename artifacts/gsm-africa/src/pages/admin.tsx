@@ -4284,30 +4284,15 @@ export function AdminPage() {
     // Immediately report current state on mount
     notifyBridge(el.scrollTop > 0);
 
-    // Touch handler: call preventDefault on touchmove ONLY inside the Android
-    // WebView (where AdminScrollBridge is injected by MainActivity.java).
-    // In a normal browser, calling preventDefault on touchmove cancels the
-    // entire scroll gesture — that is why the page freezes after one scroll.
-    // We check for AdminScrollBridge first; if it is absent we are in a
-    // browser and we do nothing, letting the browser handle scroll natively.
-    const w = window as unknown as { AdminScrollBridge?: { setScrolled: (v: boolean) => void } };
-    let startY = 0;
-    const onStart = (e: TouchEvent) => { startY = e.touches[0]?.clientY ?? 0; };
-    const onMove = (e: TouchEvent) => {
-      if (!w.AdminScrollBridge) return; // browser — never block native scroll
-      const currentY = e.touches[0]?.clientY ?? 0;
-      const dragDown = currentY > startY;
-      if (el.scrollTop > 0 && dragDown) {
-        e.preventDefault();
-      }
-    };
-    el.addEventListener("touchstart", onStart, { passive: true });
-    el.addEventListener("touchmove", onMove, { passive: false });
+    // NOTE: We intentionally do NOT call e.preventDefault() on touchmove.
+    // The AdminScrollBridge.setScrolled() flag (set above via onScroll) is
+    // sufficient for the Android app's setOnChildScrollUpCallback to block
+    // SwipeRefreshLayout pull-to-refresh when the user is scrolled down.
+    // Any touchmove preventDefault() call — even gated on AdminScrollBridge —
+    // cancels the browser's native scroll gesture and locks the page.
 
     return () => {
       el.removeEventListener("scroll", onScroll);
-      el.removeEventListener("touchstart", onStart);
-      el.removeEventListener("touchmove", onMove);
       notifyBridge(false);
     };
   }, [authed]);
