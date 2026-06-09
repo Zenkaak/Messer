@@ -4,7 +4,6 @@ import { db, ordersTable, orderItemsTable, orderMessagesTable, usersTable, notif
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 import jwt from "jsonwebtoken";
-import { timingSafeEqual } from "crypto";
 import {
   sendEmail,
   orderCompletedEmail,
@@ -13,7 +12,7 @@ import {
   moreInfoNeededEmail,
   orderSubmittedEmail,
 } from "../lib/email";
-import { getAdminPassword, getBinancePayId, getUsdtManualAddress, getUsdtManualNetwork } from "../lib/admin-settings";
+import { checkAdminPassword, getBinancePayId, getUsdtManualAddress, getUsdtManualNetwork } from "../lib/admin-settings";
 import { initiateSTKPush } from "../lib/mpesa";
 
 const router: IRouter = Router();
@@ -126,14 +125,14 @@ router.get("/orders/:id/messages", async (req, res) => {
     const orderId = Number(req.params.id);
     const user = getUserFromToken(req.headers.authorization);
     const adminPwd = req.headers["x-admin-password"] as string | undefined;
-    const correctPwd = await getAdminPassword();
+    const isAdmin = adminPwd ? await checkAdminPassword(adminPwd) : false;
 
-    if (!user && adminPwd !== correctPwd) {
+    if (!user && !isAdmin) {
       res.status(401).json({ error: "Unauthorized" });
       return;
     }
 
-    if (user && adminPwd !== correctPwd) {
+    if (user && !isAdmin) {
       const [order] = await db.select({ customerEmail: ordersTable.customerEmail })
         .from(ordersTable).where(eq(ordersTable.id, orderId)).limit(1);
       if (!order || order.customerEmail !== user.email) {
@@ -161,8 +160,7 @@ router.post("/orders/:id/messages", async (req, res) => {
     const orderId = Number(req.params.id);
     const user = getUserFromToken(req.headers.authorization);
     const adminPwd = req.headers["x-admin-password"] as string | undefined;
-    const correctPwd = await getAdminPassword();
-    const isAdmin = adminPwd === correctPwd;
+    const isAdmin = adminPwd ? await checkAdminPassword(adminPwd) : false;
 
     if (!user && !isAdmin) {
       res.status(401).json({ error: "Unauthorized" });
@@ -277,11 +275,7 @@ router.get("/orders", async (req, res) => {
         res.status(400).json({ error: "At least one filter parameter is required (session_id, customerEmail, payment_status, resellerSlug)" });
         return;
       }
-      const expected = await getAdminPassword();
-      const ba = Buffer.from(adminPassword);
-      const bb = Buffer.from(expected);
-      const authed = ba.length === bb.length && timingSafeEqual(ba, bb);
-      if (!authed) {
+      if (!(await checkAdminPassword(adminPassword))) {
         res.status(401).json({ error: "Unauthorized" });
         return;
       }
@@ -388,11 +382,7 @@ router.patch("/orders/:id", async (req, res) => {
     res.status(401).json({ error: "Admin authentication required" });
     return;
   }
-  const expected = await getAdminPassword();
-  const ba = Buffer.from(adminPassword);
-  const bb = Buffer.from(expected);
-  const authed = ba.length === bb.length && timingSafeEqual(ba, bb);
-  if (!authed) {
+  if (!(await checkAdminPassword(adminPassword))) {
     res.status(403).json({ error: "Invalid admin password" });
     return;
   }

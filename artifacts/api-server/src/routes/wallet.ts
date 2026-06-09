@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import jwt from "jsonwebtoken";
 import { db, usersTable, adminSettingsTable, walletTransactionsTable, notificationsTable } from "@workspace/db";
 import { eq, sql, desc } from "drizzle-orm";
-import { getAdminPassword, getUsdtWallet, getUsdtNetwork } from "../lib/admin-settings";
+import { checkAdminPassword, getUsdtWallet, getUsdtNetwork } from "../lib/admin-settings";
 import { logger } from "../lib/logger";
 import { initiateSTKPush } from "../lib/mpesa";
 import { sendEmail, walletTransferSentEmail, walletTransferReceivedEmail } from "../lib/email";
@@ -439,10 +439,7 @@ router.post("/wallet/add-fund/stripe/verify", async (req, res) => {
 
 router.post("/wallet/credit", async (req, res) => {
   const { userId, amount, adminKey } = req.body || {};
-  // Require both that ADMIN_PASSWORD is configured AND the supplied key matches it.
-  // Using getAdminPassword() (DB-backed) so this stays in sync with the admin panel.
-  const expectedKey = await getAdminPassword();
-  if (!expectedKey || !adminKey || adminKey !== expectedKey) {
+  if (!adminKey || !(await checkAdminPassword(String(adminKey)))) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }

@@ -1,7 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and, sql, count, sum, ilike, or, desc } from "drizzle-orm";
 import bcrypt from "bcryptjs";
-import { timingSafeEqual } from "crypto";
 import {
   db,
   adminSettingsTable,
@@ -19,7 +18,8 @@ import {
 } from "@workspace/db";
 import { productsTable, categoriesTable, resellerApplicationsTable, resellerWithdrawalsTable } from "@workspace/db";
 import { z } from "zod";
-import { getAllSettings, updateSettings, getAdminPassword, hasAdminPasswordBeenSet, getOpenAiKey, getOpenAiBaseUrl, getWorkingCascade, setWorkingCascade, getCascadeStatus } from "../lib/admin-settings";
+import { getAllSettings, updateSettings, checkAdminPassword, setAdminPassword, hasAdminPasswordBeenSet, getOpenAiKey, getOpenAiBaseUrl, getWorkingCascade, setWorkingCascade, getCascadeStatus } from "../lib/admin-settings";
+import { checkRateLimit, recordRateLimitAttempt, clearRateLimit } from "../lib/rate-limit";
 import {
   sendEmail,
   otpEmail,
@@ -38,64 +38,17 @@ const router: IRouter = Router();
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
-function safeEqual(a: string, b: string): boolean {
-  try {
-    const ba = Buffer.from(a);
-    const bb = Buffer.from(b);
-    if (ba.length !== bb.length) {
-      // Still run timingSafeEqual against equal-length buffers to avoid
-      // leaking length information via timing, then return false.
-      timingSafeEqual(ba, ba);
-      return false;
-    }
-    return timingSafeEqual(ba, bb);
-  } catch {
-    return false;
-  }
-}
-
 async function checkAdminAuth(req: import("express").Request, res: import("express").Response): Promise<boolean> {
   const pwd = req.headers["x-admin-password"] as string | undefined;
-  const correct = await getAdminPassword();
-  if (!pwd || !safeEqual(pwd, correct)) {
+  if (!pwd || !(await checkAdminPassword(pwd))) {
     res.status(401).json({ error: "Unauthorized" });
     return false;
   }
   return true;
 }
 
-// ─── rate limiter for admin login ─────────────────────────────────────────────
-// In-memory store: IP → { attempts, resetAt }
-const adminLoginAttempts = new Map<string, { attempts: number; resetAt: number }>();
-const ADMIN_LOGIN_MAX_ATTEMPTS = 5;
-const ADMIN_LOGIN_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
-
-function checkAdminLoginRateLimit(ip: string): { blocked: boolean; retryAfterSec?: number } {
-  const now = Date.now();
-  const entry = adminLoginAttempts.get(ip);
-  if (!entry || now >= entry.resetAt) {
-    adminLoginAttempts.set(ip, { attempts: 0, resetAt: now + ADMIN_LOGIN_WINDOW_MS });
-    return { blocked: false };
-  }
-  if (entry.attempts >= ADMIN_LOGIN_MAX_ATTEMPTS) {
-    return { blocked: true, retryAfterSec: Math.ceil((entry.resetAt - now) / 1000) };
-  }
-  return { blocked: false };
-}
-
-function recordAdminLoginAttempt(ip: string) {
-  const now = Date.now();
-  const entry = adminLoginAttempts.get(ip);
-  if (!entry || now >= entry.resetAt) {
-    adminLoginAttempts.set(ip, { attempts: 1, resetAt: now + ADMIN_LOGIN_WINDOW_MS });
-  } else {
-    entry.attempts += 1;
-  }
-}
-
-function clearAdminLoginAttempts(ip: string) {
-  adminLoginAttempts.delete(ip);
-}
+const ADMIN_LOGIN_MAX = 5;
+const ADMIN_LOGIN_WINDOW_MS = 15 * 60 * 1000;
 
 // ─── auth ──────────────────────────────────────────────────────────────────────
 router.post("/admin/login", async (req, res) => {
@@ -104,28 +57,27 @@ router.post("/admin/login", async (req, res) => {
     req.socket?.remoteAddress ||
     "unknown";
 
-  const rateLimit = checkAdminLoginRateLimit(ip);
-  if (rateLimit.blocked) {
-    res.setHeader("Retry-After", String(rateLimit.retryAfterSec));
-    res.status(429).json({
-      error: `Too many login attempts. Please try again in ${Math.ceil((rateLimit.retryAfterSec ?? 900) / 60)} minute(s).`,
-    });
-    return;
-  }
-
   try {
+    const { blocked, retryAfterSec } = await checkRateLimit(`rl:admin_login:${ip}`, ADMIN_LOGIN_MAX, ADMIN_LOGIN_WINDOW_MS);
+    if (blocked) {
+      res.setHeader("Retry-After", String(retryAfterSec));
+      res.status(429).json({
+        error: `Too many login attempts. Please try again in ${Math.ceil((retryAfterSec ?? 900) / 60)} minute(s).`,
+      });
+      return;
+    }
+
     const { password } = req.body ?? {};
     if (!password) {
       res.status(400).json({ error: "Password required" });
       return;
     }
-    const correct = await getAdminPassword();
-    if (!safeEqual(String(password), correct)) {
-      recordAdminLoginAttempt(ip);
+    if (!(await checkAdminPassword(String(password)))) {
+      await recordRateLimitAttempt(`rl:admin_login:${ip}`, ADMIN_LOGIN_WINDOW_MS);
       res.status(401).json({ error: "Invalid password" });
       return;
     }
-    clearAdminLoginAttempts(ip);
+    await clearRateLimit(`rl:admin_login:${ip}`);
     const isDefaultPassword = !(await hasAdminPasswordBeenSet());
     res.json({ ok: true, isDefaultPassword });
   } catch (err) {
@@ -142,13 +94,7 @@ router.post("/admin/change-password", async (req, res) => {
       res.status(400).json({ error: "New password must be at least 6 characters" });
       return;
     }
-    await db
-      .insert(adminSettingsTable)
-      .values({ key: "admin_password", value: String(newPassword) })
-      .onConflictDoUpdate({
-        target: adminSettingsTable.key,
-        set: { value: String(newPassword), updatedAt: new Date() },
-      });
+    await setAdminPassword(String(newPassword));
     res.json({ success: true });
   } catch (err) {
     req.log.error({ err }, "Admin change-password error");

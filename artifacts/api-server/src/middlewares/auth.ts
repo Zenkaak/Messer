@@ -1,7 +1,6 @@
 import { type Request, type Response, type NextFunction } from "express";
 import jwt from "jsonwebtoken";
-import { timingSafeEqual } from "crypto";
-import { getAdminPassword } from "../lib/admin-settings";
+import { checkAdminPassword } from "../lib/admin-settings";
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
@@ -37,20 +36,6 @@ export function requireJwt(req: Request, res: Response, next: NextFunction) {
   }
 }
 
-function safeEqual(a: string, b: string): boolean {
-  try {
-    const ba = Buffer.from(a);
-    const bb = Buffer.from(b);
-    if (ba.length !== bb.length) {
-      timingSafeEqual(ba, ba);
-      return false;
-    }
-    return timingSafeEqual(ba, bb);
-  } catch {
-    return false;
-  }
-}
-
 export async function requireAdmin(req: Request, res: Response, next: NextFunction) {
   const adminPassword =
     (req.headers["x-admin-password"] as string | undefined) ||
@@ -61,13 +46,12 @@ export async function requireAdmin(req: Request, res: Response, next: NextFuncti
     return;
   }
   try {
-    const expected = await getAdminPassword();
-    if (!safeEqual(adminPassword, expected)) {
+    if (!(await checkAdminPassword(adminPassword))) {
       res.status(403).json({ error: "Invalid admin password" });
       return;
     }
     next();
-  } catch (err) {
+  } catch {
     res.status(500).json({ error: "Internal server error" });
   }
 }

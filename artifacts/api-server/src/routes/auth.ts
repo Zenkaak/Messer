@@ -5,6 +5,7 @@ import { db, usersTable, adminSettingsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { getGoogleCredentials } from "../lib/admin-settings";
+import { checkRateLimit, recordRateLimitAttempt, clearRateLimit } from "../lib/rate-limit";
 import { sendEmail, otpEmail } from "../lib/email";
 
 const router: IRouter = Router();
@@ -44,38 +45,12 @@ async function deleteOtp(key: string) {
 const OTP_MAX_ATTEMPTS = 10;
 const OTP_LOCK_MS = 15 * 60 * 1000; // 15 minutes
 
-// ─── In-memory rate limiter for password login ────────────────────────────────
-// Per-IP: 10 attempts per 15 minutes before lockout.
-const loginAttempts = new Map<string, { attempts: number; resetAt: number }>();
 const LOGIN_MAX_ATTEMPTS = 10;
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
-
-function checkLoginRateLimit(ip: string): { blocked: boolean; retryAfterSec?: number } {
-  const now = Date.now();
-  const entry = loginAttempts.get(ip);
-  if (!entry || now >= entry.resetAt) {
-    loginAttempts.set(ip, { attempts: 0, resetAt: now + LOGIN_WINDOW_MS });
-    return { blocked: false };
-  }
-  if (entry.attempts >= LOGIN_MAX_ATTEMPTS) {
-    return { blocked: true, retryAfterSec: Math.ceil((entry.resetAt - now) / 1000) };
-  }
-  return { blocked: false };
-}
-
-function recordLoginAttempt(ip: string) {
-  const now = Date.now();
-  const entry = loginAttempts.get(ip);
-  if (!entry || now >= entry.resetAt) {
-    loginAttempts.set(ip, { attempts: 1, resetAt: now + LOGIN_WINDOW_MS });
-  } else {
-    entry.attempts += 1;
-  }
-}
-
-function clearLoginAttempts(ip: string) {
-  loginAttempts.delete(ip);
-}
+const OTP_SEND_MAX = 5;
+const OTP_SEND_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+const REGISTER_MAX = 10;
+const REGISTER_WINDOW_MS = 60 * 60 * 1000; // 1 hour
 
 async function recordOtpAttempt(email: string): Promise<{ locked: boolean; attemptsLeft: number }> {
   const key = `otp_attempts:${email.toLowerCase()}`;
@@ -125,7 +100,17 @@ function getAppOrigin(req: import("express").Request): string {
 }
 
 router.post("/auth/register", async (req, res) => {
+  const ip =
+    (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ||
+    req.socket?.remoteAddress ||
+    "unknown";
   try {
+    const { blocked, retryAfterSec } = await checkRateLimit(`rl:register:${ip}`, REGISTER_MAX, REGISTER_WINDOW_MS);
+    if (blocked) {
+      res.setHeader("Retry-After", String(retryAfterSec));
+      res.status(429).json({ error: `Too many registration attempts. Try again in ${Math.ceil((retryAfterSec ?? 3600) / 60)} minute(s).` });
+      return;
+    }
     const { email, password, name } = req.body || {};
     if (!email || typeof email !== "string" || !password || typeof password !== "string") {
       res.status(400).json({ error: "Email and password are required" });
@@ -203,20 +188,20 @@ router.post("/auth/login", async (req, res) => {
     (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ||
     req.socket?.remoteAddress ||
     "unknown";
-  const rateLimit = checkLoginRateLimit(ip);
-  if (rateLimit.blocked) {
-    res.setHeader("Retry-After", String(rateLimit.retryAfterSec));
-    res.status(429).json({
-      error: `Too many login attempts. Please try again in ${Math.ceil((rateLimit.retryAfterSec ?? 900) / 60)} minute(s).`,
-    });
-    return;
-  }
   try {
+    const { blocked, retryAfterSec } = await checkRateLimit(`rl:login:${ip}`, LOGIN_MAX_ATTEMPTS, LOGIN_WINDOW_MS);
+    if (blocked) {
+      res.setHeader("Retry-After", String(retryAfterSec));
+      res.status(429).json({
+        error: `Too many login attempts. Please try again in ${Math.ceil((retryAfterSec ?? 900) / 60)} minute(s).`,
+      });
+      return;
+    }
     const { email, password } = req.body || {};
     if (!email || !password) { res.status(400).json({ error: "Email and password are required" }); return; }
     const rows = await db.select().from(usersTable).where(eq(usersTable.email, email.toLowerCase())).limit(1);
     if (rows.length === 0) {
-      recordLoginAttempt(ip);
+      await recordRateLimitAttempt(`rl:login:${ip}`, LOGIN_WINDOW_MS);
       res.status(401).json({ error: "Invalid email or password" });
       return;
     }
@@ -227,11 +212,11 @@ router.post("/auth/login", async (req, res) => {
     }
     const valid = await bcrypt.compare(password, user.passwordHash);
     if (!valid) {
-      recordLoginAttempt(ip);
+      await recordRateLimitAttempt(`rl:login:${ip}`, LOGIN_WINDOW_MS);
       res.status(401).json({ error: "Invalid email or password" });
       return;
     }
-    clearLoginAttempts(ip);
+    await clearRateLimit(`rl:login:${ip}`);
     const token = makeToken(user.id, user.email);
     res.json({ token, user: { id: user.id, email: user.email, name: user.name } });
   } catch (err) {
@@ -304,7 +289,18 @@ router.patch("/auth/me", async (req, res) => {
 
 // Resend signup OTP (uses the same key as registration — NOT the login: prefix)
 router.post("/auth/resend-signup-otp", async (req, res) => {
+  const ip =
+    (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ||
+    req.socket?.remoteAddress ||
+    "unknown";
   try {
+    const { blocked, retryAfterSec } = await checkRateLimit(`rl:otp_send:${ip}`, OTP_SEND_MAX, OTP_SEND_WINDOW_MS);
+    if (blocked) {
+      res.setHeader("Retry-After", String(retryAfterSec));
+      res.status(429).json({ error: `Too many OTP requests. Try again in ${Math.ceil((retryAfterSec ?? 3600) / 60)} minute(s).` });
+      return;
+    }
+    await recordRateLimitAttempt(`rl:otp_send:${ip}`, OTP_SEND_WINDOW_MS);
     const { email } = req.body || {};
     if (!email || typeof email !== "string") { res.status(400).json({ error: "Email is required" }); return; }
     const otp = String(Math.floor(100000 + Math.random() * 900000));
@@ -323,7 +319,18 @@ router.post("/auth/resend-signup-otp", async (req, res) => {
 });
 
 router.post("/auth/otp-login/send", async (req, res) => {
+  const ip =
+    (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ||
+    req.socket?.remoteAddress ||
+    "unknown";
   try {
+    const { blocked, retryAfterSec } = await checkRateLimit(`rl:otp_send:${ip}`, OTP_SEND_MAX, OTP_SEND_WINDOW_MS);
+    if (blocked) {
+      res.setHeader("Retry-After", String(retryAfterSec));
+      res.status(429).json({ error: `Too many OTP requests. Try again in ${Math.ceil((retryAfterSec ?? 3600) / 60)} minute(s).` });
+      return;
+    }
+    await recordRateLimitAttempt(`rl:otp_send:${ip}`, OTP_SEND_WINDOW_MS);
     const { email } = req.body || {};
     if (!email || typeof email !== "string") { res.status(400).json({ error: "Email is required" }); return; }
     const rows = await db

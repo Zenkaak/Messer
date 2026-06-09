@@ -121,6 +121,17 @@ router.post("/uploads", async (req, res) => {
 router.get("/uploads/:filename", (req, res) => {
   const filename = req.params.filename.replace(/[^a-zA-Z0-9._-]/g, "");
   const filePath = path.join(UPLOAD_DIR, filename);
+
+  // Prevent path traversal: verify the resolved path stays inside UPLOAD_DIR.
+  // The regex above allows "." so ".." survives sanitisation; path.resolve
+  // would then escape UPLOAD_DIR, so we must check explicitly.
+  const resolvedDir = path.resolve(UPLOAD_DIR);
+  const resolvedFile = path.resolve(filePath);
+  if (!resolvedFile.startsWith(resolvedDir + path.sep) && resolvedFile !== resolvedDir) {
+    res.status(400).json({ error: "Invalid filename" });
+    return;
+  }
+
   if (!fs.existsSync(filePath)) {
     res.status(404).json({ error: "Not found" });
     return;

@@ -26,9 +26,8 @@ function slugify(str: string): string {
 // ─── Admin password helper ─────────────────────────────────────────────────────
 async function checkAdminPwd(pwd: string | undefined): Promise<boolean> {
   if (!pwd) return false;
-  const { getAdminPassword } = await import("../lib/admin-settings");
-  const correct = await getAdminPassword();
-  return pwd === correct;
+  const { checkAdminPassword } = await import("../lib/admin-settings");
+  return checkAdminPassword(pwd);
 }
 
 // ─── GET /api/reseller/status ─ get current user's application ─────────────

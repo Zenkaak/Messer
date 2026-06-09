@@ -1,5 +1,6 @@
 import { db, adminSettingsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import bcrypt from "bcryptjs";
 
 // ── In-memory cache for admin settings (60s TTL) ────────────────────────────
 const _settingsCache = new Map<string, { value: string | null; ts: number }>();
@@ -224,12 +225,13 @@ export async function getAdminPassword(): Promise<string> {
 }
 
 export async function setAdminPassword(newPassword: string): Promise<void> {
+  const hash = await bcrypt.hash(newPassword, 12);
   await db
     .insert(adminSettingsTable)
-    .values({ key: "admin_password", value: newPassword })
+    .values({ key: "admin_password", value: hash })
     .onConflictDoUpdate({
       target: adminSettingsTable.key,
-      set: { value: newPassword, updatedAt: new Date() },
+      set: { value: hash, updatedAt: new Date() },
     });
 }
 
@@ -240,6 +242,21 @@ export async function hasAdminPasswordBeenSet(): Promise<boolean> {
     .where(eq(adminSettingsTable.key, "admin_password"))
     .limit(1);
   return Boolean(rows[0]?.value);
+}
+
+export async function checkAdminPassword(input: string): Promise<boolean> {
+  if (!input) return false;
+  const stored = await getAdminPassword();
+  if (!stored) return false;
+  if (stored.startsWith("$2")) {
+    return bcrypt.compare(input, stored);
+  }
+  // Legacy plaintext — compare then transparently re-hash (one-time migration)
+  if (input === stored) {
+    setAdminPassword(input).catch(() => null);
+    return true;
+  }
+  return false;
 }
 
 export async function getMpesaCredentials() {

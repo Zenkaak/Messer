@@ -21,7 +21,7 @@ import {
   getOtsConfig,
   getOpenAiBaseUrl,
   getPaymentMethods,
-  getAdminPassword,
+  checkAdminPassword,
   getWhatsappContact,
   getUsdtWallet,
   getUsdtNetwork,
@@ -3010,8 +3010,7 @@ router.post("/chat/live/session", async (req, res) => {
 router.get("/chat/live/stats", async (req, res) => {
   try {
     const adminPwd = req.headers["x-admin-password"] as string | undefined;
-    const correctPwd = await getAdminPassword();
-    if (adminPwd !== correctPwd) { res.status(401).json({ error: "Unauthorized" }); return; }
+    if (!adminPwd || !(await checkAdminPassword(adminPwd))) { res.status(401).json({ error: "Unauthorized" }); return; }
 
     const sessions = await db.select().from(liveChatSessionsTable);
     const waiting = sessions.filter(s => s.status === "waiting").length;
@@ -3028,8 +3027,7 @@ router.get("/chat/live/stats", async (req, res) => {
 router.get("/chat/live", async (req, res) => {
   try {
     const adminPwd = req.headers["x-admin-password"] as string | undefined;
-    const correctPwd = await getAdminPassword();
-    if (adminPwd !== correctPwd) { res.status(401).json({ error: "Unauthorized" }); return; }
+    if (!adminPwd || !(await checkAdminPassword(adminPwd))) { res.status(401).json({ error: "Unauthorized" }); return; }
 
     const statusFilter = req.query.status ? String(req.query.status).split(",") : ["waiting", "active"];
     const sessions = await db.select().from(liveChatSessionsTable).orderBy(desc(liveChatSessionsTable.updatedAt));
@@ -3045,8 +3043,7 @@ router.get("/chat/live/:sessionId/messages", async (req, res) => {
     const sessionId = Number(req.params.sessionId);
     const visitorId = req.query.visitorId ? String(req.query.visitorId) : null;
     const adminPwd = req.headers["x-admin-password"] as string | undefined;
-    const correctPwd = await getAdminPassword();
-    const isAdmin = adminPwd === correctPwd;
+    const isAdmin = adminPwd ? await checkAdminPassword(adminPwd) : false;
 
     if (!isAdmin) {
       if (!visitorId) { res.status(401).json({ error: "Unauthorized" }); return; }
@@ -3094,8 +3091,7 @@ router.post("/chat/live/:sessionId/messages", async (req, res) => {
     const sessionId = Number(req.params.sessionId);
     const visitorId = req.query.visitorId ? String(req.query.visitorId) : null;
     const adminPwd = req.headers["x-admin-password"] as string | undefined;
-    const correctPwd = await getAdminPassword();
-    const isAdmin = adminPwd === correctPwd;
+    const isAdmin = adminPwd ? await checkAdminPassword(adminPwd) : false;
 
     const [session] = await db.select().from(liveChatSessionsTable)
       .where(eq(liveChatSessionsTable.id, sessionId)).limit(1);
@@ -3172,8 +3168,7 @@ router.patch("/chat/live/:sessionId", async (req, res) => {
     const sessionId = Number(req.params.sessionId);
     const visitorId = req.query.visitorId ? String(req.query.visitorId) : null;
     const adminPwd = req.headers["x-admin-password"] as string | undefined;
-    const correctPwd = await getAdminPassword();
-    const isAdmin = adminPwd === correctPwd;
+    const isAdmin = adminPwd ? await checkAdminPassword(adminPwd) : false;
 
     const [session] = await db.select().from(liveChatSessionsTable)
       .where(eq(liveChatSessionsTable.id, sessionId)).limit(1);

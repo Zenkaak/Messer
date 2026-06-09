@@ -253,11 +253,9 @@ router.get("/download/admin-apk-version", async (_req, res) => {
 router.get("/download/admin-apk", async (req, res) => {
   const ua = req.headers["user-agent"] ?? "";
   const adminPwd = req.headers["x-admin-password"];
-  const { getAdminPassword } = await import("../lib/admin-settings");
-  const correctPwd = await getAdminPassword();
-
+  const { checkAdminPassword } = await import("../lib/admin-settings");
   const isAdminApp = ua.includes("GSMAdminApp");
-  const hasValidAdminPwd = adminPwd && adminPwd === correctPwd;
+  const hasValidAdminPwd = adminPwd ? await checkAdminPassword(String(adminPwd)) : false;
 
   // Require admin password regardless of UA — UA can be trivially spoofed
   if (!hasValidAdminPwd && !isAdminApp) {
