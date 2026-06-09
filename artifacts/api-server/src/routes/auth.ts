@@ -41,6 +41,39 @@ async function deleteOtp(key: string) {
   await db.delete(adminSettingsTable).where(eq(adminSettingsTable.key, `otp:${key}`));
 }
 
+const OTP_MAX_ATTEMPTS = 10;
+const OTP_LOCK_MS = 15 * 60 * 1000; // 15 minutes
+
+async function recordOtpAttempt(email: string): Promise<{ locked: boolean; attemptsLeft: number }> {
+  const key = `otp_attempts:${email.toLowerCase()}`;
+  const rows = await db.select({ value: adminSettingsTable.value })
+    .from(adminSettingsTable).where(eq(adminSettingsTable.key, key)).limit(1);
+  let count = 0;
+  let lockedUntil = 0;
+  if (rows.length && rows[0].value) {
+    try {
+      const parsed = JSON.parse(rows[0].value) as { count: number; lockedUntil?: number };
+      count = parsed.count ?? 0;
+      lockedUntil = parsed.lockedUntil ?? 0;
+    } catch { /* ignore corrupt entry */ }
+  }
+  if (lockedUntil && Date.now() < lockedUntil) {
+    return { locked: true, attemptsLeft: 0 };
+  }
+  count += 1;
+  const newLockedUntil = count >= OTP_MAX_ATTEMPTS ? Date.now() + OTP_LOCK_MS : 0;
+  const val = JSON.stringify({ count, lockedUntil: newLockedUntil });
+  await db.insert(adminSettingsTable).values({ key, value: val })
+    .onConflictDoUpdate({ target: adminSettingsTable.key, set: { value: val, updatedAt: new Date() } });
+  if (newLockedUntil) return { locked: true, attemptsLeft: 0 };
+  return { locked: false, attemptsLeft: Math.max(0, OTP_MAX_ATTEMPTS - count) };
+}
+
+async function clearOtpAttempts(email: string) {
+  const key = `otp_attempts:${email.toLowerCase()}`;
+  await db.delete(adminSettingsTable).where(eq(adminSettingsTable.key, key));
+}
+
 function makeToken(userId: number, email: string) {
   return jwt.sign({ userId, email }, _jwtSecret, { expiresIn: "30d" });
 }
@@ -111,14 +144,20 @@ router.post("/auth/verify-otp", async (req, res) => {
   try {
     const { email, code } = req.body || {};
     if (!email || !code) { res.status(400).json({ error: "Email and code are required" }); return; }
+    const attempt = await recordOtpAttempt(email);
+    if (attempt.locked) { res.status(429).json({ error: "Too many incorrect attempts. Please wait 15 minutes before trying again." }); return; }
     const entry = await getOtp(email.toLowerCase());
-    if (!entry || entry.code !== String(code)) { res.status(400).json({ error: "Invalid or expired code" }); return; }
+    if (!entry || entry.code !== String(code)) {
+      res.status(400).json({ error: `Invalid or expired code.${attempt.attemptsLeft > 0 ? ` ${attempt.attemptsLeft} attempt(s) remaining.` : ""}` });
+      return;
+    }
     if (Date.now() > entry.expiresAt) {
       await deleteOtp(email.toLowerCase());
       res.status(400).json({ error: "Code has expired. Please request a new one." });
       return;
     }
     await deleteOtp(email.toLowerCase());
+    await clearOtpAttempts(email);
     res.json({ success: true });
   } catch (err) {
     req.log.error({ err }, "OTP verification failed");
@@ -260,15 +299,21 @@ router.post("/auth/otp-login/verify", async (req, res) => {
   try {
     const { email, code } = req.body || {};
     if (!email || !code) { res.status(400).json({ error: "Email and code are required" }); return; }
+    const attempt = await recordOtpAttempt(`login:${email}`);
+    if (attempt.locked) { res.status(429).json({ error: "Too many incorrect attempts. Please wait 15 minutes before trying again." }); return; }
     const key = `login:${email.toLowerCase()}`;
     const entry = await getOtp(key);
-    if (!entry || entry.code !== String(code)) { res.status(400).json({ error: "Invalid or expired code" }); return; }
+    if (!entry || entry.code !== String(code)) {
+      res.status(400).json({ error: `Invalid or expired code.${attempt.attemptsLeft > 0 ? ` ${attempt.attemptsLeft} attempt(s) remaining.` : ""}` });
+      return;
+    }
     if (Date.now() > entry.expiresAt) {
       await deleteOtp(key);
       res.status(400).json({ error: "Code has expired. Please request a new one." });
       return;
     }
     await deleteOtp(key);
+    await clearOtpAttempts(`login:${email}`);
     const rows = await db
       .select({ id: usersTable.id, email: usersTable.email, name: usersTable.name, status: usersTable.status })
       .from(usersTable).where(eq(usersTable.email, email.toLowerCase())).limit(1);
@@ -314,11 +359,17 @@ router.post("/auth/password-reset/reset", async (req, res) => {
     const { email, code, newPassword } = req.body || {};
     if (!email || !code || !newPassword) { res.status(400).json({ error: "Email, code, and new password are required" }); return; }
     if (typeof newPassword !== "string" || newPassword.length < 6) { res.status(400).json({ error: "Password must be at least 6 characters" }); return; }
+    const attempt = await recordOtpAttempt(`reset:${email}`);
+    if (attempt.locked) { res.status(429).json({ error: "Too many incorrect attempts. Please wait 15 minutes before trying again." }); return; }
     const key = `reset:${email.toLowerCase()}`;
     const entry = await getOtp(key);
-    if (!entry || entry.code !== String(code)) { res.status(400).json({ error: "Invalid or expired code" }); return; }
+    if (!entry || entry.code !== String(code)) {
+      res.status(400).json({ error: `Invalid or expired code.${attempt.attemptsLeft > 0 ? ` ${attempt.attemptsLeft} attempt(s) remaining.` : ""}` });
+      return;
+    }
     if (Date.now() > entry.expiresAt) { await deleteOtp(key); res.status(400).json({ error: "Code has expired. Request a new one." }); return; }
     await deleteOtp(key);
+    await clearOtpAttempts(`reset:${email}`);
     const hash = await bcrypt.hash(newPassword, 10);
     await db.update(usersTable).set({ passwordHash: hash }).where(eq(usersTable.email, email.toLowerCase()));
     res.json({ success: true });

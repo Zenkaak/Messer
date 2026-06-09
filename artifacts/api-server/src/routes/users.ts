@@ -2,10 +2,13 @@ import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
 import { db, usersTable, insertUserSchema } from "@workspace/db";
 import { z } from "zod";
+import { requireAdmin } from "../middlewares/auth";
 
 const router: IRouter = Router();
 
-router.get("/users", async (req, res) => {
+// All /users routes are admin-only — protect every endpoint with requireAdmin.
+
+router.get("/users", requireAdmin, async (req, res) => {
   try {
     const users = await db
       .select({
@@ -24,7 +27,7 @@ router.get("/users", async (req, res) => {
   }
 });
 
-router.post("/users", async (req, res) => {
+router.post("/users", requireAdmin, async (req, res) => {
   try {
     const parsed = insertUserSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -49,7 +52,7 @@ router.post("/users", async (req, res) => {
   }
 });
 
-router.get("/users/:id", async (req, res) => {
+router.get("/users/:id", requireAdmin, async (req, res) => {
   try {
     const id = Number(req.params.id);
     const [user] = await db
@@ -74,7 +77,7 @@ router.get("/users/:id", async (req, res) => {
   }
 });
 
-router.patch("/users/:id", async (req, res) => {
+router.patch("/users/:id", requireAdmin, async (req, res) => {
   try {
     const id = Number(req.params.id);
     const parsed = z

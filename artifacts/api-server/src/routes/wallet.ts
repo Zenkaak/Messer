@@ -2,9 +2,9 @@ import { Router, type IRouter } from "express";
 import jwt from "jsonwebtoken";
 import { db, usersTable, adminSettingsTable, walletTransactionsTable, notificationsTable } from "@workspace/db";
 import { eq, sql, desc } from "drizzle-orm";
+import { getAdminPassword, getUsdtWallet, getUsdtNetwork } from "../lib/admin-settings";
 import { logger } from "../lib/logger";
 import { initiateSTKPush } from "../lib/mpesa";
-import { getUsdtWallet, getUsdtNetwork } from "../lib/admin-settings";
 import { sendEmail, walletTransferSentEmail, walletTransferReceivedEmail } from "../lib/email";
 import {
   createPayment,
@@ -203,21 +203,39 @@ router.post("/wallet/add-fund/nowpayments/status", async (req, res) => {
         void logWalletTxn(pending.userId, "topup", pending.amountUsd, 0, null, "Crypto top-up");
         sendEmail({ to: pending.email, subject: "Wallet top-up confirmed", text: `Your wallet has been credited with $${pending.amountUsd.toFixed(2)} via crypto. Thank you!` }).catch(() => null);
       } else {
-        // In-memory Map lost on server restart — recover using order_id pattern and price_amount from NOWPayments
-        const priceAmount = status.price_amount ?? (bodyAmountUsd ? Number(bodyAmountUsd) : 0);
-        if (priceAmount > 0) {
-          const orderId = (status as { order_id?: string }).order_id ?? "";
-          let targetUserId = payload.userId;
-          if (orderId.startsWith("wallet-")) {
-            const parts = orderId.split("-");
-            const parsedId = parseInt(parts[1] ?? "0", 10);
-            if (parsedId) targetUserId = parsedId;
+        // In-memory Map lost on server restart — recover using order_id pattern and price_amount from NOWPayments.
+        // Guard against double-credit: if this paymentId was already processed (by IPN or a prior status poll)
+        // the dedup key will already exist in adminSettings and we skip the credit.
+        const dedupKey = `np_wallet:${String(paymentId)}`;
+        const already = await db.select({ value: adminSettingsTable.value })
+          .from(adminSettingsTable).where(eq(adminSettingsTable.key, dedupKey)).limit(1);
+        if (already.length === 0) {
+          const priceAmount = status.price_amount ?? (bodyAmountUsd ? Number(bodyAmountUsd) : 0);
+          if (priceAmount > 0) {
+            const orderId = (status as { order_id?: string }).order_id ?? "";
+            let targetUserId = payload.userId;
+            if (orderId.startsWith("wallet-")) {
+              const parts = orderId.split("-");
+              const parsedId = parseInt(parts[1] ?? "0", 10);
+              if (parsedId) targetUserId = parsedId;
+            }
+            // Only credit if the authenticated user owns this payment (order belongs to them).
+            if (targetUserId !== payload.userId) {
+              logger.warn({ requestingUserId: payload.userId, targetUserId, paymentId }, "NOWPayments recovery: userId mismatch — skipping credit");
+            } else {
+              const rows = await db.select({ walletBalance: usersTable.walletBalance }).from(usersTable).where(eq(usersTable.id, targetUserId)).limit(1);
+              if (rows.length) {
+                await db.insert(adminSettingsTable)
+                  .values({ key: dedupKey, value: "1" })
+                  .onConflictDoUpdate({ target: adminSettingsTable.key, set: { value: "1", updatedAt: new Date() } });
+                await db.update(usersTable).set({ walletBalance: sql`wallet_balance + ${priceAmount.toFixed(2)}` }).where(eq(usersTable.id, targetUserId));
+                logger.info({ userId: targetUserId, priceAmount, paymentId }, "Wallet credited via NOWPayments status check (recovery)");
+                void logWalletTxn(targetUserId, "topup", priceAmount, 0, null, "Crypto top-up (recovery)");
+              }
+            }
           }
-          const rows = await db.select({ walletBalance: usersTable.walletBalance }).from(usersTable).where(eq(usersTable.id, targetUserId)).limit(1);
-          if (rows.length) {
-            await db.update(usersTable).set({ walletBalance: sql`wallet_balance + ${priceAmount.toFixed(2)}` }).where(eq(usersTable.id, targetUserId));
-            logger.info({ userId: targetUserId, priceAmount, paymentId }, "Wallet credited via NOWPayments status check (recovery)");
-          }
+        } else {
+          logger.info({ paymentId }, "NOWPayments status check: payment already processed, skipping duplicate credit");
         }
       }
       res.json({ status: "paid", paymentStatus: status.payment_status });
@@ -415,7 +433,13 @@ router.post("/wallet/add-fund/stripe/verify", async (req, res) => {
 
 router.post("/wallet/credit", async (req, res) => {
   const { userId, amount, adminKey } = req.body || {};
-  if (adminKey !== process.env.ADMIN_PASSWORD) { res.status(403).json({ error: "Forbidden" }); return; }
+  // Require both that ADMIN_PASSWORD is configured AND the supplied key matches it.
+  // Using getAdminPassword() (DB-backed) so this stays in sync with the admin panel.
+  const expectedKey = await getAdminPassword();
+  if (!expectedKey || !adminKey || adminKey !== expectedKey) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
   if (!userId || !amount || isNaN(Number(amount))) { res.status(400).json({ error: "userId and amount required" }); return; }
   await db.update(usersTable).set({ walletBalance: sql`wallet_balance + ${Number(amount).toFixed(2)}` }).where(eq(usersTable.id, Number(userId)));
   void logWalletTxn(Number(userId), "credit", Number(amount), 0, null, "Admin credit");

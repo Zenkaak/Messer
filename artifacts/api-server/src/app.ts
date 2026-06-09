@@ -32,7 +32,19 @@ app.use(
   }),
 );
 app.use(cors({
-  origin: true,
+  origin: (origin, callback) => {
+    // Allow server-to-server / mobile-app requests with no Origin header
+    if (!origin) { callback(null, true); return; }
+    // Allow localhost in development
+    if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) { callback(null, true); return; }
+    // Allow any Vercel, Replit, or Neon preview domain
+    if (/\.(vercel\.app|replit\.app|replit\.dev|repl\.co)$/.test(origin)) { callback(null, true); return; }
+    // Allow explicitly configured production domain(s) from REPLIT_DOMAINS
+    const allowed = (process.env.REPLIT_DOMAINS ?? "").split(",").map(d => d.trim()).filter(Boolean);
+    if (allowed.some(d => origin === `https://${d}` || origin === `http://${d}`)) { callback(null, true); return; }
+    // Reject everything else
+    callback(new Error("CORS not allowed"), false);
+  },
   credentials: true,
 }));
 app.use(express.json());
