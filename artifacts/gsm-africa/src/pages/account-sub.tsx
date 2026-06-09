@@ -9,6 +9,7 @@ import { QRCodeSVG } from "qrcode.react";
 
 const PAGES: Record<string, { title: string; icon: React.ReactNode }> = {
   dashboard:       { title: "Dashboard",        icon: <BarChart2 size={20} /> },
+  wallet:          { title: "My Wallet",         icon: <Wallet size={20} /> },
   orders:          { title: "My Orders",         icon: <ShoppingBag size={20} /> },
   "bulk-order":    { title: "Bulk Order",        icon: <ShoppingCart size={20} /> },
   "express-order": { title: "Express Order",     icon: <Zap size={20} /> },
@@ -64,7 +65,7 @@ export function AccountSubPage() {
       </div>
 
       <div className="flex-1 px-4 py-5 pb-24">
-        {sub === "dashboard" && <DashboardContent user={user} />}
+        {(sub === "dashboard" || sub === "wallet") && <DashboardContent user={user} />}
         {sub === "orders"    && <OrdersContent />}
         {sub === "profile"   && <ProfileContent user={user} />}
         {sub === "security"  && <SecurityContent user={user} />}
