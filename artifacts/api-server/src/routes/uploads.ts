@@ -21,18 +21,21 @@ try {
 }
 
 const MAX_SIZE_MB = 10;
-const ALLOWED_MIME_PREFIXES = ["image/", "application/pdf", "text/plain", "application/zip"];
+const ALLOWED_MIME_PREFIXES = ["image/jpeg", "image/png", "image/gif", "image/webp", "application/pdf", "text/plain", "application/zip"];
+const ALLOWED_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".gif", ".webp", ".pdf", ".txt", ".zip"]);
 
 router.post("/uploads", async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
-    if (authHeader?.startsWith("Bearer ")) {
-      try {
-        jwt.verify(authHeader.slice(7), _jwtSecret);
-      } catch {
-        res.status(401).json({ error: "Invalid token" });
-        return;
-      }
+    if (!authHeader?.startsWith("Bearer ")) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    try {
+      jwt.verify(authHeader.slice(7), _jwtSecret);
+    } catch {
+      res.status(401).json({ error: "Invalid token" });
+      return;
     }
 
     const chunks: Buffer[] = [];
@@ -84,12 +87,14 @@ router.post("/uploads", async (req, res) => {
         const ext = path.extname(origName) || ".bin";
 
         const isAllowed = ALLOWED_MIME_PREFIXES.some(prefix => mime.startsWith(prefix));
-        if (!isAllowed) {
+        const extLower = ext.toLowerCase();
+        if (!isAllowed || !ALLOWED_EXTENSIONS.has(extLower)) {
           res.status(415).json({ error: `File type not allowed: ${mime}` });
           return;
         }
 
-        const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`;
+        const safeExt = extLower;
+        const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}${safeExt}`;
         const filePath = path.join(UPLOAD_DIR, filename);
 
         fs.writeFileSync(filePath, Buffer.from(fileBody, "binary"));

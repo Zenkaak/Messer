@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, desc } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { db, notificationsTable } from "@workspace/db";
 import jwt from "jsonwebtoken";
 
@@ -55,7 +55,7 @@ router.patch("/notifications/:id/read", async (req, res) => {
     await db
       .update(notificationsTable)
       .set({ read: true })
-      .where(eq(notificationsTable.id, id));
+      .where(and(eq(notificationsTable.id, id), eq(notificationsTable.userEmail, user.email)));
     res.json({ ok: true });
   } catch (err) {
     req.log.error({ err }, "Failed to mark read");

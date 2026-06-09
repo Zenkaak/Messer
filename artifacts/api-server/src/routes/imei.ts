@@ -3,6 +3,23 @@ import { db, imeiLookupsTable } from "@workspace/db";
 
 const router: IRouter = Router();
 
+// Simple in-memory rate limiter: 10 lookups per IP per minute
+const _imeiRateMap = new Map<string, { count: number; resetAt: number }>();
+const IMEI_RATE_LIMIT = 10;
+const IMEI_RATE_WINDOW_MS = 60_000;
+
+function imeiRateLimitExceeded(ip: string): boolean {
+  const now = Date.now();
+  const entry = _imeiRateMap.get(ip);
+  if (!entry || now > entry.resetAt) {
+    _imeiRateMap.set(ip, { count: 1, resetAt: now + IMEI_RATE_WINDOW_MS });
+    return false;
+  }
+  entry.count++;
+  if (entry.count > IMEI_RATE_LIMIT) return true;
+  return false;
+}
+
 function luhnCheck(imei: string): boolean {
   if (!/^\d{15}$/.test(imei)) return false;
   let sum = 0;
@@ -163,6 +180,12 @@ async function fetchImeiInfo(imei: string, apiToken: string): Promise<{
 }
 
 router.get("/imei/lookup", async (req, res) => {
+  const clientIp = (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0].trim() ?? req.socket.remoteAddress ?? "unknown";
+  if (imeiRateLimitExceeded(clientIp)) {
+    res.status(429).json({ error: "Too many IMEI lookups. Please wait a minute and try again." });
+    return;
+  }
+
   const imei = typeof req.query.imei === "string" ? req.query.imei.replace(/[\s\-]/g, "") : "";
 
   if (!/^\d{15}$/.test(imei)) {

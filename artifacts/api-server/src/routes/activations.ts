@@ -4,7 +4,7 @@ import { db } from "@workspace/db";
 import {
   toolActivationsTable, usersTable, ordersTable, orderItemsTable, paymentTransactionsTable,
 } from "@workspace/db";
-import { eq, desc, sql } from "drizzle-orm";
+import { eq, and, desc, sql } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { sendEmail, appUrl, pendingManualPaymentEmail, paymentConfirmedEmail } from "../lib/email";
 import {
@@ -73,10 +73,15 @@ router.post("/activations", async (req, res) => {
       res.status(400).json({ error: `Insufficient wallet balance. You have $${balance.toFixed(2)} but need $${price.toFixed(2)}.` });
       return;
     }
-    await db
+    const updated = await db
       .update(usersTable)
       .set({ walletBalance: sql`wallet_balance - ${price.toFixed(2)}` })
-      .where(eq(usersTable.id, payload.userId));
+      .where(and(eq(usersTable.id, payload.userId), sql`wallet_balance >= ${price.toFixed(2)}`))
+      .returning({ id: usersTable.id });
+    if (updated.length === 0) {
+      res.status(400).json({ error: "Insufficient wallet balance." });
+      return;
+    }
   }
 
   const paymentNote = paymentMethod === "wallet"
@@ -201,7 +206,14 @@ router.post("/gift-cards/checkout", async (req, res) => {
         res.status(400).json({ error: `Insufficient wallet balance. You have $${balance.toFixed(2)} but need $${price.toFixed(2)}.` });
         return;
       }
-      await db.update(usersTable).set({ walletBalance: sql`wallet_balance - ${price.toFixed(2)}` }).where(eq(usersTable.id, payload.userId));
+      const gcUpdated = await db.update(usersTable)
+        .set({ walletBalance: sql`wallet_balance - ${price.toFixed(2)}` })
+        .where(and(eq(usersTable.id, payload.userId), sql`wallet_balance >= ${price.toFixed(2)}`))
+        .returning({ id: usersTable.id });
+      if (gcUpdated.length === 0) {
+        res.status(400).json({ error: "Insufficient wallet balance." });
+        return;
+      }
       await db.update(ordersTable).set({ paymentStatus: "paid", paidAt: new Date() }).where(eq(ordersTable.id, order.id));
       await db.update(toolActivationsTable).set({ notes: `Payment: Wallet ($${price.toFixed(2)}) — paid` }).where(eq(toolActivationsTable.id, activation.id));
       sendEmail({

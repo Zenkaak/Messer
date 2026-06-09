@@ -257,10 +257,15 @@ router.get("/download/admin-apk", async (req, res) => {
   const correctPwd = await getAdminPassword();
 
   const isAdminApp = ua.includes("GSMAdminApp");
-  const isAdminBrowser = adminPwd && adminPwd === correctPwd;
+  const hasValidAdminPwd = adminPwd && adminPwd === correctPwd;
 
-  if (!isAdminApp && !isAdminBrowser) {
+  // Require admin password regardless of UA — UA can be trivially spoofed
+  if (!hasValidAdminPwd && !isAdminApp) {
     res.status(403).json({ error: "Forbidden: admin APK is not available to user accounts" });
+    return;
+  }
+  if (isAdminApp && !hasValidAdminPwd) {
+    res.status(401).json({ error: "x-admin-password header required" });
     return;
   }
 

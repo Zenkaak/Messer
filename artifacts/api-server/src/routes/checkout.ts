@@ -112,11 +112,13 @@ function resolveSessionId(req: { query: Record<string, unknown>; headers: Record
   return "default-session";
 }
 
-async function deductFromWallet(userId: number, amount: number): Promise<void> {
-  await db
+async function deductFromWallet(userId: number, amount: number): Promise<boolean> {
+  const updated = await db
     .update(usersTable)
     .set({ walletBalance: sql`wallet_balance - ${amount.toFixed(2)}` })
-    .where(eq(usersTable.id, userId));
+    .where(and(eq(usersTable.id, userId), sql`wallet_balance >= ${amount.toFixed(2)}`))
+    .returning({ id: usersTable.id });
+  return updated.length > 0;
 }
 
 router.post("/checkout", async (req, res) => {
@@ -208,7 +210,11 @@ router.post("/checkout", async (req, res) => {
         res.status(400).json({ error: `Insufficient wallet balance. You have $${balance.toFixed(2)} but need $${total.toFixed(2)}.` });
         return;
       }
-      await deductFromWallet(loggedInUserId, total);
+      const deducted = await deductFromWallet(loggedInUserId, total);
+      if (!deducted) {
+        res.status(400).json({ error: "Insufficient wallet balance." });
+        return;
+      }
       await db.update(ordersTable)
         .set({ paymentStatus: "paid" })
         .where(eq(ordersTable.id, order.id));
