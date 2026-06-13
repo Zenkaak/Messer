@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Public Downloads folder (Environment.DIRECTORY_DOWNLOADS) -->
+    <external-path name="external_downloads" path="Download/" />
+    <!-- App-private Downloads on external storage (Android 10+) -->
+    <external-files-path name="external_files_download" path="Download/" />
+</paths>

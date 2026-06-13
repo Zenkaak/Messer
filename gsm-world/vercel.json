@@ -1,0 +1,19 @@
+{
+  "installCommand": "pnpm install --no-frozen-lockfile",
+  "buildCommand": "pnpm --filter @workspace/db run migrate || true && pnpm --filter @workspace/gsm-africa run build && pnpm -w run build-vercel",
+  "framework": null,
+  "crons": [
+    {
+      "path": "/api/admin/cron/refresh-models",
+      "schedule": "0 4 */2 * *"
+    },
+    {
+      "path": "/api/admin/cron/abandoned-carts",
+      "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/admin/cron/daily-marketing",
+      "schedule": "50 0 * * *"
+    }
+  ]
+}
