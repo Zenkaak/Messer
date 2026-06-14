@@ -296,6 +296,47 @@ export async function deleteWebauthnCredential(): Promise<void> {
   _settingsCache.delete("webauthn_credential" as SettingKey);
 }
 
+// ── WebAuthn challenge helpers (DB-backed so serverless instances share state) ─
+
+type WaChallengeKind = "register" | "auth";
+
+export async function setWebauthnChallenge(
+  kind: WaChallengeKind,
+  payload: { challenge: string; origin: string; rpID: string; ts: number },
+): Promise<void> {
+  const key = `webauthn_challenge_${kind}`;
+  const value = JSON.stringify(payload);
+  await db
+    .insert(adminSettingsTable)
+    .values({ key, value })
+    .onConflictDoUpdate({
+      target: adminSettingsTable.key,
+      set: { value, updatedAt: new Date() },
+    });
+}
+
+export async function getWebauthnChallenge(
+  kind: WaChallengeKind,
+): Promise<{ challenge: string; origin: string; rpID: string; ts: number } | null> {
+  const key = `webauthn_challenge_${kind}`;
+  try {
+    const rows = await db
+      .select()
+      .from(adminSettingsTable)
+      .where(eq(adminSettingsTable.key, key))
+      .limit(1);
+    if (!rows[0]?.value) return null;
+    return JSON.parse(rows[0].value) as { challenge: string; origin: string; rpID: string; ts: number };
+  } catch {
+    return null;
+  }
+}
+
+export async function deleteWebauthnChallenge(kind: WaChallengeKind): Promise<void> {
+  const key = `webauthn_challenge_${kind}`;
+  await db.delete(adminSettingsTable).where(eq(adminSettingsTable.key, key));
+}
+
 export async function getMpesaCredentials() {
   const [shortcode, consumerKey, consumerSecret, passkey, callbackUrl, mpesaEnv] = await Promise.all([
     getSetting("mpesa_shortcode"),

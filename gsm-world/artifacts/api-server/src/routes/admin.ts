@@ -25,7 +25,7 @@ import {
 } from "@workspace/db";
 import { productsTable, categoriesTable, resellerApplicationsTable, resellerWithdrawalsTable } from "@workspace/db";
 import { z } from "zod";
-import { getAllSettings, updateSettings, checkAdminPassword, setAdminPassword, hasAdminPasswordBeenSet, getOpenAiKey, getOpenAiBaseUrl, getWorkingCascade, setWorkingCascade, getCascadeStatus, getWebauthnCredential, setWebauthnCredential, deleteWebauthnCredential } from "../lib/admin-settings";
+import { getAllSettings, updateSettings, checkAdminPassword, setAdminPassword, hasAdminPasswordBeenSet, getOpenAiKey, getOpenAiBaseUrl, getWorkingCascade, setWorkingCascade, getCascadeStatus, getWebauthnCredential, setWebauthnCredential, deleteWebauthnCredential, setWebauthnChallenge, getWebauthnChallenge, deleteWebauthnChallenge } from "../lib/admin-settings";
 import { checkRateLimit, recordRateLimitAttempt, clearRateLimit } from "../lib/rate-limit";
 import {
   sendEmail,
@@ -1478,7 +1478,7 @@ router.post("/admin/webauthn/register-challenge", async (req, res) => {
         residentKey: "preferred",
       },
     });
-    _waChallenges.set("register", { challenge: options.challenge, origin, rpID, ts: Date.now() });
+    await setWebauthnChallenge("register", { challenge: options.challenge, origin, rpID, ts: Date.now() });
     res.json(options);
   } catch (err) {
     req.log.error({ err }, "webauthn register-challenge error");
@@ -1489,12 +1489,12 @@ router.post("/admin/webauthn/register-challenge", async (req, res) => {
 router.post("/admin/webauthn/register", async (req, res) => {
   try {
     if (!(await checkAdminAuth(req, res))) return;
-    const stored = _waChallenges.get("register");
+    const stored = await getWebauthnChallenge("register");
     if (!stored || Date.now() - stored.ts > WA_CHALLENGE_TTL) {
       res.status(400).json({ error: "Challenge expired — please try again." });
       return;
     }
-    _waChallenges.delete("register");
+    await deleteWebauthnChallenge("register");
     const verification = await verifyRegistrationResponse({
       response: req.body,
       expectedChallenge: stored.challenge,
@@ -1542,7 +1542,7 @@ router.post("/admin/webauthn/auth-challenge", async (req, res) => {
       allowCredentials: [{ id: cred.credentialID }],
       userVerification: "required",
     });
-    _waChallenges.set("auth", { challenge: options.challenge, origin, rpID, ts: Date.now() });
+    await setWebauthnChallenge("auth", { challenge: options.challenge, origin, rpID, ts: Date.now() });
     res.json(options);
   } catch (err) {
     req.log.error({ err }, "webauthn auth-challenge error");
@@ -1552,12 +1552,12 @@ router.post("/admin/webauthn/auth-challenge", async (req, res) => {
 
 router.post("/admin/webauthn/auth", async (req, res) => {
   try {
-    const stored = _waChallenges.get("auth");
+    const stored = await getWebauthnChallenge("auth");
     if (!stored || Date.now() - stored.ts > WA_CHALLENGE_TTL) {
       res.status(400).json({ error: "Challenge expired — please try again." });
       return;
     }
-    _waChallenges.delete("auth");
+    await deleteWebauthnChallenge("auth");
     const credStr = await getWebauthnCredential();
     if (!credStr) { res.status(404).json({ error: "No fingerprint registered." }); return; }
     const cred = JSON.parse(credStr) as { credentialID: string; credentialPublicKey: string; counter: number; rpID: string };
