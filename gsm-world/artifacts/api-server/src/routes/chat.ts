@@ -2000,11 +2000,15 @@ async function toolAddToCart(productId: number, quantity: number, sessionId: str
       await db.insert(cartItemsTable).values({ sessionId: resolvedSession, productId, quantity: qty, priceAtAdd: effectivePrice });
     }
 
+    const requiredFields = getRequiredOrderFields(product.name, product.description ?? "", product.categoryId?.toString() ?? "");
     return {
       success: true,
       productName: product.name,
       price: `$${parseFloat(effectivePrice).toFixed(2)}`,
       quantity: qty,
+      description: product.description ?? null,
+      requiredOrderFields: requiredFields,
+      reminder: `Before calling place_order you MUST collect from the customer: ${requiredFields.join(", ")}. Do not skip any field.`,
     };
   } catch (err) {
     logger.error({ err }, "toolAddToCart failed");

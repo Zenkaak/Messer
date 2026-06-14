@@ -1149,3 +1149,80 @@ export function abandonedCartEmail(params: {
     html: layout("Your cart is waiting — complete your order before items sell out.", "#f97316", h, body),
   };
 }
+
+// ── Gift Card Delivery Email ───────────────────────────────────────────────────
+export function giftCardDeliveryEmail(params: {
+  orderId: number;
+  customerName: string | null;
+  productName: string;
+  giftCardCode: string;
+  denomination: string;
+  orderUrl: string;
+}): { subject: string; text: string; html: string } {
+  const storeUrl = getBaseUrl();
+  const name = params.customerName ?? "Customer";
+  const h = `<h1 style="margin:0 0 6px;font-size:26px;font-weight:900;color:#0f172a;line-height:1.1;">Your Gift Card is Ready! 🎁</h1>
+    <p style="margin:0;font-size:15px;color:#64748b;font-weight:500;">Order #${params.orderId} · ${params.productName}</p>`;
+
+  const body = `
+    <p style="margin:0 0 24px;font-size:15px;color:#475569;">Hi <strong style="color:#0f172a;">${name}</strong>,</p>
+    <p style="margin:0 0 24px;font-size:15px;color:#475569;">Your payment has been confirmed and your gift card is ready to use. Here are your details:</p>
+
+    <!-- Gift Card Visual -->
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 28px;">
+      <tr>
+        <td style="background:linear-gradient(135deg,#0ea5e9 0%,#6366f1 100%);border-radius:16px;padding:28px 24px;text-align:center;">
+          <p style="margin:0 0 4px;font-size:12px;font-weight:700;color:rgba(255,255,255,0.7);text-transform:uppercase;letter-spacing:2px;">GSM World Gift Card</p>
+          <p style="margin:0 0 16px;font-size:22px;font-weight:900;color:#ffffff;">${params.productName}</p>
+          <p style="margin:0 0 6px;font-size:11px;color:rgba(255,255,255,0.7);font-weight:600;">Value</p>
+          <p style="margin:0 0 20px;font-size:28px;font-weight:900;color:#ffffff;">${params.denomination}</p>
+
+          <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto;">
+            <tr>
+              <td style="background:rgba(255,255,255,0.15);border:1.5px dashed rgba(255,255,255,0.5);border-radius:10px;padding:14px 24px;text-align:center;">
+                <p style="margin:0 0 4px;font-size:11px;font-weight:700;color:rgba(255,255,255,0.7);text-transform:uppercase;letter-spacing:1.5px;">Your Code</p>
+                <p style="margin:0;font-size:22px;font-weight:900;color:#ffffff;letter-spacing:4px;font-family:'Courier New',Courier,monospace;">${params.giftCardCode}</p>
+              </td>
+            </tr>
+          </table>
+
+          <p style="margin:16px 0 0;font-size:11px;color:rgba(255,255,255,0.6);">Order #${params.orderId}</p>
+        </td>
+      </tr>
+    </table>
+
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1.5px solid #e2e8f0;border-radius:14px;overflow:hidden;margin:0 0 24px;">
+      <thead><tr style="background:#f8fafc;">
+        <th style="padding:10px 20px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:1px;text-align:left;">How to redeem</th>
+      </tr></thead>
+      <tbody>
+        <tr><td style="padding:14px 20px 6px;font-size:14px;color:#475569;"><strong style="color:#0f172a;">1.</strong> Copy the code above</td></tr>
+        <tr><td style="padding:4px 20px 6px;font-size:14px;color:#475569;"><strong style="color:#0f172a;">2.</strong> Visit the platform/store for <strong>${params.productName}</strong></td></tr>
+        <tr><td style="padding:4px 20px 14px;font-size:14px;color:#475569;"><strong style="color:#0f172a;">3.</strong> Paste the code at checkout to apply the value</td></tr>
+      </tbody>
+    </table>
+
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px;">
+      <tr>
+        <td style="background:#fffbeb;border-left:4px solid #f59e0b;border-radius:0 10px 10px 0;padding:14px 20px;">
+          <p style="margin:0;font-size:13px;color:#92400e;font-weight:600;">⚠️ Keep this code safe. Gift card codes can only be redeemed once and are non-refundable.</p>
+        </td>
+      </tr>
+    </table>
+
+    ${btn("View Order Details →", params.orderUrl, "#0ea5e9")}
+
+    <p style="margin:20px 0 0;font-size:13px;color:#94a3b8;text-align:center;">
+      Need help? <a href="${storeUrl}" style="color:#0ea5e9;text-decoration:none;font-weight:600;">Contact our support team</a>
+    </p>
+    <div style="margin-top:32px;padding-top:20px;border-top:1px solid #f1f5f9;">
+      <p style="margin:0;font-size:14px;color:#475569;">Regards,<br><strong style="color:#0f172a;">GSM World Team</strong></p>
+    </div>
+  `;
+
+  return {
+    subject: `🎁 Your Gift Card Code — ${params.productName} (Order #${params.orderId})`,
+    text: `Hi ${name},\n\nYour gift card is ready!\n\n${params.productName}\nValue: ${params.denomination}\nCode: ${params.giftCardCode}\n\nKeep this code safe and redeem it on the relevant platform.\n\nView order: ${params.orderUrl}\n\n— GSM World Team`,
+    html: layout("Your gift card code is ready to use!", "#0ea5e9", h, body),
+  };
+}

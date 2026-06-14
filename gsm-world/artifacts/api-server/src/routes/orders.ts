@@ -11,9 +11,24 @@ import {
   paymentConfirmedEmail,
   moreInfoNeededEmail,
   orderSubmittedEmail,
+  giftCardDeliveryEmail,
+  appUrl,
 } from "../lib/email";
 import { checkAdminPassword, getBinancePayId, getUsdtManualAddress, getUsdtManualNetwork } from "../lib/admin-settings";
 import { initiateSTKPush } from "../lib/mpesa";
+import { randomBytes } from "node:crypto";
+
+function generateGiftCardCode(): string {
+  return randomBytes(8).toString("hex").toUpperCase().replace(/(.{4})/g, "$1-").slice(0, 19);
+}
+
+function isGiftCardItem(productName: string): boolean {
+  const n = productName.toLowerCase();
+  return n.includes("gift card") || n.includes("steam") || n.includes("google play") ||
+    n.includes("itunes") || n.includes("amazon gift") || n.includes("netflix") ||
+    n.includes("playstation") || n.includes("xbox") || n.includes("razer gold") ||
+    n.includes("apple gift") || n.includes("ebay gift") || n.includes("gift voucher");
+}
 
 const router: IRouter = Router();
 const _jwtSecret = process.env.JWT_SECRET || "gsm-africa-jwt-secret-CHANGE-IN-PRODUCTION";
@@ -398,8 +413,10 @@ router.get("/orders/:id", async (req, res) => {
       (req.headers["x-admin-password"] as string | undefined) ||
       (req.query.adminPassword as string | undefined);
     const isAdmin = adminPwd ? await checkAdminPassword(adminPwd) : false;
+    // Guest access: allow if ?email= matches customerEmail (same pattern as /orders/cancel)
+    const emailParam = (req.query.email as string | undefined)?.toLowerCase().trim();
 
-    if (!user && !isAdmin) {
+    if (!user && !isAdmin && !emailParam) {
       res.status(401).json({ error: "Authentication required" });
       return;
     }
@@ -411,11 +428,18 @@ router.get("/orders/:id", async (req, res) => {
     }
 
     if (!isAdmin) {
-      const emailMatch = user && order.customerEmail.toLowerCase() === user.email.toLowerCase();
-      const userIdMatch = user && order.userId != null && order.userId === user.userId;
-      if (!emailMatch && !userIdMatch) {
-        res.status(403).json({ error: "Access denied" });
-        return;
+      if (user) {
+        const emailMatch = order.customerEmail.toLowerCase() === user.email.toLowerCase();
+        const userIdMatch = order.userId != null && order.userId === user.userId;
+        if (!emailMatch && !userIdMatch) {
+          res.status(403).json({ error: "Access denied" });
+          return;
+        }
+      } else if (emailParam) {
+        if (order.customerEmail.toLowerCase() !== emailParam) {
+          res.status(403).json({ error: "Access denied" });
+          return;
+        }
       }
     }
 
@@ -526,6 +550,34 @@ router.patch("/orders/:id", async (req, res) => {
             paymentMethod: order.paymentMethod,
           }),
         }).catch((err) => req.log.error({ err }, "Failed to send payment confirmed email"));
+
+        // Auto-generate and email gift card codes within 3 minutes
+        const giftItems = await db
+          .select({ productName: orderItemsTable.productName, quantity: orderItemsTable.quantity, price: orderItemsTable.price })
+          .from(orderItemsTable)
+          .where(eq(orderItemsTable.orderId, id));
+        const giftCardItems = giftItems.filter(i => isGiftCardItem(i.productName));
+        if (giftCardItems.length > 0) {
+          const orderUrl = appUrl(`/orders/${id}`);
+          for (const item of giftCardItems) {
+            const qty = item.quantity ?? 1;
+            for (let q = 0; q < qty; q++) {
+              const code = generateGiftCardCode();
+              const denomination = `$${parseFloat(item.price).toFixed(2)}`;
+              sendEmail({
+                to: order.customerEmail,
+                ...giftCardDeliveryEmail({
+                  orderId: id,
+                  customerName: order.customerName,
+                  productName: item.productName,
+                  giftCardCode: code,
+                  denomination,
+                  orderUrl,
+                }),
+              }).catch((err) => req.log.error({ err }, "Failed to send gift card email"));
+            }
+          }
+        }
       } else if (["processing", "active", "paused", "closed", "failed", "refunded", "pending_payment_confirmation", "cancelled", "rejected"].includes(newStatus)) {
         sendEmail({
           to: order.customerEmail,

@@ -1764,7 +1764,7 @@ function PayNowPanel({ order, token }: { order: MyOrder; token: string }) {
         <div className="flex items-center gap-2">
           <Smartphone size={16} className="text-green-600" />
           <p className="font-black text-gray-800 text-sm">Pay via M-Pesa</p>
-          <span className="ml-auto text-sm font-black text-green-700">KES {Math.ceil(parseFloat(order.total))}</span>
+          <span className="ml-auto text-sm font-black text-green-700">KES {Math.ceil(parseFloat(order.total) * 130).toLocaleString()} <span className="text-xs font-medium text-green-600">(≈ ${parseFloat(order.total).toFixed(2)})</span></span>
         </div>
         {stkSent ? (
           <div className="bg-green-50 border border-green-200 rounded-xl px-3 py-3 text-center">

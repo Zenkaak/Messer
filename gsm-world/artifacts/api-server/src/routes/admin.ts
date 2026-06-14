@@ -1506,9 +1506,15 @@ router.post("/admin/webauthn/register", async (req, res) => {
       return;
     }
     const { credential } = verification.registrationInfo;
+    // credential.id is already a Base64URL string in @simplewebauthn/server v13+
+    // credential.publicKey is a Uint8Array — encode to base64url for storage
+    const credId = typeof credential.id === "string"
+      ? credential.id
+      : Buffer.from(credential.id as Uint8Array).toString("base64url");
+    const credPublicKey = Buffer.from(credential.publicKey as Uint8Array).toString("base64url");
     await setWebauthnCredential(JSON.stringify({
-      credentialID: Buffer.from(credential.id).toString("base64url"),
-      credentialPublicKey: Buffer.from(credential.publicKey).toString("base64url"),
+      credentialID: credId,
+      credentialPublicKey: credPublicKey,
       counter: credential.counter,
       rpID: stored.rpID,
     }));

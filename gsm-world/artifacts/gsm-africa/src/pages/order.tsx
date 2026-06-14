@@ -231,10 +231,12 @@ export function OrderPage() {
   const emailParam = rawSearch.get("email");
 
   useEffect(() => {
-    if (!token && !emailParam && orderId) {
-      navigate(`/orders/lookup?orderId=${orderId}`, { replace: true });
+    if (!token && orderId) {
+      const qs = new URLSearchParams({ orderId: String(orderId) });
+      if (emailParam) qs.set("email", emailParam);
+      navigate(`/orders/lookup?${qs.toString()}`, { replace: true });
     }
-  }, [token, emailParam, orderId, navigate]);
+  }, [token, orderId, navigate, emailParam]);
 
   const [chatMsg, setChatMsg] = useState("");
   const [chatFile, setChatFile] = useState<File | null>(null);
@@ -250,7 +252,7 @@ export function OrderPage() {
   const { data: order, isLoading, error, refetch } = useGetOrder(orderId, {
     query: {
       queryKey: ["order", orderId],
-      enabled: !!orderId,
+      enabled: !!orderId && !!token,
       refetchInterval: (query) => query.state.data?.paymentStatus === "pending" ? 8000 : false,
     },
   });

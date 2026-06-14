@@ -239,38 +239,66 @@ const PROCESSING_MSGS = [
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 function ProgressBar({ step }: { step: Step | "done" }) {
-  const steps: (Step | "done")[] = ["brand", "model", "imei", "processing", "confirmed", "pay", "done"];
-  const labels = ["Brand", "Model", "IMEI", "Verify", "Pay"];
-  const barSteps = ["brand", "model", "imei", "processing", "pay"];
-  const idx = steps.indexOf(step);
+  const order: (Step | "done")[] = ["brand", "model", "imei", "processing", "confirmed", "pay", "done"];
+  const stepDefs = [
+    { key: "brand",      label: "Brand"  },
+    { key: "model",      label: "Model"  },
+    { key: "imei",       label: "IMEI"   },
+    { key: "processing", label: "Verify" },
+    { key: "pay",        label: "Pay"    },
+  ];
+  const cur = order.indexOf(step);
   return (
-    <div>
-      <div className="flex items-center gap-1.5">
-        {barSteps.map((s, i) => (
-          <div key={s} className={`h-1.5 flex-1 rounded-full transition-colors ${idx > i ? "bg-green-500" : idx === i ? "bg-[#1a2332]" : "bg-gray-200"}`} />
-        ))}
-      </div>
-      <div className="flex justify-between text-[10px] text-gray-400 mt-1 font-medium">
-        {labels.map(l => <span key={l}>{l}</span>)}
-      </div>
+    <div className="flex items-start">
+      {stepDefs.map((s, i) => {
+        const sIdx = order.indexOf(s.key as Step);
+        const isDone = cur > sIdx;
+        const isActive = cur === sIdx || (s.key === "processing" && cur === order.indexOf("confirmed"));
+        return (
+          <div key={s.key} className="flex items-center flex-1 last:flex-none">
+            <div className="flex flex-col items-center gap-1">
+              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-black transition-all ${
+                isDone ? "bg-emerald-500 text-white shadow-emerald-200 shadow-md" :
+                isActive ? "bg-[#1a2332] text-white shadow-[#1a2332]/30 shadow-md" :
+                "bg-gray-100 text-gray-400"
+              }`}>
+                {isDone ? "✓" : i + 1}
+              </div>
+              <span className={`text-[10px] font-semibold ${isActive ? "text-[#1a2332]" : isDone ? "text-emerald-600" : "text-gray-400"}`}>{s.label}</span>
+            </div>
+            {i < stepDefs.length - 1 && (
+              <div className={`h-0.5 flex-1 mt-[-14px] mx-1.5 transition-colors ${isDone ? "bg-emerald-400" : "bg-gray-200"}`} />
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
 
 function OrderCard({ brand, model, imei }: { brand: typeof DEVICE_CATALOG[0]; model: { name: string; price: number }; imei: string }) {
+  const logoUrl = BRAND_LOGOS[brand.brand];
   return (
-    <div className="bg-[#1a2332] rounded-2xl p-4 text-white space-y-2">
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-xs text-gray-400">{brand.icon} {brand.brand}</p>
-          <p className="font-bold text-sm leading-snug mt-0.5">{model.name}</p>
-          <p className="text-[11px] text-gray-400 font-mono mt-1">{imei}</p>
+    <div className="bg-gradient-to-br from-[#1a2332] to-[#0f1722] rounded-2xl p-4 text-white space-y-3 shadow-lg">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center shrink-0">
+          {logoUrl ? <img src={logoUrl} alt={brand.brand} className="w-7 h-7 object-contain" /> : <span className="text-xl">{brand.icon}</span>}
         </div>
-        <div className="text-right shrink-0 ml-3">
-          <p className="text-xs text-gray-400">Total</p>
-          <p className="text-2xl font-black text-green-400">${model.price}</p>
+        <div className="flex-1 min-w-0">
+          <p className="text-[10px] text-white/50 font-semibold uppercase tracking-wider">{brand.brand}</p>
+          <p className="text-sm font-black text-white truncate">{model.name}</p>
+        </div>
+        <div className="text-right shrink-0">
+          <p className="text-[10px] text-white/50 font-medium">Price</p>
+          <p className="text-lg font-black text-emerald-400">${model.price}</p>
         </div>
       </div>
+      {imei && imei !== "—" && (
+        <div className="pt-3 border-t border-white/10 flex items-center gap-2">
+          <span className="text-[10px] font-semibold text-white/40 uppercase tracking-wider shrink-0">IMEI</span>
+          <span className="font-mono text-[11px] text-white/70 truncate">{imei}</span>
+        </div>
+      )}
     </div>
   );
 }
@@ -826,24 +854,31 @@ export function DirectUnlockPage() {
       {/* Step 3c: Check Successful confirmation */}
       {step === "confirmed" && selectedBrand && selectedModel && (
         <div className="space-y-4">
-          <div className="bg-green-600 rounded-2xl p-5 text-white text-center space-y-3">
-            <div className="w-16 h-16 rounded-full bg-white/20 flex items-center justify-center mx-auto">
-              <span className="text-3xl">✅</span>
-            </div>
-            <div>
-              <p className="font-black text-xl">Check Successful</p>
-              <p className="text-green-100 text-sm mt-1">{selectedBrand.brand} — {selectedModel.name}</p>
-            </div>
-            <div className="bg-white/15 rounded-2xl p-4 text-left space-y-2">
-              <p className="text-xs font-bold text-green-200 uppercase tracking-wider">What happens next</p>
-              <p className="text-sm text-white">✓ Device verified successfully</p>
-              <p className="text-sm text-white">⏱ Your order will be processed within <strong>30–60 minutes</strong> after payment</p>
-              <p className="text-sm text-white">📧 Unlock details sent to your email once complete</p>
+          <div className="relative overflow-hidden rounded-2xl shadow-xl" style={{ background: "linear-gradient(135deg, #16a34a 0%, #059669 50%, #0d9488 100%)" }}>
+            <div className="absolute top-0 right-0 w-40 h-40 rounded-full bg-white/5 -translate-y-10 translate-x-10 pointer-events-none" />
+            <div className="relative p-6 text-white text-center space-y-4">
+              <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur-sm border border-white/30 flex items-center justify-center mx-auto">
+                <span className="text-3xl">✅</span>
+              </div>
+              <div>
+                <p className="font-black text-2xl tracking-tight">Device Verified!</p>
+                <p className="text-emerald-100 text-sm mt-1 font-medium">{selectedBrand.brand} — {selectedModel.name}</p>
+              </div>
+              <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 text-left space-y-2.5 border border-white/20">
+                <p className="text-[10px] font-bold text-white/60 uppercase tracking-widest mb-1">What happens next</p>
+                <div className="flex items-start gap-2"><span className="text-emerald-300 mt-0.5 shrink-0">✓</span><p className="text-sm text-white/90">Device has been verified successfully</p></div>
+                <div className="flex items-start gap-2"><span className="text-emerald-300 mt-0.5 shrink-0">⏱</span><p className="text-sm text-white/90">Order processed within <strong>30–60 min</strong> after payment</p></div>
+                <div className="flex items-start gap-2"><span className="text-emerald-300 mt-0.5 shrink-0">📧</span><p className="text-sm text-white/90">Unlock code sent to your email once complete</p></div>
+              </div>
+              <div className="flex items-center justify-between bg-white/10 rounded-xl px-4 py-3 border border-white/20">
+                <p className="text-sm font-medium text-white/70">Unlock Price</p>
+                <p className="text-2xl font-black text-white">${selectedModel.price}</p>
+              </div>
             </div>
           </div>
           <button
             onClick={() => setStep("pay")}
-            className="w-full py-4 bg-[#1a2332] text-white font-black rounded-2xl text-base flex items-center justify-center gap-2 shadow-lg">
+            className="w-full py-4 bg-[#1a2332] text-white font-black rounded-2xl text-base flex items-center justify-center gap-2 shadow-lg hover:bg-[#243044] transition-colors">
             Proceed to Payment →
           </button>
         </div>
