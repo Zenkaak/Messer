@@ -3143,7 +3143,7 @@ router.post("/chat/live/:sessionId/messages", async (req, res) => {
     // Send email to visitor when admin joins the chat for the first time
     if (isAdmin && wasWaiting && session.visitorEmail) {
       try {
-        const storeUrl = process.env.APP_BASE_URL || process.env.PUBLIC_APP_URL || `https://${process.env.REPLIT_DOMAINS?.split(",")[0] || "gsmworld.vercel.app"}`;
+        const storeUrl = process.env.APP_BASE_URL || process.env.PUBLIC_APP_URL || "https://gsmworld.vercel.app";
         await sendEmail({
           to: session.visitorEmail,
           subject: "A support agent has joined your chat — GSM World",
