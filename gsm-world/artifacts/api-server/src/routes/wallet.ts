@@ -160,7 +160,7 @@ router.post("/wallet/add-fund/nowpayments", async (req, res) => {
   const enabled = await isNowPaymentsEnabled();
   if (!enabled) { res.status(503).json({ error: "Crypto payment is not enabled" }); return; }
   const amountUsd = Number(amount);
-  const baseUrl = process.env.REPLIT_DOMAINS ? `https://${process.env.REPLIT_DOMAINS.split(",")[0]}` : "https://gsmworld.vercel.app";
+  const baseUrl = process.env.APP_BASE_URL || process.env.PUBLIC_APP_URL || "https://gsmworld.vercel.app";
   try {
     const payment = await createPayment({
       priceAmount: amountUsd,

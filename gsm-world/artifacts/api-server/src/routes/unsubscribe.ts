@@ -18,7 +18,7 @@ export function makeUnsubUrl(email: string): string {
   const base =
     process.env.APP_BASE_URL ||
     process.env.PUBLIC_APP_URL ||
-    `https://${process.env.REPLIT_DOMAINS?.split(",")[0] || "gsmworld.vercel.app"}`;
+    "https://gsmworld.vercel.app";
   const token = makeUnsubToken(email);
   return `${base.replace(/\/$/, "")}/api/unsubscribe?email=${encodeURIComponent(email.toLowerCase().trim())}&token=${token}`;
 }
@@ -30,7 +30,7 @@ router.get("/unsubscribe", async (req, res) => {
   const frontendBase =
     process.env.APP_BASE_URL ||
     process.env.PUBLIC_APP_URL ||
-    `https://${process.env.REPLIT_DOMAINS?.split(",")[0] || "gsmworld.vercel.app"}`;
+    "https://gsmworld.vercel.app";
   const confirmUrl = `${frontendBase.replace(/\/$/, "")}/unsubscribe?confirmed=1`;
   const errorUrl = `${frontendBase.replace(/\/$/, "")}/unsubscribe?error=invalid`;
 
