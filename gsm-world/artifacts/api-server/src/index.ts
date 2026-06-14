@@ -1,14 +1,13 @@
+import { createServer } from "http";
 import app from "./app";
+import { attachWss } from "./lib/ws";
 import { logger } from "./lib/logger";
 import { shouldRunDailyMarketing, runDailyMarketingEmail } from "./lib/daily-marketing";
-// Note: migrations are now called in app.ts so they run in both dev and Vercel serverless.
 
 const rawPort = process.env["PORT"];
 
 if (!rawPort) {
-  throw new Error(
-    "PORT environment variable is required but was not provided.",
-  );
+  throw new Error("PORT environment variable is required but was not provided.");
 }
 
 const port = Number(rawPort);
@@ -17,7 +16,10 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-app.listen(port, (err) => {
+const httpServer = createServer(app);
+attachWss(httpServer);
+
+httpServer.listen(port, (err?: Error) => {
   if (err) {
     logger.error({ err }, "Error listening on port");
     process.exit(1);
@@ -36,8 +38,6 @@ app.listen(port, (err) => {
   }, 4 * 60 * 1000);
 
   // ── Daily marketing broadcast — fires at 3:50 AM EAT every day ──────────
-  // Vercel cron handles this on Vercel deployments (vercel.json schedule).
-  // This ticker covers self-hosted / persistent-server mode.
   setInterval(async () => {
     if (!shouldRunDailyMarketing()) return;
     logger.info("Daily marketing ticker: 3:50 AM EAT — starting broadcast");
@@ -47,5 +47,5 @@ app.listen(port, (err) => {
     } catch (err) {
       logger.error({ err }, "Daily marketing ticker: broadcast failed");
     }
-  }, 60 * 1000); // check every minute
+  }, 60 * 1000);
 });

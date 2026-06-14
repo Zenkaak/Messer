@@ -16,6 +16,7 @@ import {
 } from "../lib/email";
 import { checkAdminPassword, getBinancePayId, getUsdtManualAddress, getUsdtManualNetwork } from "../lib/admin-settings";
 import { initiateSTKPush } from "../lib/mpesa";
+import { notifyOrderUpdate } from "../lib/ws";
 import { randomBytes } from "node:crypto";
 
 function generateGiftCardCode(): string {
@@ -237,6 +238,9 @@ router.post("/orders/:id/messages", async (req, res) => {
         read: false,
       }).catch((err) => req.log.error({ err }, "Failed to insert notification"));
     }
+
+    // Push new message live to the order's WS subscribers
+    notifyOrderUpdate(orderId, { type: "new_message", message: msg });
 
     res.status(201).json(msg);
   } catch (err) {
@@ -523,6 +527,11 @@ router.patch("/orders/:id", async (req, res) => {
     if (!order) {
       res.status(404).json({ error: "Order not found" });
       return;
+    }
+
+    // Push real-time status update to any connected WS clients
+    if (parsed.data.paymentStatus) {
+      notifyOrderUpdate(id, { type: "status_update", paymentStatus: parsed.data.paymentStatus });
     }
 
     // Send email + in-app notification when status is updated

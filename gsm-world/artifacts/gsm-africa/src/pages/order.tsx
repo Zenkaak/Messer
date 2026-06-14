@@ -3,8 +3,75 @@ import { useGetOrder } from "@workspace/api-client-react";
 import { useParams, useLocation } from "wouter";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { MessageCircle, CheckCircle2, Paperclip, Send, X, ShieldCheck, XCircle, Clock, Wallet, CreditCard, ArrowRight, Copy, Check } from "lucide-react";
+import { MessageCircle, CheckCircle2, Paperclip, Send, X, ShieldCheck, XCircle, Clock, Wallet, CreditCard, ArrowRight, Copy, Check, Zap } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+
+function useOrderWebSocket(
+  orderId: number,
+  onStatusUpdate: (status: string) => void,
+  onNewMessage: (msg: OrderMessage) => void,
+) {
+  const [wsReady, setWsReady] = useState(false);
+  const wsRef = useRef<WebSocket | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mountedRef = useRef(true);
+  const retryDelayRef = useRef(1000);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    retryDelayRef.current = 1000;
+
+    function connect() {
+      if (!mountedRef.current) return;
+      const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const ws = new WebSocket(`${proto}//${window.location.host}/api/ws`);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        if (!mountedRef.current) { ws.close(); return; }
+        ws.send(JSON.stringify({ type: "subscribe", orderId }));
+        setWsReady(true);
+        retryDelayRef.current = 1000;
+      };
+
+      ws.onmessage = (ev) => {
+        try {
+          const data = JSON.parse(ev.data as string) as {
+            type: string;
+            paymentStatus?: string;
+            message?: OrderMessage;
+          };
+          if (data.type === "status_update" && data.paymentStatus) {
+            onStatusUpdate(data.paymentStatus);
+          } else if (data.type === "new_message" && data.message) {
+            onNewMessage(data.message);
+          }
+        } catch { /* ignore */ }
+      };
+
+      ws.onclose = () => {
+        setWsReady(false);
+        if (!mountedRef.current) return;
+        timerRef.current = setTimeout(() => {
+          retryDelayRef.current = Math.min(retryDelayRef.current * 2, 30_000);
+          connect();
+        }, retryDelayRef.current);
+      };
+
+      ws.onerror = () => ws.close();
+    }
+
+    connect();
+
+    return () => {
+      mountedRef.current = false;
+      wsRef.current?.close();
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, [orderId]);
+
+  return wsReady;
+}
 
 // ── Pay Now Block ─────────────────────────────────────────────────────────────
 interface OrderSummary {
@@ -256,6 +323,12 @@ export function OrderPage() {
       refetchInterval: (query) => query.state.data?.paymentStatus === "pending" ? 8000 : false,
     },
   });
+
+  const wsReady = useOrderWebSocket(
+    orderId,
+    (_status) => { void refetch(); },
+    (msg) => setMessages(prev => prev.some(m => m.id === msg.id) ? prev : [...prev, msg]),
+  );
 
   const countdown = useCountdown(order?.createdAt);
 
@@ -510,9 +583,18 @@ export function OrderPage() {
         <div className="px-4 py-3 bg-[#1a2332] flex items-center gap-2">
           <MessageCircle size={16} className="text-blue-300" />
           <p className="text-sm font-bold text-white">Support Chat</p>
-          <span className="ml-auto flex items-center gap-1">
-            <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-            <span className="text-[10px] text-green-300 font-medium">Online</span>
+          <span className="ml-auto flex items-center gap-1.5">
+            {wsReady ? (
+              <>
+                <Zap size={11} className="text-green-300" />
+                <span className="text-[10px] text-green-300 font-bold tracking-wide">Live</span>
+              </>
+            ) : (
+              <>
+                <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+                <span className="text-[10px] text-green-300 font-medium">Online</span>
+              </>
+            )}
           </span>
         </div>
 
