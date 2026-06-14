@@ -47,7 +47,6 @@ import { ImeiPage } from "@/pages/imei";
 import { AndroidUnlockPage } from "@/pages/android-unlock";
 import { DirectUnlockPage } from "@/pages/direct-unlock";
 import { GoogleCallbackPage } from "@/pages/google-callback";
-import { GiftCardsPage } from "@/pages/gift-cards";
 import { UnlockToolsPage } from "@/pages/unlock-tools";
 import { UnsubscribePage } from "@/pages/unsubscribe";
 import { ResellerPage } from "@/pages/reseller";
@@ -88,7 +87,6 @@ function Router() {
             <Route path="/android-unlock" component={AndroidUnlockPage} />
             <Route path="/imei" component={ImeiPage} />
             <Route path="/direct-unlock" component={DirectUnlockPage} />
-            <Route path="/gift-cards" component={GiftCardsPage} />
             <Route path="/unlock-tools" component={UnlockToolsPage} />
             <Route path="/unsubscribe" component={UnsubscribePage} />
             <Route path="/reseller" component={ResellerPage} />

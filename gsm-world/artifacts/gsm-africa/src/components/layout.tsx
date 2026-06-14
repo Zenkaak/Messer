@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
-import { Home, Grid, ShoppingCart, User, Search, Menu, Tag, X, Phone, Cpu, Lock, Server, Zap, Gift, Wallet, ChevronRight, Wrench, ChevronDown, Store, Download, Shield } from "lucide-react";
+import { Home, Grid, ShoppingCart, User, Search, Menu, Tag, X, Phone, Cpu, Lock, Server, Zap, Wallet, ChevronRight, Wrench, ChevronDown, Store, Download, Shield } from "lucide-react";
 import { useGetCart, getGetCartQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
@@ -151,11 +151,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 href={`${basePath}/categories`} icon={<Grid size={16} />} label="Categories"
                 onClick={() => setSidebarOpen(false)} active={location === "/categories"}
                 iconBg="bg-violet-900/40 text-violet-400"
-              />
-              <SideLink
-                href={`${basePath}/gift-cards`} icon={<Gift size={16} />} label="Gift Cards"
-                onClick={() => setSidebarOpen(false)} active={location === "/gift-cards"}
-                iconBg="bg-pink-900/40 text-pink-400"
               />
 
               {/* Services section */}
@@ -428,7 +423,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <DesktopNavLink href={`${basePath}/direct-unlock`} label="Unlock" active={location === "/direct-unlock" || location === "/iphone-unlock" || location === "/android-unlock"} />
             <DesktopNavLink href={`${basePath}/frp`} label="FRP" active={location === "/frp"} />
             <DesktopNavLink href={`${basePath}/imei`} label="IMEI" active={location === "/imei"} />
-            <DesktopNavLink href={`${basePath}/gift-cards`} label="Gift Cards" active={location === "/gift-cards"} />
             <DesktopNavLink href={`${basePath}/unlock-tools`} label="Rentals" active={location.startsWith("/unlock-tools")} />
           </nav>
 

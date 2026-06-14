@@ -151,12 +151,14 @@ export function OrderPage() {
   const [, navigate] = useLocation();
   const orderId = parseInt(params.id ?? "0");
   const { token, user } = useAuth();
+  const rawSearch = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
+  const emailParam = rawSearch.get("email");
 
   useEffect(() => {
-    if (!token && orderId) {
+    if (!token && !emailParam && orderId) {
       navigate(`/orders/lookup?orderId=${orderId}`, { replace: true });
     }
-  }, [token, orderId, navigate]);
+  }, [token, emailParam, orderId, navigate]);
 
   const [chatMsg, setChatMsg] = useState("");
   const [chatFile, setChatFile] = useState<File | null>(null);

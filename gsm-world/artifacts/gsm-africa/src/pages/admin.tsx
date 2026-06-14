@@ -1408,7 +1408,10 @@ function OrdersPanel({ pwd }: { pwd: string }) {
                       <OrderTypeBadge type={o.orderType} />
                     </div>
                     <p className="text-sm font-bold text-slate-800 truncate">{o.customerName || o.customerEmail || "Guest"}</p>
-                    <p className="text-[11px] text-slate-400 truncate">{o.customerPhone} · {o.paymentMethod}</p>
+                    <p className="text-[11px] text-slate-400 truncate">{o.customerPhone}</p>
+                    {o.paymentMethod && (
+                      <span className="inline-block mt-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600 uppercase tracking-wide">{o.paymentMethod.replace(/_/g, " ")}</span>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">

@@ -677,28 +677,20 @@ export function CheckoutPage() {
                   </div>
                 )}
 
-                {/* Flutterwave Card */}
+                {/* Card — Coming Soon */}
                 <PayMethodCard
-                  selected={payMethod === "card"}
-                  onSelect={() => setPayMethod("card")}
+                  selected={false}
+                  onSelect={() => {}}
                   left={
-                    <div className="w-11 h-10 bg-blue-600 rounded-xl flex items-center justify-center shrink-0">
-                      <CreditCard size={18} className="text-white" />
+                    <div className="w-11 h-10 bg-slate-300 rounded-xl flex items-center justify-center shrink-0">
+                      <CreditCard size={18} className="text-slate-500" />
                     </div>
                   }
                   title="Credit / Debit Card"
-                  subtitle="Visa · Mastercard · Worldwide — instant"
-                  badge={<span className="text-[9px] bg-blue-100 text-blue-700 font-bold px-1.5 py-0.5 rounded-full">INSTANT</span>}
+                  subtitle="Visa · Mastercard · Worldwide"
+                  badge={<span className="text-[9px] bg-orange-100 text-orange-600 font-bold px-1.5 py-0.5 rounded-full">COMING SOON</span>}
+                  disabled
                 />
-                {payMethod === "card" && (
-                  <div className="px-3 pb-1">
-                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 space-y-1">
-                      <p className="text-xs font-bold text-blue-800">Secure inline checkout powered by Flutterwave</p>
-                      <p className="text-[10px] text-blue-600">After placing order, a payment popup opens. Your card is charged in USD — your bank converts to local currency automatically.</p>
-                      <p className="text-[10px] text-blue-500">256-bit SSL · PCI DSS compliant</p>
-                    </div>
-                  </div>
-                )}
 
                 {/* Support note */}
                 <div className="px-1 pt-1">
@@ -869,7 +861,7 @@ export function CheckoutPage() {
 }
 
 function PayMethodCard({
-  selected, onSelect, left, title, subtitle, right, badge,
+  selected, onSelect, left, title, subtitle, right, badge, disabled,
 }: {
   selected: boolean;
   onSelect: () => void;
@@ -878,11 +870,13 @@ function PayMethodCard({
   subtitle: string;
   right?: React.ReactNode;
   badge?: React.ReactNode;
+  disabled?: boolean;
 }) {
   return (
     <button
-      onClick={onSelect}
-      className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 transition-all text-left ${selected ? "border-blue-500 bg-blue-50/50 shadow-sm" : "border-gray-100 bg-gray-50/30 hover:border-gray-200 hover:bg-gray-50"}`}
+      onClick={disabled ? undefined : onSelect}
+      disabled={disabled}
+      className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 transition-all text-left ${disabled ? "border-gray-100 bg-gray-50/20 opacity-60 cursor-not-allowed" : selected ? "border-blue-500 bg-blue-50/50 shadow-sm" : "border-gray-100 bg-gray-50/30 hover:border-gray-200 hover:bg-gray-50"}`}
     >
       {left}
       <div className="flex-1 min-w-0">

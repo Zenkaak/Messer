@@ -221,7 +221,7 @@ export function OrderLookupPage() {
 
             {/* CTA */}
             <button
-              onClick={() => navigate(`/orders/${order.id}`)}
+              onClick={() => navigate(`/orders/${order.id}?email=${encodeURIComponent(order.customerEmail)}`)}
               className="w-full py-3.5 bg-[#1a2332] text-white font-black text-base rounded-2xl flex items-center justify-center gap-2"
             >
               View Full Order <ArrowRight size={17} />
