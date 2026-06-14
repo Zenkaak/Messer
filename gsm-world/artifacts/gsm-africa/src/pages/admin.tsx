@@ -2042,7 +2042,7 @@ function ResellersPanel({ pwd }: { pwd: string }) {
 
       {/* Reseller full-page detail */}
       {selectedReseller && (
-        <div className="fixed inset-0 z-50 bg-slate-50 overflow-y-auto" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
+        <div className="fixed inset-0 z-50 bg-slate-50 overflow-y-auto" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 5rem)" }}>
           {/* Sticky header */}
           <div className="sticky top-0 z-10 bg-slate-900 flex items-center gap-3 px-4 py-3">
             <button onClick={() => setSelectedReseller(null)}
@@ -2403,7 +2403,7 @@ function UserDetailView({ user: initUser, pwd, onBack, onUserUpdated, onUserDele
   const avatarGrad = COLORS[user.id % COLORS.length];
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-50 overflow-y-auto" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
+    <div className="fixed inset-0 z-50 bg-slate-50 overflow-y-auto" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 5rem)" }}>
       {/* Wallet modal */}
       {walletModal && (
         <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 backdrop-blur-sm" onClick={() => { setWalletModal(null); setWalletAmount(""); }}>
