@@ -455,60 +455,60 @@ function OverviewPanel({ pwd, onNavigate }: { pwd: string; onNavigate: (tab: Tab
 
   return (
     <div className="pb-8">
-      {/* ── Hero ─────────────────────────────────── */}
-      <div className="relative overflow-hidden px-4 pt-5 pb-5"
-        style={{ background: "linear-gradient(150deg,#0c1220 0%,#162032 55%,#0c1220 100%)" }}>
-        <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          <div className="absolute -top-16 -right-16 w-72 h-72 rounded-full opacity-20"
-            style={{ background: "radial-gradient(circle,#3b82f6,transparent 65%)" }} />
-          <div className="absolute -bottom-8 -left-8 w-48 h-48 rounded-full opacity-10"
-            style={{ background: "radial-gradient(circle,#8b5cf6,transparent 65%)" }} />
+      {/* ── Hero ──────────────────────────────────── */}
+      <div className="relative overflow-hidden px-5 pt-5 pb-6"
+        style={{ background: "linear-gradient(160deg,#080f1c 0%,#0e1d33 55%,#080f1c 100%)" }}>
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute -top-20 right-0 w-96 h-96 rounded-full opacity-20"
+            style={{ background: "radial-gradient(circle,#2563eb,transparent 65%)" }} />
+          <div className="absolute bottom-0 -left-10 w-64 h-64 rounded-full opacity-10"
+            style={{ background: "radial-gradient(circle,#7c3aed,transparent 65%)" }} />
         </div>
-        <div className="relative flex items-center justify-between mb-5">
+
+        {/* Header */}
+        <div className="relative flex items-start justify-between mb-6">
           <div>
-            <p className="text-[10px] font-bold text-blue-400/60 uppercase tracking-widest">
+            <p className="text-[10px] font-bold text-blue-400/50 uppercase tracking-[0.14em]">
               {new Date().toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"})}
             </p>
-            <h2 className="text-2xl font-black text-white tracking-tight mt-0.5">Dashboard</h2>
+            <h2 className="text-[22px] font-black text-white tracking-tight mt-0.5">Dashboard</h2>
           </div>
           <button onClick={load}
-            className="w-9 h-9 rounded-full bg-white/10 border border-white/15 flex items-center justify-center text-white/50 hover:text-white hover:bg-white/20 transition-all active:scale-90">
-            <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+            className="mt-0.5 w-8 h-8 rounded-full bg-white/8 border border-white/10 flex items-center justify-center text-white/40 hover:text-white hover:bg-white/15 transition-all active:scale-90">
+            <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
           </button>
         </div>
 
+        {/* Revenue */}
         {loading ? (
           <div className="space-y-2">
-            <div className="h-3 w-32 bg-white/10 rounded-full animate-pulse" />
-            <div className="h-12 w-48 bg-white/10 rounded-xl animate-pulse" />
+            <div className="h-2.5 w-28 bg-white/10 rounded-full animate-pulse" />
+            <div className="h-14 w-52 bg-white/10 rounded-xl animate-pulse" />
             <div className="h-px w-full bg-white/10 my-3" />
-            <div className="flex gap-4">{[1,2,3,4].map(i => <div key={i} className="flex-1 h-10 bg-white/10 rounded-xl animate-pulse" />)}</div>
+            <div className="flex gap-2">{[1,2,3].map(i=><div key={i} className="h-7 w-20 bg-white/10 rounded-full animate-pulse"/>)}</div>
           </div>
         ) : (
           <div className="relative">
-            <div className="flex items-center gap-1.5 mb-1">
+            <div className="flex items-center gap-1.5 mb-2">
               <TrendingUp size={10} className="text-emerald-400" />
-              <span className="text-[9px] font-bold text-emerald-400/70 uppercase tracking-widest">Confirmed Revenue</span>
+              <span className="text-[9px] font-extrabold text-emerald-400/60 uppercase tracking-widest">Total Revenue</span>
             </div>
             <p className="text-[52px] font-black text-white leading-none tracking-tight">
-              ${(stats?.paidOrders.revenue ?? 0).toFixed(2)}
+              ${(stats?.paidOrders.revenue ?? 0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}
             </p>
-            <p className="text-slate-500 text-[11px] mt-1.5">
+            <p className="text-[11px] text-slate-500 mt-2">
               from <span className="text-slate-300 font-bold">{stats?.paidOrders.count ?? 0}</span> paid orders
+              {" · "}avg <span className="text-slate-300 font-bold">${avgOrder}</span>
             </p>
-            <div className="flex items-center gap-0 mt-4 pt-3.5 border-t border-white/10">
+            <div className="flex gap-2 mt-5 pt-4 border-t border-white/[0.06]">
               {[
-                { label: "Paid",    value: confirmed, color: "text-emerald-400" },
-                { label: "Pending", value: pending,   color: "text-amber-400"   },
-                { label: "Failed",  value: failed,    color: "text-red-400"     },
-                { label: "Avg",     value: `$${avgOrder}`, color: "text-blue-300" },
-              ].map((k, i, arr) => (
-                <div key={k.label} className="flex-1 text-center">
-                  <p className={`text-xl font-black ${k.color}`}>{k.value}</p>
-                  <p className={`text-[9px] font-bold uppercase tracking-wider ${k.color} opacity-60`}>{k.label}</p>
-                  {i < arr.length - 1 && (
-                    <div className="absolute" style={{ display: "none" }} />
-                  )}
+                { label:"Paid",    value: confirmed, ring:"border-emerald-500/30 bg-emerald-500/10 text-emerald-400" },
+                { label:"Pending", value: pending,   ring:"border-amber-500/30 bg-amber-500/10 text-amber-400" },
+                { label:"Failed",  value: failed,    ring:"border-red-500/30 bg-red-500/10 text-red-400" },
+              ].map(k => (
+                <div key={k.label} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[11px] font-bold ${k.ring}`}>
+                  <span className="text-sm font-black">{k.value}</span>
+                  <span className="opacity-70 text-[10px]">{k.label}</span>
                 </div>
               ))}
             </div>
@@ -519,41 +519,76 @@ function OverviewPanel({ pwd, onNavigate }: { pwd: string; onNavigate: (tab: Tab
       <div className="px-4 space-y-4 mt-4">
         {loading ? (
           <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">{[1,2,3,4].map(i=><Skeleton key={i} h="h-28"/>)}</div>
-            <Skeleton h="h-48"/>
+            <div className="grid grid-cols-2 gap-3">{[1,2,3,4].map(i=><Skeleton key={i} h="h-24"/>)}</div>
+            <Skeleton h="h-12"/>
+            <Skeleton h="h-40"/>
           </div>
         ) : (
           <>
-            {/* ── Metric grid ─────────────────────── */}
+            {/* ── Stat cards ─────────────────────── */}
             <div className="grid grid-cols-2 gap-3">
               {[
-                { label: "Total Orders", value: stats?.orders.total ?? 0, sub: `${confirmed} confirmed`, icon: <ShoppingBag size={15}/>, accent: "#3b82f6", tab: "orders" as Tab },
-                { label: "Customers",    value: stats?.users ?? 0,         sub: "registered accounts",  icon: <Users size={15}/>,       accent: "#8b5cf6", tab: "users"   as Tab },
-                { label: "Products",     value: stats?.products ?? 0,      sub: "in catalog",           icon: <Package size={15}/>,     accent: "#f59e0b", tab: "products" as Tab },
-                { label: "Avg. Order",   value: `$${avgOrder}`,            sub: "per paid order",       icon: <TrendingUp size={15}/>,  accent: "#10b981", tab: null as unknown as Tab },
+                { label:"Total Orders", value: stats?.orders.total ?? 0,  sub:`${confirmed} confirmed`, icon:<ShoppingBag size={14}/>, accent:"#3b82f6", tab:"orders"   as Tab },
+                { label:"Customers",    value: stats?.users ?? 0,          sub:"registered accounts",   icon:<Users size={14}/>,       accent:"#8b5cf6", tab:"users"    as Tab },
+                { label:"Products",     value: stats?.products ?? 0,       sub:"in catalog",            icon:<Package size={14}/>,     accent:"#f59e0b", tab:"products" as Tab },
+                { label:"Avg. Order",   value:`$${avgOrder}`,              sub:"per paid order",        icon:<TrendingUp size={14}/>,  accent:"#10b981", tab:null as unknown as Tab },
               ].map(c => (
                 <button key={c.label} onClick={() => c.tab && onNavigate(c.tab)}
-                  className="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm hover:shadow-md hover:border-slate-200 active:scale-95 transition-all text-left relative overflow-hidden">
-                  <div className="absolute inset-0 pointer-events-none"
-                    style={{ background: `radial-gradient(circle at 95% 5%,${c.accent}18,transparent 55%)` }} />
-                  <div className="w-8 h-8 rounded-xl flex items-center justify-center text-white mb-3"
-                    style={{ background: `linear-gradient(135deg,${c.accent},${c.accent}99)` }}>
-                    {c.icon}
+                  className="bg-white rounded-2xl border border-slate-100 pl-4 pr-3 pt-4 pb-3.5 shadow-sm hover:shadow-md hover:border-slate-200 active:scale-95 transition-all text-left relative overflow-hidden">
+                  <div className="absolute left-0 top-3 bottom-3 w-[3px] rounded-full" style={{ background: c.accent }} />
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-7 h-7 rounded-lg flex items-center justify-center text-white shrink-0"
+                      style={{ background: c.accent }}>
+                      {c.icon}
+                    </div>
+                    <p className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider leading-tight">{c.label}</p>
                   </div>
-                  <p className="text-[30px] font-black text-slate-900 leading-none">{c.value}</p>
-                  <p className="text-xs font-black text-slate-700 mt-1.5">{c.label}</p>
-                  <p className="text-[10px] text-slate-400 mt-0.5 leading-tight">{c.sub}</p>
+                  <p className="text-[28px] font-black text-slate-900 leading-none">{c.value}</p>
+                  <p className="text-[10px] text-slate-400 mt-1.5">{c.sub}</p>
                 </button>
               ))}
             </div>
 
-            {/* ── Live chat alert ──────────────────── */}
+            {/* ── Order breakdown bar ─────────────── */}
+            {(stats?.orders.total ?? 0) > 0 && (() => {
+              const total = stats!.orders.total;
+              const paidPct   = (confirmed / total) * 100;
+              const pendPct   = (pending   / total) * 100;
+              const failPct   = (failed    / total) * 100;
+              return (
+                <div className="bg-white border border-slate-100 rounded-2xl px-4 py-3.5 shadow-sm">
+                  <div className="flex items-center justify-between mb-2.5">
+                    <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Order Breakdown</p>
+                    <p className="text-[11px] font-bold text-slate-500">{total} total</p>
+                  </div>
+                  <div className="flex h-1.5 rounded-full overflow-hidden gap-px bg-slate-100">
+                    {paidPct > 0 && <div className="rounded-full bg-emerald-500 transition-all" style={{ width:`${paidPct}%` }}/>}
+                    {pendPct > 0 && <div className="rounded-full bg-amber-400 transition-all"   style={{ width:`${pendPct}%` }}/>}
+                    {failPct > 0 && <div className="rounded-full bg-red-400 transition-all"     style={{ width:`${failPct}%` }}/>}
+                  </div>
+                  <div className="flex gap-4 mt-2.5">
+                    {[
+                      { label:"Paid",    count:confirmed, dot:"bg-emerald-500" },
+                      { label:"Pending", count:pending,   dot:"bg-amber-400"   },
+                      { label:"Failed",  count:failed,    dot:"bg-red-400"     },
+                    ].map(s => (
+                      <div key={s.label} className="flex items-center gap-1.5">
+                        <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${s.dot}`} />
+                        <span className="text-[10px] text-slate-400">{s.label} <span className="font-bold text-slate-700">{s.count}</span></span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* ── Live chat alert ─────────────────── */}
             {(liveRequests?.waiting ?? 0) > 0 && (
               <button onClick={() => onNavigate("live_chat")}
-                className="w-full flex items-center gap-3 rounded-2xl px-4 py-4 shadow-sm active:scale-[0.98] transition-transform relative overflow-hidden text-left"
-                style={{ background: "linear-gradient(135deg,#10b981,#0d9488)" }}>
-                <div className="absolute inset-0 opacity-30"
-                  style={{ backgroundImage: "radial-gradient(circle at 90% 50%,#ffffff30,transparent 60%)" }} />
+                className="w-full flex items-center gap-3 rounded-2xl px-4 py-4 shadow-md active:scale-[0.98] transition-transform relative overflow-hidden text-left"
+                style={{ background:"linear-gradient(135deg,#10b981,#059669)" }}>
+                <div className="absolute inset-0 pointer-events-none"
+                  style={{ backgroundImage:"radial-gradient(circle at 85% 50%,rgba(255,255,255,0.14),transparent 60%)" }} />
                 <div className="relative w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center shrink-0">
                   <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-red-400 border-2 border-emerald-500 animate-ping" />
                   <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-red-400 border-2 border-emerald-500" />
@@ -563,47 +598,44 @@ function OverviewPanel({ pwd, onNavigate }: { pwd: string; onNavigate: (tab: Tab
                   <p className="text-[15px] font-black text-white leading-tight">
                     {liveRequests!.waiting} Live Request{liveRequests!.waiting !== 1 ? "s" : ""} Waiting
                   </p>
-                  <p className="text-[11px] text-white/80 mt-0.5">
-                    {liveRequests!.active > 0 && `${liveRequests!.active} active · `}Tap to respond now
+                  <p className="text-[11px] text-white/75 mt-0.5">
+                    {liveRequests!.active > 0 && `${liveRequests!.active} active · `}Tap to respond
                   </p>
                 </div>
                 <ChevronRight size={16} className="relative text-white/70 shrink-0" />
               </button>
             )}
 
-            {/* ── Recent orders ────────────────────── */}
+            {/* ── Recent orders ───────────────────── */}
             {(stats?.recentOrders?.length ?? 0) > 0 && (
               <div>
-                <div className="flex items-center justify-between mb-2.5">
+                <div className="flex items-center justify-between mb-3">
                   <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Recent Orders</p>
                   <button onClick={() => onNavigate("orders")}
-                    className="text-[11px] font-bold text-blue-500 hover:text-blue-700 flex items-center gap-0.5">
+                    className="text-[11px] font-bold text-blue-500 flex items-center gap-0.5">
                     View all <ArrowUpRight size={11} />
                   </button>
                 </div>
-                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden divide-y divide-slate-50">
                   {stats!.recentOrders.map((o, idx) => {
-                    const initials = (o.customerName ?? o.customerEmail ?? `#${o.id}`)
-                      .split(" ").slice(0,2).map((w: string) => w[0]).join("").toUpperCase().slice(0,2);
-                    const colors = ["bg-blue-100 text-blue-700","bg-violet-100 text-violet-700","bg-amber-100 text-amber-700","bg-emerald-100 text-emerald-700","bg-rose-100 text-rose-700"];
-                    const ic = colors[idx % colors.length];
+                    const name = o.customerName ?? o.customerEmail ?? `#${o.id}`;
+                    const initials = name.split(" ").slice(0,2).map((w: string) => w[0]).join("").toUpperCase().slice(0,2);
+                    const av = ["bg-blue-100 text-blue-600","bg-violet-100 text-violet-600","bg-amber-100 text-amber-600","bg-emerald-100 text-emerald-600","bg-rose-100 text-rose-600"];
                     return (
                       <button key={o.id} onClick={() => onNavigate("orders")}
-                        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 active:bg-slate-100 transition-colors border-b border-slate-50 last:border-0 text-left">
-                        <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-black shrink-0 ${ic}`}>
+                        className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-slate-50/80 transition-colors text-left">
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-[11px] font-black shrink-0 ${av[idx % av.length]}`}>
                           {initials}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs font-bold text-slate-800 leading-tight truncate">
-                            {o.customerName ?? o.customerEmail ?? `Order #${o.id}`}
-                          </p>
+                          <p className="text-xs font-bold text-slate-800 leading-tight truncate">{name}</p>
                           <p className="text-[10px] text-slate-400 mt-0.5">
-                            #{o.id} · {new Date(o.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                            #{o.id} · {new Date(o.createdAt).toLocaleDateString("en-US",{month:"short",day:"numeric"})}
                           </p>
                         </div>
                         <div className="text-right shrink-0">
                           <p className="text-sm font-black text-slate-900">${parseFloat(o.total).toFixed(2)}</p>
-                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${statusColor(o.paymentStatus)}`}>
+                          <span className={`inline-block text-[9px] font-bold px-1.5 py-0.5 rounded-full mt-0.5 ${statusColor(o.paymentStatus)}`}>
                             {o.paymentStatus}
                           </span>
                         </div>
@@ -614,122 +646,115 @@ function OverviewPanel({ pwd, onNavigate }: { pwd: string; onNavigate: (tab: Tab
               </div>
             )}
 
-            {/* ── Quick actions ────────────────────── */}
+            {/* ── Quick actions ───────────────────── */}
             <div>
-              <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2.5">Quick Actions</p>
-              <div className="grid grid-cols-2 gap-2.5">
+              <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">Quick Actions</p>
+              <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden divide-y divide-slate-50">
                 {[
-                  { label: "Orders",       sub: `${stats?.orders.total ?? 0} total`,      icon: <ShoppingBag size={17} />, tab: "orders"    as Tab, accent: "#3b82f6", badge: pending > 0 ? pending : null, badgeColor: "bg-amber-500" },
-                  { label: "Products",     sub: `${stats?.products ?? 0} in stock`,       icon: <Package size={17} />,     tab: "products"  as Tab, accent: "#10b981", badge: null, badgeColor: "" },
-                  { label: "Customers",    sub: `${stats?.users ?? 0} accounts`,           icon: <Users size={17} />,       tab: "users"     as Tab, accent: "#8b5cf6", badge: null, badgeColor: "" },
-                  { label: "Payments",     sub: "config & methods",                        icon: <Zap size={17} />,         tab: "payments"  as Tab, accent: "#f59e0b", badge: null, badgeColor: "" },
+                  { label:"Orders",    sub:`${stats?.orders.total ?? 0} total`,  icon:<ShoppingBag size={15}/>, tab:"orders"   as Tab, accent:"#3b82f6", badge: pending > 0 ? pending : null },
+                  { label:"Products",  sub:`${stats?.products ?? 0} in catalog`, icon:<Package size={15}/>,     tab:"products" as Tab, accent:"#10b981", badge: null },
+                  { label:"Customers", sub:`${stats?.users ?? 0} accounts`,      icon:<Users size={15}/>,       tab:"users"    as Tab, accent:"#8b5cf6", badge: null },
+                  { label:"Payments",  sub:"config & methods",                   icon:<Zap size={15}/>,         tab:"payments" as Tab, accent:"#f59e0b", badge: null },
                 ].map(q => (
                   <button key={q.label} onClick={() => onNavigate(q.tab)}
-                    className="bg-white border border-slate-100 rounded-2xl p-4 text-left shadow-sm hover:shadow-md hover:border-slate-200 active:scale-95 transition-all relative overflow-hidden flex items-center gap-3">
-                    <div className="absolute inset-0 opacity-[0.03]"
-                      style={{ background: `radial-gradient(circle at 0% 100%,${q.accent},transparent 70%)` }} />
-                    {q.badge !== null && (
-                      <span className={`absolute top-2.5 right-2.5 w-5 h-5 ${q.badgeColor} rounded-full text-white text-[9px] font-black flex items-center justify-center`}>
-                        {q.badge}
-                      </span>
-                    )}
-                    <div className="w-10 h-10 rounded-2xl flex items-center justify-center text-white shrink-0"
-                      style={{ background: `linear-gradient(135deg,${q.accent}dd,${q.accent}88)` }}>
+                    className="w-full flex items-center gap-3.5 px-4 py-3.5 hover:bg-slate-50/80 active:bg-slate-100/80 transition-colors text-left">
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white shrink-0"
+                      style={{ background:`linear-gradient(135deg,${q.accent},${q.accent}bb)` }}>
                       {q.icon}
                     </div>
-                    <div className="relative min-w-0">
-                      <p className="text-sm font-black text-slate-800 leading-tight">{q.label}</p>
-                      <p className="text-[10px] text-slate-400 mt-0.5 leading-tight truncate">{q.sub}</p>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[13px] font-bold text-slate-800">{q.label}</p>
+                      <p className="text-[10px] text-slate-400">{q.sub}</p>
                     </div>
+                    {q.badge !== null ? (
+                      <span className="w-5 h-5 bg-amber-500 rounded-full text-white text-[9px] font-black flex items-center justify-center shrink-0">
+                        {q.badge}
+                      </span>
+                    ) : (
+                      <ChevronRight size={14} className="text-slate-200 shrink-0" />
+                    )}
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* ── AI Model health ──────────────────── */}
-            {cascadeStatus && (
-              <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-violet-50 border border-violet-100 flex items-center justify-center shrink-0">
-                  <Cpu size={16} className="text-violet-600" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-black text-slate-800">AI Model Health</p>
-                  <p className="text-[10px] text-slate-400 mt-0.5 truncate">
-                    {cascadeStatus.isDefault
-                      ? "Using default cascade"
-                      : `${cascadeStatus.models.length} model${cascadeStatus.models.length !== 1 ? "s" : ""} active`}
-                    {!cascadeStatus.isDefault && cascadeStatus.updatedAt &&
-                      ` · checked ${new Date(cascadeStatus.updatedAt).toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"})}`}
-                  </p>
-                </div>
-                <button onClick={refreshCascade} disabled={cascadeRefreshing}
-                  className="shrink-0 flex items-center gap-1.5 text-[11px] font-bold px-3 py-2 rounded-xl bg-violet-600 hover:bg-violet-700 text-white disabled:opacity-50 transition-colors">
-                  <RefreshCw size={11} className={cascadeRefreshing ? "animate-spin" : ""} />
-                  {cascadeRefreshing ? "…" : "Check"}
-                </button>
-              </div>
-            )}
-
-            {/* ── Admin APK ────────────────────────── */}
-            <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
-              <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-100">
-                <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center">
-                  <Smartphone size={14} className="text-slate-500" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-xs font-black text-slate-700">Admin Android App</p>
-                  <p className="text-[10px] text-slate-400">Latest APK build from GitHub</p>
-                </div>
-                <button onClick={fetchApkRelease} disabled={apkLoading}
-                  className="text-slate-300 hover:text-blue-500 transition-colors">
-                  <RefreshCw size={12} className={apkLoading ? "animate-spin" : ""} />
-                </button>
-              </div>
-
-              {apkLoading && (
-                <div className="px-4 py-4 flex items-center gap-2.5">
-                  <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
-                  <p className="text-xs text-slate-400">Checking latest build…</p>
+            {/* ── System status ───────────────────── */}
+            <div className="space-y-2.5">
+              {cascadeStatus && (
+                <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-violet-50 flex items-center justify-center shrink-0">
+                    <Cpu size={16} className="text-violet-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-black text-slate-800">AI Model Health</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5 truncate">
+                      {cascadeStatus.isDefault
+                        ? "Using default cascade"
+                        : `${cascadeStatus.models.length} model${cascadeStatus.models.length !== 1 ? "s" : ""} active`}
+                      {!cascadeStatus.isDefault && cascadeStatus.updatedAt &&
+                        ` · ${new Date(cascadeStatus.updatedAt).toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"})}`}
+                    </p>
+                  </div>
+                  <button onClick={refreshCascade} disabled={cascadeRefreshing}
+                    className="shrink-0 flex items-center gap-1.5 text-[11px] font-bold px-3 py-2 rounded-xl bg-violet-600 hover:bg-violet-700 text-white disabled:opacity-50 transition-colors">
+                    <RefreshCw size={11} className={cascadeRefreshing ? "animate-spin" : ""} />
+                    {cascadeRefreshing ? "…" : "Check"}
+                  </button>
                 </div>
               )}
 
-              {!apkLoading && apkError && (
-                <div className="px-4 py-4 space-y-2.5">
-                  <p className="text-xs text-slate-400">No APK release found yet.</p>
-                  <a href="https://github.com/Zenkaak/Messer/actions" target="_blank" rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-blue-600 hover:underline">
-                    <ExternalLink size={11} /> View GitHub Actions
-                  </a>
+              {/* APK card */}
+              <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
+                <div className="flex items-center gap-3 px-4 py-3.5 border-b border-slate-100">
+                  <div className="w-9 h-9 rounded-xl bg-slate-900 flex items-center justify-center shrink-0">
+                    <Smartphone size={14} className="text-white" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-xs font-black text-slate-800">Admin Android App</p>
+                    <p className="text-[10px] text-slate-400">Latest APK build from GitHub</p>
+                  </div>
+                  <button onClick={fetchApkRelease} disabled={apkLoading}
+                    className="text-slate-300 hover:text-blue-500 transition-colors p-1">
+                    <RefreshCw size={12} className={apkLoading ? "animate-spin" : ""} />
+                  </button>
                 </div>
-              )}
-
-              {!apkLoading && apkRelease && (
-                <div className="p-4 space-y-3">
-                  <div className="flex items-center gap-2 flex-wrap">
+                {apkLoading && (
+                  <div className="px-4 py-4 flex items-center gap-2.5">
+                    <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                    <p className="text-xs text-slate-400">Checking latest build…</p>
+                  </div>
+                )}
+                {!apkLoading && apkError && (
+                  <div className="px-4 py-4 space-y-2">
+                    <p className="text-xs text-slate-400">No APK release found yet.</p>
+                    <a href="https://github.com/Zenkaak/Messer/actions" target="_blank" rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-blue-600 hover:underline">
+                      <ExternalLink size={11}/> View GitHub Actions
+                    </a>
+                  </div>
+                )}
+                {!apkLoading && apkRelease && (
+                  <div className="p-4 space-y-3">
                     <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full">
                       <Tag size={8}/> {apkRelease.tag}
                     </span>
+                    <div className="bg-slate-50 border border-slate-100 rounded-xl px-3 py-2.5">
+                      <ol className="text-[10px] text-slate-600 leading-relaxed list-decimal list-inside space-y-0.5">
+                        <li>Enable <em>"Install from unknown sources"</em> in Settings → Apps.</li>
+                        <li>If Play Protect warns you, tap <strong>Install anyway</strong>.</li>
+                      </ol>
+                    </div>
+                    <a href={apiPath("/api/admin/download/apk")} download
+                      className="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-slate-900 hover:bg-black text-white font-bold text-sm transition-colors active:scale-95">
+                      <Download size={15}/> Download APK
+                    </a>
+                    <a href="https://github.com/Zenkaak/Messer/releases" target="_blank" rel="noopener noreferrer"
+                      className="flex items-center justify-center gap-1.5 text-[11px] text-slate-400 hover:text-slate-600">
+                      <ExternalLink size={10}/> All releases on GitHub
+                    </a>
                   </div>
-                  <div className="bg-blue-50 border border-blue-100 rounded-xl px-3 py-2">
-                    <ol className="text-[10px] text-blue-700 leading-relaxed list-decimal list-inside space-y-0.5">
-                      <li>Enable <em>"Install from unknown sources"</em> in Settings → Apps.</li>
-                      <li>If Play Protect warns you, tap <strong>Install anyway</strong>.</li>
-                    </ol>
-                  </div>
-                  {/* Route through the API proxy so the WebView's
-                      DownloadListener intercepts the response and hands it
-                      to the native install flow. Direct github.com links
-                      get blocked by shouldOverrideUrlLoading. */}
-                  <a href={apiPath("/api/admin/download/apk")} download
-                    className="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm transition-colors active:scale-95">
-                    <Download size={15}/> Download APK
-                  </a>
-                  <a href="https://github.com/Zenkaak/Messer/releases" target="_blank" rel="noopener noreferrer"
-                    className="flex items-center justify-center gap-1.5 text-[11px] font-semibold text-slate-400 hover:text-slate-600">
-                    <ExternalLink size={10}/> All releases on GitHub
-                  </a>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </>
         )}
