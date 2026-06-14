@@ -3,7 +3,7 @@ import { useGetOrder } from "@workspace/api-client-react";
 import { useParams, useLocation } from "wouter";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { MessageCircle, CheckCircle2, Paperclip, Send, X, ShieldCheck, XCircle, Clock, Wallet, CreditCard, ArrowRight } from "lucide-react";
+import { MessageCircle, CheckCircle2, Paperclip, Send, X, ShieldCheck, XCircle, Clock, Wallet, CreditCard, ArrowRight, Copy, Check } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 
 // ── Pay Now Block ─────────────────────────────────────────────────────────────
@@ -19,6 +19,23 @@ function PayNowBlock({ order, token, onSuccess }: { order: OrderSummary; token: 
   const [nowPayAddr, setNowPayAddr] = useState<{ address: string; amount: number; currency: string } | null>(null);
   const [walletMsg, setWalletMsg] = useState<string | null>(null);
   const [walletErr, setWalletErr] = useState<string | null>(null);
+  const [payConfig, setPayConfig] = useState<{ binancePayId?: string; usdtAddress?: string; usdtNetwork?: string } | null>(null);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (pm === "binance_pay" || pm === "usdt_manual") {
+      fetch(`${baseUrl}/api/orders/payment-config`)
+        .then(r => r.json() as Promise<{ binancePayId?: string; usdtAddress?: string; usdtNetwork?: string }>)
+        .then(d => setPayConfig(d))
+        .catch(() => {});
+    }
+  }, [pm, baseUrl]);
+
+  function copy(text: string, key: string) {
+    void navigator.clipboard.writeText(text);
+    setCopiedKey(key);
+    setTimeout(() => setCopiedKey(null), 2000);
+  }
 
   async function payWithWallet() {
     setLoading(true); setWalletErr(null); setWalletMsg(null);
@@ -90,7 +107,66 @@ function PayNowBlock({ order, token, onSuccess }: { order: OrderSummary; token: 
         </>
       )}
 
-      {!["wallet", "nowpayments", "mpesa"].includes(pm) && (
+      {pm === "binance_pay" && (
+        <div className="space-y-3">
+          {payConfig ? (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 space-y-2">
+              <p className="text-[10px] font-bold text-yellow-800 uppercase tracking-widest">Binance Pay ID</p>
+              <div className="flex items-center gap-2">
+                <span className="text-2xl font-black text-gray-900 tracking-widest flex-1">{payConfig.binancePayId}</span>
+                <button
+                  onClick={() => copy(payConfig.binancePayId ?? "", "binance")}
+                  className={`shrink-0 px-2 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors ${copiedKey === "binance" ? "bg-green-600 text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}`}>
+                  {copiedKey === "binance" ? <Check size={12} /> : <Copy size={12} />}
+                  {copiedKey === "binance" ? "Copied" : "Copy"}
+                </button>
+              </div>
+              <p className="text-[10px] text-yellow-700">Label: <strong>GSM World</strong> — Include <strong>ORDER-{order.id}</strong> in your payment note.</p>
+            </div>
+          ) : (
+            <div className="h-20 rounded-xl bg-yellow-50 border border-yellow-100 animate-pulse" />
+          )}
+          <div className="flex items-start gap-2 text-xs text-blue-800">
+            <MessageCircle size={13} className="shrink-0 mt-0.5" />
+            <span>After sending, <strong>upload your proof screenshot</strong> in the chat below so we can verify.</span>
+          </div>
+          <a href="#chat" className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-700 hover:text-blue-900">
+            ↓ Go to chat
+          </a>
+        </div>
+      )}
+
+      {pm === "usdt_manual" && (
+        <div className="space-y-3">
+          {payConfig ? (
+            <div className="bg-green-50 border border-green-200 rounded-xl p-4 space-y-2">
+              <p className="text-[10px] font-bold text-green-800 uppercase tracking-widest">USDT TRC20 Address</p>
+              <div className="flex items-center gap-2 bg-white border border-green-200 rounded-lg px-2 py-2">
+                <span className="font-mono text-[10px] text-gray-700 break-all flex-1 select-all">{payConfig.usdtAddress}</span>
+                <button
+                  onClick={() => copy(payConfig.usdtAddress ?? "", "usdt")}
+                  className={`shrink-0 px-2 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors ${copiedKey === "usdt" ? "bg-green-600 text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}`}>
+                  {copiedKey === "usdt" ? <Check size={12} /> : <Copy size={12} />}
+                  {copiedKey === "usdt" ? "Copied" : "Copy"}
+                </button>
+              </div>
+              <p className="text-[10px] font-bold text-green-800">Network: TRON (TRC20) only</p>
+              <p className="text-[10px] text-green-700">Include <strong>ORDER-{order.id}</strong> as payment memo/note.</p>
+            </div>
+          ) : (
+            <div className="h-20 rounded-xl bg-green-50 border border-green-100 animate-pulse" />
+          )}
+          <div className="flex items-start gap-2 text-xs text-blue-800">
+            <MessageCircle size={13} className="shrink-0 mt-0.5" />
+            <span>After sending, <strong>upload your proof screenshot</strong> in the chat below so we can verify.</span>
+          </div>
+          <a href="#chat" className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-700 hover:text-blue-900">
+            ↓ Go to chat
+          </a>
+        </div>
+      )}
+
+      {!["wallet", "nowpayments", "mpesa", "binance_pay", "usdt_manual"].includes(pm) && (
         <div className="space-y-2">
           <p className="text-xs text-blue-800">Transfer payment and then <strong>upload your proof screenshot</strong> in the chat below ↓</p>
           <a href="#chat" className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-700 hover:text-blue-900">
