@@ -388,6 +388,32 @@ router.post("/orders", async (req, res) => {
       }),
     }).catch((err) => req.log.error({ err }, "Failed to send order confirmation email"));
 
+    // For wallet orders (immediately paid), auto-send gift card codes right away
+    if (order.paymentStatus === "paid" && orderData.paymentMethod === "wallet") {
+      const giftCardItems = orderItems.filter(i => isGiftCardItem(i.productName));
+      if (giftCardItems.length > 0) {
+        const orderUrl = appUrl(`/orders/${order.id}`);
+        for (const item of giftCardItems) {
+          const qty = item.quantity ?? 1;
+          for (let q = 0; q < qty; q++) {
+            const code = generateGiftCardCode();
+            const denomination = `$${parseFloat(item.price).toFixed(2)}`;
+            sendEmail({
+              to: order.customerEmail,
+              ...giftCardDeliveryEmail({
+                orderId: order.id,
+                customerName: order.customerName,
+                productName: item.productName,
+                giftCardCode: code,
+                denomination,
+                orderUrl,
+              }),
+            }).catch((err) => req.log.error({ err }, "Failed to send wallet gift card email"));
+          }
+        }
+      }
+    }
+
     // Fire-and-forget DB write is fine (non-critical)
     db.insert(notificationsTable).values({
       userEmail: order.customerEmail,
