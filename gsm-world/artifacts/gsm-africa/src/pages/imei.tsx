@@ -1,10 +1,8 @@
 import { useState, useMemo } from "react";
 import { Link, useLocation } from "wouter";
-import { useListProducts, useAddToCart, getGetCartQueryKey } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
-import { useToast } from "@/hooks/use-toast";
+import { useListProducts } from "@workspace/api-client-react";
 import {
-  Search, ShoppingCart, Check, Cpu, X, Smartphone,
+  Search, ShoppingCart, Cpu, X, Smartphone,
   AlertCircle, Loader2, CheckCircle2, Shield, Unlock,
   ChevronRight, AlertTriangle,
 } from "lucide-react";
@@ -44,35 +42,21 @@ function typeLabel(cat: string) {
 }
 
 function AddButton({ product }: { product: { id: number; name: string; inStock: boolean } }) {
-  const addToCart = useAddToCart();
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
-  const [adding, setAdding] = useState(false);
-  const [added, setAdded] = useState(false);
+  const [, navigate] = useLocation();
 
   function handle(e: React.MouseEvent) {
     e.preventDefault();
-    if (!product.inStock || adding || added) return;
-    setAdding(true);
-    addToCart.mutate({ data: { productId: product.id, quantity: 1 } }, {
-      onSuccess: (cart) => {
-        queryClient.setQueryData(getGetCartQueryKey(), cart);
-        setAdding(false); setAdded(true);
-        toast({ title: "Added!", description: product.name, duration: 1800 });
-        setTimeout(() => setAdded(false), 2000);
-      },
-      onError: () => { setAdding(false); toast({ variant: "destructive", title: "Could not add" }); },
-    });
+    if (!product.inStock) return;
+    navigate(`/products/${product.id}`);
   }
 
   return (
-    <button onClick={handle} disabled={!product.inStock || adding}
+    <button onClick={handle} disabled={!product.inStock}
+      title="Enter required details to add to cart"
       className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
-        added ? "bg-green-600 text-white" : adding ? "bg-gray-100" : "bg-teal-600 text-white hover:bg-teal-700"
+        !product.inStock ? "bg-gray-100 text-gray-300" : "bg-teal-600 text-white hover:bg-teal-700"
       }`}>
-      {adding ? <span className="w-4 h-4 border-2 border-gray-300 border-t-transparent rounded-full animate-spin" />
-        : added ? <Check size={14} strokeWidth={3} />
-        : <ShoppingCart size={14} />}
+      <ShoppingCart size={14} />
     </button>
   );
 }

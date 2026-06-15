@@ -1464,7 +1464,9 @@ router.get("/admin/webauthn/status", async (req, res) => {
 router.post("/admin/webauthn/register-challenge", async (req, res) => {
   try {
     if (!(await checkAdminAuth(req, res))) return;
-    const origin = req.get("origin") ?? `${req.protocol}://${req.get("host")}`;
+    const proto = (req.headers["x-forwarded-proto"] as string | undefined)?.split(",")[0]?.trim() || req.protocol;
+    const host = (req.headers["x-forwarded-host"] as string | undefined) || req.get("host") || "localhost";
+    const origin = req.get("origin") ?? `${proto}://${host}`;
     const rpID = (() => { try { return new URL(origin).hostname; } catch { return req.hostname; } })();
     const options = await generateRegistrationOptions({
       rpName: "GSM World Admin",
@@ -1495,10 +1497,16 @@ router.post("/admin/webauthn/register", async (req, res) => {
       return;
     }
     await deleteWebauthnChallenge("register");
+    const expectedOrigins = [stored.origin];
+    const replitDomains = (process.env.REPLIT_DOMAINS || "").split(",").filter(Boolean);
+    for (const d of replitDomains) {
+      const t = d.trim();
+      if (t && !expectedOrigins.includes(`https://${t}`)) expectedOrigins.push(`https://${t}`);
+    }
     const verification = await verifyRegistrationResponse({
       response: req.body,
       expectedChallenge: stored.challenge,
-      expectedOrigin: stored.origin,
+      expectedOrigin: expectedOrigins,
       expectedRPID: stored.rpID,
     });
     if (!verification.verified || !verification.registrationInfo) {
@@ -1542,7 +1550,9 @@ router.post("/admin/webauthn/auth-challenge", async (req, res) => {
     if (!credStr) { res.status(404).json({ error: "No fingerprint registered." }); return; }
     const cred = JSON.parse(credStr) as { credentialID: string; rpID: string };
     const rpID = cred.rpID ?? req.hostname;
-    const origin = req.get("origin") ?? `${req.protocol}://${req.get("host")}`;
+    const proto = (req.headers["x-forwarded-proto"] as string | undefined)?.split(",")[0]?.trim() || req.protocol;
+    const host = (req.headers["x-forwarded-host"] as string | undefined) || req.get("host") || "localhost";
+    const origin = req.get("origin") ?? `${proto}://${host}`;
     const options = await generateAuthenticationOptions({
       rpID,
       allowCredentials: [{ id: cred.credentialID }],
@@ -1567,10 +1577,16 @@ router.post("/admin/webauthn/auth", async (req, res) => {
     const credStr = await getWebauthnCredential();
     if (!credStr) { res.status(404).json({ error: "No fingerprint registered." }); return; }
     const cred = JSON.parse(credStr) as { credentialID: string; credentialPublicKey: string; counter: number; rpID: string };
+    const expectedAuthOrigins = [stored.origin];
+    const replitDomainsAuth = (process.env.REPLIT_DOMAINS || "").split(",").filter(Boolean);
+    for (const d of replitDomainsAuth) {
+      const t = d.trim();
+      if (t && !expectedAuthOrigins.includes(`https://${t}`)) expectedAuthOrigins.push(`https://${t}`);
+    }
     const verification = await verifyAuthenticationResponse({
       response: req.body,
       expectedChallenge: stored.challenge,
-      expectedOrigin: stored.origin,
+      expectedOrigin: expectedAuthOrigins,
       expectedRPID: stored.rpID,
       credential: {
         id: cred.credentialID,

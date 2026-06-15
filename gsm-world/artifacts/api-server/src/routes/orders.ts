@@ -779,7 +779,9 @@ router.post("/orders/:id/mpesa/trigger", async (req, res) => {
   try {
     const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, id)).limit(1);
     if (!order) { res.status(404).json({ error: "Order not found" }); return; }
-    if (order.userId !== user.userId) { res.status(403).json({ error: "Access denied" }); return; }
+    const userIdMatch = order.userId != null && order.userId === user.userId;
+    const emailMatch = order.customerEmail.toLowerCase() === user.email.toLowerCase();
+    if (!userIdMatch && !emailMatch) { res.status(403).json({ error: "Access denied" }); return; }
     if (order.paymentStatus !== "pending") { res.status(400).json({ error: "Order is not awaiting payment" }); return; }
     const amountKes = Math.ceil(parseFloat(order.total));
     const stk = await initiateSTKPush({
