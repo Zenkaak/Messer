@@ -702,7 +702,8 @@ router.post("/orders/:id/pay-wallet", async (req, res) => {
   try {
     const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, id)).limit(1);
     if (!order) { res.status(404).json({ error: "Order not found" }); return; }
-    if (order.userId !== user.userId) { res.status(403).json({ error: "Access denied" }); return; }
+    const emailMatch = order.customerEmail && order.customerEmail.toLowerCase() === user.email.toLowerCase();
+    if (order.userId !== user.userId && !emailMatch) { res.status(403).json({ error: "Access denied" }); return; }
     if (order.paymentStatus !== "pending") { res.status(400).json({ error: "Order is not awaiting payment" }); return; }
     if (order.paymentMethod !== "wallet") { res.status(400).json({ error: "This order does not use wallet payment" }); return; }
 
@@ -745,7 +746,8 @@ router.post("/orders/:id/nowpayments/generate", async (req, res) => {
   try {
     const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, id)).limit(1);
     if (!order) { res.status(404).json({ error: "Order not found" }); return; }
-    if (order.userId !== user.userId) { res.status(403).json({ error: "Access denied" }); return; }
+    const emailMatch = order.customerEmail && order.customerEmail.toLowerCase() === user.email.toLowerCase();
+    if (order.userId !== user.userId && !emailMatch) { res.status(403).json({ error: "Access denied" }); return; }
     if (order.paymentStatus !== "pending") { res.status(400).json({ error: "Order is not awaiting payment" }); return; }
 
     const { createPayment } = await import("../lib/nowpayments");

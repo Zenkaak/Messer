@@ -31,6 +31,7 @@ interface AdminSettings {
   mpesaConsumerSecret: string | null;
   mpesaPasskey: string | null;
   mpesaCallbackUrl: string | null;
+  mpesaAccountType: "paybill" | "till";
   mpesaEnv: string;
   usdtEnabled: boolean;
   usdtWalletAddress: string | null;
@@ -2845,6 +2846,7 @@ function PaymentsPanel({ pwd }: { pwd: string }) {
     mpesaConsumerSecret: "",
     mpesaPasskey: "",
     mpesaCallbackUrl: "",
+    mpesaAccountType: "paybill" as "paybill" | "till",
     mpesaEnv: "sandbox",
     usdtEnabled: false,
     usdtWalletAddress: "",
@@ -2906,6 +2908,7 @@ function PaymentsPanel({ pwd }: { pwd: string }) {
           mpesaConsumerSecret: "",
           mpesaPasskey: "",
           mpesaCallbackUrl: d.mpesaCallbackUrl ?? "",
+          mpesaAccountType: (d.mpesaAccountType ?? "paybill") as "paybill" | "till",
           mpesaEnv: d.mpesaEnv ?? "sandbox",
           usdtEnabled: d.usdtEnabled,
           usdtWalletAddress: d.usdtWalletAddress ?? "",
@@ -2975,6 +2978,7 @@ function PaymentsPanel({ pwd }: { pwd: string }) {
       if (form.mpesaConsumerSecret) body.mpesaConsumerSecret = form.mpesaConsumerSecret;
       if (form.mpesaPasskey) body.mpesaPasskey = form.mpesaPasskey;
       if (form.mpesaCallbackUrl) body.mpesaCallbackUrl = form.mpesaCallbackUrl;
+      body.mpesaAccountType = form.mpesaAccountType;
       if (form.usdtWalletAddress) body.usdtWalletAddress = form.usdtWalletAddress;
       if (form.nowpaymentsApiKey) body.nowpaymentsApiKey = form.nowpaymentsApiKey;
       if (form.coingateApiKey) body.coingateApiKey = form.coingateApiKey;
@@ -3116,6 +3120,18 @@ function PaymentsPanel({ pwd }: { pwd: string }) {
             onChange={v => setForm(f => ({ ...f, mpesaCallbackUrl: v }))}
             placeholder="https://yourdomain.com/api/payments/mpesa/callback"
             hint="Leave blank to auto-detect from your domain." />
+          <div>
+            <label className="text-xs font-semibold text-slate-500 block mb-1.5">Account Type</label>
+            <div className="flex gap-2">
+              {(["paybill", "till"] as const).map(type => (
+                <button key={type} type="button" onClick={() => setForm(f => ({ ...f, mpesaAccountType: type }))}
+                  className={`px-4 py-1.5 rounded-xl text-xs font-bold border transition-colors ${form.mpesaAccountType === type ? "bg-green-600 text-white border-green-600" : "border-slate-200 text-slate-500 bg-slate-50 hover:border-green-400"}`}>
+                  {type === "paybill" ? "Paybill" : "Till Number (Buy Goods)"}
+                </button>
+              ))}
+            </div>
+            <p className="text-[11px] text-slate-400 mt-1">Paybill uses CustomerPayBillOnline; Till uses CustomerBuyGoodsOnline.</p>
+          </div>
         </div>
       </div>
 

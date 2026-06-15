@@ -17,6 +17,7 @@ const SETTING_KEYS = [
   "mpesa_consumer_secret",
   "mpesa_passkey",
   "mpesa_callback_url",
+  "mpesa_account_type",
   "whatsapp_contact",
   "mpesa_env",
   "usdt_enabled",
@@ -129,6 +130,7 @@ export async function getAllSettings() {
     mpesaConsumerSecret: (map["mpesa_consumer_secret"] || process.env.MPESA_CONSUMER_SECRET) ? "***" : null,
     mpesaPasskey: (map["mpesa_passkey"] || process.env.MPESA_PASSKEY) ? "***" : null,
     mpesaCallbackUrl: dbOrEnv("mpesa_callback_url", "MPESA_CALLBACK_URL"),
+    mpesaAccountType: (map["mpesa_account_type"] || "paybill") as "paybill" | "till",
     whatsappContact: map["whatsapp_contact"] || null,
     mpesaEnv: map["mpesa_env"] || "sandbox",
     usdtEnabled: map["usdt_enabled"] === "true" || !!(map["usdt_wallet_address"] || process.env.USDT_WALLET_ADDRESS),
@@ -169,6 +171,7 @@ export async function updateSettings(updates: Record<string, unknown>) {
     mpesaConsumerSecret: "mpesa_consumer_secret",
     mpesaPasskey: "mpesa_passkey",
     mpesaCallbackUrl: "mpesa_callback_url",
+    mpesaAccountType: "mpesa_account_type",
     whatsappContact: "whatsapp_contact",
     mpesaEnv: "mpesa_env",
     usdtEnabled: "usdt_enabled",
@@ -338,15 +341,20 @@ export async function deleteWebauthnChallenge(kind: WaChallengeKind): Promise<vo
 }
 
 export async function getMpesaCredentials() {
-  const [shortcode, consumerKey, consumerSecret, passkey, callbackUrl, mpesaEnv] = await Promise.all([
+  const [shortcode, consumerKey, consumerSecret, passkey, callbackUrl, mpesaEnv, accountType] = await Promise.all([
     getSetting("mpesa_shortcode"),
     getSetting("mpesa_consumer_key"),
     getSetting("mpesa_consumer_secret"),
     getSetting("mpesa_passkey"),
     getSetting("mpesa_callback_url"),
     getSetting("mpesa_env"),
+    getSetting("mpesa_account_type"),
   ]);
-  return { shortcode, consumerKey, consumerSecret, passkey, callbackUrl, mpesaEnv: mpesaEnv || "sandbox" };
+  return {
+    shortcode, consumerKey, consumerSecret, passkey, callbackUrl,
+    mpesaEnv: mpesaEnv || "sandbox",
+    accountType: (accountType || "paybill") as "paybill" | "till",
+  };
 }
 
 export async function getUsdtWallet() {

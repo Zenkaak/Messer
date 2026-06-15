@@ -104,7 +104,7 @@ export async function initiateSTKPush(params: {
     BusinessShortCode: shortcode,
     Password: password,
     Timestamp: timestamp,
-    TransactionType: "CustomerPayBillOnline",
+    TransactionType: creds.accountType === "till" ? "CustomerBuyGoodsOnline" : "CustomerPayBillOnline",
     Amount: Math.ceil(params.amount),
     PartyA: phone,
     PartyB: shortcode,
