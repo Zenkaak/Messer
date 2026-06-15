@@ -455,127 +455,115 @@ function OverviewPanel({ pwd, onNavigate }: { pwd: string; onNavigate: (tab: Tab
   }
 
   return (
-    <div className="pb-8">
-      {/* ── Hero ──────────────────────────────────── */}
-      <div className="relative overflow-hidden px-5 pt-5 pb-6"
-        style={{ background: "linear-gradient(160deg,#080f1c 0%,#0e1d33 55%,#080f1c 100%)" }}>
-        <div className="pointer-events-none absolute inset-0">
-          <div className="absolute -top-20 right-0 w-96 h-96 rounded-full opacity-20"
-            style={{ background: "radial-gradient(circle,#2563eb,transparent 65%)" }} />
-          <div className="absolute bottom-0 -left-10 w-64 h-64 rounded-full opacity-10"
-            style={{ background: "radial-gradient(circle,#7c3aed,transparent 65%)" }} />
+    <div className="min-h-screen pb-12" style={{ background: "#f0f2f5" }}>
+      {/* ── Header ─────────────────────────────────── */}
+      <div className="px-4 pt-5 pb-3 flex items-center justify-between">
+        <div>
+          <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-[0.15em]">
+            {new Date().toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"})}
+          </p>
+          <h2 className="text-[18px] font-bold text-slate-900 mt-0.5 tracking-tight">Overview</h2>
         </div>
-
-        {/* Header */}
-        <div className="relative flex items-start justify-between mb-6">
-          <div>
-            <p className="text-[10px] font-bold text-blue-400/50 uppercase tracking-[0.14em]">
-              {new Date().toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"})}
-            </p>
-            <h2 className="text-[22px] font-black text-white tracking-tight mt-0.5">Dashboard</h2>
-          </div>
-          <button onClick={load}
-            className="mt-0.5 w-8 h-8 rounded-full bg-white/8 border border-white/10 flex items-center justify-center text-white/40 hover:text-white hover:bg-white/15 transition-all active:scale-90">
-            <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
-          </button>
-        </div>
-
-        {/* Revenue */}
-        {loading ? (
-          <div className="space-y-2">
-            <div className="h-2.5 w-28 bg-white/10 rounded-full animate-pulse" />
-            <div className="h-14 w-52 bg-white/10 rounded-xl animate-pulse" />
-            <div className="h-px w-full bg-white/10 my-3" />
-            <div className="flex gap-2">{[1,2,3].map(i=><div key={i} className="h-7 w-20 bg-white/10 rounded-full animate-pulse"/>)}</div>
-          </div>
-        ) : (
-          <div className="relative">
-            <div className="flex items-center gap-1.5 mb-2">
-              <TrendingUp size={10} className="text-emerald-400" />
-              <span className="text-[9px] font-extrabold text-emerald-400/60 uppercase tracking-widest">Total Revenue</span>
-            </div>
-            <p className="text-[52px] font-black text-white leading-none tracking-tight">
-              ${(stats?.paidOrders.revenue ?? 0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}
-            </p>
-            <p className="text-[11px] text-slate-500 mt-2">
-              from <span className="text-slate-300 font-bold">{stats?.paidOrders.count ?? 0}</span> paid orders
-              {" · "}avg <span className="text-slate-300 font-bold">${avgOrder}</span>
-            </p>
-            <div className="flex gap-2 mt-5 pt-4 border-t border-white/[0.06]">
-              {[
-                { label:"Paid",    value: confirmed, ring:"border-emerald-500/30 bg-emerald-500/10 text-emerald-400" },
-                { label:"Pending", value: pending,   ring:"border-amber-500/30 bg-amber-500/10 text-amber-400" },
-                { label:"Failed",  value: failed,    ring:"border-red-500/30 bg-red-500/10 text-red-400" },
-              ].map(k => (
-                <div key={k.label} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[11px] font-bold ${k.ring}`}>
-                  <span className="text-sm font-black">{k.value}</span>
-                  <span className="opacity-70 text-[10px]">{k.label}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        <button onClick={load}
+          className="w-9 h-9 rounded-full bg-white shadow-sm border border-slate-100 flex items-center justify-center text-slate-400 hover:text-blue-500 transition-colors active:scale-90">
+          <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+        </button>
       </div>
 
-      <div className="px-4 space-y-4 mt-4">
+      <div className="px-4 space-y-3">
         {loading ? (
           <div className="space-y-3">
+            <Skeleton h="h-36" />
             <div className="grid grid-cols-2 gap-3">{[1,2,3,4].map(i=><Skeleton key={i} h="h-24"/>)}</div>
-            <Skeleton h="h-12"/>
-            <Skeleton h="h-40"/>
+            <Skeleton h="h-14" />
+            <Skeleton h="h-48" />
           </div>
         ) : (
           <>
+            {/* ── Revenue card ───────────────────── */}
+            <div className="rounded-2xl overflow-hidden shadow-sm">
+              <div className="px-5 pt-5 pb-5" style={{ background: "linear-gradient(145deg,#1a2f50 0%,#0f1e36 100%)" }}>
+                <div className="flex items-start justify-between mb-3">
+                  <div>
+                    <p className="text-[9px] font-bold text-blue-300/60 uppercase tracking-[0.18em]">Total Revenue</p>
+                    <p className="text-[42px] font-black text-white leading-none tracking-tight mt-1">
+                      ${(stats?.paidOrders.revenue ?? 0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1 bg-emerald-500/15 border border-emerald-400/20 rounded-full px-2.5 py-1 mt-1">
+                    <TrendingUp size={10} className="text-emerald-400" />
+                    <span className="text-[9px] font-bold text-emerald-400">All time</span>
+                  </div>
+                </div>
+                <p className="text-[11px] text-slate-400">
+                  from <span className="text-slate-200 font-semibold">{stats?.paidOrders.count ?? 0}</span> paid orders
+                  {" · "}avg <span className="text-slate-200 font-semibold">${avgOrder}</span>
+                </p>
+              </div>
+              <div className="flex divide-x divide-slate-100" style={{ background: "#ffffff" }}>
+                {[
+                  { label:"Paid",    value: confirmed, valueColor:"text-emerald-600", bg:"bg-emerald-50/60" },
+                  { label:"Pending", value: pending,   valueColor:"text-amber-600",   bg:"bg-amber-50/60"   },
+                  { label:"Failed",  value: failed,    valueColor:"text-red-500",     bg:"bg-red-50/60"     },
+                ].map(k => (
+                  <div key={k.label} className={`flex-1 flex flex-col items-center py-3.5 ${k.bg}`}>
+                    <span className={`text-[22px] font-black leading-none ${k.valueColor}`}>{k.value}</span>
+                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-1">{k.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             {/* ── Stat cards ─────────────────────── */}
             <div className="grid grid-cols-2 gap-3">
               {[
-                { label:"Total Orders", value: stats?.orders.total ?? 0,  sub:`${confirmed} confirmed`, icon:<ShoppingBag size={14}/>, accent:"#3b82f6", tab:"orders"   as Tab },
-                { label:"Customers",    value: stats?.users ?? 0,          sub:"registered accounts",   icon:<Users size={14}/>,       accent:"#8b5cf6", tab:"users"    as Tab },
-                { label:"Products",     value: stats?.products ?? 0,       sub:"in catalog",            icon:<Package size={14}/>,     accent:"#f59e0b", tab:"products" as Tab },
-                { label:"Avg. Order",   value:`$${avgOrder}`,              sub:"per paid order",        icon:<TrendingUp size={14}/>,  accent:"#10b981", tab:null as unknown as Tab },
+                { label:"Total Orders", value: stats?.orders.total ?? 0, sub:`${confirmed} confirmed`, icon:<ShoppingBag size={16}/>, accent:"#2563eb", tab:"orders"   as Tab },
+                { label:"Customers",    value: stats?.users ?? 0,         sub:"registered accounts",  icon:<Users size={16}/>,       accent:"#7c3aed", tab:"users"    as Tab },
+                { label:"Products",     value: stats?.products ?? 0,      sub:"in catalog",           icon:<Package size={16}/>,     accent:"#d97706", tab:"products" as Tab },
+                { label:"Avg. Order",   value:`$${avgOrder}`,             sub:"per paid order",       icon:<TrendingUp size={16}/>,  accent:"#059669", tab:null as unknown as Tab },
               ].map(c => (
                 <button key={c.label} onClick={() => c.tab && onNavigate(c.tab)}
-                  className="bg-white rounded-2xl border border-slate-100 pl-4 pr-3 pt-4 pb-3.5 shadow-sm hover:shadow-md hover:border-slate-200 active:scale-95 transition-all text-left relative overflow-hidden">
-                  <div className="absolute left-0 top-3 bottom-3 w-[3px] rounded-full" style={{ background: c.accent }} />
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className="w-7 h-7 rounded-lg flex items-center justify-center text-white shrink-0"
-                      style={{ background: c.accent }}>
-                      {c.icon}
-                    </div>
-                    <p className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider leading-tight">{c.label}</p>
+                  className="bg-white rounded-2xl shadow-sm p-4 text-left active:scale-[0.97] transition-transform">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3 text-white"
+                    style={{ background: c.accent }}>
+                    {c.icon}
                   </div>
-                  <p className="text-[28px] font-black text-slate-900 leading-none">{c.value}</p>
-                  <p className="text-[10px] text-slate-400 mt-1.5">{c.sub}</p>
+                  <p className="text-[26px] font-black text-slate-900 leading-none">{c.value}</p>
+                  <p className="text-[11px] font-semibold text-slate-600 mt-1.5 leading-tight">{c.label}</p>
+                  <p className="text-[9px] text-slate-400 mt-0.5">{c.sub}</p>
                 </button>
               ))}
             </div>
 
-            {/* ── Order breakdown bar ─────────────── */}
+            {/* ── Order status bar ───────────────── */}
             {(stats?.orders.total ?? 0) > 0 && (() => {
               const total = stats!.orders.total;
-              const paidPct   = (confirmed / total) * 100;
-              const pendPct   = (pending   / total) * 100;
-              const failPct   = (failed    / total) * 100;
+              const paidPct = (confirmed / total) * 100;
+              const pendPct = (pending   / total) * 100;
+              const failPct = (failed    / total) * 100;
               return (
-                <div className="bg-white border border-slate-100 rounded-2xl px-4 py-3.5 shadow-sm">
-                  <div className="flex items-center justify-between mb-2.5">
-                    <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Order Breakdown</p>
-                    <p className="text-[11px] font-bold text-slate-500">{total} total</p>
+                <div className="bg-white rounded-2xl shadow-sm px-4 py-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-xs font-bold text-slate-800">Order Status</span>
+                    <span className="text-[11px] font-medium text-slate-400">{total} total</span>
                   </div>
-                  <div className="flex h-1.5 rounded-full overflow-hidden gap-px bg-slate-100">
-                    {paidPct > 0 && <div className="rounded-full bg-emerald-500 transition-all" style={{ width:`${paidPct}%` }}/>}
-                    {pendPct > 0 && <div className="rounded-full bg-amber-400 transition-all"   style={{ width:`${pendPct}%` }}/>}
-                    {failPct > 0 && <div className="rounded-full bg-red-400 transition-all"     style={{ width:`${failPct}%` }}/>}
+                  <div className="flex h-2 rounded-full overflow-hidden gap-0.5">
+                    {paidPct > 0 && <div className="rounded-full bg-emerald-500" style={{ width:`${paidPct}%` }}/>}
+                    {pendPct > 0 && <div className="rounded-full bg-amber-400"   style={{ width:`${pendPct}%` }}/>}
+                    {failPct > 0 && <div className="rounded-full bg-red-400"     style={{ width:`${failPct}%` }}/>}
                   </div>
-                  <div className="flex gap-4 mt-2.5">
+                  <div className="flex gap-5 mt-3">
                     {[
-                      { label:"Paid",    count:confirmed, dot:"bg-emerald-500" },
-                      { label:"Pending", count:pending,   dot:"bg-amber-400"   },
-                      { label:"Failed",  count:failed,    dot:"bg-red-400"     },
+                      { label:"Paid",    count:confirmed, pct:paidPct, dot:"bg-emerald-500" },
+                      { label:"Pending", count:pending,   pct:pendPct, dot:"bg-amber-400"   },
+                      { label:"Failed",  count:failed,    pct:failPct, dot:"bg-red-400"     },
                     ].map(s => (
-                      <div key={s.label} className="flex items-center gap-1.5">
-                        <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${s.dot}`} />
-                        <span className="text-[10px] text-slate-400">{s.label} <span className="font-bold text-slate-700">{s.count}</span></span>
+                      <div key={s.label} className="flex items-center gap-2">
+                        <div className={`w-2 h-2 rounded-full shrink-0 ${s.dot}`} />
+                        <span className="text-[10px] text-slate-500">
+                          {s.label} <span className="font-bold text-slate-800">{s.count}</span>
+                          <span className="text-slate-300 ml-1">{s.pct.toFixed(0)}%</span>
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -586,57 +574,55 @@ function OverviewPanel({ pwd, onNavigate }: { pwd: string; onNavigate: (tab: Tab
             {/* ── Live chat alert ─────────────────── */}
             {(liveRequests?.waiting ?? 0) > 0 && (
               <button onClick={() => onNavigate("live_chat")}
-                className="w-full flex items-center gap-3 rounded-2xl px-4 py-4 shadow-md active:scale-[0.98] transition-transform relative overflow-hidden text-left"
-                style={{ background:"linear-gradient(135deg,#10b981,#059669)" }}>
-                <div className="absolute inset-0 pointer-events-none"
-                  style={{ backgroundImage:"radial-gradient(circle at 85% 50%,rgba(255,255,255,0.14),transparent 60%)" }} />
-                <div className="relative w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center shrink-0">
-                  <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-red-400 border-2 border-emerald-500 animate-ping" />
-                  <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-red-400 border-2 border-emerald-500" />
-                  <Headphones size={18} className="text-white relative" />
+                className="w-full flex items-center gap-3 rounded-2xl px-4 py-4 shadow-sm active:scale-[0.98] transition-transform text-left"
+                style={{ background:"linear-gradient(135deg,#059669,#047857)" }}>
+                <div className="relative w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+                  <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-red-400 border-2 border-emerald-600 animate-ping" />
+                  <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-red-400 border-2 border-emerald-600" />
+                  <Headphones size={18} className="text-white" />
                 </div>
-                <div className="relative flex-1">
-                  <p className="text-[15px] font-black text-white leading-tight">
-                    {liveRequests!.waiting} Live Request{liveRequests!.waiting !== 1 ? "s" : ""} Waiting
+                <div className="flex-1">
+                  <p className="text-sm font-bold text-white">
+                    {liveRequests!.waiting} Request{liveRequests!.waiting !== 1 ? "s" : ""} Waiting
                   </p>
-                  <p className="text-[11px] text-white/75 mt-0.5">
+                  <p className="text-[11px] text-white/70 mt-0.5">
                     {liveRequests!.active > 0 && `${liveRequests!.active} active · `}Tap to respond
                   </p>
                 </div>
-                <ChevronRight size={16} className="relative text-white/70 shrink-0" />
+                <ChevronRight size={16} className="text-white/60 shrink-0" />
               </button>
             )}
 
             {/* ── Recent orders ───────────────────── */}
             {(stats?.recentOrders?.length ?? 0) > 0 && (
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Recent Orders</p>
+              <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-3.5 border-b border-slate-50">
+                  <span className="text-xs font-bold text-slate-800">Recent Orders</span>
                   <button onClick={() => onNavigate("orders")}
-                    className="text-[11px] font-bold text-blue-500 flex items-center gap-0.5">
+                    className="text-[11px] font-semibold text-blue-500 flex items-center gap-0.5">
                     View all <ArrowUpRight size={11} />
                   </button>
                 </div>
-                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden divide-y divide-slate-50">
+                <div className="divide-y divide-slate-50">
                   {stats!.recentOrders.map((o, idx) => {
                     const name = o.customerName ?? o.customerEmail ?? `#${o.id}`;
                     const initials = name.split(" ").slice(0,2).map((w: string) => w[0]).join("").toUpperCase().slice(0,2);
                     const av = ["bg-blue-100 text-blue-600","bg-violet-100 text-violet-600","bg-amber-100 text-amber-600","bg-emerald-100 text-emerald-600","bg-rose-100 text-rose-600"];
                     return (
                       <button key={o.id} onClick={() => onNavigate("orders")}
-                        className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-slate-50/80 transition-colors text-left">
-                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-[11px] font-black shrink-0 ${av[idx % av.length]}`}>
+                        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50/70 transition-colors text-left">
+                        <div className={`w-9 h-9 rounded-full flex items-center justify-center text-[11px] font-black shrink-0 ${av[idx % av.length]}`}>
                           {initials}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs font-bold text-slate-800 leading-tight truncate">{name}</p>
+                          <p className="text-[13px] font-semibold text-slate-800 leading-tight truncate">{name}</p>
                           <p className="text-[10px] text-slate-400 mt-0.5">
                             #{o.id} · {new Date(o.createdAt).toLocaleDateString("en-US",{month:"short",day:"numeric"})}
                           </p>
                         </div>
                         <div className="text-right shrink-0">
-                          <p className="text-sm font-black text-slate-900">${parseFloat(o.total).toFixed(2)}</p>
-                          <span className={`inline-block text-[9px] font-bold px-1.5 py-0.5 rounded-full mt-0.5 ${statusColor(o.paymentStatus)}`}>
+                          <p className="text-sm font-bold text-slate-900">${parseFloat(o.total).toFixed(2)}</p>
+                          <span className={`inline-block text-[9px] font-bold px-2 py-0.5 rounded-full mt-0.5 ${statusColor(o.paymentStatus)}`}>
                             {o.paymentStatus}
                           </span>
                         </div>
@@ -647,32 +633,32 @@ function OverviewPanel({ pwd, onNavigate }: { pwd: string; onNavigate: (tab: Tab
               </div>
             )}
 
-            {/* ── Quick actions ───────────────────── */}
-            <div>
-              <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">Quick Actions</p>
-              <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden divide-y divide-slate-50">
+            {/* ── Quick navigate ─────────────────── */}
+            <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+              <div className="px-4 py-3.5 border-b border-slate-50">
+                <span className="text-xs font-bold text-slate-800">Quick Navigate</span>
+              </div>
+              <div className="grid grid-cols-2 divide-x divide-y divide-slate-50">
                 {[
-                  { label:"Orders",    sub:`${stats?.orders.total ?? 0} total`,  icon:<ShoppingBag size={15}/>, tab:"orders"   as Tab, accent:"#3b82f6", badge: pending > 0 ? pending : null },
-                  { label:"Products",  sub:`${stats?.products ?? 0} in catalog`, icon:<Package size={15}/>,     tab:"products" as Tab, accent:"#10b981", badge: null },
-                  { label:"Customers", sub:`${stats?.users ?? 0} accounts`,      icon:<Users size={15}/>,       tab:"users"    as Tab, accent:"#8b5cf6", badge: null },
-                  { label:"Payments",  sub:"config & methods",                   icon:<Zap size={15}/>,         tab:"payments" as Tab, accent:"#f59e0b", badge: null },
+                  { label:"Orders",    sub:`${stats?.orders.total ?? 0} total`,  icon:<ShoppingBag size={15}/>, tab:"orders"   as Tab, badge: pending > 0 ? pending : null, accent:"#2563eb" },
+                  { label:"Products",  sub:`${stats?.products ?? 0} in catalog`, icon:<Package size={15}/>,     tab:"products" as Tab, badge: null, accent:"#d97706" },
+                  { label:"Customers", sub:`${stats?.users ?? 0} accounts`,      icon:<Users size={15}/>,       tab:"users"    as Tab, badge: null, accent:"#7c3aed" },
+                  { label:"Payments",  sub:"config & methods",                   icon:<Zap size={15}/>,         tab:"payments" as Tab, badge: null, accent:"#059669" },
                 ].map(q => (
                   <button key={q.label} onClick={() => onNavigate(q.tab)}
-                    className="w-full flex items-center gap-3.5 px-4 py-3.5 hover:bg-slate-50/80 active:bg-slate-100/80 transition-colors text-left">
-                    <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white shrink-0"
-                      style={{ background:`linear-gradient(135deg,${q.accent},${q.accent}bb)` }}>
+                    className="flex items-center gap-2.5 px-4 py-4 hover:bg-slate-50 active:bg-slate-100 transition-colors text-left relative">
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-white"
+                      style={{ background: q.accent }}>
                       {q.icon}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[13px] font-bold text-slate-800">{q.label}</p>
-                      <p className="text-[10px] text-slate-400">{q.sub}</p>
+                      <p className="text-xs font-bold text-slate-800">{q.label}</p>
+                      <p className="text-[9px] text-slate-400 truncate mt-0.5">{q.sub}</p>
                     </div>
-                    {q.badge !== null ? (
-                      <span className="w-5 h-5 bg-amber-500 rounded-full text-white text-[9px] font-black flex items-center justify-center shrink-0">
+                    {q.badge !== null && (
+                      <span className="absolute top-2 right-2 w-4 h-4 bg-amber-500 rounded-full text-white text-[8px] font-black flex items-center justify-center">
                         {q.badge}
                       </span>
-                    ) : (
-                      <ChevronRight size={14} className="text-slate-200 shrink-0" />
                     )}
                   </button>
                 ))}
@@ -680,20 +666,21 @@ function OverviewPanel({ pwd, onNavigate }: { pwd: string; onNavigate: (tab: Tab
             </div>
 
             {/* ── System status ───────────────────── */}
-            <div className="space-y-2.5">
+            <div className="space-y-3">
               {cascadeStatus && (
-                <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-violet-50 flex items-center justify-center shrink-0">
-                    <Cpu size={16} className="text-violet-600" />
+                <div className="bg-white rounded-2xl shadow-sm p-4 flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 text-white"
+                    style={{ background: "linear-gradient(135deg,#7c3aed,#5b21b6)" }}>
+                    <Cpu size={16} className="text-white" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-black text-slate-800">AI Model Health</p>
+                    <p className="text-xs font-bold text-slate-800">AI Model Health</p>
                     <p className="text-[10px] text-slate-400 mt-0.5 truncate">
                       {cascadeStatus.isDefault
                         ? "Using default cascade"
                         : `${cascadeStatus.models.length} model${cascadeStatus.models.length !== 1 ? "s" : ""} active`}
                       {!cascadeStatus.isDefault && cascadeStatus.updatedAt &&
-                        ` · ${new Date(cascadeStatus.updatedAt).toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"})}`}
+                        ` · checked ${new Date(cascadeStatus.updatedAt).toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"})}`}
                     </p>
                   </div>
                   <button onClick={refreshCascade} disabled={cascadeRefreshing}
@@ -704,18 +691,18 @@ function OverviewPanel({ pwd, onNavigate }: { pwd: string; onNavigate: (tab: Tab
                 </div>
               )}
 
-              {/* APK card */}
-              <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
-                <div className="flex items-center gap-3 px-4 py-3.5 border-b border-slate-100">
-                  <div className="w-9 h-9 rounded-xl bg-slate-900 flex items-center justify-center shrink-0">
+              <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+                <div className="flex items-center gap-3 px-4 py-3.5 border-b border-slate-50">
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 text-white"
+                    style={{ background: "linear-gradient(135deg,#1e293b,#0f172a)" }}>
                     <Smartphone size={14} className="text-white" />
                   </div>
                   <div className="flex-1">
-                    <p className="text-xs font-black text-slate-800">Admin Android App</p>
-                    <p className="text-[10px] text-slate-400">Latest APK build from GitHub</p>
+                    <p className="text-xs font-bold text-slate-800">Admin Android App</p>
+                    <p className="text-[10px] text-slate-400">Latest build from GitHub</p>
                   </div>
                   <button onClick={fetchApkRelease} disabled={apkLoading}
-                    className="text-slate-300 hover:text-blue-500 transition-colors p-1">
+                    className="text-slate-300 hover:text-blue-500 transition-colors p-1.5 rounded-lg hover:bg-slate-50">
                     <RefreshCw size={12} className={apkLoading ? "animate-spin" : ""} />
                   </button>
                 </div>
@@ -736,17 +723,21 @@ function OverviewPanel({ pwd, onNavigate }: { pwd: string; onNavigate: (tab: Tab
                 )}
                 {!apkLoading && apkRelease && (
                   <div className="p-4 space-y-3">
-                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full">
-                      <Tag size={8}/> {apkRelease.tag}
-                    </span>
-                    <div className="bg-slate-50 border border-slate-100 rounded-xl px-3 py-2.5">
-                      <ol className="text-[10px] text-slate-600 leading-relaxed list-decimal list-inside space-y-0.5">
+                    <div className="flex items-center justify-between">
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-100 px-2.5 py-1 rounded-full">
+                        <Tag size={8}/> {apkRelease.tag}
+                      </span>
+                      <span className="text-[10px] text-slate-400">Latest release</span>
+                    </div>
+                    <div className="bg-slate-50 rounded-xl px-3 py-2.5 border border-slate-100">
+                      <ol className="text-[10px] text-slate-500 leading-relaxed list-decimal list-inside space-y-1">
                         <li>Enable <em>"Install from unknown sources"</em> in Settings → Apps.</li>
                         <li>If Play Protect warns you, tap <strong>Install anyway</strong>.</li>
                       </ol>
                     </div>
                     <a href={apiPath("/api/admin/download/apk")} download
-                      className="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-slate-900 hover:bg-black text-white font-bold text-sm transition-colors active:scale-95">
+                      className="flex items-center justify-center gap-2 w-full py-3 rounded-xl text-white font-bold text-sm transition-all active:scale-95 shadow-sm"
+                      style={{ background: "linear-gradient(135deg,#1e293b,#0f172a)" }}>
                       <Download size={15}/> Download APK
                     </a>
                     <a href="https://github.com/Zenkaak/Messer/releases" target="_blank" rel="noopener noreferrer"
