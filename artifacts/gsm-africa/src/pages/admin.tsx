@@ -3491,7 +3491,9 @@ function FingerprintSetupModal({ pwd, onDismiss }: { pwd: string; onDismiss: () 
         body: JSON.stringify({ origin: window.location.origin }),
       });
       if (!optRes.ok) { setError((await optRes.json() as { error?: string }).error ?? "Failed to start registration."); return; }
-      const options = await optRes.json();
+      const options = await optRes.json() as { rp?: { id?: string }; [key: string]: unknown };
+      // Log so admin can check browser console for mismatch details
+      console.log("[WebAuthn] rpID from server:", options.rp?.id, "| page origin:", window.location.origin);
       const attResp = await startRegistration({ optionsJSON: options });
       const verRes = await adminFetch(apiPath("/api/admin/webauthn/register"), pwd, {
         method: "POST", body: JSON.stringify(attResp),
@@ -3501,7 +3503,13 @@ function FingerprintSetupModal({ pwd, onDismiss }: { pwd: string; onDismiss: () 
       setRegistered(true);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      setError(msg.includes("cancelled") || msg.includes("abort") ? "Fingerprint scan cancelled." : "Registration failed. Please try again.");
+      console.error("[WebAuthn] registration error:", msg);
+      if (msg.includes("cancelled") || msg.includes("abort")) {
+        setError("Fingerprint scan cancelled.");
+      } else {
+        // Show the real error so we can diagnose — not just a generic message
+        setError(`Error: ${msg}`);
+      }
     } finally { setLoading(false); }
   }
 
