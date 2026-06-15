@@ -3,7 +3,7 @@ import { useGetOrder } from "@workspace/api-client-react";
 import { useParams, useLocation } from "wouter";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { MessageCircle, CheckCircle2, Paperclip, Send, X, ShieldCheck, XCircle, Clock, Wallet, CreditCard, ArrowRight, Copy, Check, Zap } from "lucide-react";
+import { MessageCircle, CheckCircle2, Paperclip, Send, X, ShieldCheck, XCircle, Clock, Wallet, CreditCard, ArrowRight, Copy, Check, Zap, Smartphone } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 
 function useOrderWebSocket(
@@ -71,6 +71,94 @@ function useOrderWebSocket(
   }, [orderId]);
 
   return wsReady;
+}
+
+// ── M-Pesa Resend Block ───────────────────────────────────────────────────────
+interface MpesaOrder {
+  id: number;
+  customerPhone: string | null;
+}
+function MpesaResendBlock({ order, token }: { order: MpesaOrder; token: string | null }) {
+  const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, "");
+  const [phone, setPhone] = useState(order.customerPhone ?? "");
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [cooldown, setCooldown] = useState(0);
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const t = setInterval(() => setCooldown(c => Math.max(0, c - 1)), 1000);
+    return () => clearInterval(t);
+  }, [cooldown]);
+
+  async function resend() {
+    if (!phone.trim() || sending || cooldown > 0) return;
+    setSending(true);
+    setError(null);
+    setSent(false);
+    try {
+      const r = await fetch(`${baseUrl}/api/orders/${order.id}/mpesa/trigger`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ phone: phone.trim() }),
+      });
+      const d = await r.json() as { success?: boolean; message?: string; error?: string };
+      if (r.ok && d.success) {
+        setSent(true);
+        setCooldown(30);
+      } else {
+        setError(d.error ?? "Failed to send M-Pesa request. Please try again.");
+      }
+    } catch {
+      setError("Network error. Please try again.");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <div className="bg-green-50 border border-green-200 rounded-xl p-4 space-y-3">
+      <div className="flex items-center gap-2">
+        <Smartphone size={16} className="text-green-700 shrink-0" />
+        <p className="text-sm font-bold text-green-900">Resend M-Pesa STK Push</p>
+      </div>
+      <p className="text-xs text-green-700">
+        Didn't receive the M-Pesa prompt? Confirm your Safaricom number below and tap <strong>Send Request</strong>.
+      </p>
+      <div className="flex gap-2">
+        <input
+          type="tel"
+          value={phone}
+          onChange={e => setPhone(e.target.value)}
+          placeholder="e.g. 0712345678 or 254712345678"
+          className="flex-1 min-w-0 text-sm px-3 py-2.5 border border-green-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-green-400"
+        />
+        <button
+          onClick={resend}
+          disabled={sending || cooldown > 0 || !phone.trim()}
+          className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-sm font-bold px-4 py-2.5 rounded-xl transition-colors whitespace-nowrap shrink-0"
+        >
+          {sending
+            ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            : <Zap size={14} />}
+          {sending ? "Sending…" : cooldown > 0 ? `Retry in ${cooldown}s` : "Send Request"}
+        </button>
+      </div>
+      {sent && (
+        <div className="flex items-center gap-2 bg-green-100 border border-green-200 rounded-xl px-3 py-2">
+          <CheckCircle2 size={14} className="text-green-600 shrink-0" />
+          <p className="text-xs text-green-700 font-medium">M-Pesa prompt sent! Check your phone and enter your PIN.</p>
+        </div>
+      )}
+      {error && (
+        <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2">{error}</p>
+      )}
+    </div>
+  );
 }
 
 // ── Pay Now Block ─────────────────────────────────────────────────────────────
@@ -479,6 +567,9 @@ export function OrderPage() {
       )}
 
       {order.paymentStatus === "pending" && <PayNowBlock order={order} token={token} onSuccess={() => void refetch()} />}
+      {order.paymentStatus === "pending" && order.paymentMethod === "mpesa" && (
+        <MpesaResendBlock order={order} token={token} />
+      )}
 
       {order.paymentStatus === "paid" && (
         <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-sm text-green-800">
