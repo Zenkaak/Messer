@@ -7,6 +7,12 @@ import { logger } from "../lib/logger";
 import { getGoogleCredentials } from "../lib/admin-settings";
 import { checkRateLimit, recordRateLimitAttempt, clearRateLimit } from "../lib/rate-limit";
 import { sendEmail, otpEmail } from "../lib/email";
+import {
+  generateRegistrationOptions,
+  verifyRegistrationResponse,
+  generateAuthenticationOptions,
+  verifyAuthenticationResponse,
+} from "@simplewebauthn/server";
 
 const router: IRouter = Router();
 
@@ -748,6 +754,236 @@ window.addEventListener('load', function() {
 
 router.get("/admin/check", (_req, res) => {
   res.json({ configured: !!process.env.ADMIN_PASSWORD });
+});
+
+// ── User WebAuthn / fingerprint endpoints ────────────────────────────────────
+// Credentials are stored per-user in adminSettingsTable with key
+// `webauthn_user_cred:{userId}` and challenges with
+// `webauthn_user_challenge_{kind}:{userId}`.
+
+const WA_USER_CHALLENGE_TTL = 5 * 60 * 1000; // 5 min
+
+async function getUserWebauthnCredential(userId: number): Promise<string | null> {
+  try {
+    const rows = await db.select().from(adminSettingsTable)
+      .where(eq(adminSettingsTable.key, `webauthn_user_cred:${userId}`)).limit(1);
+    return rows[0]?.value ?? null;
+  } catch { return null; }
+}
+
+async function setUserWebauthnCredential(userId: number, json: string): Promise<void> {
+  const key = `webauthn_user_cred:${userId}`;
+  await db.insert(adminSettingsTable).values({ key, value: json })
+    .onConflictDoUpdate({ target: adminSettingsTable.key, set: { value: json, updatedAt: new Date() } });
+}
+
+async function deleteUserWebauthnCredential(userId: number): Promise<void> {
+  await db.delete(adminSettingsTable).where(eq(adminSettingsTable.key, `webauthn_user_cred:${userId}`));
+}
+
+async function setUserWebauthnChallenge(userId: number, kind: "register" | "auth", payload: { challenge: string; origin: string; rpID: string; ts: number }): Promise<void> {
+  const key = `webauthn_user_challenge_${kind}:${userId}`;
+  await db.insert(adminSettingsTable).values({ key, value: JSON.stringify(payload) })
+    .onConflictDoUpdate({ target: adminSettingsTable.key, set: { value: JSON.stringify(payload), updatedAt: new Date() } });
+}
+
+async function getUserWebauthnChallenge(userId: number, kind: "register" | "auth"): Promise<{ challenge: string; origin: string; rpID: string; ts: number } | null> {
+  const key = `webauthn_user_challenge_${kind}:${userId}`;
+  try {
+    const rows = await db.select().from(adminSettingsTable).where(eq(adminSettingsTable.key, key)).limit(1);
+    if (!rows[0]?.value) return null;
+    return JSON.parse(rows[0].value) as { challenge: string; origin: string; rpID: string; ts: number };
+  } catch { return null; }
+}
+
+async function deleteUserWebauthnChallenge(userId: number, kind: "register" | "auth"): Promise<void> {
+  await db.delete(adminSettingsTable).where(eq(adminSettingsTable.key, `webauthn_user_challenge_${kind}:${userId}`));
+}
+
+// GET /auth/webauthn/status — check if current user has a fingerprint registered
+router.get("/auth/webauthn/status", async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith("Bearer ")) { res.status(401).json({ error: "Unauthorized" }); return; }
+    const payload = jwt.verify(authHeader.slice(7), _jwtSecret) as { userId: number };
+    const cred = await getUserWebauthnCredential(payload.userId);
+    res.json({ registered: Boolean(cred) });
+  } catch { res.status(401).json({ error: "Invalid token" }); }
+});
+
+// POST /auth/webauthn/register-challenge — start fingerprint registration (must be logged in)
+router.post("/auth/webauthn/register-challenge", async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith("Bearer ")) { res.status(401).json({ error: "Unauthorized" }); return; }
+    const payload = jwt.verify(authHeader.slice(7), _jwtSecret) as { userId: number; email: string };
+
+    const proto = (req.headers["x-forwarded-proto"] as string | undefined)?.split(",")[0]?.trim() || req.protocol;
+    const host = (req.headers["x-forwarded-host"] as string | undefined) || req.get("host") || "localhost";
+    const origin = req.get("origin") ?? `${proto}://${host}`;
+    const rpID = (() => { try { return new URL(origin).hostname; } catch { return req.hostname; } })();
+
+    const options = await generateRegistrationOptions({
+      rpName: "GSM World",
+      rpID,
+      userID: new TextEncoder().encode(String(payload.userId)),
+      userName: payload.email,
+      userDisplayName: payload.email,
+      attestationType: "none",
+      authenticatorSelection: {
+        authenticatorAttachment: "platform",
+        userVerification: "required",
+        residentKey: "preferred",
+      },
+    });
+    await setUserWebauthnChallenge(payload.userId, "register", { challenge: options.challenge, origin, rpID, ts: Date.now() });
+    res.json(options);
+  } catch (err) {
+    req.log.error({ err }, "user webauthn register-challenge error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// POST /auth/webauthn/register — complete fingerprint registration
+router.post("/auth/webauthn/register", async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith("Bearer ")) { res.status(401).json({ error: "Unauthorized" }); return; }
+    const payload = jwt.verify(authHeader.slice(7), _jwtSecret) as { userId: number };
+
+    const stored = await getUserWebauthnChallenge(payload.userId, "register");
+    if (!stored || Date.now() - stored.ts > WA_USER_CHALLENGE_TTL) {
+      res.status(400).json({ error: "Challenge expired — please try again." }); return;
+    }
+    await deleteUserWebauthnChallenge(payload.userId, "register");
+
+    const expectedOrigins = [stored.origin];
+    const replitDomains = (process.env.REPLIT_DOMAINS || "").split(",").filter(Boolean);
+    for (const d of replitDomains) {
+      const t = d.trim();
+      if (t && !expectedOrigins.includes(`https://${t}`)) expectedOrigins.push(`https://${t}`);
+    }
+
+    const verification = await verifyRegistrationResponse({
+      response: req.body,
+      expectedChallenge: stored.challenge,
+      expectedOrigin: expectedOrigins,
+      expectedRPID: stored.rpID,
+    });
+    if (!verification.verified || !verification.registrationInfo) {
+      res.status(400).json({ error: "Fingerprint registration failed." }); return;
+    }
+    const { credential } = verification.registrationInfo;
+    const credId = typeof credential.id === "string"
+      ? credential.id
+      : Buffer.from(credential.id as Uint8Array).toString("base64url");
+    const credPublicKey = Buffer.from(credential.publicKey as Uint8Array).toString("base64url");
+    await setUserWebauthnCredential(payload.userId, JSON.stringify({
+      credentialID: credId,
+      credentialPublicKey: credPublicKey,
+      counter: credential.counter,
+      rpID: stored.rpID,
+    }));
+    res.json({ success: true });
+  } catch (err) {
+    req.log.error({ err }, "user webauthn register error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// POST /auth/webauthn/auth-challenge — start fingerprint login (public, requires email)
+router.post("/auth/webauthn/auth-challenge", async (req, res) => {
+  try {
+    const { email } = req.body || {};
+    if (!email || typeof email !== "string") { res.status(400).json({ error: "email is required" }); return; }
+    const rows = await db.select({ id: usersTable.id }).from(usersTable)
+      .where(eq(usersTable.email, email.toLowerCase())).limit(1);
+    if (!rows.length) { res.status(404).json({ error: "No fingerprint registered for this account." }); return; }
+    const userId = rows[0].id;
+    const credStr = await getUserWebauthnCredential(userId);
+    if (!credStr) { res.status(404).json({ error: "No fingerprint registered for this account." }); return; }
+    const cred = JSON.parse(credStr) as { credentialID: string; rpID: string };
+
+    const proto = (req.headers["x-forwarded-proto"] as string | undefined)?.split(",")[0]?.trim() || req.protocol;
+    const host = (req.headers["x-forwarded-host"] as string | undefined) || req.get("host") || "localhost";
+    const origin = req.get("origin") ?? `${proto}://${host}`;
+
+    const options = await generateAuthenticationOptions({
+      rpID: cred.rpID,
+      allowCredentials: [{ id: cred.credentialID }],
+      userVerification: "required",
+    });
+    await setUserWebauthnChallenge(userId, "auth", { challenge: options.challenge, origin, rpID: cred.rpID, ts: Date.now() });
+    res.json({ ...options, _userId: userId });
+  } catch (err) {
+    req.log.error({ err }, "user webauthn auth-challenge error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// POST /auth/webauthn/auth — verify fingerprint and return JWT
+router.post("/auth/webauthn/auth", async (req, res) => {
+  try {
+    const { _userId: rawUserId, ...assertionBody } = req.body as { _userId?: number; [k: string]: unknown };
+    const userId = Number(rawUserId);
+    if (!userId) { res.status(400).json({ error: "_userId is required" }); return; }
+
+    const stored = await getUserWebauthnChallenge(userId, "auth");
+    if (!stored || Date.now() - stored.ts > WA_USER_CHALLENGE_TTL) {
+      res.status(400).json({ error: "Challenge expired — please try again." }); return;
+    }
+    await deleteUserWebauthnChallenge(userId, "auth");
+
+    const credStr = await getUserWebauthnCredential(userId);
+    if (!credStr) { res.status(404).json({ error: "No fingerprint registered." }); return; }
+    const cred = JSON.parse(credStr) as { credentialID: string; credentialPublicKey: string; counter: number; rpID: string };
+
+    const expectedOrigins = [stored.origin];
+    const replitDomains = (process.env.REPLIT_DOMAINS || "").split(",").filter(Boolean);
+    for (const d of replitDomains) {
+      const t = d.trim();
+      if (t && !expectedOrigins.includes(`https://${t}`)) expectedOrigins.push(`https://${t}`);
+    }
+
+    const verification = await verifyAuthenticationResponse({
+      response: assertionBody as Parameters<typeof verifyAuthenticationResponse>[0]["response"],
+      expectedChallenge: stored.challenge,
+      expectedOrigin: expectedOrigins,
+      expectedRPID: stored.rpID,
+      credential: {
+        id: cred.credentialID,
+        publicKey: Buffer.from(cred.credentialPublicKey, "base64url"),
+        counter: cred.counter,
+      },
+    });
+    if (!verification.verified) { res.status(401).json({ error: "Fingerprint verification failed." }); return; }
+
+    await setUserWebauthnCredential(userId, JSON.stringify({ ...cred, counter: verification.authenticationInfo.newCounter }));
+
+    const rows = await db.select({ id: usersTable.id, email: usersTable.email, name: usersTable.name, status: usersTable.status })
+      .from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+    if (!rows.length) { res.status(404).json({ error: "User not found" }); return; }
+    const user = rows[0];
+    if (user.status === "disabled" || user.status === "banned") {
+      res.status(403).json({ error: "Account disabled. Contact support." }); return;
+    }
+    const token = makeToken(user.id, user.email);
+    res.json({ token, user: { id: user.id, email: user.email, name: user.name } });
+  } catch (err) {
+    req.log.error({ err }, "user webauthn auth error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// DELETE /auth/webauthn/credential — remove the user's fingerprint credential
+router.delete("/auth/webauthn/credential", async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith("Bearer ")) { res.status(401).json({ error: "Unauthorized" }); return; }
+    const payload = jwt.verify(authHeader.slice(7), _jwtSecret) as { userId: number };
+    await deleteUserWebauthnCredential(payload.userId);
+    res.json({ success: true });
+  } catch { res.status(401).json({ error: "Invalid token" }); }
 });
 
 export default router;

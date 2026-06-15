@@ -785,7 +785,8 @@ router.post("/orders/:id/mpesa/trigger", async (req, res) => {
     const emailMatch = order.customerEmail.toLowerCase() === user.email.toLowerCase();
     if (!userIdMatch && !emailMatch) { res.status(403).json({ error: "Access denied" }); return; }
     if (order.paymentStatus !== "pending") { res.status(400).json({ error: "Order is not awaiting payment" }); return; }
-    const amountKes = Math.ceil(parseFloat(order.total));
+    const USD_TO_KES = 130;
+    const amountKes = Math.ceil(parseFloat(order.total) * USD_TO_KES);
     const stk = await initiateSTKPush({
       phone: String(phone),
       amount: amountKes,

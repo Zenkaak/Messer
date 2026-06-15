@@ -2,18 +2,86 @@ import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { useWalletBalance } from "@/hooks/use-wallet";
 import { useToast } from "@/hooks/use-toast";
+import { useState, useEffect } from "react";
+import { startRegistration } from "@simplewebauthn/browser";
 import {
   User, BarChart2, ShoppingBag, ShoppingCart, Zap,
   UserCircle, ShieldCheck, Cpu, DollarSign, FileText,
   BookOpen, LogOut, ChevronRight, Plus, Server, KeyRound, Store,
-  Wallet, Settings, TrendingUp, ArrowLeftRight,
+  Wallet, Settings, TrendingUp, ArrowLeftRight, Fingerprint, Loader2, Trash2,
 } from "lucide-react";
 
 export function AccountPage() {
-  const { user, isAuthenticated, logout } = useAuth();
+  const { user, isAuthenticated, logout, token } = useAuth();
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const { data: balance = 0 } = useWalletBalance();
+  const [fpRegistered, setFpRegistered] = useState<boolean | null>(null);
+  const [fpLoading, setFpLoading] = useState(false);
+  const base = (import.meta.env.BASE_URL as string).replace(/\/$/, "");
+
+  useEffect(() => {
+    if (!token) return;
+    fetch(`${base}/api/auth/webauthn/status`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json() as Promise<{ registered?: boolean }>)
+      .then(d => setFpRegistered(Boolean(d.registered)))
+      .catch(() => setFpRegistered(false));
+  }, [token, base]);
+
+  async function handleFingerprintSetup() {
+    if (!token) return;
+    setFpLoading(true);
+    try {
+      const challengeRes = await fetch(`${base}/api/auth/webauthn/register-challenge`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const options = await challengeRes.json() as { error?: string; [k: string]: unknown };
+      if (!challengeRes.ok) {
+        toast({ title: options.error ?? "Failed to start fingerprint setup", variant: "destructive" });
+        return;
+      }
+      const attResp = await startRegistration({ optionsJSON: options as Parameters<typeof startRegistration>[0]["optionsJSON"] });
+      const verifyRes = await fetch(`${base}/api/auth/webauthn/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(attResp),
+      });
+      const result = await verifyRes.json() as { success?: boolean; error?: string };
+      if (!verifyRes.ok || !result.success) {
+        toast({ title: result.error ?? "Fingerprint setup failed", variant: "destructive" });
+        return;
+      }
+      setFpRegistered(true);
+      toast({ title: "Fingerprint registered!", description: "You can now sign in with your fingerprint." });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("NotAllowedError") || msg.toLowerCase().includes("cancel")) {
+        toast({ title: "Fingerprint setup cancelled", variant: "destructive" });
+      } else {
+        toast({ title: "Fingerprint setup failed. Please try again.", variant: "destructive" });
+      }
+    } finally {
+      setFpLoading(false);
+    }
+  }
+
+  async function handleFingerprintRemove() {
+    if (!token) return;
+    setFpLoading(true);
+    try {
+      await fetch(`${base}/api/auth/webauthn/credential`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setFpRegistered(false);
+      toast({ title: "Fingerprint removed" });
+    } catch {
+      toast({ title: "Failed to remove fingerprint", variant: "destructive" });
+    } finally {
+      setFpLoading(false);
+    }
+  }
 
   function handleLogout() {
     logout();
@@ -139,6 +207,47 @@ export function AccountPage() {
           <MenuItem icon={<ShieldCheck size={16} />} gradient="from-emerald-500 to-emerald-600" label="Account Security" href="/account/security" />
           <MenuItem icon={<Cpu size={16} />}         gradient="from-violet-500 to-violet-600"  label="API Settings"     href="/account/api" />
         </Section>
+
+        {/* Fingerprint Login */}
+        <div>
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-1 mb-2">Quick Access</p>
+          <div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100/80 p-4">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shrink-0 shadow-sm">
+                <Fingerprint size={16} className="text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-gray-800 text-[14px] font-semibold">Fingerprint Login</p>
+                <p className="text-gray-400 text-[11px]">
+                  {fpRegistered === null ? "Checking status…" : fpRegistered ? "Active — tap to remove" : "Not set up — sign in faster with fingerprint"}
+                </p>
+              </div>
+              {fpRegistered && (
+                <span className="text-[10px] font-bold bg-green-100 text-green-700 px-2 py-0.5 rounded-full">ON</span>
+              )}
+            </div>
+            {fpRegistered ? (
+              <button
+                onClick={handleFingerprintRemove}
+                disabled={fpLoading}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-red-500 border border-red-100 bg-red-50 hover:bg-red-100 active:bg-red-200 transition-colors"
+              >
+                {fpLoading ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                Remove Fingerprint
+              </button>
+            ) : (
+              <button
+                onClick={handleFingerprintSetup}
+                disabled={fpLoading || fpRegistered === null}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-white transition-colors"
+                style={{ background: fpLoading || fpRegistered === null ? "#a5b4fc" : "linear-gradient(135deg,#6366f1 0%,#7c3aed 100%)" }}
+              >
+                {fpLoading ? <Loader2 size={14} className="animate-spin" /> : <Fingerprint size={14} />}
+                {fpLoading ? "Setting up…" : "Set Up Fingerprint Login"}
+              </button>
+            )}
+          </div>
+        </div>
 
         {/* Services */}
         <Section label="Services">

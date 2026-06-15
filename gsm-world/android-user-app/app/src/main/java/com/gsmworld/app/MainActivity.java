@@ -83,7 +83,13 @@ public class MainActivity extends AppCompatActivity {
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
 
-        webView.setWebChromeClient(new WebChromeClient());
+        webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public void onPermissionRequest(android.webkit.PermissionRequest request) {
+                // Grant all permissions from the web page (needed for WebAuthn/fingerprint).
+                request.grant(request.getResources());
+            }
+        });
         webView.setWebViewClient(new WebViewClient() {
 
             @Override
