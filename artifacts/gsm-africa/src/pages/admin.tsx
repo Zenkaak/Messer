@@ -3991,7 +3991,7 @@ function LiveChatsPanel({ pwd }: { pwd: string }) {
   const [sending, setSending] = useState(false);
   const [showClosed, setShowClosed] = useState(false);
   const [mobileView, setMobileView] = useState<"list" | "chat">("list");
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const msgsContainerRef = useRef<HTMLDivElement>(null);
   // Refs to always have the latest values inside setInterval without recreating it
   const selectedRef = useRef(selected);
   useEffect(() => { selectedRef.current = selected; }, [selected]);
@@ -4043,7 +4043,10 @@ function LiveChatsPanel({ pwd }: { pwd: string }) {
     if (selected) { setMsgs([]); loadMessages(selected); }
   }, [selected?.id, loadMessages]);
 
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs]);
+  useEffect(() => {
+    const el = msgsContainerRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [msgs]);
 
   async function sendReply() {
     if (!reply.trim() || !selected || sending) return;
@@ -4185,131 +4188,150 @@ function LiveChatsPanel({ pwd }: { pwd: string }) {
 
             {/* Chat window */}
             {selected ? (
-              <div className={`bg-white rounded-2xl shadow-sm border border-slate-100 flex flex-col ${mobileView === "list" ? "hidden md:flex" : "flex"}`} style={{ height: "520px" }}>
-                {/* Chat header */}
-                <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 shrink-0">
-                  <div className="flex items-center gap-2.5">
+              <div className={`bg-white rounded-2xl shadow-sm border border-slate-100 flex flex-col overflow-hidden ${mobileView === "list" ? "hidden md:flex" : "flex"}`}
+                style={{ height: "clamp(420px, 60vh, 620px)" }}>
+
+                {/* ── Chat header ── */}
+                <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-white shrink-0">
+                  <div className="flex items-center gap-2.5 min-w-0">
                     <button onClick={() => setMobileView("list")}
                       className="md:hidden w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition-colors shrink-0">
                       <ChevronLeft size={15} />
                     </button>
-                    <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${
-                      selected.status === "waiting" ? "bg-amber-100" : selected.status === "active" ? "bg-emerald-100" : "bg-slate-100"
-                    }`}>
-                      <UserCheck size={14} className={
-                        selected.status === "waiting" ? "text-amber-600" : selected.status === "active" ? "text-emerald-600" : "text-slate-400"
-                      } />
+                    {/* Avatar with status dot */}
+                    <div className="relative shrink-0">
+                      <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm ${
+                        selected.status === "waiting" ? "bg-amber-100 text-amber-700"
+                        : selected.status === "active" ? "bg-emerald-100 text-emerald-700"
+                        : "bg-slate-100 text-slate-500"
+                      }`}>
+                        {(selected.visitorName || "V").charAt(0).toUpperCase()}
+                      </div>
+                      <span className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white ${
+                        selected.status === "active" ? "bg-emerald-400" : selected.status === "waiting" ? "bg-amber-400" : "bg-slate-300"
+                      }`} />
                     </div>
-                    <div>
-                      <p className="text-sm font-black text-slate-800 leading-tight">{selected.visitorName || `Visitor #${selected.id}`}</p>
-                      <p className="text-[10px] text-slate-400">{selected.visitorId.slice(0, 14)}…</p>
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-slate-900 leading-tight truncate">
+                        {selected.visitorName || `Visitor #${selected.id}`}
+                      </p>
+                      <p className="text-[10px] text-slate-400 truncate">
+                        {selected.status === "active" ? "● Active now" : selected.status === "waiting" ? "● Waiting for reply" : "Chat ended"}
+                      </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${statusColor(selected.status)}`}>{selected.status}</span>
+                  <div className="flex items-center gap-2 shrink-0">
                     {selected.status !== "closed" && (
                       <button onClick={() => closeSession(selected)}
-                        className="text-[11px] font-semibold text-red-500 hover:text-red-700 px-3 py-1.5 border border-red-200 hover:border-red-300 rounded-xl transition-colors bg-red-50">
+                        className="text-[11px] font-semibold text-red-500 hover:text-red-600 px-3 py-1.5 border border-red-200 hover:border-red-300 rounded-xl bg-red-50 hover:bg-red-100 transition-colors">
                         End Chat
                       </button>
                     )}
+                    {selected.status === "closed" && (
+                      <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-slate-100 text-slate-500 border border-slate-200">Closed</span>
+                    )}
                   </div>
                 </div>
 
-                {/* Messages */}
-                <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3" style={{ background: "#f8fafc" }}>
-                  {msgs.length === 0 && (
-                    <div className="flex flex-col items-center justify-center h-full text-center">
-                      <MessageSquare size={28} className="text-slate-200 mb-2" />
-                      <p className="text-xs text-slate-300 font-medium">No messages yet</p>
+                {/* ── Messages area ── */}
+                <div
+                  ref={msgsContainerRef}
+                  className="flex-1 overflow-y-auto px-4 py-4 space-y-2"
+                  style={{ background: "linear-gradient(180deg,#f0f4ff 0%,#f8fafc 100%)", overflowAnchor: "none" }}
+                >
+                  {msgs.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center text-center gap-2 py-8">
+                      <div className="w-12 h-12 rounded-2xl bg-white shadow-sm border border-slate-100 flex items-center justify-center">
+                        <MessageSquare size={20} className="text-slate-300" />
+                      </div>
+                      <p className="text-xs font-semibold text-slate-400">No messages yet</p>
+                      <p className="text-[10px] text-slate-300">Be the first to say something</p>
                     </div>
-                  )}
-                  {msgs.map(m => {
+                  ) : msgs.map((m, idx) => {
                     const isAdmin = m.senderType === "admin";
+                    const prevSame = idx > 0 && msgs[idx - 1].senderType === m.senderType;
                     return (
-                      <div key={m.id} className={`flex flex-col gap-0.5 ${isAdmin ? "items-end" : "items-start"}`}>
-                        <div className={`flex gap-2 items-end ${isAdmin ? "justify-end" : "justify-start"} w-full`}>
-                          {!isAdmin && (
-                            <div className="w-7 h-7 rounded-full bg-slate-200 flex items-center justify-center shrink-0 mb-0.5">
-                              <span className="text-[10px] font-bold text-slate-500">V</span>
-                            </div>
-                          )}
-                          <div className={`max-w-[80%] rounded-2xl px-3.5 py-2.5 text-xs ${
-                            isAdmin ? "bg-blue-600 text-white rounded-br-sm shadow-sm" : "bg-white text-slate-800 rounded-bl-sm shadow-sm border border-slate-100"
-                          }`}>
-                            <p className={`text-[9px] font-bold mb-1 ${isAdmin ? "text-blue-200" : "text-slate-400"}`}>
-                              {isAdmin ? "Admin" : (selected.visitorName || "Visitor")}
-                            </p>
-                            <p className="leading-relaxed whitespace-pre-wrap break-words">{m.message}</p>
-                            {m.fileUrl && (
-                              <a href={m.fileUrl} target="_blank" rel="noopener noreferrer"
-                                className={`flex items-center gap-1 mt-1.5 text-[9px] font-semibold underline ${isAdmin ? "text-blue-200" : "text-blue-600"}`}>
-                                📎 View attachment
-                              </a>
-                            )}
-                            <p className={`text-[9px] mt-1 ${isAdmin ? "text-blue-300" : "text-slate-400"}`}>
-                              {new Date(m.createdAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
-                            </p>
-                          </div>
-                          {isAdmin && (
-                            <div className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center shrink-0 mb-0.5">
-                              <span className="text-[10px] font-bold text-white">A</span>
+                      <div key={m.id} className={`flex items-end gap-2 ${isAdmin ? "flex-row-reverse" : "flex-row"} ${prevSame ? "mt-0.5" : "mt-3"}`}>
+                        {/* Avatar — only on first bubble in a run */}
+                        <div className="w-7 shrink-0">
+                          {!prevSame && (
+                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                              isAdmin ? "bg-blue-600 text-white" : "bg-slate-200 text-slate-600"
+                            }`}>
+                              {isAdmin ? "A" : (selected.visitorName || "V").charAt(0).toUpperCase()}
                             </div>
                           )}
                         </div>
-                        {isAdmin && (
-                          <div className="flex items-center gap-1 pr-9">
-                            {m.readAt ? (
-                              <>
-                                <svg width="14" height="8" viewBox="0 0 14 8" fill="none" className="text-blue-500">
+                        {/* Bubble */}
+                        <div className={`flex flex-col gap-0.5 max-w-[75%] ${isAdmin ? "items-end" : "items-start"}`}>
+                          <div className={`px-3.5 py-2 rounded-2xl text-xs leading-relaxed whitespace-pre-wrap break-words shadow-sm ${
+                            isAdmin
+                              ? "bg-blue-600 text-white rounded-tr-sm"
+                              : "bg-white text-slate-800 rounded-tl-sm border border-slate-100"
+                          } ${prevSame && isAdmin ? "rounded-tr-2xl" : ""} ${prevSame && !isAdmin ? "rounded-tl-2xl" : ""}`}>
+                            {m.message}
+                            {m.fileUrl && (
+                              <a href={m.fileUrl} target="_blank" rel="noopener noreferrer"
+                                className={`flex items-center gap-1 mt-1.5 text-[9px] font-semibold underline ${isAdmin ? "text-blue-200" : "text-blue-500"}`}>
+                                📎 Attachment
+                              </a>
+                            )}
+                          </div>
+                          {/* Timestamp + read receipt */}
+                          <div className={`flex items-center gap-1 px-1 ${isAdmin ? "flex-row-reverse" : "flex-row"}`}>
+                            <span className="text-[9px] text-slate-400">
+                              {new Date(m.createdAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+                            </span>
+                            {isAdmin && (
+                              m.readAt ? (
+                                <svg width="14" height="8" viewBox="0 0 14 8" fill="none" className="text-blue-400">
                                   <path d="M1 4L4 7L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                                   <path d="M5 4L8 7L13 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                            </svg>
-                            <span className="text-[9px] text-blue-500 font-semibold">
-                              Read {new Date(m.readAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
-                            </span>
-                          </>
-                        ) : (
-                          <>
-                            <svg width="8" height="8" viewBox="0 0 8 8" fill="none" className="text-slate-300">
-                              <path d="M1 4L3.5 6.5L7 1.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                            </svg>
-                            <span className="text-[9px] text-slate-300 font-medium">Delivered</span>
-                          </>
-                        )}
+                                </svg>
+                              ) : (
+                                <svg width="9" height="8" viewBox="0 0 9 8" fill="none" className="text-slate-300">
+                                  <path d="M1 4L3.5 6.5L8 1.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                                </svg>
+                              )
+                            )}
+                          </div>
+                        </div>
                       </div>
-                    )}
-                  </div>
-                );
-              })}
-              <div ref={bottomRef} />
-            </div>
-
-            {/* Reply area */}
-            {selected.status !== "closed" ? (
-              <div className="px-4 pb-4 pt-3 border-t border-slate-100 shrink-0 bg-white">
-                <div className="flex gap-2">
-                  <input
-                    value={reply}
-                    onChange={e => setReply(e.target.value)}
-                    onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendReply(); } }}
-                    placeholder="Type a reply…"
-                    disabled={sending}
-                    className="flex-1 text-sm border border-slate-200 rounded-2xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50"
-                  />
-                  <button onClick={sendReply} disabled={sending || !reply.trim()}
-                    className="w-10 h-10 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white rounded-2xl flex items-center justify-center shrink-0 transition-colors">
-                    {sending ? <RefreshCw size={14} className="animate-spin" /> : <Send size={14} />}
-                  </button>
+                    );
+                  })}
                 </div>
-                <p className="text-[10px] text-slate-400 mt-1.5 pl-1">Enter to send · Shift+Enter for new line</p>
+
+                {/* ── Reply area ── */}
+                {selected.status !== "closed" ? (
+                  <div className="px-3 pb-3 pt-2.5 border-t border-slate-100 bg-white shrink-0">
+                    <div className="flex items-end gap-2 bg-slate-50 border border-slate-200 rounded-2xl px-3 py-2 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 transition-all">
+                      <textarea
+                        rows={1}
+                        value={reply}
+                        onChange={e => {
+                          setReply(e.target.value);
+                          e.target.style.height = "auto";
+                          e.target.style.height = Math.min(e.target.scrollHeight, 96) + "px";
+                        }}
+                        onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendReply(); } }}
+                        placeholder="Type a reply…"
+                        disabled={sending}
+                        className="flex-1 text-sm bg-transparent border-none outline-none resize-none placeholder-slate-400 text-slate-800 min-h-[24px] max-h-[96px] py-0.5 leading-relaxed"
+                      />
+                      <button onClick={sendReply} disabled={sending || !reply.trim()}
+                        className="w-9 h-9 bg-blue-600 hover:bg-blue-700 disabled:opacity-30 text-white rounded-xl flex items-center justify-center shrink-0 transition-all active:scale-90 disabled:scale-100">
+                        {sending ? <RefreshCw size={13} className="animate-spin" /> : <Send size={13} />}
+                      </button>
+                    </div>
+                    <p className="text-[9px] text-slate-300 mt-1 px-1">Enter to send · Shift+Enter for newline</p>
+                  </div>
+                ) : (
+                  <div className="px-4 py-3 border-t border-slate-100 shrink-0 flex items-center justify-center gap-2 bg-slate-50 rounded-b-2xl">
+                    <WifiOff size={12} className="text-slate-300" />
+                    <span className="text-xs text-slate-400">Chat ended · {selected.closedBy || "system"}</span>
+                  </div>
+                )}
               </div>
-            ) : (
-              <div className="px-4 pb-4 pt-3 border-t border-slate-100 shrink-0 flex items-center justify-center gap-2 text-xs text-slate-400 bg-white rounded-b-2xl">
-                <WifiOff size={13} className="text-slate-300" /> Chat ended by {selected.closedBy || "system"}
-              </div>
-            )}
-          </div>
         ) : (
           <div className="hidden md:flex bg-white rounded-2xl shadow-sm border border-slate-100 items-center justify-center p-12 text-center">
             <div>
