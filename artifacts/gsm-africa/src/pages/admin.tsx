@@ -1567,8 +1567,8 @@ function OrdersPanel({ pwd }: { pwd: string }) {
             </button>
           </div>
         )}
-      </div>{/* end px-4 space-y-2 */}
-    </div>{/* end pb-8 outer wrapper */}
+      </div>
+    </div>
   );
 }
 
@@ -4230,10 +4230,10 @@ function LiveChatsPanel({ pwd }: { pwd: string }) {
             </div>
           </div>
         )}
-          </div>{/* end grid */}
-        </div>{/* end px-4 pb-6 */}
+          </div>
+        </div>
       )}{/* end sessions.length === 0 ternary */}
-    </div>{/* end background wrapper */}
+    </div>
   );
 }
 
