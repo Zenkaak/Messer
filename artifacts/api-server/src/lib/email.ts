@@ -33,101 +33,106 @@ export function appUrl(path: string) {
 function layout(preheader: string, accentColor: string, headerContent: string, body: string) {
   const year = new Date().getFullYear();
   const storeUrl = getBaseUrl();
+  let hostname = "gsmworld.co.ke";
+  try { hostname = new URL(storeUrl).hostname; } catch { /* fallback */ }
   return `<!DOCTYPE html>
-<html lang="en">
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="color-scheme" content="light">
+  <meta name="supported-color-schemes" content="light">
   <title>GSM World</title>
   <!--[if mso]><noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript><![endif]-->
   <style>
-    @media only screen and (max-width: 600px) {
-      .outer-wrapper { padding: 0 !important; }
-      .email-shell { border-radius: 0 !important; }
-      .email-brand-bar { padding: 16px 20px !important; }
-      .email-header { padding: 28px 20px 24px !important; }
-      .email-header h1 { font-size: 22px !important; }
-      .email-body { padding: 24px 20px !important; font-size: 15px !important; }
-      .email-footer { padding: 20px !important; }
-      .btn-cta { padding: 14px 24px !important; font-size: 15px !important; }
-      .info-label { width: auto !important; }
+    @media only screen and (max-width:620px) {
+      .ow { padding:0 !important; }
+      .shell { border-radius:0 !important; }
+      .bbar { padding:14px 18px !important; }
+      .ehead { padding:26px 20px 22px !important; }
+      .ehead h1 { font-size:21px !important; line-height:1.3 !important; }
+      .ebody { padding:22px 18px 20px !important; font-size:14px !important; }
+      .efooter { padding:20px 18px !important; }
+      .btn-cta { padding:14px 20px !important; font-size:15px !important; }
+      .il { width:auto !important; }
     }
-    a { color: inherit; text-decoration: none; }
+    a { color:inherit; text-decoration:none; }
+    * { box-sizing:border-box; }
   </style>
 </head>
-<body style="margin:0;padding:0;background-color:#eef2f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Helvetica Neue',Arial,sans-serif;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;">
-  <!-- Preheader -->
-  <div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;color:#eef2f7;line-height:1px;">${preheader}&nbsp;&#8203;&zwnj;&nbsp;&#8203;&zwnj;&nbsp;&#8203;&zwnj;&nbsp;&#8203;&zwnj;&nbsp;&#8203;&zwnj;&nbsp;&#8203;&zwnj;&nbsp;&#8203;&zwnj;&nbsp;&#8203;&zwnj;&nbsp;&#8203;&zwnj;</div>
+<body style="margin:0;padding:0;background:#edf1f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Helvetica Neue',Arial,sans-serif;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;">
 
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="outer-wrapper" style="background-color:#eef2f7;padding:40px 16px;">
+  <!-- Preheader (hidden preview text in inbox) -->
+  <div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;color:#edf1f7;line-height:1px;">${preheader} &nbsp;&#8203;&zwnj;&#8203;&zwnj;&#8203;&zwnj;&#8203;&zwnj;&#8203;&zwnj;&#8203;&zwnj;&#8203;&zwnj;&#8203;&zwnj;&#8203;&zwnj;&#8203;&zwnj;&#8203;</div>
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="ow" style="background:#edf1f7;padding:36px 16px 48px;">
     <tr>
       <td align="center">
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="email-shell" style="max-width:600px;border-radius:20px;overflow:hidden;box-shadow:0 8px 40px rgba(15,23,42,0.13);">
 
-          <!-- ── Brand header bar ── -->
+        <!-- Top wordmark above card -->
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:580px;margin-bottom:18px;">
           <tr>
-            <td class="email-brand-bar" style="background:#0b1120;padding:20px 36px;">
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-                <tr>
-                  <td style="vertical-align:middle;">
-                    <a href="${storeUrl}" style="text-decoration:none;display:inline-flex;align-items:center;gap:10px;">
-                      <!-- Logo mark -->
-                      <span style="display:inline-block;width:34px;height:34px;background:linear-gradient(135deg,#0ea5e9,#0284c7);border-radius:9px;text-align:center;line-height:34px;font-size:16px;font-weight:900;color:#ffffff;font-family:Arial,sans-serif;letter-spacing:-0.5px;vertical-align:middle;">G</span>
-                      <span style="font-size:16px;font-weight:800;color:#ffffff;letter-spacing:0.2px;font-family:Arial,sans-serif;vertical-align:middle;">GSM&nbsp;<span style="color:#38bdf8;">World</span></span>
-                    </a>
-                  </td>
-                  <td style="text-align:right;vertical-align:middle;">
-                    <span style="font-size:11px;font-weight:600;color:#475569;letter-spacing:0.5px;font-family:Arial,sans-serif;text-transform:uppercase;">Official Store</span>
-                  </td>
-                </tr>
-              </table>
+            <td style="text-align:center;padding:0 8px;">
+              <a href="${storeUrl}" style="text-decoration:none;display:inline-flex;align-items:center;gap:8px;justify-content:center;">
+                <span style="display:inline-block;width:28px;height:28px;background:linear-gradient(135deg,#0ea5e9,#0369a1);border-radius:7px;text-align:center;line-height:28px;font-size:14px;font-weight:900;color:#fff;font-family:Arial,sans-serif;vertical-align:middle;">G</span>
+                <span style="font-size:15px;font-weight:800;color:#1e293b;letter-spacing:0.1px;font-family:Arial,sans-serif;vertical-align:middle;">GSM <span style="color:#0ea5e9;">World</span></span>
+              </a>
             </td>
           </tr>
+        </table>
 
-          <!-- ── Accent stripe ── -->
+        <!-- Main card -->
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="shell" style="max-width:580px;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(15,23,42,0.10),0 1px 3px rgba(15,23,42,0.06);">
+
+          <!-- Accent top border -->
           <tr>
-            <td style="background:linear-gradient(90deg,${accentColor},${accentColor}cc);height:3px;padding:0;font-size:0;line-height:0;mso-line-height-rule:exactly;">&nbsp;</td>
+            <td style="background:${accentColor};height:4px;padding:0;font-size:0;line-height:0;mso-line-height-rule:exactly;">&nbsp;</td>
           </tr>
 
-          <!-- ── Hero header ── -->
+          <!-- Hero header -->
           <tr>
-            <td class="email-header" style="padding:0;">
+            <td class="ehead" style="padding:0;">
               ${headerContent}
             </td>
           </tr>
 
-          <!-- ── Body ── -->
+          <!-- Body -->
           <tr>
-            <td class="email-body" style="background:#ffffff;padding:32px 36px 28px;color:#374151;font-size:15px;line-height:1.8;">
+            <td class="ebody" style="background:#ffffff;padding:28px 32px 24px;color:#374151;font-size:15px;line-height:1.8;">
               ${body}
             </td>
           </tr>
 
-          <!-- ── Footer ── -->
+          <!-- Footer -->
           <tr>
-            <td class="email-footer" style="background:#0b1120;padding:28px 36px;">
+            <td class="efooter" style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:22px 32px 24px;">
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
                 <tr>
-                  <td style="text-align:center;padding-bottom:16px;border-bottom:1px solid #1e293b;">
-                    <p style="margin:0 0 10px;font-size:12px;color:#64748b;line-height:1.7;">
-                      You received this email because you have an account with GSM World.<br>
-                      If you didn't request this, you can safely ignore it.
+                  <td style="text-align:center;padding-bottom:14px;border-bottom:1px solid #e2e8f0;">
+                    <p style="margin:0 0 10px;font-size:12px;color:#64748b;line-height:1.6;">
+                      You're receiving this because you have a GSM World account.<br>
+                      Didn't expect this email? You can safely ignore it.
                     </p>
                     <p style="margin:0;font-size:12px;">
-                      <a href="${storeUrl}" style="color:#38bdf8;text-decoration:none;font-weight:600;">${new URL(storeUrl).hostname}</a>
-                      <span style="color:#334155;">&nbsp;·&nbsp;</span>
-                      <a href="${storeUrl}/account/orders" style="color:#64748b;text-decoration:none;">My Orders</a>
-                      <span style="color:#334155;">&nbsp;·&nbsp;</span>
-                      <a href="${storeUrl}/account" style="color:#64748b;text-decoration:none;">Account</a>
-                      <span style="color:#334155;">&nbsp;·&nbsp;</span>
-                      <a href="{{UNSUB_URL}}" style="color:#475569;text-decoration:underline;">Unsubscribe</a>
+                      <a href="${storeUrl}" style="color:#0ea5e9;text-decoration:none;font-weight:600;">${hostname}</a>
+                      <span style="color:#cbd5e1;">&nbsp;&middot;&nbsp;</span>
+                      <a href="${storeUrl}/account/orders" style="color:#94a3b8;text-decoration:none;">My Orders</a>
+                      <span style="color:#cbd5e1;">&nbsp;&middot;&nbsp;</span>
+                      <a href="${storeUrl}/account" style="color:#94a3b8;text-decoration:none;">Account</a>
+                      <span style="color:#cbd5e1;">&nbsp;&middot;&nbsp;</span>
+                      <a href="{{UNSUB_URL}}" style="color:#94a3b8;text-decoration:underline;">Unsubscribe</a>
                     </p>
                   </td>
                 </tr>
                 <tr>
                   <td style="text-align:center;padding-top:14px;">
-                    <p style="margin:0;font-size:11px;color:#334155;">© ${year} GSM World. All rights reserved. &nbsp;·&nbsp; Official GSM Tools &amp; Services Distributor</p>
+                    <p style="margin:0 0 4px;font-size:11px;color:#94a3b8;line-height:1.5;">
+                      &copy; ${year} GSM World &mdash; Official GSM Tools &amp; Services
+                    </p>
+                    <p style="margin:0;font-size:10.5px;color:#cbd5e1;line-height:1.5;">
+                      Nairobi, Kenya &nbsp;&middot;&nbsp; support@dasnett.site
+                    </p>
                   </td>
                 </tr>
               </table>
@@ -143,22 +148,22 @@ function layout(preheader: string, accentColor: string, headerContent: string, b
 }
 
 function header(bg: string, title: string, subtitle: string) {
-  return `<div class="email-header" style="background:${bg};padding:36px 36px 32px;position:relative;overflow:hidden;">
-    <!-- Subtle grid pattern overlay -->
-    <div style="position:absolute;inset:0;opacity:0.04;background-image:repeating-linear-gradient(0deg,transparent,transparent 20px,rgba(255,255,255,.5) 20px,rgba(255,255,255,.5) 21px),repeating-linear-gradient(90deg,transparent,transparent 20px,rgba(255,255,255,.5) 20px,rgba(255,255,255,.5) 21px);"></div>
-    <h1 style="margin:0 0 8px;font-size:26px;font-weight:800;color:#ffffff;letter-spacing:-0.5px;line-height:1.2;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Helvetica Neue',Arial,sans-serif;">${title}</h1>
-    <p style="margin:0;font-size:14px;color:rgba(255,255,255,0.65);font-weight:400;line-height:1.6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Helvetica Neue',Arial,sans-serif;">${subtitle}</p>
+  return `<div class="ehead" style="background:${bg};padding:34px 32px 30px;position:relative;overflow:hidden;">
+    <div style="position:absolute;inset:0;opacity:0.035;background-image:radial-gradient(circle at 80% 20%,rgba(255,255,255,0.8) 0%,transparent 60%);pointer-events:none;"></div>
+    <h1 style="margin:0 0 6px;font-size:24px;font-weight:800;color:#ffffff;letter-spacing:-0.3px;line-height:1.25;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Helvetica Neue',Arial,sans-serif;">${title}</h1>
+    <p style="margin:0;font-size:13.5px;color:rgba(255,255,255,0.62);font-weight:400;line-height:1.5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Helvetica Neue',Arial,sans-serif;">${subtitle}</p>
   </div>`;
 }
 
 function btn(label: string, url: string, bg = "#0ea5e9") {
-  return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:28px 0 4px;width:100%;">
+  return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:24px 0 4px;width:100%;">
     <tr>
-      <td style="border-radius:12px;background:${bg};">
-        <a href="${url}" class="btn-cta" style="display:block;padding:16px 32px;font-size:15px;font-weight:700;color:#ffffff;text-decoration:none;letter-spacing:0.2px;text-align:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Helvetica Neue',Arial,sans-serif;">${label}&nbsp; &#8250;</a>
+      <td style="border-radius:10px;background:${bg};box-shadow:0 2px 8px ${bg}40;">
+        <a href="${url}" class="btn-cta" style="display:block;padding:15px 28px;font-size:15px;font-weight:700;color:#ffffff;text-decoration:none;letter-spacing:0.2px;text-align:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Helvetica Neue',Arial,sans-serif;">${label}</a>
       </td>
     </tr>
-  </table>`;
+  </table>
+  <p style="margin:6px 0 0;font-size:11px;color:#94a3b8;text-align:center;word-break:break-all;font-family:Arial,sans-serif;">If the button does not open, copy this link: <a href="${url}" style="color:#64748b;text-decoration:underline;">${url}</a></p>`;
 }
 
 function codeBlock(code: string) {
@@ -574,9 +579,9 @@ export function walletTransferSentEmail(params: {
   `;
 
   return {
-    subject: `Transfer Sent — $${params.amount.toFixed(2)} to @${params.recipientUsername} | GSM World`,
+    subject: `Transfer to @${params.recipientUsername} Confirmed — GSM World`,
     text: `Dear ${name},\n\nYour transfer of $${params.amount.toFixed(2)} to @${params.recipientUsername} was successful.\n\nFee: $${params.fee.toFixed(2)}\nTotal deducted: $${params.totalDeducted.toFixed(2)}\nDate: ${sentAt}${params.newBalance != null ? `\nNew balance: $${params.newBalance.toFixed(2)}` : ""}\n\nIf you did not authorise this transfer, contact support immediately.\n\nView your wallet: ${walletUrl}\n\n— GSM World Team`,
-    html: layout(`$${params.amount.toFixed(2)} sent to @${params.recipientUsername} — transfer complete.`, "#0ea5e9", h, body),
+    html: layout(`Your transfer to @${params.recipientUsername} has been processed successfully.`, "#0ea5e9", h, body),
   };
 }
 
@@ -621,9 +626,9 @@ export function walletTransferReceivedEmail(params: {
   `;
 
   return {
-    subject: `GSM World: Wallet credit of $${params.amount.toFixed(2)} applied to your account`,
+    subject: `Wallet Credit Received — GSM World`,
     text: `Dear ${name},\n\nYour GSM World wallet has been credited.\n\nCredited By: @${params.senderUsername}\nAmount: $${params.amount.toFixed(2)} USD\nDate: ${receivedAt}${params.newBalance != null ? `\nUpdated Balance: $${params.newBalance.toFixed(2)} USD` : ""}\n\nThis credit is available immediately on your account.\n\nView your account: ${walletUrl}\n\nIf you did not expect this credit, contact our support team.\n\n— GSM World Team`,
-    html: layout(`Your GSM World wallet has been credited with $${params.amount.toFixed(2)} USD by @${params.senderUsername}.`, "#059669", h, body),
+    html: layout(`Your wallet has been credited — new balance available on your account.`, "#059669", h, body),
   };
 }
 
@@ -826,7 +831,7 @@ export function adminNewOrderAlertEmail(params: {
     ${btn("View in Admin Dashboard", adminUrl, "#1e3a5f")}
   `;
   return {
-    subject: `[GSM World] New Order #${ref} — ${params.orderType} ($${parseFloat(params.total).toFixed(2)})`,
+    subject: `New Order #${ref} — ${params.orderType} (${params.customerEmail})`,
     text: `New ${params.orderType} — Order #${ref}\n\nCustomer: ${params.customerEmail}\nItem(s): ${params.items}\nTotal: $${parseFloat(params.total).toFixed(2)}\nPayment: ${pmLabel}\n\nAdmin dashboard: ${adminUrl}`,
     html: layout(`New ${params.orderType} — Order #${ref} placed by ${params.customerEmail}.`, "#0ea5e9", h, body),
   };
@@ -1113,7 +1118,7 @@ export function abandonedCartEmail(params: {
     .join("\n");
 
   return {
-    subject: `You left ${params.items.length === 1 ? "an item" : `${params.items.length} items`} in your GSM World cart 🛒`,
+    subject: `Your GSM World cart is waiting — ${params.items.length === 1 ? "1 item" : `${params.items.length} items`} saved`,
     text: `Hi ${name},\n\nYou have items waiting in your GSM World cart:\n\n${textItems}\n\nTotal: $${params.total.toFixed(2)}\n\nComplete your order here: ${cartUrl}\n\n— GSM World Team`,
     html: layout("Your cart is waiting — complete your order before items sell out.", "#f97316", h, body),
   };
