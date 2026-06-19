@@ -1276,8 +1276,8 @@ function OrderDetailView({ order: initialOrder, pwd, onBack }: { order: Order; p
           </div>
         </div>
       </div>
-      </div>{/* end px-4 pt-4 pb-10 */}
-    </div>{/* end background wrapper */}
+    </div>{/* end inner px-4 */}
+  </div>{/* end outer bg wrapper */}
   );
 }
 
