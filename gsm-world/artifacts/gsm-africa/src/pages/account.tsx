@@ -20,7 +20,19 @@ export function AccountPage() {
   const [fpLoading, setFpLoading] = useState(false);
   const base = (import.meta.env.BASE_URL as string).replace(/\/$/, "");
 
+  const isNativeApp = /GSMWorldApp|GSMAdminApp/.test(navigator.userAgent);
+  type BioBridge = { saveCredential:(d:string)=>void; hasCredential:()=>string; clearCredential:()=>void; authenticate:(cb:string)=>void };
+  const bioBridge = (): BioBridge | null => {
+    const b = (window as Record<string, unknown>).AndroidBiometric;
+    return (b && typeof (b as BioBridge).hasCredential === "function") ? b as BioBridge : null;
+  };
+
   useEffect(() => {
+    const bridge = bioBridge();
+    if (isNativeApp && bridge) {
+      setFpRegistered(bridge.hasCredential() === "true");
+      return;
+    }
     if (!token) return;
     fetch(`${base}/api/auth/webauthn/status`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json() as Promise<{ registered?: boolean }>)
@@ -29,8 +41,23 @@ export function AccountPage() {
   }, [token, base]);
 
   async function handleFingerprintSetup() {
-    if (!token) return;
+    if (!token || !user) return;
     setFpLoading(true);
+
+    const bridge = bioBridge();
+    if (isNativeApp && bridge) {
+      try {
+        bridge.saveCredential(JSON.stringify({ email: user.email, token }));
+        setFpRegistered(true);
+        toast({ title: "Fingerprint registered!", description: "You can now sign in with your fingerprint." });
+      } catch {
+        toast({ title: "Fingerprint setup failed. Please try again.", variant: "destructive" });
+      } finally {
+        setFpLoading(false);
+      }
+      return;
+    }
+
     try {
       const challengeRes = await fetch(`${base}/api/auth/webauthn/register-challenge`, {
         method: "POST",
@@ -69,6 +96,21 @@ export function AccountPage() {
   async function handleFingerprintRemove() {
     if (!token) return;
     setFpLoading(true);
+
+    const bridge = bioBridge();
+    if (isNativeApp && bridge) {
+      try {
+        bridge.clearCredential();
+        setFpRegistered(false);
+        toast({ title: "Fingerprint removed" });
+      } catch {
+        toast({ title: "Failed to remove fingerprint", variant: "destructive" });
+      } finally {
+        setFpLoading(false);
+      }
+      return;
+    }
+
     try {
       await fetch(`${base}/api/auth/webauthn/credential`, {
         method: "DELETE",

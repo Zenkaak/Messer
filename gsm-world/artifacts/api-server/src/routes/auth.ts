@@ -823,6 +823,7 @@ router.post("/auth/webauthn/register-challenge", async (req, res) => {
     const origin = req.get("origin") ?? `${proto}://${host}`;
     const rpID = (() => { try { return new URL(origin).hostname; } catch { return req.hostname; } })();
 
+    const isNativeApp = /GSMWorldApp|GSMAdminApp/.test(req.headers["user-agent"] ?? "");
     const options = await generateRegistrationOptions({
       rpName: "GSM World",
       rpID,
@@ -831,8 +832,8 @@ router.post("/auth/webauthn/register-challenge", async (req, res) => {
       userDisplayName: payload.email,
       attestationType: "none",
       authenticatorSelection: {
-        authenticatorAttachment: "platform",
-        userVerification: "required",
+        ...(isNativeApp ? {} : { authenticatorAttachment: "platform" as const }),
+        userVerification: "preferred",
         residentKey: "preferred",
       },
     });

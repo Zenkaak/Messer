@@ -20,10 +20,58 @@ export function LoginPage() {
   const [fpLoading, setFpLoading] = useState(false);
 
   async function handleFingerprintLogin() {
-    const fpEmail = email.trim() || window.prompt("Enter your email to sign in with fingerprint:") || "";
-    if (!fpEmail) return;
-    setFpLoading(true);
     const base = (import.meta.env.BASE_URL as string).replace(/\/$/, "");
+    setFpLoading(true);
+
+    const isNativeApp = /GSMWorldApp|GSMAdminApp/.test(navigator.userAgent);
+    type BioBridge = { authenticate:(cb:string)=>void; clearCredential:()=>void };
+    const bioBridge = (): BioBridge | null => {
+      const b = (window as Record<string, unknown>).AndroidBiometric;
+      return (b && typeof (b as BioBridge).authenticate === "function") ? b as BioBridge : null;
+    };
+    const bridge = bioBridge();
+
+    if (isNativeApp && bridge) {
+      const callbackId = "_bioAuth_" + Date.now();
+      (window as Record<string, unknown>)[callbackId] = async (resultJson: string) => {
+        try {
+          const result = JSON.parse(resultJson) as { email?: string; token?: string; error?: string };
+          if (result.error) {
+            if (result.error !== "cancelled") {
+              toast({ title: "Fingerprint sign-in failed", variant: "destructive" });
+            }
+            setFpLoading(false);
+            return;
+          }
+          if (!result.token || !result.email) {
+            toast({ title: "Credential data missing", variant: "destructive" });
+            setFpLoading(false);
+            return;
+          }
+          const meRes = await fetch(`${base}/api/auth/me`, {
+            headers: { Authorization: `Bearer ${result.token}` },
+          });
+          if (!meRes.ok) {
+            bridge.clearCredential();
+            toast({ title: "Session expired. Please sign in with your password.", variant: "destructive" });
+            setFpLoading(false);
+            return;
+          }
+          const me = await meRes.json() as { user?: { id: number; email: string; name: string | null } };
+          login(result.token, me.user ?? { id: 0, email: result.email, name: null });
+          toast({ title: "Welcome back!", description: `Signed in as ${result.email}` });
+          navigate(returnTo);
+        } catch {
+          toast({ title: "Fingerprint sign-in failed", variant: "destructive" });
+          setFpLoading(false);
+        }
+      };
+      bridge.authenticate(callbackId);
+      return;
+    }
+
+    const fpEmail = email.trim() || window.prompt("Enter your email to sign in with fingerprint:") || "";
+    if (!fpEmail) { setFpLoading(false); return; }
     try {
       const challengeRes = await fetch(`${base}/api/auth/webauthn/auth-challenge`, {
         method: "POST",

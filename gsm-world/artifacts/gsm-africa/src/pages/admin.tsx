@@ -12,6 +12,7 @@ import {
   Download, Tag, Fingerprint,
 } from "lucide-react";
 import { startRegistration, startAuthentication } from "@simplewebauthn/browser";
+import { BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 
 // ─── types ────────────────────────────────────────────────────────────────────
 interface PaymentNotification {
@@ -462,12 +463,20 @@ function OverviewPanel({ pwd, onNavigate }: { pwd: string; onNavigate: (tab: Tab
           <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-[0.15em]">
             {new Date().toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"})}
           </p>
-          <h2 className="text-[18px] font-bold text-slate-900 mt-0.5 tracking-tight">Overview</h2>
+          <h2 className="text-[18px] font-black text-slate-900 mt-0.5 tracking-tight">Dashboard</h2>
         </div>
-        <button onClick={load}
-          className="w-9 h-9 rounded-full bg-white shadow-sm border border-slate-100 flex items-center justify-center text-slate-400 hover:text-blue-500 transition-colors active:scale-90">
-          <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-        </button>
+        <div className="flex items-center gap-2">
+          {(liveRequests?.waiting ?? 0) > 0 && (
+            <div className="flex items-center gap-1.5 bg-red-50 border border-red-100 rounded-full px-2.5 py-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+              <span className="text-[10px] font-bold text-red-600">{liveRequests!.waiting} live</span>
+            </div>
+          )}
+          <button onClick={() => load()}
+            className="w-9 h-9 rounded-full bg-white shadow-sm border border-slate-100 flex items-center justify-center text-slate-400 hover:text-blue-500 transition-colors active:scale-90">
+            <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+          </button>
+        </div>
       </div>
 
       <div className="px-4 space-y-3">
@@ -535,41 +544,60 @@ function OverviewPanel({ pwd, onNavigate }: { pwd: string; onNavigate: (tab: Tab
               ))}
             </div>
 
-            {/* ── Order status bar ───────────────── */}
-            {(stats?.orders.total ?? 0) > 0 && (() => {
-              const total = stats!.orders.total;
-              const paidPct = (confirmed / total) * 100;
-              const pendPct = (pending   / total) * 100;
-              const failPct = (failed    / total) * 100;
-              return (
-                <div className="bg-white rounded-2xl shadow-sm px-4 py-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-xs font-bold text-slate-800">Order Status</span>
-                    <span className="text-[11px] font-medium text-slate-400">{total} total</span>
-                  </div>
-                  <div className="flex h-2 rounded-full overflow-hidden gap-0.5">
-                    {paidPct > 0 && <div className="rounded-full bg-emerald-500" style={{ width:`${paidPct}%` }}/>}
-                    {pendPct > 0 && <div className="rounded-full bg-amber-400"   style={{ width:`${pendPct}%` }}/>}
-                    {failPct > 0 && <div className="rounded-full bg-red-400"     style={{ width:`${failPct}%` }}/>}
-                  </div>
-                  <div className="flex gap-5 mt-3">
-                    {[
-                      { label:"Paid",    count:confirmed, pct:paidPct, dot:"bg-emerald-500" },
-                      { label:"Pending", count:pending,   pct:pendPct, dot:"bg-amber-400"   },
-                      { label:"Failed",  count:failed,    pct:failPct, dot:"bg-red-400"     },
-                    ].map(s => (
-                      <div key={s.label} className="flex items-center gap-2">
-                        <div className={`w-2 h-2 rounded-full shrink-0 ${s.dot}`} />
-                        <span className="text-[10px] text-slate-500">
-                          {s.label} <span className="font-bold text-slate-800">{s.count}</span>
-                          <span className="text-slate-300 ml-1">{s.pct.toFixed(0)}%</span>
-                        </span>
-                      </div>
-                    ))}
-                  </div>
+            {/* ── Order analytics ─────────────── */}
+            {(stats?.orders.total ?? 0) > 0 && (
+              <div className="bg-white rounded-2xl shadow-sm px-4 pt-4 pb-3">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-bold text-slate-800">Order Analytics</span>
+                  <span className="text-[10px] font-medium text-slate-400">{stats!.orders.total} total</span>
                 </div>
-              );
-            })()}
+                <ResponsiveContainer width="100%" height={96}>
+                  <BarChart
+                    data={[
+                      { name:"Confirmed", count:confirmed, fill:"#10b981" },
+                      { name:"Pending",   count:pending,   fill:"#f59e0b" },
+                      { name:"Failed",    count:failed,    fill:"#ef4444" },
+                    ]}
+                    layout="vertical"
+                    margin={{ left:8, right:20, top:0, bottom:0 }}
+                    barSize={18}
+                  >
+                    <XAxis type="number" hide domain={[0, stats!.orders.total]} />
+                    <YAxis type="category" dataKey="name" width={72}
+                      tick={{ fontSize:10, fontWeight:700, fill:"#64748b" }} axisLine={false} tickLine={false} />
+                    <Tooltip
+                      cursor={{ fill:"#f8fafc" }}
+                      formatter={(v:number) => [`${v} orders`, ""]}
+                      contentStyle={{ fontSize:11, borderRadius:8, border:"1px solid #e2e8f0",
+                        boxShadow:"0 4px 6px -1px rgba(0,0,0,0.05)" }}
+                    />
+                    <Bar dataKey="count" radius={[0,4,4,0]}>
+                      {[{ fill:"#10b981" },{ fill:"#f59e0b" },{ fill:"#ef4444" }].map((e,i) => (
+                        <Cell key={i} fill={e.fill} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+                <div className="flex items-center gap-5 pt-1 pb-0.5">
+                  {[
+                    { label:"Confirmed", count:confirmed, dot:"bg-emerald-500",
+                      pct: stats!.orders.total ? ((confirmed/stats!.orders.total)*100).toFixed(0) : "0" },
+                    { label:"Pending",   count:pending,   dot:"bg-amber-400",
+                      pct: stats!.orders.total ? ((pending/stats!.orders.total)*100).toFixed(0) : "0" },
+                    { label:"Failed",    count:failed,    dot:"bg-red-400",
+                      pct: stats!.orders.total ? ((failed/stats!.orders.total)*100).toFixed(0) : "0" },
+                  ].map(s => (
+                    <div key={s.label} className="flex items-center gap-1.5">
+                      <div className={`w-2 h-2 rounded-full shrink-0 ${s.dot}`} />
+                      <span className="text-[10px] text-slate-500">
+                        {s.label} <span className="font-bold text-slate-800">{s.count}</span>
+                        <span className="text-slate-300 ml-1">{s.pct}%</span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* ── Live chat alert ─────────────────── */}
             {(liveRequests?.waiting ?? 0) > 0 && (

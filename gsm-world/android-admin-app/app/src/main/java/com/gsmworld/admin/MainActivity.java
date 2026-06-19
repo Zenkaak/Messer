@@ -4,6 +4,9 @@ import android.annotation.SuppressLint;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.security.keystore.KeyGenParameterSpec;
+import android.security.keystore.KeyProperties;
+import android.util.Base64;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
@@ -23,8 +26,17 @@ import android.webkit.WebViewClient;
 import android.widget.Button;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.biometric.BiometricManager;
+import androidx.biometric.BiometricPrompt;
+import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
+import javax.crypto.Cipher;
+import javax.crypto.KeyGenerator;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.GCMParameterSpec;
+import java.nio.charset.StandardCharsets;
+import java.security.KeyStore;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -77,8 +89,6 @@ public class MainActivity extends AppCompatActivity {
      * pull-to-refresh when the user tries to scroll back up.
      */
     private final class ScrollBridge {
-        // volatile so the main-thread callback reads the latest value written
-        // by the JS thread without needing synchronisation.
         private volatile boolean scrolledPastTop = false;
 
         @JavascriptInterface
@@ -90,6 +100,129 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private final ScrollBridge scrollBridge = new ScrollBridge();
+
+    // ── BiometricBridge: native fingerprint credential storage ────────────────
+    private final class BiometricBridge {
+        private static final String PREFS   = "gsm_bio_admin_v1";
+        private static final String ALIAS   = "GSMBioAdminKey_v1";
+        private static final String KEY_ENC = "enc_cred";
+        private static final String KEY_IV  = "enc_iv";
+
+        BiometricBridge() { ensureKey(); }
+
+        private void ensureKey() {
+            try {
+                KeyStore ks = KeyStore.getInstance("AndroidKeyStore");
+                ks.load(null);
+                if (ks.containsAlias(ALIAS)) return;
+                KeyGenerator kg = KeyGenerator.getInstance(
+                        KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore");
+                kg.init(new KeyGenParameterSpec.Builder(ALIAS,
+                        KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
+                    .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                    .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                    .setKeySize(256)
+                    .build());
+                kg.generateKey();
+            } catch (Exception e) {
+                Log.e(TAG, "BiometricBridge: key init failed", e);
+            }
+        }
+
+        @JavascriptInterface
+        public void saveCredential(String jsonData) {
+            try {
+                KeyStore ks = KeyStore.getInstance("AndroidKeyStore");
+                ks.load(null);
+                SecretKey key = (SecretKey) ks.getKey(ALIAS, null);
+                Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+                cipher.init(Cipher.ENCRYPT_MODE, key);
+                byte[] iv  = cipher.getIV();
+                byte[] enc = cipher.doFinal(jsonData.getBytes(StandardCharsets.UTF_8));
+                getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+                    .putString(KEY_ENC, Base64.encodeToString(enc, Base64.NO_WRAP))
+                    .putString(KEY_IV,  Base64.encodeToString(iv,  Base64.NO_WRAP))
+                    .apply();
+            } catch (Exception e) {
+                Log.e(TAG, "BiometricBridge: save failed", e);
+            }
+        }
+
+        @JavascriptInterface
+        public String hasCredential() {
+            return String.valueOf(
+                getSharedPreferences(PREFS, MODE_PRIVATE).contains(KEY_ENC));
+        }
+
+        @JavascriptInterface
+        public void clearCredential() {
+            getSharedPreferences(PREFS, MODE_PRIVATE).edit().clear().apply();
+        }
+
+        @JavascriptInterface
+        public void authenticate(String callbackId) {
+            SharedPreferences p = getSharedPreferences(PREFS, MODE_PRIVATE);
+            String encB64 = p.getString(KEY_ENC, null);
+            String ivB64  = p.getString(KEY_IV,  null);
+            if (encB64 == null || ivB64 == null) {
+                callJs(callbackId, "{\"error\":\"no_credential\"}");
+                return;
+            }
+            BiometricPrompt.PromptInfo info =
+                new BiometricPrompt.PromptInfo.Builder()
+                    .setTitle("Sign in to GSM World Admin")
+                    .setSubtitle("Confirm your identity to continue")
+                    .setNegativeButtonText("Use password")
+                    .setAllowedAuthenticators(
+                        BiometricManager.Authenticators.BIOMETRIC_STRONG |
+                        BiometricManager.Authenticators.BIOMETRIC_WEAK)
+                    .build();
+            final String encFinal = encB64;
+            final String ivFinal  = ivB64;
+            mainHandler.post(() -> {
+                BiometricPrompt prompt = new BiometricPrompt(
+                    MainActivity.this,
+                    ContextCompat.getMainExecutor(MainActivity.this),
+                    new BiometricPrompt.AuthenticationCallback() {
+                        @Override
+                        public void onAuthenticationSucceeded(
+                                BiometricPrompt.AuthenticationResult r) {
+                            try {
+                                KeyStore ks = KeyStore.getInstance("AndroidKeyStore");
+                                ks.load(null);
+                                SecretKey key = (SecretKey) ks.getKey(ALIAS, null);
+                                Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+                                cipher.init(Cipher.DECRYPT_MODE, key,
+                                    new GCMParameterSpec(128,
+                                        Base64.decode(ivFinal, Base64.NO_WRAP)));
+                                byte[] dec = cipher.doFinal(
+                                    Base64.decode(encFinal, Base64.NO_WRAP));
+                                callJs(callbackId,
+                                    new String(dec, StandardCharsets.UTF_8));
+                            } catch (Exception ex) {
+                                Log.e(TAG, "BiometricBridge: decrypt failed", ex);
+                                callJs(callbackId, "{\"error\":\"decrypt_failed\"}");
+                            }
+                        }
+                        @Override
+                        public void onAuthenticationError(int code, CharSequence msg) {
+                            callJs(callbackId, "{\"error\":\"cancelled\"}");
+                        }
+                        @Override
+                        public void onAuthenticationFailed() { /* retry silently */ }
+                    });
+                prompt.authenticate(info);
+            });
+        }
+
+        private void callJs(String cbId, String json) {
+            String safeId = cbId.replaceAll("[^a-zA-Z0-9_]", "_");
+            String js = "if(typeof window['" + safeId + "']==='function')" +
+                        "{try{window['" + safeId + "'](" + json + ");}catch(e){}" +
+                        "delete window['" + safeId + "'];}";
+            mainHandler.post(() -> webView.evaluateJavascript(js, null));
+        }
+    }
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -116,6 +249,7 @@ public class MainActivity extends AppCompatActivity {
         // Register the bridge so the web page can call
         // AdminScrollBridge.setScrolled(true/false)
         webView.addJavascriptInterface(scrollBridge, "AdminScrollBridge");
+        webView.addJavascriptInterface(new BiometricBridge(), "AndroidBiometric");
 
         // ── Pull-to-refresh ───────────────────────────────────────────────────
         swipeRefresh.setColorSchemeColors(
