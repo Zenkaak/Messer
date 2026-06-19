@@ -152,6 +152,23 @@ function _setWaToken(t: string | null) {
   try { if (t) sessionStorage.setItem("gsm_admin_webauthn_token", t); else sessionStorage.removeItem("gsm_admin_webauthn_token"); } catch {}
 }
 
+// ─── Quick-login credential (localStorage fallback when WebAuthn unavailable) ─
+const QL_KEY = "gsm_admin_ql_v1";
+function qlSave(pwd: string) {
+  try { localStorage.setItem(QL_KEY, btoa(unescape(encodeURIComponent(pwd)))); } catch {}
+}
+function qlLoad(): string | null {
+  try {
+    const v = localStorage.getItem(QL_KEY);
+    return v ? decodeURIComponent(escape(atob(v))) : null;
+  } catch { return null; }
+}
+function qlClear() { try { localStorage.removeItem(QL_KEY); } catch {} }
+function qlHas(): boolean { return qlLoad() !== null; }
+function waSupported(): boolean {
+  try { return typeof window !== "undefined" && !!window.PublicKeyCredential; } catch { return false; }
+}
+
 // ─── helpers ──────────────────────────────────────────────────────────────────
 function adminFetch(path: string, pwd: string, opts: RequestInit = {}) {
   const extra: Record<string, string> = {};
@@ -3591,17 +3608,27 @@ function FingerprintSetupModal({ pwd, onDismiss }: { pwd: string; onDismiss: () 
   const [registered, setRegistered] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  // true = WebAuthn, false = localStorage quick-login, null = detecting
+  const [mode, setMode] = useState<"webauthn" | "quicklogin" | null>(null);
 
   useEffect(() => {
     const bridge = getAdminBioBridge();
     if (isAdminNativeApp && bridge) {
+      setMode("webauthn");
       setRegistered(bridge.hasCredential() === "true");
       return;
     }
-    fetch(apiPath("/api/admin/webauthn/status"))
-      .then(r => r.json())
-      .then((d: { registered: boolean }) => setRegistered(d.registered))
-      .catch(() => setRegistered(false));
+    if (waSupported()) {
+      setMode("webauthn");
+      fetch(apiPath("/api/admin/webauthn/status"))
+        .then(r => r.json())
+        .then((d: { registered: boolean }) => setRegistered(d.registered))
+        .catch(() => setRegistered(false));
+    } else {
+      // Browser doesn't support WebAuthn — use localStorage quick-login
+      setMode("quicklogin");
+      setRegistered(qlHas());
+    }
   }, []);
 
   async function handleRegister() {
@@ -3611,19 +3638,26 @@ function FingerprintSetupModal({ pwd, onDismiss }: { pwd: string; onDismiss: () 
       try {
         bridge.saveCredential(JSON.stringify({ password: pwd }));
         setRegistered(true);
-        toast({ title: "Fingerprint registered", description: "You can now log in with your fingerprint." });
+        toast({ title: "Quick login enabled", description: "You can now log in with your fingerprint." });
       } catch {
-        setError("Failed to save fingerprint. Please try again.");
+        setError("Failed to save. Please try again.");
       } finally { setLoading(false); }
       return;
     }
-    // Check WebAuthn browser support before even calling the server
-    if (!window.PublicKeyCredential) {
-      setError("Your browser does not support biometric authentication. Try Chrome or Safari.");
-      setLoading(false);
+
+    // localStorage quick-login fallback
+    if (mode === "quicklogin") {
+      try {
+        qlSave(pwd);
+        setRegistered(true);
+        toast({ title: "Quick login saved", description: "Tap 'Quick Login' on the login screen to skip the password." });
+      } catch {
+        setError("Could not save. Check your browser settings.");
+      } finally { setLoading(false); }
       return;
     }
 
+    // WebAuthn path
     try {
       const hasSensor = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().catch(() => true);
       if (!hasSensor) {
@@ -3667,9 +3701,16 @@ function FingerprintSetupModal({ pwd, onDismiss }: { pwd: string; onDismiss: () 
       try {
         bridge.clearCredential();
         setRegistered(false);
-        toast({ title: "Fingerprint removed", description: "Password-only login is now required." });
-      } catch { setError("Failed to remove fingerprint."); }
+        toast({ title: "Quick login removed", description: "Password-only login is now required." });
+      } catch { setError("Failed to remove."); }
       finally { setLoading(false); }
+      return;
+    }
+    if (mode === "quicklogin") {
+      qlClear();
+      setRegistered(false);
+      toast({ title: "Quick login removed", description: "Password-only login is now required." });
+      setLoading(false);
       return;
     }
     try {
@@ -3681,6 +3722,8 @@ function FingerprintSetupModal({ pwd, onDismiss }: { pwd: string; onDismiss: () 
     finally { setLoading(false); }
   }
 
+  const isQuickLogin = mode === "quicklogin";
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
       <div className="bg-slate-900 border border-white/10 rounded-2xl p-6 w-full max-w-sm shadow-2xl">
@@ -3690,14 +3733,21 @@ function FingerprintSetupModal({ pwd, onDismiss }: { pwd: string; onDismiss: () 
               <Fingerprint size={18} className="text-blue-400" />
             </div>
             <div>
-              <p className="text-white font-bold text-sm">Fingerprint Login</p>
-              <p className="text-slate-500 text-xs">Biometric authentication</p>
+              <p className="text-white font-bold text-sm">{isQuickLogin ? "Quick Login" : "Fingerprint Login"}</p>
+              <p className="text-slate-500 text-xs">{isQuickLogin ? "Saved on this device" : "Biometric authentication"}</p>
             </div>
           </div>
           <button onClick={onDismiss} className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center text-slate-400 hover:text-white">
             <X size={14} />
           </button>
         </div>
+
+        {isQuickLogin && (
+          <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2.5 mb-4 flex items-start gap-2">
+            <AlertTriangle size={13} className="text-amber-400 shrink-0 mt-0.5" />
+            <p className="text-amber-300 text-xs leading-relaxed">Your browser doesn't support biometric auth. <span className="font-semibold">Quick Login</span> saves your password on this device so you can log in with one tap.</p>
+          </div>
+        )}
 
         {error && (
           <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2.5 mb-4 flex items-center gap-2">
@@ -3706,31 +3756,38 @@ function FingerprintSetupModal({ pwd, onDismiss }: { pwd: string; onDismiss: () 
           </div>
         )}
 
-        {registered === null ? (
+        {registered === null || mode === null ? (
           <div className="text-center text-slate-500 text-sm py-4">Loading…</div>
         ) : registered ? (
           <div className="space-y-3">
             <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-3 py-3 flex items-center gap-2.5">
               <CheckCircle2 size={15} className="text-emerald-400 shrink-0" />
-              <p className="text-emerald-400 text-xs font-medium">Fingerprint is active on this device</p>
+              <p className="text-emerald-400 text-xs font-medium">
+                {isQuickLogin ? "Quick login is active on this device" : "Fingerprint is active on this device"}
+              </p>
             </div>
-            <p className="text-slate-400 text-xs">You can log in using your device's biometric sensor instead of a password.</p>
+            <p className="text-slate-400 text-xs">
+              {isQuickLogin
+                ? "Your password is saved. Tap 'Quick Login' on the login screen to skip typing it."
+                : "You can log in using your device's biometric sensor instead of a password."}
+            </p>
             <button onClick={handleRemove} disabled={loading}
               className="w-full flex items-center justify-center gap-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 font-semibold py-3 rounded-xl text-sm disabled:opacity-40 transition-colors">
               <Trash2 size={14} />
-              {loading ? "Removing…" : "Remove Fingerprint"}
+              {loading ? "Removing…" : isQuickLogin ? "Remove Quick Login" : "Remove Fingerprint"}
             </button>
           </div>
         ) : (
           <div className="space-y-3">
             <p className="text-slate-400 text-xs leading-relaxed">
-              Register your device's fingerprint or Face ID to log in without typing your password.
-              Works with Touch ID, Windows Hello, and Android fingerprint sensors.
+              {isQuickLogin
+                ? "Save your password on this device so you can log in with one tap — no typing required."
+                : "Register your device's fingerprint or Face ID to log in without typing your password. Works with Touch ID, Windows Hello, and Android fingerprint sensors."}
             </p>
             <button onClick={handleRegister} disabled={loading}
               className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl text-sm disabled:opacity-40 transition-colors">
               <Fingerprint size={15} />
-              {loading ? "Scanning…" : "Register Fingerprint"}
+              {loading ? "Saving…" : isQuickLogin ? "Save on This Device" : "Register Fingerprint"}
             </button>
           </div>
         )}
@@ -3754,10 +3811,18 @@ function LoginScreen({ onLogin }: { onLogin: (pwd: string, isDefault: boolean) =
       setFpAvailable(bridge.hasCredential() === "true");
       return;
     }
+    // If WebAuthn not supported, fall back to localStorage quick-login check
+    if (!waSupported()) {
+      setFpAvailable(qlHas());
+      return;
+    }
     fetch(apiPath("/api/admin/webauthn/status"))
       .then(r => r.json())
-      .then((d: { registered: boolean }) => setFpAvailable(d.registered))
-      .catch(() => {});
+      .then((d: { registered: boolean }) => {
+        // Also show quick-login button if localStorage has a credential (belt + suspenders)
+        setFpAvailable(d.registered || qlHas());
+      })
+      .catch(() => { setFpAvailable(qlHas()); });
   }, []);
 
   async function submit() {
@@ -3801,6 +3866,32 @@ function LoginScreen({ onLogin }: { onLogin: (pwd: string, isDefault: boolean) =
         }
       };
       bridge.authenticate(callbackId);
+      return;
+    }
+
+    // localStorage quick-login path (when WebAuthn not supported by browser)
+    if (!waSupported()) {
+      const saved = qlLoad();
+      if (!saved) {
+        setError("No saved login found. Use 'Fingerprint Login' in settings to set it up first.");
+        setFpLoading(false);
+        return;
+      }
+      try {
+        const r = await fetch(apiPath("/api/admin/login"), {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ password: saved }),
+        });
+        const d = await r.json() as { ok?: boolean; isDefaultPassword?: boolean; error?: string };
+        if (!r.ok) {
+          qlClear(); // saved password is wrong (was changed), remove it
+          setFpAvailable(false);
+          setError("Saved login is outdated. Please log in with your password and re-save.");
+          return;
+        }
+        onLogin(saved, !!(d as { isDefaultPassword?: boolean }).isDefaultPassword);
+      } catch { setError("Cannot reach server. Check your connection."); }
+      finally { setFpLoading(false); }
       return;
     }
 
@@ -3855,7 +3946,7 @@ function LoginScreen({ onLogin }: { onLogin: (pwd: string, isDefault: boolean) =
               <button onClick={loginWithFingerprint} disabled={fpLoading || loading}
                 className="w-full flex items-center justify-center gap-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-2xl text-sm disabled:opacity-40 transition-colors">
                 <Fingerprint size={17} />
-                {fpLoading ? "Scanning…" : "Login with Fingerprint"}
+                {fpLoading ? "Signing in…" : waSupported() ? "Login with Fingerprint" : "Quick Login"}
               </button>
             )}
             {fpAvailable && (
