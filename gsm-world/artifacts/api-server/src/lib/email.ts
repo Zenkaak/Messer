@@ -43,87 +43,91 @@ function layout(preheader: string, accentColor: string, headerContent: string, b
   <!--[if mso]><noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript><![endif]-->
   <style>
     @media only screen and (max-width: 600px) {
-      .outer-wrapper { padding: 16px 8px !important; }
-      .email-card { border-radius: 0 0 12px 12px !important; }
-      .email-brand-bar { border-radius: 12px 12px 0 0 !important; padding: 14px 16px !important; }
-      .email-header { padding: 24px 20px 20px !important; }
-      .email-header h1 { font-size: 20px !important; }
-      .email-body { padding: 24px 20px 20px !important; font-size: 15px !important; }
-      .email-footer { padding: 20px 20px 24px !important; }
-      .email-footer-divider { padding: 0 20px !important; }
-      .product-grid-table { width: 100% !important; }
-      .product-cell { display: inline-block !important; width: 46% !important; min-width: 0 !important; padding-right: 4px !important; padding-bottom: 8px !important; vertical-align: top !important; }
-      .btn-cta { padding: 14px 20px !important; font-size: 15px !important; }
+      .outer-wrapper { padding: 0 !important; }
+      .email-shell { border-radius: 0 !important; }
+      .email-brand-bar { padding: 16px 20px !important; }
+      .email-header { padding: 28px 20px 24px !important; }
+      .email-header h1 { font-size: 22px !important; }
+      .email-body { padding: 24px 20px !important; font-size: 15px !important; }
+      .email-footer { padding: 20px !important; }
+      .btn-cta { padding: 14px 24px !important; font-size: 15px !important; }
+      .info-label { width: auto !important; }
     }
-    a { color: inherit; }
+    a { color: inherit; text-decoration: none; }
   </style>
 </head>
-<body style="margin:0;padding:0;background-color:#f0f4f8;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;">
-  <div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;color:#f0f4f8;line-height:1px;">${preheader}&nbsp;&#8203;&zwnj;&nbsp;&#8203;&zwnj;&nbsp;&#8203;&zwnj;&nbsp;&#8203;&zwnj;&nbsp;&#8203;&zwnj;&nbsp;&#8203;&zwnj;</div>
+<body style="margin:0;padding:0;background-color:#eef2f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Helvetica Neue',Arial,sans-serif;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;">
+  <!-- Preheader -->
+  <div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;color:#eef2f7;line-height:1px;">${preheader}&nbsp;&#8203;&zwnj;&nbsp;&#8203;&zwnj;&nbsp;&#8203;&zwnj;&nbsp;&#8203;&zwnj;&nbsp;&#8203;&zwnj;&nbsp;&#8203;&zwnj;&nbsp;&#8203;&zwnj;&nbsp;&#8203;&zwnj;&nbsp;&#8203;&zwnj;</div>
 
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="outer-wrapper" style="background-color:#f0f4f8;padding:32px 12px;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="outer-wrapper" style="background-color:#eef2f7;padding:40px 16px;">
     <tr>
       <td align="center">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="email-shell" style="max-width:600px;border-radius:20px;overflow:hidden;box-shadow:0 8px 40px rgba(15,23,42,0.13);">
 
-        <!-- Top brand bar -->
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;">
+          <!-- ── Brand header bar ── -->
           <tr>
-            <td class="email-brand-bar" style="background:#0f172a;border-radius:16px 16px 0 0;padding:18px 28px;text-align:center;">
-              <a href="${storeUrl}" style="text-decoration:none;">
-                <span style="display:inline-block;width:30px;height:30px;background:#0ea5e9;border-radius:7px;text-align:center;line-height:30px;font-size:15px;font-weight:900;color:#ffffff;font-family:Arial,sans-serif;vertical-align:middle;">G</span>
-                <span style="font-size:17px;font-weight:900;color:#ffffff;letter-spacing:0.5px;font-family:Arial,sans-serif;vertical-align:middle;margin-left:7px;">GSM <span style="color:#0ea5e9;">World</span></span>
-              </a>
+            <td class="email-brand-bar" style="background:#0b1120;padding:20px 36px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="vertical-align:middle;">
+                    <a href="${storeUrl}" style="text-decoration:none;display:inline-flex;align-items:center;gap:10px;">
+                      <!-- Logo mark -->
+                      <span style="display:inline-block;width:34px;height:34px;background:linear-gradient(135deg,#0ea5e9,#0284c7);border-radius:9px;text-align:center;line-height:34px;font-size:16px;font-weight:900;color:#ffffff;font-family:Arial,sans-serif;letter-spacing:-0.5px;vertical-align:middle;">G</span>
+                      <span style="font-size:16px;font-weight:800;color:#ffffff;letter-spacing:0.2px;font-family:Arial,sans-serif;vertical-align:middle;">GSM&nbsp;<span style="color:#38bdf8;">World</span></span>
+                    </a>
+                  </td>
+                  <td style="text-align:right;vertical-align:middle;">
+                    <span style="font-size:11px;font-weight:600;color:#475569;letter-spacing:0.5px;font-family:Arial,sans-serif;text-transform:uppercase;">Official Store</span>
+                  </td>
+                </tr>
+              </table>
             </td>
           </tr>
-        </table>
 
-        <!-- Card -->
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="email-card" style="max-width:600px;background:#ffffff;border-radius:0 0 16px 16px;overflow:hidden;box-shadow:0 4px 24px rgba(15,23,42,0.10);">
-
-          <!-- Accent line -->
+          <!-- ── Accent stripe ── -->
           <tr>
-            <td style="background:${accentColor};height:4px;padding:0;font-size:0;line-height:0;">&nbsp;</td>
+            <td style="background:linear-gradient(90deg,${accentColor},${accentColor}cc);height:3px;padding:0;font-size:0;line-height:0;mso-line-height-rule:exactly;">&nbsp;</td>
           </tr>
 
-          <!-- Header -->
+          <!-- ── Hero header ── -->
           <tr>
             <td class="email-header" style="padding:0;">
               ${headerContent}
             </td>
           </tr>
 
-          <!-- Body -->
+          <!-- ── Body ── -->
           <tr>
-            <td class="email-body" style="padding:28px 32px 24px;color:#334155;font-size:15px;line-height:1.75;">
+            <td class="email-body" style="background:#ffffff;padding:32px 36px 28px;color:#374151;font-size:15px;line-height:1.8;">
               ${body}
             </td>
           </tr>
 
-          <!-- Divider -->
+          <!-- ── Footer ── -->
           <tr>
-            <td class="email-footer-divider" style="padding:0 32px;">
-              <div style="height:1px;background:#e2e8f0;"></div>
-            </td>
-          </tr>
-
-          <!-- Footer -->
-          <tr>
-            <td class="email-footer" style="padding:20px 32px 28px;background:#f8fafc;">
+            <td class="email-footer" style="background:#0b1120;padding:28px 36px;">
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
                 <tr>
-                  <td style="text-align:center;">
-                    <p style="margin:0 0 8px;font-size:12px;color:#94a3b8;line-height:1.6;">This message was sent to you because you have an account with GSM World.<br>If you did not request this email, please disregard it.</p>
-                    <p style="margin:0;font-size:12px;color:#94a3b8;">
-                      <a href="${storeUrl}" style="color:#0ea5e9;text-decoration:none;font-weight:600;">${new URL(storeUrl).hostname}</a>
-                      &nbsp;&nbsp;·&nbsp;&nbsp;
-                      <a href="${storeUrl}/account/orders" style="color:#0ea5e9;text-decoration:none;">Track Your Order</a>
-                      &nbsp;&nbsp;·&nbsp;&nbsp;
-                      <a href="${storeUrl}/account" style="color:#0ea5e9;text-decoration:none;">Account Settings</a>
-                      &nbsp;&nbsp;·&nbsp;&nbsp;
-                      <a href="{{UNSUB_URL}}" style="color:#94a3b8;text-decoration:underline;">Unsubscribe</a>
-                      &nbsp;&nbsp;·&nbsp;&nbsp;
-                      <span style="color:#cbd5e1;">© ${year} GSM World. All rights reserved.</span>
+                  <td style="text-align:center;padding-bottom:16px;border-bottom:1px solid #1e293b;">
+                    <p style="margin:0 0 10px;font-size:12px;color:#64748b;line-height:1.7;">
+                      You received this email because you have an account with GSM World.<br>
+                      If you didn't request this, you can safely ignore it.
                     </p>
+                    <p style="margin:0;font-size:12px;">
+                      <a href="${storeUrl}" style="color:#38bdf8;text-decoration:none;font-weight:600;">${new URL(storeUrl).hostname}</a>
+                      <span style="color:#334155;">&nbsp;·&nbsp;</span>
+                      <a href="${storeUrl}/account/orders" style="color:#64748b;text-decoration:none;">My Orders</a>
+                      <span style="color:#334155;">&nbsp;·&nbsp;</span>
+                      <a href="${storeUrl}/account" style="color:#64748b;text-decoration:none;">Account</a>
+                      <span style="color:#334155;">&nbsp;·&nbsp;</span>
+                      <a href="{{UNSUB_URL}}" style="color:#475569;text-decoration:underline;">Unsubscribe</a>
+                    </p>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="text-align:center;padding-top:14px;">
+                    <p style="margin:0;font-size:11px;color:#334155;">© ${year} GSM World. All rights reserved. &nbsp;·&nbsp; Official GSM Tools &amp; Services Distributor</p>
                   </td>
                 </tr>
               </table>
@@ -131,16 +135,6 @@ function layout(preheader: string, accentColor: string, headerContent: string, b
           </tr>
 
         </table>
-
-        <!-- Below-card note -->
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin-top:12px;">
-          <tr>
-            <td style="text-align:center;padding:0 8px;">
-              <p style="font-size:11px;color:#94a3b8;margin:0;">GSM World · Official Distributor of GSM Tools &amp; Services Since 2016</p>
-            </td>
-          </tr>
-        </table>
-
       </td>
     </tr>
   </table>
@@ -149,40 +143,48 @@ function layout(preheader: string, accentColor: string, headerContent: string, b
 }
 
 function header(bg: string, title: string, subtitle: string) {
-  return `<div class="email-header" style="background:${bg};padding:32px 32px 28px;">
-    <h1 style="margin:0 0 6px;font-size:22px;font-weight:900;color:#ffffff;letter-spacing:-0.3px;line-height:1.25;">${title}</h1>
-    <p style="margin:0;font-size:14px;color:rgba(255,255,255,0.72);font-weight:400;line-height:1.5;">${subtitle}</p>
+  return `<div class="email-header" style="background:${bg};padding:36px 36px 32px;position:relative;overflow:hidden;">
+    <!-- Subtle grid pattern overlay -->
+    <div style="position:absolute;inset:0;opacity:0.04;background-image:repeating-linear-gradient(0deg,transparent,transparent 20px,rgba(255,255,255,.5) 20px,rgba(255,255,255,.5) 21px),repeating-linear-gradient(90deg,transparent,transparent 20px,rgba(255,255,255,.5) 20px,rgba(255,255,255,.5) 21px);"></div>
+    <h1 style="margin:0 0 8px;font-size:26px;font-weight:800;color:#ffffff;letter-spacing:-0.5px;line-height:1.2;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Helvetica Neue',Arial,sans-serif;">${title}</h1>
+    <p style="margin:0;font-size:14px;color:rgba(255,255,255,0.65);font-weight:400;line-height:1.6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Helvetica Neue',Arial,sans-serif;">${subtitle}</p>
   </div>`;
 }
 
 function btn(label: string, url: string, bg = "#0ea5e9") {
-  return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:24px 0 0;width:100%;">
+  return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:28px 0 4px;width:100%;">
     <tr>
-      <td style="background:${bg};border-radius:10px;font-size:0;text-align:center;">
-        <a href="${url}" class="btn-cta" style="display:block;padding:15px 32px;font-size:15px;font-weight:700;color:#ffffff;text-decoration:none;letter-spacing:0.3px;">${label}</a>
+      <td style="border-radius:12px;background:${bg};">
+        <a href="${url}" class="btn-cta" style="display:block;padding:16px 32px;font-size:15px;font-weight:700;color:#ffffff;text-decoration:none;letter-spacing:0.2px;text-align:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Helvetica Neue',Arial,sans-serif;">${label}&nbsp; &#8250;</a>
       </td>
     </tr>
   </table>`;
 }
 
 function codeBlock(code: string) {
-  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:24px 0;">
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:28px 0;">
     <tr>
-      <td align="center" style="background:#f1f5f9;border:2px solid #e2e8f0;border-radius:12px;padding:28px 24px;">
-        <p style="margin:0 0 8px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:1.5px;">Your Verification Code</p>
-        <p style="margin:0;font-size:44px;font-weight:900;color:#0f172a;letter-spacing:16px;font-family:'Courier New',monospace;">${code}</p>
-        <p style="margin:10px 0 0;font-size:12px;color:#94a3b8;">Expires in 10 minutes &nbsp;·&nbsp; Do not share this code</p>
+      <td align="center" style="background:#0b1120;border-radius:16px;padding:32px 24px;">
+        <p style="margin:0 0 16px;font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:2px;font-family:Arial,sans-serif;">Verification Code</p>
+        <p style="margin:0;font-size:52px;font-weight:900;color:#38bdf8;letter-spacing:14px;font-family:'Courier New',Courier,monospace;line-height:1;">${code}</p>
+        <table role="presentation" cellpadding="0" cellspacing="0" style="margin:20px auto 0;">
+          <tr>
+            <td style="background:#1e293b;border-radius:50px;padding:8px 20px;">
+              <p style="margin:0;font-size:12px;color:#64748b;font-family:Arial,sans-serif;">&#x23F0;&nbsp; Expires in <strong style="color:#94a3b8;">10 minutes</strong>&nbsp; · &nbsp;Do not share this code</p>
+            </td>
+          </tr>
+        </table>
       </td>
     </tr>
   </table>`;
 }
 
 function infoTable(rows: Array<[string, string]>) {
-  const trs = rows.map(([label, value]) => `<tr>
-    <td style="padding:11px 20px 11px 20px;border-bottom:1px solid #f1f5f9;font-size:13px;font-weight:600;color:#64748b;white-space:nowrap;width:45%;">${label}</td>
-    <td style="padding:11px 20px 11px 8px;border-bottom:1px solid #f1f5f9;font-size:13px;font-weight:700;color:#0f172a;text-align:right;word-break:break-word;">${value}</td>
+  const trs = rows.map(([label, value], i) => `<tr>
+    <td class="info-label" style="padding:12px 16px 12px 20px;${i < rows.length - 1 ? "border-bottom:1px solid #f1f5f9;" : ""}font-size:12px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.8px;white-space:nowrap;width:38%;vertical-align:top;">${label}</td>
+    <td style="padding:12px 20px 12px 0;${i < rows.length - 1 ? "border-bottom:1px solid #f1f5f9;" : ""}font-size:14px;font-weight:600;color:#111827;text-align:right;word-break:break-word;vertical-align:top;">${value}</td>
   </tr>`).join("");
-  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;margin:20px 0;">
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f9fafb;border:1.5px solid #e5e7eb;border-radius:14px;overflow:hidden;margin:24px 0;">
     <tbody>${trs}</tbody>
   </table>`;
 }
@@ -190,8 +192,8 @@ function infoTable(rows: Array<[string, string]>) {
 function statusChip(label: string, color: string) {
   return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:20px 0;">
     <tr>
-      <td style="background:${color}18;border:1.5px solid ${color}40;border-radius:50px;padding:8px 20px;">
-        <span style="font-size:13px;font-weight:800;color:${color};letter-spacing:0.3px;">${label}</span>
+      <td style="background:${color}12;border:1.5px solid ${color}35;border-radius:50px;padding:9px 22px;">
+        <span style="font-size:13px;font-weight:800;color:${color};letter-spacing:0.2px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;">&#x2022;&nbsp; ${label}</span>
       </td>
     </tr>
   </table>`;
@@ -200,24 +202,24 @@ function statusChip(label: string, color: string) {
 function orderItemsTable(items: Array<{ productName: string; quantity: number; price: string }>, total: string) {
   const rows = items.map(i =>
     `<tr>
-      <td style="padding:11px 0 11px 20px;font-size:13px;color:#334155;border-bottom:1px solid #f1f5f9;">${i.productName}</td>
-      <td style="padding:11px 8px;font-size:13px;color:#64748b;border-bottom:1px solid #f1f5f9;text-align:center;white-space:nowrap;">× ${i.quantity}</td>
-      <td style="padding:11px 20px 11px 0;font-size:13px;font-weight:700;color:#0f172a;border-bottom:1px solid #f1f5f9;text-align:right;white-space:nowrap;">$${(parseFloat(i.price) * i.quantity).toFixed(2)}</td>
+      <td style="padding:13px 0 13px 20px;font-size:13px;color:#374151;border-bottom:1px solid #f3f4f6;line-height:1.5;">${i.productName}</td>
+      <td style="padding:13px 12px;font-size:13px;color:#9ca3af;border-bottom:1px solid #f3f4f6;text-align:center;white-space:nowrap;font-weight:600;">× ${i.quantity}</td>
+      <td style="padding:13px 20px 13px 0;font-size:13px;font-weight:700;color:#111827;border-bottom:1px solid #f3f4f6;text-align:right;white-space:nowrap;">$${(parseFloat(i.price) * i.quantity).toFixed(2)}</td>
     </tr>`
   ).join("");
-  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;margin:20px 0;">
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border:1.5px solid #e5e7eb;border-radius:14px;overflow:hidden;margin:24px 0;">
     <thead>
-      <tr style="background:#f8fafc;">
-        <th style="padding:10px 0 10px 20px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:1px;text-align:left;">Service / Product</th>
-        <th style="padding:10px 8px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:1px;text-align:center;">Qty</th>
-        <th style="padding:10px 20px 10px 0;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:1px;text-align:right;">Amount</th>
+      <tr style="background:#f9fafb;">
+        <th style="padding:11px 0 11px 20px;font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:1px;text-align:left;">Product / Service</th>
+        <th style="padding:11px 12px;font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:1px;text-align:center;">Qty</th>
+        <th style="padding:11px 20px 11px 0;font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:1px;text-align:right;">Total</th>
       </tr>
     </thead>
     <tbody>${rows}</tbody>
     <tfoot>
-      <tr style="background:#eff6ff;">
-        <td colspan="2" style="padding:14px 8px 14px 20px;font-size:14px;font-weight:800;color:#0f172a;">Order Total</td>
-        <td style="padding:14px 20px 14px 0;font-size:18px;font-weight:900;color:#0ea5e9;text-align:right;">$${parseFloat(total).toFixed(2)}</td>
+      <tr style="background:#0b1120;">
+        <td colspan="2" style="padding:15px 12px 15px 20px;font-size:13px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;">Order Total</td>
+        <td style="padding:15px 20px 15px 0;font-size:20px;font-weight:900;color:#38bdf8;text-align:right;">$${parseFloat(total).toFixed(2)}</td>
       </tr>
     </tfoot>
   </table>`;
@@ -226,9 +228,9 @@ function orderItemsTable(items: Array<{ productName: string; quantity: number; p
 function alertBox(title: string, content: string, borderColor = "#0ea5e9", bg = "#f0f9ff") {
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0;">
     <tr>
-      <td style="background:${bg};border-left:4px solid ${borderColor};border-radius:0 10px 10px 0;padding:14px 20px;">
-        ${title ? `<p style="margin:0 0 4px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:1px;">${title}</p>` : ""}
-        <p style="margin:0;font-size:14px;color:#0f172a;white-space:pre-line;line-height:1.65;">${content}</p>
+      <td style="background:${bg};border:1.5px solid ${borderColor}30;border-left:4px solid ${borderColor};border-radius:0 12px 12px 0;padding:16px 20px;">
+        ${title ? `<p style="margin:0 0 6px;font-size:11px;font-weight:800;color:${borderColor};text-transform:uppercase;letter-spacing:1px;">${title}</p>` : ""}
+        <p style="margin:0;font-size:14px;color:#1f2937;white-space:pre-line;line-height:1.7;">${content}</p>
       </td>
     </tr>
   </table>`;
