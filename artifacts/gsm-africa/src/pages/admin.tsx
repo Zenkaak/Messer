@@ -933,167 +933,172 @@ function OrderDetailView({ order: initialOrder, pwd, onBack }: { order: Order; p
   }
 
   return (
-    <div className="p-4 pb-8 space-y-4">
-      {/* Back button + title */}
-      <div className="flex items-center gap-3">
-        <button onClick={onBack}
-          className="w-9 h-9 rounded-full border border-slate-200 flex items-center justify-center text-slate-500 hover:text-blue-600 hover:border-blue-300 transition-colors shrink-0">
-          <ChevronLeft size={18} />
-        </button>
-        <div>
-          <p className="text-xs text-slate-400 font-medium">Order #{order.id} · {order.orderType || "product"}</p>
-          <h2 className="text-lg font-black text-slate-900 leading-tight">Order Details</h2>
+    <div style={{ background: "#f0f2f5", minHeight: "100vh" }}>
+      {/* Hero Header */}
+      <div style={{ background: "linear-gradient(145deg,#1a2f50 0%,#0f1e36 100%)" }} className="px-4 pt-5 pb-6">
+        <div className="flex items-center gap-3 mb-5">
+          <button onClick={onBack}
+            className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-white/80 hover:bg-white/20 transition-colors shrink-0">
+            <ChevronLeft size={18} />
+          </button>
+          <div className="flex-1 min-w-0">
+            <p className="text-blue-300/70 text-[10px] font-semibold uppercase tracking-widest">Order Detail</p>
+            <h2 className="text-white font-black text-lg leading-tight">#{order.id} · {(order.orderType || "product").charAt(0).toUpperCase() + (order.orderType || "product").slice(1)}</h2>
+          </div>
+          {updatingStatus && <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin shrink-0" />}
         </div>
-      </div>
-
-      {/* Status banner */}
-      <div className={`flex items-center gap-3 border rounded-2xl px-4 py-3 ${sc}`}>
-        <StatusBadge status={order.paymentStatus} />
-        <span className="text-sm font-semibold capitalize">{order.paymentStatus} payment</span>
-        <span className="ml-auto text-xs font-medium opacity-70">{new Date(order.createdAt).toLocaleString()}</span>
-      </div>
-
-      {/* Correction note — permanent banner once set */}
-      {order.correctionNote && (
-        <div className="flex gap-3 border border-rose-300 bg-rose-50 rounded-2xl px-4 py-3">
-          <AlertTriangle size={15} className="text-rose-500 shrink-0 mt-0.5" />
-          <div className="min-w-0">
-            <p className="text-[10px] font-black text-rose-400 uppercase tracking-widest mb-1">Correction Note</p>
-            <p className="text-sm text-rose-800 leading-snug break-words">{order.correctionNote}</p>
+        {/* Key stats row */}
+        <div className="grid grid-cols-3 gap-2">
+          <div className="bg-white/10 rounded-2xl px-3 py-3 text-center">
+            <p className="text-white font-black text-xl leading-none">${Number(order.total).toFixed(2)}</p>
+            <p className="text-blue-300/70 text-[9px] font-semibold uppercase tracking-wide mt-1">Total</p>
+          </div>
+          <div className="bg-white/10 rounded-2xl px-3 py-3 text-center">
+            <div className="flex justify-center"><StatusBadge status={order.paymentStatus} /></div>
+            <p className="text-blue-300/70 text-[9px] font-semibold uppercase tracking-wide mt-1.5">Status</p>
+          </div>
+          <div className="bg-white/10 rounded-2xl px-3 py-3 text-center">
+            <p className="text-white font-bold text-xs leading-snug">{new Date(order.createdAt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</p>
+            <p className="text-blue-300/70 text-[9px] font-semibold uppercase tracking-wide mt-1">Date</p>
           </div>
         </div>
-      )}
-
-      {/* Status update buttons */}
-      <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
-        <div className="px-4 py-3 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
-          <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Update Status</p>
-          {updatingStatus && <div className="w-3.5 h-3.5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />}
-        </div>
-        <div className="p-3 flex gap-2 flex-wrap">
-          {[
-            { status: "paid",        label: "Mark Paid",    cls: "bg-emerald-600 text-white hover:bg-emerald-700" },
-            { status: "active",      label: "Active",       cls: "bg-emerald-500 text-white hover:bg-emerald-600" },
-            { status: "processing",  label: "Processing",   cls: "bg-blue-600 text-white hover:bg-blue-700" },
-            { status: "pending",     label: "Mark Pending", cls: "bg-amber-500 text-white hover:bg-amber-600" },
-            { status: "paused",      label: "Paused",       cls: "bg-purple-500 text-white hover:bg-purple-600" },
-            { status: "completed",   label: "Completed",    cls: "bg-slate-800 text-white hover:bg-slate-900" },
-            { status: "closed",      label: "Closed",       cls: "bg-slate-600 text-white hover:bg-slate-700" },
-            { status: "failed",      label: "Mark Failed",  cls: "bg-red-500 text-white hover:bg-red-600" },
-            { status: "refunded",    label: "Refunded",     cls: "bg-slate-500 text-white hover:bg-slate-600" },
-            { status: "cancelled",   label: "Cancelled",    cls: "bg-red-700 text-white hover:bg-red-800" },
-          ].map(({ status, label, cls }) => (
-            <button key={status} onClick={() => updateStatus(status)} disabled={updatingStatus || order.paymentStatus === status}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors disabled:opacity-40 ${
-                order.paymentStatus === status ? "ring-2 ring-offset-1 ring-blue-400 " + cls : cls
-              }`}>
-              {label}
-            </button>
-          ))}
-        </div>
-        {/* Custom status text */}
-        <div className="px-3 pb-3 pt-1 border-t border-slate-100 flex gap-2">
-          <input
-            placeholder="Custom status text…"
-            id="custom-status-input"
-            className="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-400"
-          />
-          <button
-            disabled={updatingStatus}
-            onClick={() => {
-              const inp = document.getElementById("custom-status-input") as HTMLInputElement;
-              if (inp?.value?.trim()) updateStatus(inp.value.trim());
-            }}
-            className="px-3 py-2 rounded-xl text-xs font-bold bg-slate-700 text-white hover:bg-slate-800 disabled:opacity-40 transition-colors shrink-0"
-          >
-            Set
-          </button>
-        </div>
       </div>
 
-      {/* Order Items */}
-      {orderItems.length > 0 && (
+      <div className="px-4 pt-4 pb-10 space-y-3">
+        {/* Correction note — permanent banner once set */}
+        {order.correctionNote && (
+          <div className="flex gap-3 border border-rose-300 bg-rose-50 rounded-2xl px-4 py-3 shadow-sm">
+            <AlertTriangle size={15} className="text-rose-500 shrink-0 mt-0.5" />
+            <div className="min-w-0">
+              <p className="text-[10px] font-black text-rose-400 uppercase tracking-widest mb-1">Correction Note</p>
+              <p className="text-sm text-rose-800 leading-snug break-words">{order.correctionNote}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Status update */}
         <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
-          <div className="px-4 py-3 border-b border-slate-100 bg-slate-50">
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1.5"><Package size={11} /> Order Items</p>
+          <div className="px-4 py-3 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+            <p className="text-xs font-bold text-slate-700">Update Status</p>
+            <p className="text-[10px] text-slate-400">Current: <span className="font-bold text-slate-600 capitalize">{order.paymentStatus}</span></p>
+          </div>
+          <div className="p-3">
+            <div className="grid grid-cols-2 gap-1.5 mb-2">
+              {[
+                { status: "paid",        label: "✓ Mark Paid",    cls: "bg-emerald-600 hover:bg-emerald-700" },
+                { status: "processing",  label: "⟳ Processing",   cls: "bg-blue-600 hover:bg-blue-700" },
+                { status: "pending",     label: "⏳ Mark Pending", cls: "bg-amber-500 hover:bg-amber-600" },
+                { status: "completed",   label: "★ Completed",    cls: "bg-slate-800 hover:bg-slate-900" },
+                { status: "failed",      label: "✕ Mark Failed",  cls: "bg-red-500 hover:bg-red-600" },
+                { status: "cancelled",   label: "✕ Cancelled",    cls: "bg-red-700 hover:bg-red-800" },
+              ].map(({ status, label, cls }) => (
+                <button key={status} onClick={() => updateStatus(status)} disabled={updatingStatus || order.paymentStatus === status}
+                  className={`py-2.5 rounded-xl text-xs font-bold transition-colors disabled:opacity-40 text-white ${
+                    order.paymentStatus === status ? "ring-2 ring-offset-1 ring-blue-400 " + cls : cls
+                  }`}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="grid grid-cols-3 gap-1.5 mb-3">
+              {[
+                { status: "active",   label: "Active",   cls: "bg-emerald-500 hover:bg-emerald-600" },
+                { status: "paused",   label: "Paused",   cls: "bg-purple-500 hover:bg-purple-600" },
+                { status: "refunded", label: "Refunded", cls: "bg-slate-500 hover:bg-slate-600" },
+                { status: "closed",   label: "Closed",   cls: "bg-slate-600 hover:bg-slate-700" },
+              ].map(({ status, label, cls }) => (
+                <button key={status} onClick={() => updateStatus(status)} disabled={updatingStatus || order.paymentStatus === status}
+                  className={`py-2 rounded-xl text-[11px] font-bold transition-colors disabled:opacity-40 text-white ${
+                    order.paymentStatus === status ? "ring-2 ring-offset-1 ring-blue-400 " + cls : cls
+                  }`}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-2 border-t border-slate-100 pt-2.5">
+              <input
+                placeholder="Custom status…"
+                id="custom-status-input"
+                className="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-400 bg-slate-50"
+              />
+              <button
+                disabled={updatingStatus}
+                onClick={() => {
+                  const inp = document.getElementById("custom-status-input") as HTMLInputElement;
+                  if (inp?.value?.trim()) updateStatus(inp.value.trim());
+                }}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-800 text-white hover:bg-slate-900 disabled:opacity-40 transition-colors shrink-0"
+              >
+                Set
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Order Items */}
+        {orderItems.length > 0 && (
+          <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
+            <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2">
+              <Package size={13} className="text-slate-400" />
+              <p className="text-xs font-bold text-slate-700">Items Ordered</p>
+            </div>
+            <div className="divide-y divide-slate-50">
+              {orderItems.map(item => (
+                <div key={item.id} className="px-4 py-3 flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
+                    <Package size={12} className="text-slate-500" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-slate-800 truncate">{item.productName}</p>
+                    <p className="text-[11px] text-slate-400">Qty: {item.quantity}</p>
+                  </div>
+                  <p className="text-sm font-black text-slate-900 shrink-0">${(parseFloat(item.price) * item.quantity).toFixed(2)}</p>
+                </div>
+              ))}
+              <div className="px-4 py-3 flex items-center justify-between bg-slate-50">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Total</span>
+                <span className="text-base font-black text-slate-900">${Number(order.total).toFixed(2)}</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Customer + Payment combined */}
+        <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2">
+            <Users size={13} className="text-slate-400" />
+            <p className="text-xs font-bold text-slate-700">Customer & Payment</p>
           </div>
           <div className="divide-y divide-slate-50">
-            {orderItems.map(item => (
-              <div key={item.id} className="px-4 py-3 flex items-center justify-between gap-3">
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-slate-800 truncate">{item.productName}</p>
-                  <p className="text-[11px] text-slate-400">Qty: {item.quantity}</p>
-                </div>
-                <p className="text-sm font-black text-slate-900 shrink-0">${(parseFloat(item.price) * item.quantity).toFixed(2)}</p>
+            {[
+              { label: "Name",     value: order.customerName || "—",    icon: "👤" },
+              { label: "Email",    value: order.customerEmail || "—",   icon: "✉️" },
+              { label: "Phone",    value: order.customerPhone || "—",   icon: "📱" },
+              { label: "Method",   value: order.paymentMethod || "—",   icon: "💳" },
+              { label: "Currency", value: order.currency || "USD",       icon: "💱" },
+              ...(order.notes ? [{ label: "Notes", value: order.notes, icon: "📝" }] : []),
+            ].map(row => (
+              <div key={row.label} className="px-4 py-3 flex items-start gap-3">
+                <span className="text-base shrink-0 mt-0.5">{row.icon}</span>
+                <span className="text-xs font-semibold text-slate-400 shrink-0 w-16 mt-0.5">{row.label}</span>
+                <span className="text-sm font-medium text-slate-800 break-all min-w-0">{row.value}</span>
               </div>
             ))}
           </div>
         </div>
-      )}
 
-      {/* IMEI / Device identifier */}
-      {order.deviceIdentifier && (
-        <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
-          <div className="px-4 py-3 border-b border-slate-100 bg-slate-50">
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1.5"><Cpu size={11} /> Device / IMEI</p>
-          </div>
-          <div className="p-4">
-            <p className="font-mono text-sm font-bold text-slate-800 break-all">{order.deviceIdentifier}</p>
-          </div>
-        </div>
-      )}
-
-      {/* Customer info */}
-      <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
-        <div className="px-4 py-3 border-b border-slate-100 bg-slate-50">
-          <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Customer</p>
-        </div>
-        <div className="p-4 space-y-3">
-          {[
-            { label: "Name", value: order.customerName || "—" },
-            { label: "Email", value: order.customerEmail || "—" },
-            { label: "Phone", value: order.customerPhone || "—" },
-          ].map(row => (
-            <div key={row.label} className="flex items-start justify-between gap-4">
-              <span className="text-xs font-semibold text-slate-400 shrink-0 w-14">{row.label}</span>
-              <span className="text-sm font-medium text-slate-800 text-right break-all">{row.value}</span>
+        {/* IMEI / Device identifier */}
+        {order.deviceIdentifier && (
+          <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
+            <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2">
+              <Cpu size={13} className="text-slate-400" />
+              <p className="text-xs font-bold text-slate-700">Device / IMEI</p>
             </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Payment info */}
-      <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
-        <div className="px-4 py-3 border-b border-slate-100 bg-slate-50">
-          <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Payment</p>
-        </div>
-        <div className="p-4 space-y-3">
-          {[
-            { label: "Method", value: order.paymentMethod || "—" },
-            { label: "Currency", value: order.currency || "USD" },
-            { label: "Notes", value: order.notes || "—" },
-          ].map(row => (
-            <div key={row.label} className="flex items-start justify-between gap-4">
-              <span className="text-xs font-semibold text-slate-400 shrink-0 w-16">{row.label}</span>
-              <span className="text-sm font-medium text-slate-800 text-right break-words max-w-[65%]">{row.value}</span>
+            <div className="p-4">
+              <p className="font-mono text-sm font-bold text-slate-800 break-all bg-slate-50 rounded-xl px-3 py-2.5">{order.deviceIdentifier}</p>
             </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Total */}
-      <div className="rounded-2xl p-4 text-white relative overflow-hidden"
-        style={{ background: "linear-gradient(135deg,#1e293b 0%,#0f172a 100%)" }}>
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-slate-400 text-xs font-semibold mb-1">Order Total</p>
-            <p className="text-3xl font-black">${Number(order.total).toFixed(2)}</p>
           </div>
-          <div className="w-14 h-14 rounded-2xl bg-white/10 flex items-center justify-center">
-            <DollarSign size={24} className="text-blue-400" />
-          </div>
-        </div>
-      </div>
+        )}
 
       {/* Wallet Refund */}
       <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
@@ -1271,7 +1276,8 @@ function OrderDetailView({ order: initialOrder, pwd, onBack }: { order: Order; p
           </div>
         </div>
       </div>
-    </div>
+      </div>{/* end px-4 pt-4 pb-10 */}
+    </div>{/* end background wrapper */}
   );
 }
 
@@ -1306,6 +1312,7 @@ function OrdersPanel({ pwd }: { pwd: string }) {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [search, setSearch] = useState("");
   const PER = 20;
 
   const load = useCallback(async (p: number, ft: OrderFilter, silent = false) => {
@@ -1367,141 +1374,201 @@ function OrdersPanel({ pwd }: { pwd: string }) {
 
   const pages = filterType === "giftcard" ? 1 : Math.ceil(total / PER);
 
+  const filteredOrders = search.trim()
+    ? orders.filter(o => {
+        const q = search.toLowerCase();
+        return (
+          String(o.id).includes(q) ||
+          (o.customerName ?? "").toLowerCase().includes(q) ||
+          (o.customerEmail ?? "").toLowerCase().includes(q) ||
+          (o.customerPhone ?? "").toLowerCase().includes(q)
+        );
+      })
+    : orders;
+
   if (selectedOrder) {
     return <OrderDetailView order={selectedOrder} pwd={pwd} onBack={() => setSelectedOrder(null)} />;
   }
 
   return (
-    <div className="p-4 pb-6 space-y-3">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-xs text-slate-400 font-medium">{total} total</p>
-          <h2 className="text-xl font-black text-slate-900">Orders</h2>
-        </div>
-        <button onClick={() => load(page, filterType)}
-          className={`w-9 h-9 rounded-full border border-slate-200 flex items-center justify-center text-slate-400 hover:text-blue-600 hover:border-blue-300 transition-colors ${loading ? "animate-spin" : ""}`}>
-          <RefreshCw size={15} />
-        </button>
-      </div>
-
-      {/* Type filter tabs */}
-      <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1">
-        {ORDER_FILTER_TABS.map(t => (
-          <button
-            key={t.id}
-            onClick={() => handleFilterChange(t.id)}
-            className={`px-3 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap transition-all border ${
-              filterType === t.id
-                ? "bg-slate-900 text-white border-slate-900"
-                : "bg-white text-slate-500 border-slate-200 hover:border-slate-300"
-            }`}
-          >
-            {t.label}
+    <div className="pb-8" style={{ background: "#f0f2f5", minHeight: "100vh" }}>
+      {/* Header */}
+      <div className="px-4 pt-5 pb-3" style={{ background: "#f0f2f5" }}>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-[0.15em]">Management</p>
+            <h2 className="text-[18px] font-black text-slate-900 mt-0.5 tracking-tight">Orders</h2>
+          </div>
+          <button onClick={() => load(page, filterType)}
+            className="w-9 h-9 rounded-full bg-white shadow-sm border border-slate-100 flex items-center justify-center text-slate-400 hover:text-blue-500 transition-colors active:scale-90">
+            <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
           </button>
-        ))}
-      </div>
-
-      {loading ? (
-        <div className="space-y-2">{[1,2,3,4,5].map(i => <Skeleton key={i} />)}</div>
-      ) : filterType === "giftcard" ? (
-        activations.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20">
-            <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mb-3">
-              <Zap size={24} className="text-slate-300" />
-            </div>
-            <p className="font-bold text-slate-400 text-sm">No gift card orders yet</p>
-            <p className="text-slate-300 text-xs mt-1">Gift card activations will appear here</p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {activations.map(a => (
-              <div key={a.id} className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex gap-3 min-w-0">
-                    <div className="w-10 h-10 rounded-xl bg-violet-600 flex items-center justify-center shrink-0">
-                      <Zap size={14} className="text-white" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                        <span className="text-[10px] font-black text-slate-400">#{a.id}</span>
-                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded capitalize ${
-                          a.status === "pending"   ? "bg-amber-100 text-amber-700"
-                          : a.status === "completed" || a.status === "active" ? "bg-emerald-100 text-emerald-700"
-                          : a.status === "failed"  ? "bg-red-100 text-red-600"
-                          : "bg-slate-100 text-slate-500"
-                        }`}>{a.status}</span>
-                      </div>
-                      <p className="text-sm font-bold text-slate-800 truncate">{a.toolName}</p>
-                      <p className="text-[11px] text-slate-400 truncate">{a.userEmail || a.recipientEmail || "—"}</p>
-                      {a.activationCode && (
-                        <p className="text-[11px] font-mono text-emerald-600 mt-0.5 truncate">Code: {a.activationCode}</p>
-                      )}
-                    </div>
-                  </div>
-                  <p className="text-[10px] text-slate-400 shrink-0">{new Date(a.createdAt).toLocaleDateString()}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        )
-      ) : orders.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20">
-          <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mb-3">
-            <ShoppingBag size={24} className="text-slate-300" />
-          </div>
-          <p className="font-bold text-slate-400 text-sm">No orders yet</p>
-          <p className="text-slate-300 text-xs mt-1">Orders will appear here</p>
         </div>
-      ) : (
-        <div className="space-y-2">
-          {orders.map(o => (
-            <button key={o.id} onClick={() => setSelectedOrder(o)}
-              className="w-full bg-white border border-slate-100 rounded-2xl p-4 shadow-sm hover:shadow-md hover:border-blue-100 transition-all text-left">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex gap-3 min-w-0">
-                  <div className="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center shrink-0">
-                    <ShoppingBag size={14} className="text-white" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                      <span className="text-[10px] font-black text-slate-400">#{o.id}</span>
-                      <StatusBadge status={o.paymentStatus} />
-                      <OrderTypeBadge type={o.orderType} />
-                    </div>
-                    <p className="text-sm font-bold text-slate-800 truncate">{o.customerName || o.customerEmail || "Guest"}</p>
-                    <p className="text-[11px] text-slate-400 truncate">{o.customerPhone}</p>
-                    {o.paymentMethod && (
-                      <span className="inline-block mt-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600 uppercase tracking-wide">{o.paymentMethod.replace(/_/g, " ")}</span>
-                    )}
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <div className="text-right">
-                    <p className="font-black text-slate-900 text-sm">${Number(o.total).toFixed(2)}</p>
-                    <p className="text-[10px] text-slate-400 mt-0.5">{new Date(o.createdAt).toLocaleDateString()}</p>
-                  </div>
-                  <ChevronRight size={14} className="text-slate-300" />
-                </div>
-              </div>
+
+        {/* Stats pills */}
+        <div className="flex gap-2 mb-4">
+          {[
+            { label: "Total", value: total, color: "text-slate-700", bg: "bg-white" },
+            { label: "Pending", value: orders.filter(o => o.paymentStatus === "pending").length, color: "text-amber-700", bg: "bg-amber-50" },
+            { label: "Paid", value: orders.filter(o => o.paymentStatus === "paid" || o.paymentStatus === "completed").length, color: "text-emerald-700", bg: "bg-emerald-50" },
+          ].map(s => (
+            <div key={s.label} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full ${s.bg} border border-white/80 shadow-sm`}>
+              <span className={`text-xs font-black ${s.color}`}>{s.value}</span>
+              <span className="text-[10px] text-slate-400 font-medium">{s.label}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Search */}
+        <div className="relative mb-3">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search by name, email or order ID…"
+            className="w-full pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 shadow-sm"
+          />
+          {search && (
+            <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700">
+              <X size={13} />
+            </button>
+          )}
+        </div>
+
+        {/* Type filter tabs */}
+        <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1">
+          {ORDER_FILTER_TABS.map(t => (
+            <button
+              key={t.id}
+              onClick={() => handleFilterChange(t.id)}
+              className={`px-3 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap transition-all border ${
+                filterType === t.id
+                  ? "bg-slate-900 text-white border-slate-900 shadow-sm"
+                  : "bg-white text-slate-500 border-slate-200 hover:border-slate-300"
+              }`}
+            >
+              {t.label}
             </button>
           ))}
         </div>
-      )}
+      </div>
 
-      {pages > 1 && filterType !== "giftcard" && (
-        <div className="flex items-center justify-center gap-3">
-          <button disabled={page === 0} onClick={() => setPage(p => p - 1)}
-            className="w-9 h-9 rounded-full border border-slate-200 flex items-center justify-center text-slate-500 disabled:opacity-30 hover:bg-slate-50">
-            <ChevronLeft size={15} />
-          </button>
-          <span className="text-sm font-bold text-slate-600">{page + 1} / {pages}</span>
-          <button disabled={page >= pages - 1} onClick={() => setPage(p => p + 1)}
-            className="w-9 h-9 rounded-full border border-slate-200 flex items-center justify-center text-slate-500 disabled:opacity-30 hover:bg-slate-50">
-            <ChevronRight size={15} />
-          </button>
-        </div>
-      )}
-    </div>
+      <div className="px-4 space-y-2">
+        {loading ? (
+          <div className="space-y-2">{[1,2,3,4,5].map(i => <Skeleton key={i} />)}</div>
+        ) : filterType === "giftcard" ? (
+          activations.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl shadow-sm">
+              <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mb-3">
+                <Zap size={24} className="text-slate-300" />
+              </div>
+              <p className="font-bold text-slate-400 text-sm">No gift card orders yet</p>
+              <p className="text-slate-300 text-xs mt-1">Gift card activations will appear here</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {activations.map(a => (
+                <div key={a.id} className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex gap-3 min-w-0">
+                      <div className="w-10 h-10 rounded-xl bg-violet-600 flex items-center justify-center shrink-0">
+                        <Zap size={14} className="text-white" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                          <span className="text-[10px] font-black text-slate-400">#{a.id}</span>
+                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded capitalize ${
+                            a.status === "pending"   ? "bg-amber-100 text-amber-700"
+                            : a.status === "completed" || a.status === "active" ? "bg-emerald-100 text-emerald-700"
+                            : a.status === "failed"  ? "bg-red-100 text-red-600"
+                            : "bg-slate-100 text-slate-500"
+                          }`}>{a.status}</span>
+                        </div>
+                        <p className="text-sm font-bold text-slate-800 truncate">{a.toolName}</p>
+                        <p className="text-[11px] text-slate-400 truncate">{a.userEmail || a.recipientEmail || "—"}</p>
+                        {a.activationCode && (
+                          <p className="text-[11px] font-mono text-emerald-600 mt-0.5 truncate">Code: {a.activationCode}</p>
+                        )}
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-slate-400 shrink-0">{new Date(a.createdAt).toLocaleDateString()}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        ) : filteredOrders.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl shadow-sm">
+            <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mb-3">
+              <ShoppingBag size={24} className="text-slate-300" />
+            </div>
+            <p className="font-bold text-slate-400 text-sm">{search ? "No results found" : "No orders yet"}</p>
+            <p className="text-slate-300 text-xs mt-1">{search ? `No orders matching "${search}"` : "Orders will appear here"}</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {filteredOrders.map(o => {
+              const name = o.customerName || o.customerEmail || "Guest";
+              const initials = name.split(/\s+/).slice(0,2).map((w: string) => w[0]).join("").toUpperCase().slice(0,2) || "?";
+              const avatarColors = ["bg-blue-100 text-blue-700","bg-violet-100 text-violet-700","bg-amber-100 text-amber-700","bg-emerald-100 text-emerald-700","bg-rose-100 text-rose-700"];
+              const avColor = avatarColors[o.id % avatarColors.length];
+              const isPending = o.paymentStatus === "pending";
+              return (
+                <button key={o.id} onClick={() => setSelectedOrder(o)}
+                  className={`w-full bg-white rounded-2xl shadow-sm hover:shadow-md transition-all text-left overflow-hidden ${isPending ? "border-l-4 border-l-amber-400 border border-slate-100" : "border border-slate-100"}`}>
+                  <div className="p-4">
+                    <div className="flex items-center gap-3">
+                      {/* Avatar */}
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-[12px] font-black shrink-0 ${avColor}`}>
+                        {initials}
+                      </div>
+                      {/* Info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <p className="text-sm font-bold text-slate-900 truncate leading-tight">{name}</p>
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-[10px] font-semibold text-slate-400">#{o.id}</span>
+                          <span className="text-slate-200">·</span>
+                          <StatusBadge status={o.paymentStatus} />
+                          <OrderTypeBadge type={o.orderType} />
+                          {o.paymentMethod && (
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500 uppercase tracking-wide">{o.paymentMethod.replace(/_/g, " ")}</span>
+                          )}
+                        </div>
+                      </div>
+                      {/* Amount + date */}
+                      <div className="text-right shrink-0 ml-2">
+                        <p className="font-black text-slate-900 text-base leading-tight">${Number(o.total).toFixed(2)}</p>
+                        <p className="text-[10px] text-slate-400 mt-0.5">{new Date(o.createdAt).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</p>
+                      </div>
+                      <ChevronRight size={14} className="text-slate-300 shrink-0" />
+                    </div>
+                    {o.customerPhone && (
+                      <p className="text-[11px] text-slate-400 mt-2 pl-[52px] truncate">{o.customerPhone}</p>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {pages > 1 && filterType !== "giftcard" && !search && (
+          <div className="flex items-center justify-center gap-3 pt-2">
+            <button disabled={page === 0} onClick={() => setPage(p => p - 1)}
+              className="w-9 h-9 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-500 disabled:opacity-30 hover:bg-slate-50 shadow-sm">
+              <ChevronLeft size={15} />
+            </button>
+            <span className="text-sm font-bold text-slate-600">{page + 1} / {pages}</span>
+            <button disabled={page >= pages - 1} onClick={() => setPage(p => p + 1)}
+              className="w-9 h-9 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-500 disabled:opacity-30 hover:bg-slate-50 shadow-sm">
+              <ChevronRight size={15} />
+            </button>
+          </div>
+        )}
+      </div>{/* end px-4 space-y-2 */}
+    </div>{/* end pb-8 outer wrapper */}
   );
 }
 
@@ -3921,126 +3988,191 @@ function LiveChatsPanel({ pwd }: { pwd: string }) {
 
   if (loading) return <div className="p-4 space-y-3">{[1,2,3].map(i => <Skeleton key={i} h="h-16" />)}</div>;
 
+  const activeSessions = sessions.filter(s => s.status !== "closed");
+  const waitingSessions = sessions.filter(s => s.status === "waiting");
+
   return (
-    <div className="p-4 space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm font-black text-slate-800">Live Chat Sessions</p>
-          <p className="text-xs text-slate-400 mt-0.5">{sessions.filter(s => s.status !== "closed").length} active · auto-refreshes every 3s</p>
+    <div style={{ background: "#f0f2f5", minHeight: "100vh" }}>
+      {/* Header */}
+      <div className="px-4 pt-5 pb-4" style={{ background: "#f0f2f5" }}>
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-[0.15em]">Support</p>
+            <h2 className="text-[18px] font-black text-slate-900 mt-0.5 tracking-tight">Live Chat</h2>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setShowClosed(s => !s)}
+              className={`text-[11px] font-semibold px-3 py-1.5 rounded-xl border transition-colors shadow-sm ${showClosed ? "bg-slate-800 text-white border-slate-800" : "bg-white text-slate-500 border-slate-200"}`}>
+              {showClosed ? "Hide Closed" : "Show Closed"}
+            </button>
+            <button onClick={loadSessions}
+              className="w-9 h-9 rounded-full bg-white border border-slate-100 shadow-sm flex items-center justify-center text-slate-400 hover:text-blue-500 transition-colors active:scale-90">
+              <RefreshCw size={13} />
+            </button>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={() => setShowClosed(s => !s)}
-            className={`text-[11px] font-semibold px-3 py-1.5 rounded-xl border transition-colors ${showClosed ? "bg-slate-800 text-white border-slate-800" : "bg-white text-slate-500 border-slate-200"}`}>
-            {showClosed ? "Hide Closed" : "Show Closed"}
-          </button>
-          <button onClick={loadSessions}
-            className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition-colors">
-            <RefreshCw size={13} />
-          </button>
+
+        {/* Stats row */}
+        <div className="flex gap-2">
+          {[
+            { label: "Active", value: activeSessions.length, color: "text-emerald-700", bg: "bg-emerald-50" },
+            { label: "Waiting", value: waitingSessions.length, color: "text-amber-700", bg: "bg-amber-50" },
+            { label: "Polling 3s", value: "●", color: "text-blue-500", bg: "bg-blue-50" },
+          ].map(s => (
+            <div key={s.label} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full ${s.bg} border border-white/80 shadow-sm`}>
+              <span className={`text-xs font-black ${s.color}`}>{s.value}</span>
+              <span className="text-[10px] text-slate-400 font-medium">{s.label}</span>
+            </div>
+          ))}
         </div>
       </div>
 
-      {sessions.length === 0 && (
-        <div className="bg-white border border-slate-100 rounded-2xl p-8 text-center">
-          <Headphones size={32} className="mx-auto text-slate-200 mb-2" />
+      {sessions.length === 0 ? (
+        <div className="mx-4 bg-white rounded-2xl shadow-sm border border-slate-100 p-10 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-3">
+            <Headphones size={28} className="text-slate-300" />
+          </div>
           <p className="text-sm font-bold text-slate-400">No live chat sessions</p>
           <p className="text-xs text-slate-300 mt-1">Sessions appear here when customers click "Talk to a human agent"</p>
         </div>
-      )}
-
-      <div className="grid gap-3 md:grid-cols-2">
-        {/* Session list — hidden on mobile when chat is open */}
-        <div className={`space-y-2 ${mobileView === "chat" ? "hidden md:block" : "block"}`}>
-          {sessions.map(sess => (
-            <button key={sess.id} onClick={() => { setSelected(sess); setMobileView("chat"); }}
-              className={`w-full text-left bg-white rounded-2xl border p-3.5 transition-colors hover:border-blue-300 ${selected?.id === sess.id ? "border-blue-400 shadow-sm" : "border-slate-100"}`}>
-              <div className="flex items-center justify-between mb-1.5">
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center shrink-0">
-                    <UserCheck size={13} className="text-slate-500" />
-                  </div>
-                  <p className="text-xs font-bold text-slate-700 truncate max-w-[120px]">
-                    {sess.visitorName || `Visitor #${sess.id}`}
-                  </p>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  {sess.unreadAdmin > 0 && (
-                    <span className="w-4 h-4 rounded-full bg-blue-600 text-white text-[9px] font-bold flex items-center justify-center">{sess.unreadAdmin}</span>
-                  )}
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${statusColor(sess.status)}`}>
-                    {sess.status}
-                  </span>
-                </div>
-              </div>
-              {sess.lastMessage && (
-                <p className="text-[11px] text-slate-400 truncate pl-9">{sess.lastMessage}</p>
-              )}
-              <p className="text-[9px] text-slate-300 pl-9 mt-0.5">
-                {new Date(sess.updatedAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
-              </p>
-            </button>
-          ))}
-        </div>
-
-        {/* Selected session */}
-        {selected ? (
-          <div className={`bg-white rounded-2xl border border-slate-100 flex flex-col ${mobileView === "list" ? "hidden md:flex" : "flex"}`} style={{ maxHeight: "500px" }}>
-            {/* Chat header */}
-            <div className="flex items-center justify-between px-3 py-2.5 border-b border-slate-100 shrink-0">
-              <div className="flex items-center gap-2">
-                {/* Back button — mobile only */}
-                <button onClick={() => setMobileView("list")}
-                  className="md:hidden w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition-colors shrink-0">
-                  <ChevronLeft size={14} />
-                </button>
-                <div>
-                  <p className="text-xs font-black text-slate-800">{selected.visitorName || `Visitor #${selected.id}`}</p>
-                  <p className="text-[10px] text-slate-400">{selected.visitorId.slice(0, 12)}…</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${statusColor(selected.status)}`}>{selected.status}</span>
-                {selected.status !== "closed" && (
-                  <button onClick={() => closeSession(selected)}
-                    className="text-[11px] font-semibold text-red-500 hover:text-red-700 px-2 py-1 border border-red-200 rounded-xl transition-colors">
-                    Close chat
+      ) : (
+        <div className="px-4 pb-6">
+          <div className="grid gap-3 md:grid-cols-[300px_1fr]">
+            {/* Session list */}
+            <div className={`space-y-2 ${mobileView === "chat" ? "hidden md:block" : "block"}`}>
+              {sessions.map(sess => {
+                const isWaiting = sess.status === "waiting";
+                const isSelected = selected?.id === sess.id;
+                return (
+                  <button key={sess.id} onClick={() => { setSelected(sess); setMobileView("chat"); }}
+                    className={`w-full text-left bg-white rounded-2xl shadow-sm transition-all overflow-hidden ${
+                      isSelected
+                        ? "border-2 border-blue-500 shadow-md"
+                        : isWaiting
+                          ? "border-l-4 border-l-amber-400 border border-slate-100 hover:border-l-amber-500"
+                          : "border border-slate-100 hover:border-blue-200"
+                    }`}>
+                    <div className="p-3.5">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${
+                            isWaiting ? "bg-amber-100" : sess.status === "active" ? "bg-emerald-100" : "bg-slate-100"
+                          }`}>
+                            <UserCheck size={14} className={
+                              isWaiting ? "text-amber-600" : sess.status === "active" ? "text-emerald-600" : "text-slate-400"
+                            } />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-slate-800 truncate">
+                              {sess.visitorName || `Visitor #${sess.id}`}
+                            </p>
+                            <p className="text-[9px] text-slate-400 truncate">{sess.visitorId.slice(0, 10)}…</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {sess.unreadAdmin > 0 && (
+                            <span className="min-w-[18px] h-[18px] rounded-full bg-blue-600 text-white text-[9px] font-bold flex items-center justify-center px-1">
+                              {sess.unreadAdmin}
+                            </span>
+                          )}
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${statusColor(sess.status)}`}>
+                            {sess.status}
+                          </span>
+                        </div>
+                      </div>
+                      {sess.lastMessage && (
+                        <p className="text-[11px] text-slate-400 truncate mt-1 pl-[46px]">{sess.lastMessage}</p>
+                      )}
+                      <p className="text-[9px] text-slate-300 mt-0.5 pl-[46px]">
+                        {new Date(sess.updatedAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                      </p>
+                    </div>
                   </button>
-                )}
-              </div>
+                );
+              })}
             </div>
 
-            {/* Messages */}
-            <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2">
-              {msgs.length === 0 && (
-                <p className="text-center text-xs text-slate-300 py-4">No messages yet</p>
-              )}
-              {msgs.map(m => {
-                const isAdmin = m.senderType === "admin";
-                return (
-                  <div key={m.id} className={`flex flex-col gap-0.5 ${isAdmin ? "items-end" : "items-start"}`}>
-                    <div className={`flex gap-1.5 ${isAdmin ? "justify-end" : "justify-start"} w-full`}>
-                      <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-xs ${
-                        isAdmin ? "bg-blue-600 text-white rounded-br-sm" : "bg-slate-100 text-slate-800 rounded-bl-sm"
-                      }`}>
-                        <p className={`text-[9px] font-bold mb-0.5 ${isAdmin ? "text-blue-200" : "text-slate-400"}`}>
-                          {isAdmin ? "You (Admin)" : (selected.visitorName || "Visitor")}
-                        </p>
-                        <p className="leading-relaxed whitespace-pre-wrap break-words">{m.message}</p>
-                        {m.fileUrl && (
-                          <a href={m.fileUrl} target="_blank" rel="noopener noreferrer"
-                            className={`flex items-center gap-1 mt-1 text-[9px] font-semibold underline ${isAdmin ? "text-blue-200" : "text-blue-600"}`}>
-                            📎 View attachment
-                          </a>
-                        )}
-                      </div>
+            {/* Chat window */}
+            {selected ? (
+              <div className={`bg-white rounded-2xl shadow-sm border border-slate-100 flex flex-col ${mobileView === "list" ? "hidden md:flex" : "flex"}`} style={{ height: "520px" }}>
+                {/* Chat header */}
+                <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 shrink-0">
+                  <div className="flex items-center gap-2.5">
+                    <button onClick={() => setMobileView("list")}
+                      className="md:hidden w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition-colors shrink-0">
+                      <ChevronLeft size={15} />
+                    </button>
+                    <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${
+                      selected.status === "waiting" ? "bg-amber-100" : selected.status === "active" ? "bg-emerald-100" : "bg-slate-100"
+                    }`}>
+                      <UserCheck size={14} className={
+                        selected.status === "waiting" ? "text-amber-600" : selected.status === "active" ? "text-emerald-600" : "text-slate-400"
+                      } />
                     </div>
-                    {isAdmin && (
-                      <div className="flex items-center gap-1 pr-1">
-                        {m.readAt ? (
-                          <>
-                            <svg width="14" height="8" viewBox="0 0 14 8" fill="none" className="text-blue-500">
-                              <path d="M1 4L4 7L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                              <path d="M5 4L8 7L13 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    <div>
+                      <p className="text-sm font-black text-slate-800 leading-tight">{selected.visitorName || `Visitor #${selected.id}`}</p>
+                      <p className="text-[10px] text-slate-400">{selected.visitorId.slice(0, 14)}…</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${statusColor(selected.status)}`}>{selected.status}</span>
+                    {selected.status !== "closed" && (
+                      <button onClick={() => closeSession(selected)}
+                        className="text-[11px] font-semibold text-red-500 hover:text-red-700 px-3 py-1.5 border border-red-200 hover:border-red-300 rounded-xl transition-colors bg-red-50">
+                        End Chat
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Messages */}
+                <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3" style={{ background: "#f8fafc" }}>
+                  {msgs.length === 0 && (
+                    <div className="flex flex-col items-center justify-center h-full text-center">
+                      <MessageSquare size={28} className="text-slate-200 mb-2" />
+                      <p className="text-xs text-slate-300 font-medium">No messages yet</p>
+                    </div>
+                  )}
+                  {msgs.map(m => {
+                    const isAdmin = m.senderType === "admin";
+                    return (
+                      <div key={m.id} className={`flex flex-col gap-0.5 ${isAdmin ? "items-end" : "items-start"}`}>
+                        <div className={`flex gap-2 items-end ${isAdmin ? "justify-end" : "justify-start"} w-full`}>
+                          {!isAdmin && (
+                            <div className="w-7 h-7 rounded-full bg-slate-200 flex items-center justify-center shrink-0 mb-0.5">
+                              <span className="text-[10px] font-bold text-slate-500">V</span>
+                            </div>
+                          )}
+                          <div className={`max-w-[80%] rounded-2xl px-3.5 py-2.5 text-xs ${
+                            isAdmin ? "bg-blue-600 text-white rounded-br-sm shadow-sm" : "bg-white text-slate-800 rounded-bl-sm shadow-sm border border-slate-100"
+                          }`}>
+                            <p className={`text-[9px] font-bold mb-1 ${isAdmin ? "text-blue-200" : "text-slate-400"}`}>
+                              {isAdmin ? "Admin" : (selected.visitorName || "Visitor")}
+                            </p>
+                            <p className="leading-relaxed whitespace-pre-wrap break-words">{m.message}</p>
+                            {m.fileUrl && (
+                              <a href={m.fileUrl} target="_blank" rel="noopener noreferrer"
+                                className={`flex items-center gap-1 mt-1.5 text-[9px] font-semibold underline ${isAdmin ? "text-blue-200" : "text-blue-600"}`}>
+                                📎 View attachment
+                              </a>
+                            )}
+                            <p className={`text-[9px] mt-1 ${isAdmin ? "text-blue-300" : "text-slate-400"}`}>
+                              {new Date(m.createdAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+                            </p>
+                          </div>
+                          {isAdmin && (
+                            <div className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center shrink-0 mb-0.5">
+                              <span className="text-[10px] font-bold text-white">A</span>
+                            </div>
+                          )}
+                        </div>
+                        {isAdmin && (
+                          <div className="flex items-center gap-1 pr-9">
+                            {m.readAt ? (
+                              <>
+                                <svg width="14" height="8" viewBox="0 0 14 8" fill="none" className="text-blue-500">
+                                  <path d="M1 4L4 7L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                                  <path d="M5 4L8 7L13 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                             </svg>
                             <span className="text-[9px] text-blue-500 font-semibold">
                               Read {new Date(m.readAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
@@ -4064,38 +4196,44 @@ function LiveChatsPanel({ pwd }: { pwd: string }) {
 
             {/* Reply area */}
             {selected.status !== "closed" ? (
-              <div className="px-3 pb-3 pt-2 border-t border-slate-100 shrink-0">
+              <div className="px-4 pb-4 pt-3 border-t border-slate-100 shrink-0 bg-white">
                 <div className="flex gap-2">
                   <input
                     value={reply}
                     onChange={e => setReply(e.target.value)}
                     onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendReply(); } }}
-                    placeholder="Reply to visitor…"
+                    placeholder="Type a reply…"
                     disabled={sending}
-                    className="flex-1 text-sm border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50"
+                    className="flex-1 text-sm border border-slate-200 rounded-2xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50"
                   />
                   <button onClick={sendReply} disabled={sending || !reply.trim()}
-                    className="w-9 h-9 bg-[#1a2332] hover:bg-[#253246] disabled:opacity-40 text-white text-xs font-bold rounded-xl flex items-center justify-center shrink-0 transition-colors">
-                    {sending ? <RefreshCw size={13} className="animate-spin" /> : <Send size={13} />}
+                    className="w-10 h-10 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white rounded-2xl flex items-center justify-center shrink-0 transition-colors">
+                    {sending ? <RefreshCw size={14} className="animate-spin" /> : <Send size={14} />}
                   </button>
                 </div>
+                <p className="text-[10px] text-slate-400 mt-1.5 pl-1">Enter to send · Shift+Enter for new line</p>
               </div>
             ) : (
-              <div className="px-3 pb-3 pt-2 border-t border-slate-100 shrink-0 flex items-center justify-center gap-2 text-xs text-slate-400">
-                <WifiOff size={12} /> Chat ended by {selected.closedBy || "system"}
+              <div className="px-4 pb-4 pt-3 border-t border-slate-100 shrink-0 flex items-center justify-center gap-2 text-xs text-slate-400 bg-white rounded-b-2xl">
+                <WifiOff size={13} className="text-slate-300" /> Chat ended by {selected.closedBy || "system"}
               </div>
             )}
           </div>
         ) : (
-          <div className="hidden md:flex bg-white rounded-2xl border border-slate-100 items-center justify-center p-8 text-center">
+          <div className="hidden md:flex bg-white rounded-2xl shadow-sm border border-slate-100 items-center justify-center p-12 text-center">
             <div>
-              <Headphones size={28} className="mx-auto text-slate-200 mb-2" />
-              <p className="text-xs text-slate-400 font-semibold">Select a session</p>
+              <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-3">
+                <Headphones size={24} className="text-slate-300" />
+              </div>
+              <p className="text-sm font-bold text-slate-400">Select a session</p>
+              <p className="text-xs text-slate-300 mt-1">Pick a conversation from the left</p>
             </div>
           </div>
         )}
-      </div>
-    </div>
+          </div>{/* end grid */}
+        </div>{/* end px-4 pb-6 */}
+      )}{/* end sessions.length === 0 ternary */}
+    </div>{/* end background wrapper */}
   );
 }
 
