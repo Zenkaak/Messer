@@ -2914,6 +2914,9 @@ function PaymentsPanel({ pwd }: { pwd: string }) {
   const [testingOts, setTestingOts] = useState(false);
   const [cascadeStatus, setCascadeStatus] = useState<{ models: string[]; updatedAt: string | null; isDefault: boolean } | null>(null);
   const [cascadeRefreshing, setCascadeRefreshing] = useState(false);
+  const [testEmailSending, setTestEmailSending] = useState(false);
+  const [testEmailType, setTestEmailType] = useState("order_submitted");
+  const [testEmailResult, setTestEmailResult] = useState<{ ok: boolean; msg: string } | null>(null);
 
   async function refreshCascade() {
     setCascadeRefreshing(true);
@@ -2983,6 +2986,25 @@ function PaymentsPanel({ pwd }: { pwd: string }) {
       })
       .catch(() => setLoading(false));
   }, [pwd]);
+
+  async function sendTestEmail() {
+    const to = form.smtpUser || form.emailFrom;
+    if (!to) { setTestEmailResult({ ok: false, msg: "Set SMTP Username or From Email first." }); return; }
+    setTestEmailSending(true); setTestEmailResult(null);
+    try {
+      const r = await adminFetch(apiPath("/api/admin/test-email"), pwd, {
+        method: "POST",
+        body: JSON.stringify({ to, type: testEmailType }),
+      });
+      const d = await r.json() as { success?: boolean; error?: string; to?: string; subject?: string; reason?: string };
+      if (r.ok && d.success) {
+        setTestEmailResult({ ok: true, msg: `Delivered to ${d.to} — subject: "${d.subject}"` });
+      } else {
+        setTestEmailResult({ ok: false, msg: d.error ?? d.reason ?? "SMTP delivery failed." });
+      }
+    } catch { setTestEmailResult({ ok: false, msg: "Network error — check SMTP settings and try again." }); }
+    finally { setTestEmailSending(false); }
+  }
 
   async function save() {
     setSaving(true);
@@ -3402,6 +3424,46 @@ function PaymentsPanel({ pwd }: { pwd: string }) {
         </div>
         <PlainInput label="SMTP Username" value={form.smtpUser} onChange={v => setForm(f => ({ ...f, smtpUser: v }))} placeholder="SMTP username" />
         <MaskedInput label="SMTP Password" value={form.smtpPass} onChange={v => setForm(f => ({ ...f, smtpPass: v }))} placeholder="Enter new SMTP password" />
+
+        {/* ── Email Deliverability Test ── */}
+        <div className="border-t border-slate-100 pt-3 space-y-2.5">
+          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Deliverability Test</p>
+          <p className="text-[11px] text-slate-400 leading-relaxed">
+            Sends a real email via the configured Zoho SMTP to your SMTP username address. Save settings first before testing.
+          </p>
+          <div className="flex gap-2">
+            <select
+              value={testEmailType}
+              onChange={e => setTestEmailType(e.target.value)}
+              className="flex-1 text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+            >
+              <option value="order_submitted">Order Submitted</option>
+              <option value="payment_confirmed">Payment Confirmed</option>
+              <option value="order_completed">Order Completed</option>
+              <option value="order_status">Order Status Update</option>
+              <option value="more_info">More Info Needed</option>
+              <option value="otp">OTP / Verification Code</option>
+              <option value="login">Login Notification</option>
+              <option value="pending_manual">Pending Manual Payment</option>
+            </select>
+            <button
+              onClick={sendTestEmail}
+              disabled={testEmailSending}
+              className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl disabled:opacity-50 transition-colors shrink-0"
+            >
+              <Send size={12} />
+              {testEmailSending ? "Sending…" : "Send Test"}
+            </button>
+          </div>
+          {testEmailResult && (
+            <div className={`flex items-start gap-2 rounded-xl px-3 py-2.5 text-xs font-medium ${testEmailResult.ok ? "bg-emerald-50 border border-emerald-200 text-emerald-700" : "bg-red-50 border border-red-200 text-red-700"}`}>
+              {testEmailResult.ok
+                ? <CheckCircle2 size={13} className="shrink-0 mt-0.5" />
+                : <XCircle size={13} className="shrink-0 mt-0.5" />}
+              <span>{testEmailResult.msg}</span>
+            </div>
+          )}
+        </div>
       </div>
 
 
@@ -3488,6 +3550,22 @@ function FingerprintSetupModal({ pwd, onDismiss }: { pwd: string; onDismiss: () 
       } finally { setLoading(false); }
       return;
     }
+    // Check WebAuthn browser support before even calling the server
+    if (!window.PublicKeyCredential) {
+      setError("Your browser does not support biometric authentication. Try Chrome or Safari.");
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const hasSensor = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().catch(() => true);
+      if (!hasSensor) {
+        setError("No fingerprint or Face ID sensor found on this device.");
+        setLoading(false);
+        return;
+      }
+    } catch { /* proceed anyway */ }
+
     try {
       const optRes = await adminFetch(apiPath("/api/admin/webauthn/register-challenge"), pwd, { method: "POST" });
       if (!optRes.ok) { setError((await optRes.json() as { error?: string }).error ?? "Failed to start registration."); return; }
@@ -3501,7 +3579,17 @@ function FingerprintSetupModal({ pwd, onDismiss }: { pwd: string; onDismiss: () 
       setRegistered(true);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      setError(msg.includes("cancelled") || msg.includes("abort") ? "Fingerprint scan cancelled." : "Registration failed. Please try again.");
+      if (msg.includes("NotAllowedError") || msg.includes("cancelled") || msg.includes("abort") || msg.includes("timed out") || msg.includes("not allowed")) {
+        setError("Fingerprint scan cancelled or timed out. Please try again.");
+      } else if (msg.includes("SecurityError") || msg.includes("relying party") || msg.includes("domain")) {
+        setError("Security check failed — please access the admin panel from the official domain.");
+      } else if (msg.includes("NotSupportedError") || msg.includes("authenticator") || msg.includes("No authenticator")) {
+        setError("No compatible fingerprint sensor available. Check device settings.");
+      } else if (msg.includes("InvalidStateError")) {
+        setError("A fingerprint is already registered. Remove it first, then try again.");
+      } else {
+        setError(`Registration failed: ${msg.slice(0, 100)}`);
+      }
     } finally { setLoading(false); }
   }
 
