@@ -131,6 +131,23 @@ const BOTTOM_NAV: Array<typeof NAV[number]> = [
 
 // ─── WebAuthn session token (persisted across page loads via sessionStorage) ────
 let _waToken: string | null = (() => { try { return sessionStorage.getItem("gsm_admin_webauthn_token"); } catch { return null; } })();
+
+// ─── Native biometric bridge (Android admin app) ──────────────────────────────
+// The admin app registers as "AndroidBiometric" via a JavascriptInterface.
+// Methods: saveCredential(json), hasCredential()→"true"|"false",
+//          clearCredential(), authenticate(callbackId)
+type AdminBioBridge = {
+  saveCredential: (d: string) => void;
+  hasCredential:  () => string;
+  clearCredential: () => void;
+  authenticate:   (cb: string) => void;
+};
+const isAdminNativeApp = /GSMWorldApp|GSMAdminApp/.test(navigator.userAgent);
+function getAdminBioBridge(): AdminBioBridge | null {
+  const b = (window as Record<string, unknown>).AndroidBiometric;
+  return (b && typeof (b as AdminBioBridge).hasCredential === "function")
+    ? (b as AdminBioBridge) : null;
+}
 function _setWaToken(t: string | null) {
   _waToken = t;
   try { if (t) sessionStorage.setItem("gsm_admin_webauthn_token", t); else sessionStorage.removeItem("gsm_admin_webauthn_token"); } catch {}
@@ -3470,6 +3487,11 @@ function FingerprintSetupModal({ pwd, onDismiss }: { pwd: string; onDismiss: () 
   const [error, setError] = useState("");
 
   useEffect(() => {
+    const bridge = getAdminBioBridge();
+    if (isAdminNativeApp && bridge) {
+      setRegistered(bridge.hasCredential() === "true");
+      return;
+    }
     fetch(apiPath("/api/admin/webauthn/status"))
       .then(r => r.json())
       .then((d: { registered: boolean }) => setRegistered(d.registered))
@@ -3478,6 +3500,17 @@ function FingerprintSetupModal({ pwd, onDismiss }: { pwd: string; onDismiss: () 
 
   async function handleRegister() {
     setLoading(true); setError("");
+    const bridge = getAdminBioBridge();
+    if (isAdminNativeApp && bridge) {
+      try {
+        bridge.saveCredential(JSON.stringify({ password: pwd }));
+        setRegistered(true);
+        toast({ title: "Fingerprint registered", description: "You can now log in with your fingerprint." });
+      } catch {
+        setError("Failed to save fingerprint. Please try again.");
+      } finally { setLoading(false); }
+      return;
+    }
     try {
       const optRes = await adminFetch(apiPath("/api/admin/webauthn/register-challenge"), pwd, { method: "POST" });
       if (!optRes.ok) { setError((await optRes.json() as { error?: string }).error ?? "Failed to start registration."); return; }
@@ -3497,6 +3530,16 @@ function FingerprintSetupModal({ pwd, onDismiss }: { pwd: string; onDismiss: () 
 
   async function handleRemove() {
     setLoading(true); setError("");
+    const bridge = getAdminBioBridge();
+    if (isAdminNativeApp && bridge) {
+      try {
+        bridge.clearCredential();
+        setRegistered(false);
+        toast({ title: "Fingerprint removed", description: "Password-only login is now required." });
+      } catch { setError("Failed to remove fingerprint."); }
+      finally { setLoading(false); }
+      return;
+    }
     try {
       const r = await adminFetch(apiPath("/api/admin/webauthn/credential"), pwd, { method: "DELETE" });
       if (!r.ok) { setError("Failed to remove fingerprint."); return; }
@@ -3574,6 +3617,11 @@ function LoginScreen({ onLogin }: { onLogin: (pwd: string, isDefault: boolean) =
   const [fpAvailable, setFpAvailable] = useState(false);
 
   useEffect(() => {
+    const bridge = getAdminBioBridge();
+    if (isAdminNativeApp && bridge) {
+      setFpAvailable(bridge.hasCredential() === "true");
+      return;
+    }
     fetch(apiPath("/api/admin/webauthn/status"))
       .then(r => r.json())
       .then((d: { registered: boolean }) => setFpAvailable(d.registered))
@@ -3597,6 +3645,33 @@ function LoginScreen({ onLogin }: { onLogin: (pwd: string, isDefault: boolean) =
 
   async function loginWithFingerprint() {
     setFpLoading(true); setError("");
+
+    const bridge = getAdminBioBridge();
+    if (isAdminNativeApp && bridge) {
+      const callbackId = "_adminBioAuth_" + Date.now();
+      (window as Record<string, unknown>)[callbackId] = (resultJson: string) => {
+        try {
+          const result = JSON.parse(resultJson) as { password?: string; error?: string };
+          if (result.error) {
+            if (result.error !== "cancelled") setError("Fingerprint login failed.");
+            setFpLoading(false);
+            return;
+          }
+          if (!result.password) {
+            setError("Credential missing. Please set up fingerprint again.");
+            setFpLoading(false);
+            return;
+          }
+          onLogin(result.password, false);
+        } catch {
+          setError("Fingerprint login failed.");
+          setFpLoading(false);
+        }
+      };
+      bridge.authenticate(callbackId);
+      return;
+    }
+
     try {
       const chalRes = await fetch(apiPath("/api/admin/webauthn/auth-challenge"), { method: "POST" });
       if (!chalRes.ok) { setError((await chalRes.json() as { error?: string }).error ?? "Could not start fingerprint login."); return; }
