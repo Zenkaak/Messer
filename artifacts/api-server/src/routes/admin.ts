@@ -146,7 +146,7 @@ const ALLOWED_SETTING_KEYS = new Set([
   "nowpayments_enabled", "nowpayments_api_key", "nowpayments_ipn_secret", "nowpayments_public_key",
   "coingate_enabled", "coingate_api_key",
   "email_from", "smtp_host", "smtp_port", "smtp_secure", "smtp_user", "smtp_pass",
-  "resend_api_key", "payment_methods", "admin_password",
+  "payment_methods", "admin_password",
   "google_client_id", "google_client_secret",
   "binance_pay_id", "usdt_manual_address", "usdt_manual_network",
   "ots_api_token", "ots_sender_id", "ots_admin_phone",
@@ -1464,11 +1464,9 @@ router.get("/admin/webauthn/status", async (req, res) => {
 router.post("/admin/webauthn/register-challenge", async (req, res) => {
   try {
     if (!(await checkAdminAuth(req, res))) return;
-    // Prefer client-provided origin (most reliable in proxied/Vercel environments)
-    const clientOrigin = typeof req.body?.origin === "string" && req.body.origin.startsWith("http") ? req.body.origin : null;
     const proto = (req.headers["x-forwarded-proto"] as string | undefined)?.split(",")[0]?.trim() || req.protocol;
     const host = (req.headers["x-forwarded-host"] as string | undefined) || req.get("host") || "localhost";
-    const origin = clientOrigin ?? req.get("origin") ?? `${proto}://${host}`;
+    const origin = req.get("origin") ?? `${proto}://${host}`;
     const rpID = (() => { try { return new URL(origin).hostname; } catch { return req.hostname; } })();
     const options = await generateRegistrationOptions({
       rpName: "GSM World Admin",
