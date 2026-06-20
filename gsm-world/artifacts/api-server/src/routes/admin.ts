@@ -38,6 +38,7 @@ import {
   orderCompletedEmail,
   pendingManualPaymentEmail,
   announcementEmail,
+  getEmailPreviewHtml,
   appUrl,
 } from "../lib/email";
 
@@ -1608,6 +1609,73 @@ router.post("/admin/webauthn/auth", async (req, res) => {
     res.json({ ok: true, token });
   } catch (err) {
     req.log.error({ err }, "webauthn auth error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ─── Email preview panel ───────────────────────────────────────────────────────
+
+const EMAIL_TEMPLATES = [
+  { id: "otp",                   label: "OTP / Email Verification" },
+  { id: "login_notification",    label: "Login Notification" },
+  { id: "order_submitted",       label: "Order Submitted (Customer)" },
+  { id: "order_completed",       label: "Order Completed" },
+  { id: "payment_confirmed",     label: "Payment Confirmed" },
+  { id: "order_status_update",   label: "Order Status Update" },
+  { id: "more_info_needed",      label: "More Info Needed" },
+  { id: "pending_manual_payment",label: "Pending Manual Payment" },
+  { id: "admin_new_order",       label: "Admin: New Order Alert" },
+];
+
+// GET /admin/email-templates — list all available templates
+router.get("/admin/email-templates", async (req, res) => {
+  try {
+    if (!(await checkAdminAuth(req, res))) return;
+    res.json({ templates: EMAIL_TEMPLATES });
+  } catch (err) {
+    req.log.error({ err }, "Failed to list email templates");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// GET /admin/email-preview/:template — render template HTML (returns HTML document)
+router.get("/admin/email-preview/:template", async (req, res) => {
+  try {
+    if (!(await checkAdminAuth(req, res))) return;
+    const template = req.params.template;
+    const html = getEmailPreviewHtml(template);
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.setHeader("X-Frame-Options", "SAMEORIGIN");
+    res.send(html);
+  } catch (err) {
+    req.log.error({ err }, "Failed to render email preview");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// POST /admin/email-preview/send-test — send a test email for a given template
+router.post("/admin/email-preview/send-test", async (req, res) => {
+  try {
+    if (!(await checkAdminAuth(req, res))) return;
+    const parsed = z.object({
+      template: z.string(),
+      to: z.string().email(),
+    }).safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const html = getEmailPreviewHtml(parsed.data.template);
+    const tplLabel = EMAIL_TEMPLATES.find(t => t.id === parsed.data.template)?.label ?? parsed.data.template;
+    const result = await sendEmail({
+      to: parsed.data.to,
+      subject: `[Test] GSM World Email — ${tplLabel}`,
+      text: `This is a test email for template: ${tplLabel}\n\nSent from GSM World Admin.`,
+      html,
+    });
+    res.json({ sent: result.sent, provider: (result as { provider?: string }).provider, reason: (result as { reason?: string }).reason });
+  } catch (err) {
+    req.log.error({ err }, "Failed to send test email");
     res.status(500).json({ error: "Internal server error" });
   }
 });

@@ -117,6 +117,7 @@ const NAV = [
   { id: "announcements",  label: "Announcements",  icon: Megaphone },
   { id: "live_chat",      label: "Live Chat",      icon: Headphones },
   { id: "imei_logs",      label: "IMEI Logs",      icon: Smartphone },
+  { id: "email_preview",  label: "Email Preview",  icon: MessageSquare },
 ] as const;
 type Tab = typeof NAV[number]["id"];
 
@@ -4490,6 +4491,144 @@ function ImeiLogsPanel({ pwd }: { pwd: string }) {
   );
 }
 
+// ─── Email Preview Panel ─────────────────────────────────────────────────────
+function EmailPreviewPanel({ pwd }: { pwd: string }) {
+  const EMAIL_TEMPLATES = [
+    { id: "otp",                    label: "OTP / Email Verification" },
+    { id: "login_notification",     label: "Login Notification" },
+    { id: "order_submitted",        label: "Order Submitted (Customer)" },
+    { id: "order_completed",        label: "Order Completed" },
+    { id: "payment_confirmed",      label: "Payment Confirmed" },
+    { id: "order_status_update",    label: "Order Status Update" },
+    { id: "more_info_needed",       label: "More Info Needed" },
+    { id: "pending_manual_payment", label: "Pending Manual Payment" },
+    { id: "admin_new_order",        label: "Admin: New Order Alert" },
+  ];
+
+  const [selected, setSelected] = React.useState(EMAIL_TEMPLATES[0].id);
+  const [iframeSrc, setIframeSrc] = React.useState<string | null>(null);
+  const [loading, setLoading] = React.useState(false);
+  const [sendTo, setSendTo] = React.useState("");
+  const [sendStatus, setSendStatus] = React.useState<"idle" | "sending" | "ok" | "error">("idle");
+  const [sendMsg, setSendMsg] = React.useState("");
+
+  const loadPreview = React.useCallback(async (templateId: string) => {
+    setLoading(true);
+    setIframeSrc(null);
+    try {
+      const res = await adminFetch(`/api/admin/email-preview/${templateId}`, pwd);
+      const html = await res.text();
+      const blob = new Blob([html], { type: "text/html" });
+      const url = URL.createObjectURL(blob);
+      setIframeSrc(url);
+    } catch {
+      setIframeSrc(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [pwd]);
+
+  React.useEffect(() => {
+    loadPreview(selected);
+  }, [selected, loadPreview]);
+
+  const sendTestEmail = async () => {
+    if (!sendTo) return;
+    setSendStatus("sending");
+    setSendMsg("");
+    try {
+      const res = await adminFetch("/api/admin/email-preview/send-test", pwd, {
+        method: "POST",
+        body: JSON.stringify({ template: selected, to: sendTo }),
+      });
+      const data = await res.json() as { sent?: boolean; provider?: string; error?: string };
+      if (data.sent) {
+        setSendStatus("ok");
+        setSendMsg(`Sent via ${data.provider ?? "SMTP"}`);
+      } else {
+        setSendStatus("error");
+        setSendMsg(data.error ?? "Failed to send");
+      }
+    } catch {
+      setSendStatus("error");
+      setSendMsg("Network error");
+    }
+    setTimeout(() => setSendStatus("idle"), 4000);
+  };
+
+  return (
+    <div className="p-4 md:p-6 space-y-4 h-full flex flex-col">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-bold text-white flex items-center gap-2">
+            <MessageSquare size={20} className="text-blue-400" />
+            Email Template Preview
+          </h2>
+          <p className="text-sm text-slate-400 mt-0.5">Preview and test all email templates before they go live</p>
+        </div>
+        {/* Send test */}
+        <div className="flex items-center gap-2">
+          <input
+            type="email"
+            placeholder="test@example.com"
+            value={sendTo}
+            onChange={e => setSendTo(e.target.value)}
+            className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 w-48 focus:outline-none focus:border-blue-500"
+          />
+          <button
+            onClick={sendTestEmail}
+            disabled={sendStatus === "sending" || !sendTo}
+            className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm rounded-lg transition-colors font-medium"
+          >
+            <Send size={14} />
+            {sendStatus === "sending" ? "Sending…" : "Send Test"}
+          </button>
+          {sendStatus === "ok" && <span className="text-xs text-emerald-400 font-medium">{sendMsg}</span>}
+          {sendStatus === "error" && <span className="text-xs text-red-400 font-medium">{sendMsg}</span>}
+        </div>
+      </div>
+
+      <div className="flex flex-1 gap-4 min-h-0">
+        {/* Template list */}
+        <div className="w-56 shrink-0 space-y-1">
+          {EMAIL_TEMPLATES.map(t => (
+            <button
+              key={t.id}
+              onClick={() => setSelected(t.id)}
+              className={`w-full text-left px-3 py-2.5 rounded-xl text-sm transition-colors ${
+                selected === t.id
+                  ? "bg-blue-600 text-white font-semibold"
+                  : "text-slate-400 hover:bg-white/10 hover:text-white"
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Preview iframe */}
+        <div className="flex-1 bg-white rounded-xl overflow-hidden relative min-h-[500px]">
+          {loading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-slate-800">
+              <div className="w-8 h-8 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+            </div>
+          )}
+          {iframeSrc && !loading && (
+            <iframe
+              key={iframeSrc}
+              src={iframeSrc}
+              title="Email Preview"
+              className="w-full h-full border-0"
+              sandbox="allow-same-origin"
+            />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function AdminPage() {
   const ADMIN_KEY = "gsm_admin_session";
   const [pwd, setPwd] = useState(() => {
@@ -4795,6 +4934,7 @@ export function AdminPage() {
             {tab === "live_chat"  && <LiveChatsPanel  pwd={pwd} />}
             {tab === "announcements" && <AnnouncementsPanel pwd={pwd} />}
             {tab === "imei_logs"  && <ImeiLogsPanel   pwd={pwd} />}
+            {tab === "email_preview" && <EmailPreviewPanel pwd={pwd} />}
           </main>
 
           {/* ── Mobile hybrid bottom nav ── */}

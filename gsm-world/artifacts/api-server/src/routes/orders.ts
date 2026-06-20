@@ -12,6 +12,8 @@ import {
   moreInfoNeededEmail,
   orderSubmittedEmail,
   giftCardDeliveryEmail,
+  adminNewOrderEmail,
+  getAdminNotifyEmail,
   appUrl,
 } from "../lib/email";
 import { checkAdminPassword, getBinancePayId, getUsdtManualAddress, getUsdtManualNetwork } from "../lib/admin-settings";
@@ -427,6 +429,29 @@ router.post("/orders", async (req, res) => {
       orderId: order.id,
       read: false,
     }).catch((err) => req.log.error({ err }, "Failed to insert order notification"));
+
+    // Notify admin of new order
+    getAdminNotifyEmail().then(async (adminEmail) => {
+      if (!adminEmail) return;
+      try {
+        await sendEmail({
+          to: adminEmail,
+          ...adminNewOrderEmail({
+            orderId: order.id,
+            customerName: order.customerName,
+            customerEmail: order.customerEmail,
+            customerPhone: order.customerPhone,
+            paymentMethod: order.paymentMethod,
+            total: order.total,
+            currency: order.currency ?? "USD",
+            items: orderItems.map((i) => ({ productName: i.productName, quantity: i.quantity, price: i.price })),
+            notes: order.notes,
+          }),
+        });
+      } catch (err) {
+        req.log.error({ err }, "Failed to send admin new-order notification email");
+      }
+    }).catch(() => {});
 
     res.status(201).json({ ...order, items: orderItems });
   } catch (err) {

@@ -281,9 +281,7 @@ export async function sendEmail(message: EmailMessage) {
     "Message-ID": msgId,
     "X-Entity-Ref-ID": entityRef,
     "MIME-Version": "1.0",
-    "Precedence": "transactional",
-    "X-Priority": "3",
-    "X-MS-Exchange-Organization-SCL": "-1",
+    "Precedence": "bulk",
     "X-Mailer": "GSM World Mailer/2.0",
     "List-Unsubscribe": `<${unsubscribeUrl}>, <mailto:unsubscribe@${sendingDomain}?subject=unsubscribe>`,
     "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
@@ -1227,4 +1225,91 @@ export function giftCardDeliveryEmail(params: {
     text: `Hi ${name},\n\nYour gift card is ready!\n\n${params.productName}\nValue: ${params.denomination}\nCode: ${params.giftCardCode}\n\nKeep this code safe and redeem it on the relevant platform.\n\nView order: ${params.orderUrl}\n\n— GSM World Team`,
     html: layout("Your gift card code is ready to use!", "#0ea5e9", h, body),
   };
+}
+
+// ── Admin new order notification ───────────────────────────────────────────────
+export function adminNewOrderEmail(params: {
+  orderId: number;
+  customerName: string | null;
+  customerEmail: string;
+  customerPhone: string | null;
+  paymentMethod: string;
+  total: string;
+  currency: string;
+  items: Array<{ productName: string; quantity: number; price: string }>;
+  notes: string | null;
+}) {
+  const storeUrl = getBaseUrl();
+  const adminOrderUrl = `${storeUrl}/admin`;
+  const rows: Array<[string, string]> = [
+    ["Order ID", `#${params.orderId}`],
+    ["Customer", params.customerName || "N/A"],
+    ["Email", params.customerEmail],
+  ];
+  if (params.customerPhone) rows.push(["Phone", params.customerPhone]);
+  rows.push(
+    ["Payment", params.paymentMethod.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())],
+    ["Total", `${params.currency || "USD"} ${parseFloat(params.total).toFixed(2)}`],
+  );
+  if (params.notes) rows.push(["Notes", params.notes]);
+
+  const h = header(
+    "linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%)",
+    `New Order Received — #${params.orderId}`,
+    `Action required: review and process order from ${params.customerEmail}`
+  );
+
+  const body = `
+    ${statusChip("New Order — Awaiting Review", "#0ea5e9")}
+    <p style="margin:0 0 20px;font-size:15px;color:#475569;">A new order has been placed on GSM World. Please review and process it promptly.</p>
+    ${infoTable(rows)}
+    ${orderItemsTable(params.items, params.total)}
+    ${btn("Open Admin Dashboard →", adminOrderUrl, "#0ea5e9")}
+    <p style="margin:20px 0 0;font-size:13px;color:#94a3b8;text-align:center;">This is an automated notification from GSM World.</p>
+  `;
+
+  return {
+    subject: `[GSM World] New Order #${params.orderId} — ${params.currency || "USD"} ${parseFloat(params.total).toFixed(2)} via ${params.paymentMethod.replace(/_/g, " ")}`,
+    text: `NEW ORDER #${params.orderId}\n\nCustomer: ${params.customerName || "N/A"} <${params.customerEmail}>\nPayment: ${params.paymentMethod}\nTotal: ${params.currency || "USD"} ${parseFloat(params.total).toFixed(2)}\n\nItems:\n${params.items.map(i => `- ${i.productName} x${i.quantity} @ $${i.price}`).join("\n")}\n\nView in admin: ${adminOrderUrl}`,
+    html: layout(`New order #${params.orderId} needs your attention.`, "#0ea5e9", h, body),
+  };
+}
+
+// ── Get the admin notification email address ───────────────────────────────────
+export async function getAdminNotifyEmail(): Promise<string | null> {
+  try {
+    const { getAllSettings } = await import("./admin-settings");
+    const settings = await getAllSettings();
+    if (settings.supportEmail) return settings.supportEmail;
+    if (settings.emailFrom) return settings.emailFrom;
+    return null;
+  } catch {
+    return process.env.EMAIL_FROM || null;
+  }
+}
+
+// ── Email template HTML for admin preview panel ────────────────────────────────
+export function getEmailPreviewHtml(templateName: string): string {
+  const demoOrderId = 123;
+  const demoEmail = "customer@example.com";
+  const demoName = "John Doe";
+  const demoItems = [{ productName: "iPhone 15 Unlock", quantity: 1, price: "29.99" }];
+  const demoTotal = "29.99";
+  const demoUrl = getBaseUrl() + "/orders/" + demoOrderId;
+
+  const templates: Record<string, { subject: string; text: string; html?: string }> = {
+    otp: otpEmail("847362"),
+    login_notification: loginNotificationEmail(demoName, { ip: "196.201.45.12", device: "Chrome on Windows" }),
+    order_submitted: orderSubmittedEmail({ orderId: demoOrderId, customerName: demoName, customerEmail: demoEmail, items: demoItems, total: demoTotal, paymentMethod: "binance_pay" }),
+    order_completed: orderCompletedEmail({ orderId: demoOrderId, customerName: demoName, customerEmail: demoEmail, items: demoItems, total: demoTotal, notes: "Unlock code: 12345-ABCDE" }),
+    payment_confirmed: paymentConfirmedEmail({ orderId: demoOrderId, customerName: demoName, customerEmail: demoEmail, amount: demoTotal, currency: "USD", method: "Binance Pay", orderUrl: demoUrl }),
+    order_status_update: orderStatusUpdateEmail({ orderId: demoOrderId, customerName: demoName, customerEmail: demoEmail, newStatus: "processing", notes: "We have received your order and are processing it now." }),
+    more_info_needed: moreInfoNeededEmail({ orderId: demoOrderId, customerName: demoName, customerEmail: demoEmail, message: "Please provide your device IMEI number and the original carrier." }),
+    pending_manual_payment: pendingManualPaymentEmail({ orderId: demoOrderId, customerName: demoName, customerEmail: demoEmail, paymentMethod: "USDT (TRC20)", walletAddress: "TRX123abc456def789", amount: demoTotal, currency: "USD", orderUrl: demoUrl }),
+    admin_new_order: adminNewOrderEmail({ orderId: demoOrderId, customerName: demoName, customerEmail: demoEmail, customerPhone: "+254712345678", paymentMethod: "binance_pay", total: demoTotal, currency: "USD", items: demoItems, notes: null }),
+  };
+
+  const tpl = templates[templateName];
+  if (!tpl) return `<html><body style="font-family:sans-serif;padding:40px;text-align:center;"><h2>Unknown template: ${templateName}</h2></body></html>`;
+  return tpl.html?.replace(/\{\{UNSUB_URL\}\}/g, "#") || `<pre>${tpl.text}</pre>`;
 }
