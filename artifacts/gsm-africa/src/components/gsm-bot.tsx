@@ -1451,6 +1451,10 @@ export function GsmBot() {
   const [imeiWarning, setImeiWarning] = useState<string | null>(null);
   const [tacInfo, setTacInfo] = useState<{ brand: string | null; model: string | null; os: string | null } | null>(null);
   const [tacLoading, setTacLoading] = useState(false);
+  // IMEI detection for the main bot input
+  const [botImei, setBotImei] = useState<string | null>(null);
+  const [botImeiInfo, setBotImeiInfo] = useState<{ brand: string | null; model: string | null; os: string | null } | null>(null);
+  const [botTacLoading, setBotTacLoading] = useState(false);
   const [lastPollTime, setLastPollTime] = useState<Date | null>(null);
   // Email + phone capture step for guest users
   const [humanEmailStep, setHumanEmailStep] = useState(false);
@@ -2051,11 +2055,25 @@ export function GsmBot() {
                     </div>
                   )}
                   {tacInfo && (tacInfo.brand || tacInfo.model) && !imeiWarning && !tacLoading && (
-                    <div className="flex items-center gap-1.5 bg-green-50 border border-green-200 rounded-lg px-3 py-1.5">
-                      <span className="text-[11px] font-semibold text-green-700">
-                        📱 {[tacInfo.brand, tacInfo.model].filter(Boolean).join(" ")}
-                        {tacInfo.os ? ` · ${tacInfo.os}` : ""}
-                      </span>
+                    <div className="bg-green-50 border border-green-200 rounded-xl px-3 py-2 space-y-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <Smartphone size={12} className="text-green-600 shrink-0" />
+                        <span className="text-[11px] font-bold text-green-800">
+                          {[tacInfo.brand, tacInfo.model].filter(Boolean).join(" ")}
+                        </span>
+                        {tacInfo.os && <span className="text-[10px] text-green-600 bg-green-100 rounded-full px-1.5 py-0.5">{tacInfo.os}</span>}
+                      </div>
+                      <button
+                        onClick={() => {
+                          const deviceStr = [tacInfo.brand, tacInfo.model].filter(Boolean).join(" ");
+                          const detectedImei = extractImei(humanInput);
+                          const addition = `\nDevice: ${deviceStr}${detectedImei ? ` (IMEI: ${detectedImei})` : ""}`;
+                          setHumanInput(prev => prev.includes("Device:") ? prev : prev + addition);
+                          humanInputRef.current?.focus();
+                        }}
+                        className="text-[10px] font-bold text-green-700 bg-green-100 hover:bg-green-200 border border-green-300 rounded-lg px-2.5 py-1 transition-colors w-full text-center">
+                        + Add device info to my message
+                      </button>
                     </div>
                   )}
                   <div className="flex gap-2 items-end">
@@ -2352,13 +2370,101 @@ export function GsmBot() {
                       className="w-full flex items-center justify-center gap-1.5 text-[11px] font-semibold text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-xl py-1.5 transition-colors border border-slate-200 disabled:opacity-40">
                       <Phone size={11} /> Talk to a human agent
                     </button>
+
+                    {/* ── IMEI device info card for main bot input ── */}
+                    {(botTacLoading || botImeiInfo) && (
+                      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
+                        <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 border-b border-slate-100">
+                          <Smartphone size={12} className="text-blue-500 shrink-0" />
+                          <span className="font-bold text-slate-700 text-[11px]">Device Detected</span>
+                          <span className="ml-auto font-mono text-[10px] text-slate-400 truncate max-w-[120px]">{botImei}</span>
+                        </div>
+                        {botTacLoading ? (
+                          <div className="flex items-center gap-2 px-3 py-2.5">
+                            <RefreshCw size={11} className="text-blue-400 animate-spin" />
+                            <span className="text-[11px] text-slate-500">Looking up device info…</span>
+                          </div>
+                        ) : botImeiInfo && (
+                          <div className="px-3 py-2.5 space-y-2.5">
+                            {(botImeiInfo.brand || botImeiInfo.model) ? (
+                              <div className="flex items-start gap-2">
+                                <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
+                                  <Smartphone size={15} className="text-blue-500" />
+                                </div>
+                                <div>
+                                  <p className="font-bold text-slate-800 text-[13px] leading-tight">
+                                    {[botImeiInfo.brand, botImeiInfo.model].filter(Boolean).join(" ")}
+                                  </p>
+                                  {botImeiInfo.os && (
+                                    <span className="text-[10px] text-slate-500 bg-slate-100 rounded-full px-1.5 py-0.5 inline-block mt-0.5">
+                                      {botImeiInfo.os}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            ) : (
+                              <p className="text-[11px] text-slate-500">IMEI is valid — device details not in database</p>
+                            )}
+                            <div className="flex gap-1.5 flex-wrap">
+                              <button
+                                onClick={() => {
+                                  const label = [botImeiInfo.brand, botImeiInfo.model].filter(Boolean).join(" ") || "device";
+                                  void sendMessage(`I want to unlock my ${label}, IMEI: ${botImei}. Show me available unlock services.`);
+                                  setInput("");
+                                  setBotImei(null);
+                                  setBotImeiInfo(null);
+                                }}
+                                className="flex items-center gap-1 text-[11px] font-bold text-white rounded-lg px-2.5 py-1.5 transition-colors"
+                                style={{ background: "linear-gradient(135deg,#1a2332 0%,#1e3a5f 100%)" }}>
+                                🔓 Unlock this device
+                              </button>
+                              <button
+                                onClick={() => {
+                                  const label = [botImeiInfo.brand, botImeiInfo.model].filter(Boolean).join(" ");
+                                  const msg = label
+                                    ? `My ${label} IMEI is: ${botImei}`
+                                    : `My device IMEI is: ${botImei}`;
+                                  void sendMessage(msg);
+                                  setInput("");
+                                  setBotImei(null);
+                                  setBotImeiInfo(null);
+                                }}
+                                className="flex items-center gap-1 text-[11px] font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg px-2.5 py-1.5 transition-colors">
+                                💬 Send to bot
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     <div className="flex gap-2">
                       <input
                         ref={inputRef}
                         value={input}
-                        onChange={e => setInput(e.target.value)}
+                        onChange={e => {
+                          const val = e.target.value;
+                          setInput(val);
+                          const imei = extractImei(val);
+                          if (imei && luhnCheck(imei)) {
+                            setBotImei(imei);
+                            setBotImeiInfo(null);
+                            setBotTacLoading(true);
+                            fetch(`${import.meta.env.BASE_URL}api/imei/lookup/${imei}`)
+                              .then(r => r.json())
+                              .then((d: { brand?: string | null; model?: string | null; os?: string | null }) => {
+                                setBotImeiInfo({ brand: d.brand ?? null, model: d.model ?? null, os: d.os ?? null });
+                              })
+                              .catch(() => setBotImeiInfo({ brand: null, model: null, os: null }))
+                              .finally(() => setBotTacLoading(false));
+                          } else {
+                            setBotImei(null);
+                            setBotImeiInfo(null);
+                            setBotTacLoading(false);
+                          }
+                        }}
                         onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
-                        placeholder="Ask about products, orders, payments…"
+                        placeholder="Ask about products, orders, payments… or paste an IMEI"
                         disabled={loading}
                         className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
                       />
