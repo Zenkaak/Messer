@@ -4782,8 +4782,73 @@ export function AdminPage() {
     overview: "Dashboard", orders: "Orders",
     products: "Products", users: "Users", payments: "Payments",
     live_chat: "Live Chat", resellers: "Resellers", imei_logs: "IMEI Logs",
-    announcements: "Announcements",
+    announcements: "Announcements", email_preview: "Email Preview",
   };
+
+  const pageSubtitle: Record<Tab, string> = {
+    overview: "Store performance at a glance",
+    orders: "Manage and fulfil customer orders",
+    products: "Catalogue of services & products",
+    users: "Registered customer accounts",
+    payments: "Payment settings & configuration",
+    live_chat: "Customer support conversations",
+    resellers: "Partner reseller accounts",
+    imei_logs: "IMEI check history",
+    announcements: "Broadcast messages to customers",
+    email_preview: "Preview & test email templates",
+  };
+
+  // Sidebar nav groups
+  const NAV_MAIN = NAV.filter(n => ["overview","orders","products","users","resellers"].includes(n.id));
+  const NAV_TOOLS = NAV.filter(n => ["payments","announcements","live_chat","imei_logs","email_preview"].includes(n.id));
+
+  const SidebarNav = ({ onNav }: { onNav?: () => void }) => (
+    <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-4">
+      <div>
+        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-3 mb-1.5">Main</p>
+        <div className="space-y-0.5">
+          {NAV_MAIN.map(item => {
+            const active = tab === item.id;
+            return (
+              <button key={item.id} onClick={() => { setTab(item.id); onNav?.(); }}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-left group ${
+                  active
+                    ? "bg-blue-600 text-white shadow-lg shadow-blue-900/40"
+                    : "text-slate-400 hover:bg-white/8 hover:text-slate-200"
+                }`}>
+                <item.icon size={15} strokeWidth={active ? 2.5 : 1.8} className={active ? "text-white" : "text-slate-500 group-hover:text-slate-300"} />
+                <span className="text-[13px] font-semibold">{item.label}</span>
+                {item.id === "orders" && paymentUnread > 0 && (
+                  <span className="ml-auto w-5 h-5 bg-emerald-500 rounded-full text-[9px] font-bold text-white flex items-center justify-center shrink-0">
+                    {paymentUnread > 9 ? "9+" : paymentUnread}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <div>
+        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-3 mb-1.5">Tools</p>
+        <div className="space-y-0.5">
+          {NAV_TOOLS.map(item => {
+            const active = tab === item.id;
+            return (
+              <button key={item.id} onClick={() => { setTab(item.id); onNav?.(); }}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-left group ${
+                  active
+                    ? "bg-blue-600 text-white shadow-lg shadow-blue-900/40"
+                    : "text-slate-400 hover:bg-white/8 hover:text-slate-200"
+                }`}>
+                <item.icon size={15} strokeWidth={active ? 2.5 : 1.8} className={active ? "text-white" : "text-slate-500 group-hover:text-slate-300"} />
+                <span className="text-[13px] font-semibold">{item.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </nav>
+  );
 
   return (
     <>
@@ -4797,55 +4862,48 @@ export function AdminPage() {
         <FingerprintSetupModal pwd={pwd} onDismiss={() => setShowFingerprintSetup(false)} />
       )}
 
-      <div className="flex h-screen bg-slate-50 overflow-hidden">
+      <div className="flex h-screen overflow-hidden" style={{ background: "#0c1120" }}>
 
         {/* ── Desktop Left Sidebar ── */}
-        <aside className="hidden md:flex flex-col w-56 bg-slate-900 shrink-0">
+        <aside className="hidden md:flex flex-col w-60 shrink-0 border-r border-white/[0.06]" style={{ background: "#0f1729" }}>
           {/* Brand */}
-          <div className="px-5 py-5 border-b border-white/10">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-blue-600 flex items-center justify-center shrink-0">
-                <Shield size={15} className="text-white" />
+          <div className="px-4 py-5 border-b border-white/[0.06]">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-lg"
+                style={{ background: "linear-gradient(135deg,#2563eb,#1d4ed8)" }}>
+                <Shield size={16} className="text-white" />
               </div>
               <div>
-                <p className="text-white font-black text-sm leading-none">GSM World</p>
-                <p className="text-slate-500 text-[10px] mt-0.5">Admin Console</p>
+                <p className="text-white font-black text-[13px] leading-none tracking-tight">GSM World</p>
+                <p className="text-slate-500 text-[10px] mt-0.5 font-medium">Admin Console</p>
               </div>
             </div>
+            {headerApkVersion && (
+              <div className="mt-3 flex items-center gap-1.5 bg-blue-950/60 border border-blue-800/30 rounded-lg px-2.5 py-1.5">
+                <Tag size={9} className="text-blue-400 shrink-0" />
+                <span className="text-blue-300 text-[10px] font-bold">APK {headerApkVersion}</span>
+              </div>
+            )}
           </div>
 
-          {/* Sidebar Nav */}
-          <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-0.5">
-            {NAV.map(item => {
-              const active = tab === item.id;
-              return (
-                <button key={item.id} onClick={() => setTab(item.id)}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors text-left ${
-                    active ? "bg-blue-600 text-white" : "text-slate-400 hover:bg-white/10 hover:text-white"
-                  }`}>
-                  <item.icon size={16} strokeWidth={active ? 2.5 : 1.8} />
-                  <span className="text-sm font-semibold">{item.label}</span>
-                </button>
-              );
-            })}
-          </nav>
+          <SidebarNav />
 
           {/* Sidebar Footer */}
-          <div className="p-3 border-t border-white/10 space-y-1">
+          <div className="p-2 border-t border-white/[0.06]">
             <button onClick={() => { setShowChangePwd(true); setIsDefaultWarn(false); }}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:bg-white/10 hover:text-white transition-colors">
-              <KeyRound size={15} />
-              <span className="text-sm font-medium">Change Password</span>
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-slate-500 hover:bg-white/5 hover:text-slate-300 transition-colors text-left">
+              <KeyRound size={14} />
+              <span className="text-[12px] font-medium">Change Password</span>
             </button>
             <button onClick={() => setShowFingerprintSetup(true)}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:bg-white/10 hover:text-white transition-colors">
-              <Fingerprint size={15} />
-              <span className="text-sm font-medium">Fingerprint Login</span>
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-slate-500 hover:bg-white/5 hover:text-slate-300 transition-colors text-left">
+              <Fingerprint size={14} />
+              <span className="text-[12px] font-medium">Fingerprint Login</span>
             </button>
             <button onClick={() => { setAuthed(false); setPwd(""); _setWaToken(null); try { sessionStorage.removeItem("gsm_admin_session_pwd"); sessionStorage.removeItem("gsm_admin_session_ok"); } catch {} }}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:bg-red-500/20 hover:text-red-400 transition-colors">
-              <LogOut size={15} />
-              <span className="text-sm font-medium">Logout</span>
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-slate-500 hover:bg-red-900/20 hover:text-red-400 transition-colors text-left">
+              <LogOut size={14} />
+              <span className="text-[12px] font-medium">Sign Out</span>
             </button>
           </div>
         </aside>
@@ -4853,69 +4911,67 @@ export function AdminPage() {
         {/* ── Main Area ── */}
         <div className="flex-1 flex flex-col overflow-hidden">
 
-          {/* ── top header ── */}
-          <header className="shrink-0 bg-slate-900 px-4">
+          {/* ── Top Header ── */}
+          <header className="shrink-0 border-b border-white/[0.06] px-4 md:px-6" style={{ background: "#0f1729" }}>
             {/* Mobile: brand row */}
-            <div className="flex md:hidden items-center justify-between py-3 border-b border-white/5">
+            <div className="flex md:hidden items-center justify-between py-3 border-b border-white/[0.05]">
               <div className="flex items-center gap-2.5">
                 <button onClick={() => setMobileSidebarOpen(true)}
-                  className="w-8 h-8 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-colors mr-1">
+                  className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-colors">
                   <Menu size={15} />
                 </button>
-                <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center">
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center"
+                  style={{ background: "linear-gradient(135deg,#2563eb,#1d4ed8)" }}>
                   <Shield size={13} className="text-white" />
                 </div>
                 <div>
                   <p className="text-white font-black text-sm leading-none">GSM World</p>
-                  <p className="text-slate-500 text-[10px]">Admin Console</p>
+                  <p className="text-slate-500 text-[10px]">Admin</p>
                 </div>
               </div>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1.5">
                 <button
                   onClick={async () => { setPaymentUnread(0); await fetch("/api/admin/notifications/mark-read", { method: "POST" }).catch(() => {}); }}
-                  className="relative w-8 h-8 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-emerald-400 transition-colors">
+                  className="relative w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-emerald-400 transition-colors">
                   <Bell size={13} />
                   {paymentUnread > 0 && (
-                    <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-emerald-500 rounded-full text-[9px] font-bold text-white flex items-center justify-center">
+                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full text-[9px] font-bold text-white flex items-center justify-center">
                       {paymentUnread > 9 ? "9+" : paymentUnread}
                     </span>
                   )}
                 </button>
                 <button onClick={() => { setAuthed(false); setPwd(""); _setWaToken(null); try { sessionStorage.removeItem("gsm_admin_session_pwd"); sessionStorage.removeItem("gsm_admin_session_ok"); } catch {} }}
-                  className="flex items-center gap-1.5 bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white text-xs font-semibold px-3 h-8 rounded-xl transition-colors">
-                  <LogOut size={12} />
+                  className="w-8 h-8 rounded-lg bg-white/5 hover:bg-red-900/20 flex items-center justify-center text-slate-400 hover:text-red-400 transition-colors">
+                  <LogOut size={13} />
                 </button>
               </div>
             </div>
-            {/* Page title row */}
-            <div className="py-2.5 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <h1 className="text-white font-black text-lg">{pageTitle[tab]}</h1>
-                {headerApkVersion && (
-                  <span className="hidden md:inline-flex items-center gap-1 bg-blue-900/40 text-blue-300 text-[10px] font-bold px-2 py-0.5 rounded-full border border-blue-700/40">
-                    <Tag size={9} />
-                    APK {headerApkVersion}
-                  </span>
-                )}
+            {/* Page title row — desktop */}
+            <div className="py-3.5 flex items-center justify-between">
+              <div>
+                <h1 className="text-white font-black text-base leading-tight">{pageTitle[tab]}</h1>
+                <p className="text-slate-500 text-[11px] mt-0.5 hidden md:block">{pageSubtitle[tab]}</p>
               </div>
-              {/* Desktop: actions in header */}
-              <div className="hidden md:flex items-center gap-1">
+              {/* Desktop: header actions */}
+              <div className="hidden md:flex items-center gap-2">
                 <button
                   onClick={async () => { setPaymentUnread(0); await fetch("/api/admin/notifications/mark-read", { method: "POST" }).catch(() => {}); }}
-                  className="relative w-8 h-8 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-emerald-400 transition-colors">
+                  className="relative flex items-center gap-2 bg-white/5 hover:bg-white/8 border border-white/[0.07] px-3 h-8 rounded-lg text-slate-400 hover:text-slate-200 transition-colors text-xs font-medium">
                   <Bell size={13} />
+                  <span>Alerts</span>
                   {paymentUnread > 0 && (
-                    <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-emerald-500 rounded-full text-[9px] font-bold text-white flex items-center justify-center">
+                    <span className="w-4 h-4 bg-emerald-500 rounded-full text-[9px] font-bold text-white flex items-center justify-center">
                       {paymentUnread > 9 ? "9+" : paymentUnread}
                     </span>
                   )}
                 </button>
                 <button onClick={() => { setShowChangePwd(true); setIsDefaultWarn(false); }}
-                  className="w-8 h-8 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-colors">
+                  className="flex items-center gap-2 bg-white/5 hover:bg-white/8 border border-white/[0.07] px-3 h-8 rounded-lg text-slate-400 hover:text-slate-200 transition-colors text-xs font-medium">
                   <KeyRound size={13} />
+                  <span>Security</span>
                 </button>
                 <button onClick={() => { setAuthed(false); setPwd(""); _setWaToken(null); try { sessionStorage.removeItem("gsm_admin_session_pwd"); sessionStorage.removeItem("gsm_admin_session_ok"); } catch {} }}
-                  className="flex items-center gap-1.5 bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white text-xs font-semibold px-3 h-8 rounded-xl transition-colors">
+                  className="flex items-center gap-2 bg-white/5 hover:bg-red-900/20 border border-white/[0.07] hover:border-red-800/30 px-3 h-8 rounded-lg text-slate-400 hover:text-red-400 transition-colors text-xs font-medium">
                   <LogOut size={12} />
                   Logout
                 </button>
@@ -4923,8 +4979,8 @@ export function AdminPage() {
             </div>
           </header>
 
-          {/* ── scrollable content ── */}
-          <main ref={mainRef} className="flex-1 overflow-y-auto overscroll-contain pb-16 md:pb-0" style={{ overscrollBehavior: "contain" }}>
+          {/* ── Scrollable content ── */}
+          <main ref={mainRef} className="flex-1 overflow-y-auto overscroll-contain pb-16 md:pb-0" style={{ overscrollBehavior: "contain", background: "#0c1120" }}>
             {tab === "overview"   && <OverviewPanel   pwd={pwd} onNavigate={setTab} />}
             {tab === "orders"     && <OrdersPanel     pwd={pwd} />}
             {tab === "products"   && <ProductsPanel   pwd={pwd} />}
@@ -4937,26 +4993,26 @@ export function AdminPage() {
             {tab === "email_preview" && <EmailPreviewPanel pwd={pwd} />}
           </main>
 
-          {/* ── Mobile hybrid bottom nav ── */}
+          {/* ── Mobile bottom nav ── */}
           <nav
-            className="fixed bottom-0 inset-x-0 z-50 md:hidden bg-slate-900 border-t border-white/10 flex safe-bottom"
-            style={{ transform: "translateZ(0)", touchAction: "manipulation" }}
+            className="fixed bottom-0 inset-x-0 z-50 md:hidden border-t border-white/[0.06] flex safe-bottom"
+            style={{ background: "#0f1729", transform: "translateZ(0)", touchAction: "manipulation" }}
           >
             {BOTTOM_NAV.map(item => {
               const active = tab === item.id;
               return (
                 <button key={item.id} onClick={() => setTab(item.id)}
-                  className={`flex-1 flex flex-col items-center gap-1 py-2.5 px-1 transition-colors ${
-                    active ? "text-blue-400" : "text-slate-500 hover:text-slate-300"
+                  className={`flex-1 flex flex-col items-center gap-1 py-3 px-1 transition-colors ${
+                    active ? "text-blue-400" : "text-slate-600 hover:text-slate-400"
                   }`}>
-                  <item.icon size={18} strokeWidth={active ? 2.5 : 1.8} />
+                  <item.icon size={17} strokeWidth={active ? 2.5 : 1.8} />
                   <span className="text-[9px] font-bold leading-none truncate">{item.label}</span>
                 </button>
               );
             })}
             <button onClick={() => setMobileSidebarOpen(true)}
-              className="flex-1 flex flex-col items-center gap-1 py-2.5 px-1 text-slate-500 hover:text-slate-300 transition-colors">
-              <Menu size={18} strokeWidth={1.8} />
+              className="flex-1 flex flex-col items-center gap-1 py-3 px-1 text-slate-600 hover:text-slate-400 transition-colors">
+              <Menu size={17} strokeWidth={1.8} />
               <span className="text-[9px] font-bold leading-none">More</span>
             </button>
           </nav>
@@ -4964,57 +5020,41 @@ export function AdminPage() {
           {/* ── Mobile slide-over sidebar ── */}
           {mobileSidebarOpen && (
             <div className="fixed inset-0 z-50 md:hidden flex">
-              {/* backdrop */}
-              <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setMobileSidebarOpen(false)} />
-              {/* panel */}
-              <aside className="relative w-64 bg-slate-900 flex flex-col h-full shadow-2xl">
+              <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setMobileSidebarOpen(false)} />
+              <aside className="relative w-72 flex flex-col h-full shadow-2xl" style={{ background: "#0f1729", borderRight: "1px solid rgba(255,255,255,0.06)" }}>
                 {/* Brand */}
-                <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-xl bg-blue-600 flex items-center justify-center shrink-0">
-                      <Shield size={15} className="text-white" />
+                <div className="px-4 py-4 border-b border-white/[0.06] flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+                      style={{ background: "linear-gradient(135deg,#2563eb,#1d4ed8)" }}>
+                      <Shield size={16} className="text-white" />
                     </div>
                     <div>
-                      <p className="text-white font-black text-sm leading-none">GSM World</p>
-                      <p className="text-slate-500 text-[10px] mt-0.5">Admin Console</p>
+                      <p className="text-white font-black text-[13px] leading-none">GSM World</p>
+                      <p className="text-slate-500 text-[10px] mt-0.5 font-medium">Admin Console</p>
                     </div>
                   </div>
                   <button onClick={() => setMobileSidebarOpen(false)}
-                    className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center text-slate-400 hover:text-white">
-                    <X size={14} />
+                    className="w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center text-slate-400 hover:text-white border border-white/[0.07]">
+                    <X size={13} />
                   </button>
                 </div>
-                {/* Nav links */}
-                <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-0.5">
-                  {NAV.map(item => {
-                    const active = tab === item.id;
-                    return (
-                      <button key={item.id} onClick={() => { setTab(item.id); setMobileSidebarOpen(false); }}
-                        className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-colors text-left ${
-                          active ? "bg-blue-600 text-white" : "text-slate-400 hover:bg-white/10 hover:text-white"
-                        }`}>
-                        <item.icon size={17} strokeWidth={active ? 2.5 : 1.8} />
-                        <span className="text-sm font-semibold">{item.label}</span>
-                      </button>
-                    );
-                  })}
-                </nav>
-                {/* Footer */}
-                <div className="p-3 border-t border-white/10 space-y-1">
+                <SidebarNav onNav={() => setMobileSidebarOpen(false)} />
+                <div className="p-2 border-t border-white/[0.06]">
                   <button onClick={() => { setShowChangePwd(true); setIsDefaultWarn(false); setMobileSidebarOpen(false); }}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:bg-white/10 hover:text-white transition-colors">
-                    <KeyRound size={15} />
-                    <span className="text-sm font-medium">Change Password</span>
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-500 hover:bg-white/5 hover:text-slate-300 transition-colors">
+                    <KeyRound size={14} />
+                    <span className="text-[12px] font-medium">Change Password</span>
                   </button>
                   <button onClick={() => { setShowFingerprintSetup(true); setMobileSidebarOpen(false); }}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:bg-white/10 hover:text-white transition-colors">
-                    <Fingerprint size={15} />
-                    <span className="text-sm font-medium">Fingerprint Login</span>
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-500 hover:bg-white/5 hover:text-slate-300 transition-colors">
+                    <Fingerprint size={14} />
+                    <span className="text-[12px] font-medium">Fingerprint Login</span>
                   </button>
                   <button onClick={() => { setAuthed(false); setPwd(""); _setWaToken(null); setMobileSidebarOpen(false); try { sessionStorage.removeItem("gsm_admin_session_pwd"); sessionStorage.removeItem("gsm_admin_session_ok"); } catch {} }}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:bg-red-500/20 hover:text-red-400 transition-colors">
-                    <LogOut size={15} />
-                    <span className="text-sm font-medium">Logout</span>
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-500 hover:bg-red-900/20 hover:text-red-400 transition-colors">
+                    <LogOut size={14} />
+                    <span className="text-[12px] font-medium">Sign Out</span>
                   </button>
                 </div>
               </aside>
