@@ -2137,17 +2137,14 @@ function _fireAdminOrderAlert(opts: { orderId: number; orderCode: string; custom
 
 async function toolGetWalletBalance(botToken: string | null): Promise<Record<string, unknown>> {
   if (!botToken) return { success: false, error: "You must be logged in to check wallet balance. Please log in first." };
-  const port = process.env.PORT ?? "5000";
   try {
-    const r = await fetch(`http://localhost:${port}/api/wallet/balance`, {
-      method: "GET",
-      headers: { Authorization: `Bearer ${botToken}` },
-    });
-    const data = await r.json() as Record<string, unknown>;
-    if (r.ok) return { success: true, ...data };
-    return { success: false, error: (data as { error?: string }).error ?? "Could not retrieve balance." };
+    const payload = jwt.verify(botToken, _BOT_JWT_SECRET) as { userId?: number };
+    if (!payload.userId) return { success: false, error: "Invalid session. Please log in again." };
+    const [row] = await db.select({ walletBalance: usersTable.walletBalance }).from(usersTable).where(eq(usersTable.id, payload.userId)).limit(1);
+    if (!row) return { success: false, error: "Account not found." };
+    return { success: true, balance: parseFloat(row.walletBalance ?? "0") };
   } catch {
-    return { success: false, error: "Wallet service unavailable." };
+    return { success: false, error: "Could not retrieve wallet balance." };
   }
 }
 
@@ -2155,33 +2152,62 @@ async function toolAddWalletFunds(args: {
   paymentMethod: string; amount: number; phone?: string; payCurrency?: string; botToken?: string | null;
 }): Promise<Record<string, unknown>> {
   if (!args.botToken) return { success: false, error: "You must be logged in to top up your wallet. Please log in first." };
-  const port = process.env.PORT ?? "5000";
-  const headers: Record<string, string> = { "Content-Type": "application/json", Authorization: `Bearer ${args.botToken}` };
+  let loggedInUserId: number | null = null;
+  try {
+    const payload = jwt.verify(args.botToken, _BOT_JWT_SECRET) as { userId?: number };
+    loggedInUserId = payload.userId ?? null;
+  } catch { /* invalid token */ }
+  if (!loggedInUserId) return { success: false, error: "Invalid session. Please log in again." };
+
   const pm = args.paymentMethod.toLowerCase();
   try {
     if (pm === "mpesa") {
       if (!args.phone) return { success: false, error: "Phone number is required for M-Pesa top-up." };
-      const r = await fetch(`http://localhost:${port}/api/wallet/add-fund/mpesa`, {
-        method: "POST", headers, body: JSON.stringify({ phone: args.phone, amount: args.amount }),
+      const amountKes = Math.ceil(args.amount * _USD_TO_KES);
+      let stkRes: Awaited<ReturnType<typeof initiateSTKPush>>;
+      try {
+        stkRes = await initiateSTKPush({ phone: args.phone, amount: amountKes, orderId: 0, description: `Wallet top-up $${args.amount}` });
+      } catch (err) {
+        logger.error({ err }, "toolAddWalletFunds: STK Push failed");
+        return { success: false, error: "M-Pesa STK push failed. Please check the phone number and try again." };
+      }
+      await db.insert(paymentTransactionsTable).values({
+        orderId: null as unknown as number,
+        provider: "mpesa",
+        providerReference: stkRes.CheckoutRequestID,
+        amount: String(amountKes),
+        currency: "KES",
+        status: "pending",
+        rawResponse: { userId: loggedInUserId, amountUsd: args.amount, type: "wallet_topup" } as unknown as Record<string, unknown>,
       });
-      const data = await r.json() as Record<string, unknown>;
-      if (r.ok) return { success: true, ...data };
-      return { success: false, error: (data as { error?: string }).error ?? "M-Pesa top-up failed." };
+      return { success: true, checkoutRequestId: stkRes.CheckoutRequestID, amountKes, amountUsd: args.amount, message: stkRes.CustomerMessage };
     } else if (pm === "nowpayments") {
-      const r = await fetch(`http://localhost:${port}/api/wallet/add-fund/nowpayments`, {
-        method: "POST", headers, body: JSON.stringify({ amount: args.amount, payCurrency: args.payCurrency ?? "usdttrc20" }),
+      if (args.amount < 13) return { success: false, error: "Minimum amount for crypto top-up is $13." };
+      let payment: Awaited<ReturnType<typeof createPayment>>;
+      try {
+        payment = await createPayment({ priceAmount: args.amount, priceCurrency: "usd", payCurrency: args.payCurrency ?? "usdttrc20", orderId: `wallet-${loggedInUserId}-${Date.now()}`, orderDescription: `Wallet top-up $${args.amount}` });
+      } catch (payErr) {
+        const payMsg = payErr instanceof Error ? payErr.message : "NOWPayments error";
+        return { success: false, error: payMsg };
+      }
+      await db.insert(paymentTransactionsTable).values({
+        orderId: null as unknown as number,
+        provider: "nowpayments",
+        providerReference: payment.payment_id,
+        amount: String(args.amount),
+        currency: "USD",
+        status: "pending",
+        rawResponse: { ...payment as unknown as Record<string, unknown>, userId: loggedInUserId, type: "wallet_topup" },
       });
-      const data = await r.json() as Record<string, unknown>;
-      if (r.ok) return { success: true, ...data };
-      return { success: false, error: (data as { error?: string }).error ?? "Crypto top-up failed." };
+      return { success: true, paymentId: payment.payment_id, payAddress: payment.pay_address, payAmount: payment.pay_amount, payCurrency: payment.pay_currency, expiresAt: payment.expiration_estimate_date, amountUsd: args.amount };
     } else if (pm === "usdt") {
-      const r = await fetch(`http://localhost:${port}/api/wallet/add-fund/usdt`, { method: "GET", headers });
-      const data = await r.json() as Record<string, unknown>;
-      if (r.ok) return { success: true, ...data };
-      return { success: false, error: "Could not retrieve USDT deposit details." };
+      const [address, network] = await Promise.all([getUsdtWallet(), getUsdtNetwork()]);
+      if (!address) return { success: false, error: "USDT wallet address is not configured. Please contact support." };
+      return { success: true, addresses: [{ network: network ?? "TRC20", address, minDeposit: "$1 USDT" }], note: "Send USDT on the correct network only. Wrong network = funds lost permanently. Your wallet balance will be updated after 1–6 network confirmations." };
     }
     return { success: false, error: "Unknown payment method. Use: mpesa, nowpayments, or usdt." };
-  } catch {
+  } catch (err) {
+    logger.error({ err }, "toolAddWalletFunds failed");
     return { success: false, error: "Wallet top-up service unavailable. Please try again." };
   }
 }
@@ -2324,10 +2350,9 @@ async function runToolCalls(
             const np = rd.nowpayments as { paymentId: string; payAddress: string; payAmount: number; payCurrency: string; expiresAt?: string };
             lat = "show_nowpayments";
             lad = { orderId: rd.orderId, payAddress: np.payAddress, payAmount: np.payAmount, payCurrency: np.payCurrency, expiresAt: np.expiresAt, total: rd.total, currency: rd.currency };
-          } else if (pm === "mpesa" && rd.mpesa) {
-            const mp = rd.mpesa as { checkoutRequestId: string; message: string };
+          } else if (pm === "mpesa" && rd.checkoutRequestId) {
             lat = "show_mpesa_pending";
-            lad = { orderId: rd.orderId, checkoutRequestId: mp.checkoutRequestId, message: mp.message, total: rd.total, currency: rd.currency };
+            lad = { orderId: rd.orderId, checkoutRequestId: rd.checkoutRequestId, message: rd.message, total: rd.total, currency: rd.currency };
           } else if (pm === "wallet") {
             lat = "checkout_done";
             lad = { orderId: rd.orderId, paymentMethod: "wallet", total: rd.total, currency: rd.currency };
@@ -3032,6 +3057,30 @@ router.post("/chat/sms/test", async (req, res) => {
     req.log.error({ err }, "OTS SMS test error");
     res.status(500).json({ error: "Internal server error" });
   }
+});
+
+// ─── IMEI TAC Lookup ─────────────────────────────────────────────────────────
+router.get("/imei/lookup/:imei", async (req, res) => {
+  const raw = String(req.params.imei ?? "").replace(/\D/g, "");
+  if (raw.length < 8) { res.status(400).json({ error: "IMEI must be at least 8 digits" }); return; }
+  const tac = raw.slice(0, 8);
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
+    const r = await fetch(`https://imeidb.io/api/v1/tac/${tac}`, {
+      headers: { Accept: "application/json" },
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    if (r.ok) {
+      const data = await r.json() as { brand?: string; model?: string; operating_system?: string };
+      if (data.brand) {
+        res.json({ brand: data.brand ?? null, model: data.model ?? null, os: data.operating_system ?? null });
+        return;
+      }
+    }
+  } catch { /* external API unavailable — fall through */ }
+  res.json({ brand: null, model: null, os: null });
 });
 
 export default router;

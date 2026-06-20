@@ -1449,6 +1449,8 @@ export function GsmBot() {
   const [humanSending, setHumanSending] = useState(false);
   const [humanFile, setHumanFile] = useState<File | null>(null);
   const [imeiWarning, setImeiWarning] = useState<string | null>(null);
+  const [tacInfo, setTacInfo] = useState<{ brand: string | null; model: string | null; os: string | null } | null>(null);
+  const [tacLoading, setTacLoading] = useState(false);
   const [lastPollTime, setLastPollTime] = useState<Date | null>(null);
   // Email + phone capture step for guest users
   const [humanEmailStep, setHumanEmailStep] = useState(false);
@@ -2042,6 +2044,20 @@ export function GsmBot() {
                       <span className="text-[11px] font-semibold text-red-600">{imeiWarning}</span>
                     </div>
                   )}
+                  {tacLoading && !imeiWarning && (
+                    <div className="flex items-center gap-1.5 bg-blue-50 border border-blue-100 rounded-lg px-3 py-1.5">
+                      <RefreshCw size={11} className="text-blue-400 animate-spin shrink-0" />
+                      <span className="text-[11px] text-blue-500">Looking up device…</span>
+                    </div>
+                  )}
+                  {tacInfo && (tacInfo.brand || tacInfo.model) && !imeiWarning && !tacLoading && (
+                    <div className="flex items-center gap-1.5 bg-green-50 border border-green-200 rounded-lg px-3 py-1.5">
+                      <span className="text-[11px] font-semibold text-green-700">
+                        📱 {[tacInfo.brand, tacInfo.model].filter(Boolean).join(" ")}
+                        {tacInfo.os ? ` · ${tacInfo.os}` : ""}
+                      </span>
+                    </div>
+                  )}
                   <div className="flex gap-2 items-end">
                     <input
                       ref={fileInputRef}
@@ -2070,9 +2086,26 @@ export function GsmBot() {
                         setHumanInput(val);
                         const imei = extractImei(val);
                         if (imei) {
-                          setImeiWarning(luhnCheck(imei) ? null : "Invalid IMEI — please double-check this number.");
+                          const valid = luhnCheck(imei);
+                          setImeiWarning(valid ? null : "Invalid IMEI — please double-check this number.");
+                          if (valid) {
+                            setTacInfo(null);
+                            setTacLoading(true);
+                            fetch(`${import.meta.env.BASE_URL}api/imei/lookup/${imei}`)
+                              .then(r => r.json())
+                              .then((d: { brand?: string | null; model?: string | null; os?: string | null }) => {
+                                setTacInfo({ brand: d.brand ?? null, model: d.model ?? null, os: d.os ?? null });
+                              })
+                              .catch(() => setTacInfo({ brand: null, model: null, os: null }))
+                              .finally(() => setTacLoading(false));
+                          } else {
+                            setTacInfo(null);
+                            setTacLoading(false);
+                          }
                         } else {
                           setImeiWarning(null);
+                          setTacInfo(null);
+                          setTacLoading(false);
                         }
                       }}
                       onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendHumanMessage(); } }}
