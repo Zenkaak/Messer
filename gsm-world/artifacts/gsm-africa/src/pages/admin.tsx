@@ -50,6 +50,7 @@ interface AdminSettings {
   smtpUser: string | null;
   smtpPass: string | null;
   resendApiKey?: string | null;
+  callmebotApiKey?: string | null;
   whatsappContact: string | null;
   supportPhone?: string | null;
   supportEmail?: string | null;
@@ -2901,6 +2902,7 @@ function PaymentsPanel({ pwd }: { pwd: string }) {
     smtpUser: "",
     smtpPass: "",
     resendApiKey: "",
+    callmebotApiKey: "",
     whatsappContact: "",
     supportPhone: "",
     supportEmail: "",
@@ -2963,6 +2965,7 @@ function PaymentsPanel({ pwd }: { pwd: string }) {
           smtpUser: d.smtpUser ?? "",
           smtpPass: "",
           resendApiKey: "",
+          callmebotApiKey: "",
           whatsappContact: d.whatsappContact ?? "",
           supportPhone: d.supportPhone ?? "",
           supportEmail: d.supportEmail ?? "",
@@ -3021,6 +3024,7 @@ function PaymentsPanel({ pwd }: { pwd: string }) {
       if (form.coingateApiKey) body.coingateApiKey = form.coingateApiKey;
       if (form.smtpPass) body.smtpPass = form.smtpPass;
       if (form.resendApiKey) body.resendApiKey = form.resendApiKey;
+      if (form.callmebotApiKey) body.callmebotApiKey = form.callmebotApiKey;
       if (form.whatsappContact) body.whatsappContact = form.whatsappContact;
       if (form.googleClientId) body.googleClientId = form.googleClientId;
       if (form.googleClientSecret) body.googleClientSecret = form.googleClientSecret;
@@ -3039,7 +3043,7 @@ function PaymentsPanel({ pwd }: { pwd: string }) {
         ...f,
         mpesaConsumerKey: "", mpesaConsumerSecret: "", mpesaPasskey: "",
         nowpaymentsApiKey: "", coingateApiKey: "",
-        smtpPass: "", resendApiKey: "",
+        smtpPass: "", resendApiKey: "", callmebotApiKey: "",
         googleClientId: "", googleClientSecret: "",
         otsApiToken: "", openaiApiKey: "", imeiInfoApiToken: "", botSystemPrompt: f.botSystemPrompt,
         paymentMethods: updated.paymentMethods?.length
@@ -3273,6 +3277,26 @@ function PaymentsPanel({ pwd }: { pwd: string }) {
           {testingOts ? <RefreshCw size={13} className="animate-spin" /> : <Phone size={13} />}
           Send test SMS
         </button>
+      </div>
+
+
+      {/* ── CallMeBot WhatsApp Notifications ── */}
+      <div className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm p-4 space-y-3">
+        <div>
+          <p className="text-sm font-bold text-slate-800">CallMeBot WhatsApp Notifications</p>
+          <p className="text-[10px] font-semibold text-slate-400">Receive a WhatsApp message when a customer requests human support</p>
+        </div>
+        <div className="bg-green-50 border border-green-100 rounded-xl px-3.5 py-2.5 text-[11px] text-green-700 leading-relaxed">
+          To get your API key: WhatsApp <strong>+34 644 59 12 60</strong> and send: <code className="bg-green-100 px-1 rounded">I allow callmebot to send me messages</code>. You'll receive the key in seconds.{" "}
+          <a href="https://www.callmebot.com/blog/free-api-whatsapp-messages/" target="_blank" rel="noreferrer" className="font-bold underline">Learn more</a>
+        </div>
+        <MaskedInput
+          label="CallMeBot API Key"
+          value={form.callmebotApiKey ?? ""}
+          onChange={v => setForm(f => ({ ...f, callmebotApiKey: v }))}
+          placeholder={settings?.callmebotApiKey === "***" ? "Saved — enter new to replace" : "Your CallMeBot API key"}
+        />
+        <p className="text-[10px] text-slate-400">Notifications are sent to <strong>+254 112 628 799</strong> (hardcoded admin number).</p>
       </div>
 
       {/* ── GSMBot AI ── */}
