@@ -381,60 +381,32 @@ router.post("/orders", async (req, res) => {
       ? `${firstItem.productName}${orderItems.length > 1 ? ` +${orderItems.length - 1} more` : ""}`
       : "items";
 
-    // Send email BEFORE responding — Vercel terminates the Lambda as soon as res is sent
-    await sendEmail({
-      to: order.customerEmail,
-      ...orderSubmittedEmail({
-        orderId: order.id,
-        customerName: order.customerName,
-        customerEmail: order.customerEmail,
-        items: orderItems.map((i) => ({ productName: i.productName, quantity: i.quantity, price: i.price })),
-        total: order.total,
-        paymentMethod: order.paymentMethod,
+    // ── Send emails BEFORE responding ──────────────────────────────────────────
+    // CRITICAL: Vercel terminates the Lambda as soon as res is sent, so ALL
+    // email sends must be awaited before res.json(). Use Promise.allSettled so
+    // one failure never blocks the other.
+
+    const adminEmail = await getAdminNotifyEmail().catch(() => null);
+
+    const emailTasks: Promise<unknown>[] = [
+      // Customer order confirmation
+      sendEmail({
+        to: order.customerEmail,
+        ...orderSubmittedEmail({
+          orderId: order.id,
+          customerName: order.customerName,
+          customerEmail: order.customerEmail,
+          items: orderItems.map((i) => ({ productName: i.productName, quantity: i.quantity, price: i.price })),
+          total: order.total,
+          paymentMethod: order.paymentMethod,
+        }),
       }),
-    }).catch((err) => req.log.error({ err }, "Failed to send order confirmation email"));
+    ];
 
-    // For wallet orders (immediately paid), auto-send gift card codes right away
-    if (order.paymentStatus === "paid" && orderData.paymentMethod === "wallet") {
-      const giftCardItems = orderItems.filter(i => isGiftCardItem(i.productName));
-      if (giftCardItems.length > 0) {
-        const orderUrl = appUrl(`/orders/${order.id}`);
-        for (const item of giftCardItems) {
-          const qty = item.quantity ?? 1;
-          for (let q = 0; q < qty; q++) {
-            const code = generateGiftCardCode();
-            const denomination = `$${parseFloat(item.price).toFixed(2)}`;
-            sendEmail({
-              to: order.customerEmail,
-              ...giftCardDeliveryEmail({
-                orderId: order.id,
-                customerName: order.customerName,
-                productName: item.productName,
-                giftCardCode: code,
-                denomination,
-                orderUrl,
-              }),
-            }).catch((err) => req.log.error({ err }, "Failed to send wallet gift card email"));
-          }
-        }
-      }
-    }
-
-    // Fire-and-forget DB write is fine (non-critical)
-    db.insert(notificationsTable).values({
-      userEmail: order.customerEmail,
-      title: `Order #${order.id} Received`,
-      message: `Your order for ${itemLabel} has been received and is under review.`,
-      type: "success",
-      orderId: order.id,
-      read: false,
-    }).catch((err) => req.log.error({ err }, "Failed to insert order notification"));
-
-    // Notify admin of new order
-    getAdminNotifyEmail().then(async (adminEmail) => {
-      if (!adminEmail) return;
-      try {
-        await sendEmail({
+    // Admin new-order notification
+    if (adminEmail) {
+      emailTasks.push(
+        sendEmail({
           to: adminEmail,
           ...adminNewOrderEmail({
             orderId: order.id,
@@ -447,11 +419,57 @@ router.post("/orders", async (req, res) => {
             items: orderItems.map((i) => ({ productName: i.productName, quantity: i.quantity, price: i.price })),
             notes: order.notes,
           }),
-        });
-      } catch (err) {
-        req.log.error({ err }, "Failed to send admin new-order notification email");
+        })
+      );
+    }
+
+    const emailResults = await Promise.allSettled(emailTasks);
+    emailResults.forEach((result, idx) => {
+      if (result.status === "rejected") {
+        req.log.error({ err: result.reason, idx }, "Order email send failed");
       }
-    }).catch(() => {});
+    });
+
+    // For wallet orders (immediately paid), auto-send gift card codes.
+    // These are secondary — still await them so Vercel doesn't kill the Lambda early.
+    if (order.paymentStatus === "paid" && orderData.paymentMethod === "wallet") {
+      const giftCardItems = orderItems.filter(i => isGiftCardItem(i.productName));
+      if (giftCardItems.length > 0) {
+        const orderUrl = appUrl(`/orders/${order.id}`);
+        const gcTasks: Promise<unknown>[] = [];
+        for (const item of giftCardItems) {
+          const qty = item.quantity ?? 1;
+          for (let q = 0; q < qty; q++) {
+            const code = generateGiftCardCode();
+            const denomination = `$${parseFloat(item.price).toFixed(2)}`;
+            gcTasks.push(
+              sendEmail({
+                to: order.customerEmail,
+                ...giftCardDeliveryEmail({
+                  orderId: order.id,
+                  customerName: order.customerName,
+                  productName: item.productName,
+                  giftCardCode: code,
+                  denomination,
+                  orderUrl,
+                }),
+              })
+            );
+          }
+        }
+        await Promise.allSettled(gcTasks).catch(() => {});
+      }
+    }
+
+    // Fire-and-forget DB write is fine (non-critical)
+    db.insert(notificationsTable).values({
+      userEmail: order.customerEmail,
+      title: `Order #${order.id} Received`,
+      message: `Your order for ${itemLabel} has been received and is under review.`,
+      type: "success",
+      orderId: order.id,
+      read: false,
+    }).catch((err) => req.log.error({ err }, "Failed to insert order notification"));
 
     res.status(201).json({ ...order, items: orderItems });
   } catch (err) {
