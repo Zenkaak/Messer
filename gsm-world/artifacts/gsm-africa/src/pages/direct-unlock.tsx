@@ -994,12 +994,35 @@ export function DirectUnlockPage() {
               </div>
             )}
 
-            {/* ── Step 3b: Processing ── */}
+            {/* ── Step 3b: Processing — fullscreen overlay ── */}
             {step === "processing" && (
+              <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "#070d1a", overflowY: "auto" }}>
+              <div className="min-h-screen flex flex-col">
+              {/* ── Branded header ── */}
+              <div className="flex items-center justify-between px-5 py-4 shrink-0"
+                style={{ background: "linear-gradient(90deg,rgba(8,16,36,0.98),rgba(10,20,45,0.98))", borderBottom: "1px solid rgba(59,130,246,0.12)" }}>
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+                    style={{ background: "linear-gradient(135deg,#3b82f6,#6366f1)" }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                  </div>
+                  <div>
+                    <p className="font-black text-white text-[13px] leading-tight">GSM World Unlock</p>
+                    <p className="text-[9px] font-bold uppercase tracking-wider" style={{ color: "#6366f1" }}>Secure Verification</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="text-[11px] font-bold font-mono" style={{ color: "#4ade80" }}>LIVE</span>
+                </div>
+              </div>
+
+              {/* ── Main content ── */}
+              <div className="flex-1 px-4 py-5 space-y-4 max-w-lg mx-auto w-full">
               <div className="space-y-4">
                 {/* ── Pulsing status banner ── */}
                 <div className="relative overflow-hidden rounded-2xl p-4 flex items-center gap-3"
-                  style={{ background: "linear-gradient(135deg,#0f172a 0%,#1e293b 100%)", border: "1px solid rgba(59,130,246,0.25)" }}>
+                  style={{ background: "linear-gradient(135deg,rgba(15,23,42,0.9) 0%,rgba(30,41,59,0.9) 100%)", border: "1px solid rgba(59,130,246,0.3)", backdropFilter: "blur(12px)" }}>
                   <div className="absolute inset-0 opacity-20"
                     style={{ background: "radial-gradient(ellipse at 20% 50%,rgba(59,130,246,0.4) 0%,transparent 60%)" }} />
                   <div className="relative w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
@@ -1020,7 +1043,7 @@ export function DirectUnlockPage() {
                 </div>
 
                 {/* ── Terminal card ── */}
-                <div className="rounded-2xl overflow-hidden shadow-2xl" style={{ background: "#0d1117", border: "1px solid rgba(99,102,241,0.2)", boxShadow: "0 0 40px rgba(59,130,246,0.08), 0 20px 60px rgba(0,0,0,0.5)" }}>
+                <div className="rounded-2xl overflow-hidden" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(99,102,241,0.2)", boxShadow: "0 0 40px rgba(59,130,246,0.08), 0 20px 60px rgba(0,0,0,0.5)" }}>
                   {/* Title bar */}
                   <div className="flex items-center gap-2 px-4 py-2.5" style={{ background: "linear-gradient(90deg,#161b22 0%,#1a2030 100%)", borderBottom: "1px solid rgba(99,102,241,0.15)" }}>
                     <span className="w-3 h-3 rounded-full bg-red-500/80" />
@@ -1106,12 +1129,16 @@ export function DirectUnlockPage() {
                     { icon: "🌍", label: "15,000+ Unlocked" },
                     { icon: "⚡", label: "Avg 2–24 hrs" },
                   ].map(t => (
-                    <div key={t.label} className="flex flex-col items-center gap-1 bg-white border border-slate-100 rounded-xl py-2.5 shadow-sm">
+                    <div key={t.label} className="flex flex-col items-center gap-1 rounded-xl py-2.5 shadow-sm"
+                      style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
                       <span className="text-base leading-none">{t.icon}</span>
-                      <span className="text-[9px] font-bold text-slate-500 tracking-wide text-center">{t.label}</span>
+                      <span className="text-[9px] font-bold tracking-wide text-center" style={{ color: "#64748b" }}>{t.label}</span>
                     </div>
                   ))}
                 </div>
+              </div>
+              </div>
+              </div>
               </div>
             )}
 

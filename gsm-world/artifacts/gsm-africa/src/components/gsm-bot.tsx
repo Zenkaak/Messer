@@ -1425,6 +1425,7 @@ export function GsmBot() {
   const [sessionId, setSessionId] = useState<number | null>(null);
   const [sessionStatus, setSessionStatus] = useState<"waiting" | "active" | "closed">("waiting");
   const [humanMessages, setHumanMessages] = useState<HumanMessage[]>([]);
+  const [showDescribePrompt, setShowDescribePrompt] = useState(false);
   const [humanInput, setHumanInput] = useState("");
   const [humanSending, setHumanSending] = useState(false);
   const [humanFile, setHumanFile] = useState<File | null>(null);
@@ -1493,6 +1494,13 @@ export function GsmBot() {
   }, []);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, humanMessages]);
+
+  // Show describe-issue prompt in Live Support chatbox after a short delay
+  useEffect(() => {
+    if (!humanMode) { setShowDescribePrompt(false); return; }
+    const t = setTimeout(() => setShowDescribePrompt(true), 1400);
+    return () => clearTimeout(t);
+  }, [humanMode]);
 
   // Poll for human chat messages
   const pollHumanMessages = useCallback(async (sid: number) => {
@@ -1941,6 +1949,25 @@ export function GsmBot() {
                     You're now connected to our live support. Our team will respond shortly — usually within a few minutes.
                   </div>
                 </div>
+
+                {showDescribePrompt && (
+                  <div className="flex gap-2 justify-start" style={{ animation: "fadeSlideIn 0.4s ease forwards" }}>
+                    <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center shrink-0 mt-0.5">
+                      <Headphones size={11} className="text-emerald-600" />
+                    </div>
+                    <div className="max-w-[90%] rounded-2xl rounded-bl-sm px-3.5 py-3 text-sm leading-relaxed"
+                      style={{ background: "linear-gradient(135deg,#f0fdf4,#ecfdf5)", border: "1px solid rgba(34,197,94,0.2)" }}>
+                      <p className="text-[10px] font-bold text-gray-500 mb-1.5">Support Team</p>
+                      <p className="font-bold text-[12px] text-gray-800 mb-2">✍️ While you wait, describe your issue:</p>
+                      <ul className="text-[11px] text-gray-600 space-y-1 mb-2">
+                        <li>• Device model &amp; IMEI (if applicable)</li>
+                        <li>• What you've already tried</li>
+                        <li>• Any error messages you saw</li>
+                      </ul>
+                      <p className="text-[11px] text-emerald-700 font-semibold">The more detail now → the faster we resolve it 🚀</p>
+                    </div>
+                  </div>
+                )}
 
                 {humanMessages.map(msg => {
                   const isAdmin = msg.senderType === "admin";
