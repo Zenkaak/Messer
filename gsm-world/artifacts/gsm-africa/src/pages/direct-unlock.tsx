@@ -994,151 +994,210 @@ export function DirectUnlockPage() {
               </div>
             )}
 
-            {/* ── Step 3b: Processing — fullscreen overlay ── */}
+                        {/* ── Step 3b: Processing — fullscreen professional dashboard ── */}
             {step === "processing" && (
-              <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "#070d1a", overflowY: "auto" }}>
-              <div className="min-h-screen flex flex-col">
-              {/* ── Branded header ── */}
-              <div className="flex items-center justify-between px-5 py-4 shrink-0"
-                style={{ background: "linear-gradient(90deg,rgba(8,16,36,0.98),rgba(10,20,45,0.98))", borderBottom: "1px solid rgba(59,130,246,0.12)" }}>
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-                    style={{ background: "linear-gradient(135deg,#3b82f6,#6366f1)" }}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                  </div>
-                  <div>
-                    <p className="font-black text-white text-[13px] leading-tight">GSM World Unlock</p>
-                    <p className="text-[9px] font-bold uppercase tracking-wider" style={{ color: "#6366f1" }}>Secure Verification</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                  <span className="text-[11px] font-bold font-mono" style={{ color: "#4ade80" }}>LIVE</span>
-                </div>
-              </div>
+              <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "linear-gradient(160deg,#060b18 0%,#07101f 50%,#060b15 100%)", overflowY: "auto" }}>
 
-              {/* ── Main content ── */}
-              <div className="flex-1 px-4 py-5 space-y-4 max-w-lg mx-auto w-full">
-              <div className="space-y-4">
-                {/* ── Pulsing status banner ── */}
-                <div className="relative overflow-hidden rounded-2xl p-4 flex items-center gap-3"
-                  style={{ background: "linear-gradient(135deg,rgba(15,23,42,0.9) 0%,rgba(30,41,59,0.9) 100%)", border: "1px solid rgba(59,130,246,0.3)", backdropFilter: "blur(12px)" }}>
-                  <div className="absolute inset-0 opacity-20"
-                    style={{ background: "radial-gradient(ellipse at 20% 50%,rgba(59,130,246,0.4) 0%,transparent 60%)" }} />
-                  <div className="relative w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-                    style={{ background: "rgba(251,191,36,0.15)", border: "1px solid rgba(251,191,36,0.3)" }}>
-                    <AlertCircle size={20} className="text-amber-400" />
-                  </div>
-                  <div className="relative flex-1">
-                    <p className="font-black text-white text-sm">Do not close this page</p>
-                    <p className="text-slate-400 text-[11px] mt-0.5 leading-relaxed">Verifying against global carrier databases — takes ~70 seconds.</p>
-                  </div>
-                  <div className="relative flex flex-col items-end gap-1 shrink-0">
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                      <span className="text-[10px] font-bold text-emerald-400 font-mono">LIVE</span>
+                {/* Header bar */}
+                <div className="flex items-center justify-between px-4 py-3.5 sticky top-0"
+                  style={{ background: "rgba(6,11,24,0.95)", backdropFilter: "blur(16px)", borderBottom: "1px solid rgba(59,130,246,0.12)", zIndex: 10 }}>
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
+                      style={{ background: "linear-gradient(135deg,#2563eb,#4f46e5)" }}>
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                      </svg>
                     </div>
-                    <span className="text-[10px] text-slate-500 font-mono">{Math.ceil((100 - processingPct) * 0.7)}s left</span>
+                    <div>
+                      <p className="font-black text-white text-[13px] leading-none">GSM World</p>
+                      <p className="text-[9px] font-semibold uppercase tracking-widest mt-0.5" style={{ color: "#6366f1" }}>Secure Verification Portal</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full"
+                      style={{ background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.25)" }}>
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      <span className="text-[10px] font-bold font-mono" style={{ color: "#4ade80" }}>LIVE</span>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] font-mono font-bold" style={{ color: "#f59e0b" }}>{Math.ceil((100 - processingPct) * 0.7)}s</p>
+                      <p className="text-[8px] uppercase tracking-wide" style={{ color: "#374151" }}>remaining</p>
+                    </div>
                   </div>
                 </div>
 
-                {/* ── Terminal card ── */}
-                <div className="rounded-2xl overflow-hidden" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(99,102,241,0.2)", boxShadow: "0 0 40px rgba(59,130,246,0.08), 0 20px 60px rgba(0,0,0,0.5)" }}>
-                  {/* Title bar */}
-                  <div className="flex items-center gap-2 px-4 py-2.5" style={{ background: "linear-gradient(90deg,#161b22 0%,#1a2030 100%)", borderBottom: "1px solid rgba(99,102,241,0.15)" }}>
-                    <span className="w-3 h-3 rounded-full bg-red-500/80" />
-                    <span className="w-3 h-3 rounded-full bg-yellow-500/80" />
-                    <span className="w-3 h-3 rounded-full bg-green-500/80" />
-                    <span className="ml-3 text-[10px] text-slate-400 font-mono font-semibold tracking-wide">gsm-unlock-engine v3.2 — secure verification</span>
+                <div className="px-4 py-5 space-y-4 max-w-lg mx-auto">
+
+                  {/* Device identity card */}
+                  <div className="rounded-2xl overflow-hidden"
+                    style={{ background: "linear-gradient(135deg,#0d1b35,#0f1f3d)", border: "1px solid rgba(59,130,246,0.2)", boxShadow: "0 4px 32px rgba(37,99,235,0.15)" }}>
+                    <div className="px-4 py-3 flex items-center gap-3" style={{ borderBottom: "1px solid rgba(59,130,246,0.1)" }}>
+                      <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
+                        style={{ background: "linear-gradient(135deg,rgba(59,130,246,0.2),rgba(99,102,241,0.12))", border: "1px solid rgba(99,102,241,0.25)" }}>
+                        {BRAND_LOGOS[selectedBrand?.brand ?? ""]
+                          ? <img src={BRAND_LOGOS[selectedBrand?.brand ?? ""]} alt="" className="w-8 h-8 object-contain" />
+                          : <span className="text-xl">{selectedBrand?.icon}</span>}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-black text-white text-[14px] truncate">{selectedModel?.name}</p>
+                        <p className="text-[10px] font-mono mt-0.5" style={{ color: "#6366f1" }}>{selectedBrand?.brand}</p>
+                      </div>
+                      <div className="shrink-0">
+                        <div className="px-2.5 py-1 rounded-full text-[10px] font-black"
+                          style={{ background: "rgba(251,191,36,0.12)", color: "#f59e0b", border: "1px solid rgba(251,191,36,0.25)" }}>
+                          IN PROGRESS
+                        </div>
+                      </div>
+                    </div>
+                    <div className="px-4 py-2.5 flex items-center gap-2">
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#475569" strokeWidth="2"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+                      <p className="text-[11px] font-mono" style={{ color: "#475569" }}>IMEI: <span style={{ color: "#94a3b8" }}>{imei}</span></p>
+                    </div>
                   </div>
 
-                  {/* Device row */}
-                  <div className="px-4 py-3 flex items-center gap-3" style={{ background: "rgba(255,255,255,0.02)", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-                      style={{ background: "linear-gradient(135deg,rgba(59,130,246,0.15),rgba(99,102,241,0.1))", border: "1px solid rgba(99,102,241,0.2)" }}>
-                      {BRAND_LOGOS[selectedBrand?.brand ?? ""]
-                        ? <img src={BRAND_LOGOS[selectedBrand?.brand ?? ""]} alt="" className="w-7 h-7 object-contain" />
-                        : <span className="text-base">{selectedBrand?.icon}</span>}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[13px] font-bold text-white truncate tracking-tight">{selectedModel?.name}</p>
-                      <p className="text-[10px] text-slate-500 font-mono mt-0.5">{selectedBrand?.brand} · <span className="text-slate-400">{imei}</span></p>
-                    </div>
-                    <div className="text-right shrink-0 space-y-0.5">
-                      <p className="text-[18px] font-black font-mono leading-none" style={{ background: "linear-gradient(135deg,#3b82f6,#10b981)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{processingPct}%</p>
-                      <p className="text-[9px] text-slate-600 font-mono uppercase tracking-wider">verified</p>
-                    </div>
-                  </div>
+                  {/* Circular progress + stage checklist */}
+                  <div className="rounded-2xl p-5" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                    <div className="flex items-center gap-5">
 
-                  {/* Segmented progress bar */}
-                  <div className="px-4 pt-3 pb-1">
-                    <div className="flex gap-0.5 h-1.5">
-                      {Array.from({ length: 20 }).map((_, i) => {
-                        const filled = (i + 1) * 5 <= processingPct;
-                        const active = !filled && i * 5 < processingPct;
-                        return (
+                      {/* SVG ring */}
+                      <div className="relative shrink-0" style={{ width: 96, height: 96 }}>
+                        <svg width="96" height="96" viewBox="0 0 96 96" style={{ transform: "rotate(-90deg)" }}>
+                          <circle cx="48" cy="48" r="40" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="8" />
+                          <circle cx="48" cy="48" r="40" fill="none"
+                            stroke="url(#ringGrad)" strokeWidth="8" strokeLinecap="round"
+                            strokeDasharray={2 * Math.PI * 40}
+                            strokeDashoffset={2 * Math.PI * 40 * (1 - processingPct / 100)}
+                            style={{ transition: "stroke-dashoffset 0.4s ease" }} />
+                          <defs>
+                            <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                              <stop offset="0%" stopColor="#3b82f6" />
+                              <stop offset="100%" stopColor="#10b981" />
+                            </linearGradient>
+                          </defs>
+                        </svg>
+                        <div className="absolute inset-0 flex flex-col items-center justify-center">
+                          <span className="font-black text-xl text-white leading-none">{processingPct}%</span>
+                          <span className="text-[9px] font-bold uppercase tracking-wide mt-0.5" style={{ color: "#6366f1" }}>done</span>
+                        </div>
+                      </div>
+
+                      {/* Stage checklist */}
+                      <div className="flex-1 space-y-2">
+                        {[
+                          { label: "IMEI Validated",     threshold: 10 },
+                          { label: "Network Auth OK",    threshold: 30 },
+                          { label: "Carrier DB Queried", threshold: 55 },
+                          { label: "Blacklist Cleared",  threshold: 75 },
+                          { label: "Code Generated",     threshold: 95 },
+                        ].map(({ label, threshold }) => {
+                          const done = processingPct >= threshold;
+                          const active = !done && processingPct >= threshold - 20;
+                          return (
+                            <div key={label} className="flex items-center gap-2">
+                              <div className="shrink-0 w-4 h-4 rounded-full flex items-center justify-center"
+                                style={{
+                                  background: done ? "rgba(16,185,129,0.18)" : active ? "rgba(251,191,36,0.12)" : "rgba(255,255,255,0.04)",
+                                  border: done ? "1.5px solid rgba(16,185,129,0.5)" : active ? "1.5px solid rgba(251,191,36,0.4)" : "1.5px solid rgba(255,255,255,0.08)",
+                                }}>
+                                {done
+                                  ? <svg width="8" height="8" viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke="#10b981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                                  : active
+                                    ? <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                                    : <span className="w-1 h-1 rounded-full" style={{ background: "rgba(255,255,255,0.1)" }} />}
+                              </div>
+                              <p className={`text-[11px] font-semibold ${done ? "line-through" : ""}`}
+                                style={{ color: done ? "#10b981" : active ? "#fbbf24" : "#374151" }}>
+                                {label}
+                              </p>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Thin segmented bar */}
+                    <div className="mt-4">
+                      <div className="flex gap-0.5 h-1">
+                        {Array.from({ length: 30 }).map((_, i) => (
                           <div key={i} className="flex-1 rounded-full transition-all duration-300"
                             style={{
-                              background: filled
-                                ? `linear-gradient(90deg,#3b82f6,#10b981)`
-                                : active
-                                  ? "rgba(59,130,246,0.4)"
-                                  : "rgba(255,255,255,0.05)",
+                              background: (i + 1) * (100 / 30) <= processingPct
+                                ? "linear-gradient(90deg,#3b82f6,#10b981)"
+                                : i * (100 / 30) < processingPct
+                                  ? "rgba(59,130,246,0.35)"
+                                  : "rgba(255,255,255,0.04)",
                             }} />
+                        ))}
+                      </div>
+                      <p className="text-[10px] font-mono mt-1.5 text-center" style={{ color: "#334155" }}>
+                        {processingPct < 100 ? "Verifying global carrier databases..." : "Verification complete"}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Keep-open warning */}
+                  <div className="flex items-start gap-3 rounded-2xl px-4 py-3"
+                    style={{ background: "rgba(251,191,36,0.07)", border: "1px solid rgba(251,191,36,0.2)" }}>
+                    <AlertCircle size={16} className="text-amber-400 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-black text-[12px]" style={{ color: "#fbbf24" }}>Keep this page open</p>
+                      <p className="text-[10px] leading-relaxed mt-0.5" style={{ color: "#78350f" }}>
+                        Closing or refreshing will interrupt verification. You may need to restart.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Live terminal */}
+                  <div className="rounded-2xl overflow-hidden" style={{ background: "#090f1a", border: "1px solid rgba(99,102,241,0.15)" }}>
+                    <div className="flex items-center gap-2 px-3.5 py-2.5"
+                      style={{ background: "rgba(255,255,255,0.025)", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                      <span className="w-2.5 h-2.5 rounded-full" style={{ background: "#ef4444", opacity: 0.7 }} />
+                      <span className="w-2.5 h-2.5 rounded-full" style={{ background: "#f59e0b", opacity: 0.7 }} />
+                      <span className="w-2.5 h-2.5 rounded-full" style={{ background: "#22c55e", opacity: 0.7 }} />
+                      <p className="text-[10px] font-mono font-semibold ml-2" style={{ color: "#475569" }}>gsm-unlock-engine v3.2</p>
+                      <div className="ml-auto flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                        <span className="text-[9px] font-bold font-mono" style={{ color: "#4ade80" }}>RUNNING</span>
+                      </div>
+                    </div>
+                    <div className="px-3.5 py-3 space-y-1.5 min-h-[110px]">
+                      {PROCESSING_MSGS.slice(0, processingIdx + 1).slice(-7).map((msg, _i, arr) => {
+                        const isLast = _i === arr.length - 1;
+                        const isGreen = msg.includes("✓") || msg.includes("OK") || msg.includes("clean") || msg.includes("eligible") || msg.includes("valid");
+                        const isAuth = msg.includes("[AUTH]");
+                        const isImei = msg.includes("[IMEI]") || msg.includes("[POLICY]");
+                        return (
+                          <div key={msg} className="flex items-start gap-2 font-mono">
+                            {isLast && processingPct < 100
+                              ? <span className="w-3 h-3 mt-0.5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin shrink-0" />
+                              : <span className={`text-[10px] shrink-0 mt-px ${isGreen ? "text-emerald-500" : isAuth ? "text-blue-400" : isImei ? "text-purple-400" : "text-slate-700"}`}>›</span>}
+                            <span className={`text-[10px] leading-snug ${
+                              isLast && processingPct < 100 ? "text-sky-300" : isGreen ? "text-emerald-400" : isAuth ? "text-blue-300" : isImei ? "text-purple-300" : "text-slate-600"
+                            }`}>{msg}</span>
+                          </div>
                         );
                       })}
+                      {processingPct < 100 && <span className="text-blue-400 text-[11px] animate-pulse font-mono">▌</span>}
                     </div>
                   </div>
 
-                  {/* Terminal output */}
-                  <div className="px-4 pb-5 pt-3 space-y-2 min-h-[160px]">
-                    {PROCESSING_MSGS.slice(0, processingIdx + 1).slice(-8).map((msg, _i, arr) => {
-                      const isLast = _i === arr.length - 1;
-                      const isGreen = msg.includes("✓") || msg.includes("OK") || msg.includes("clean") || msg.includes("eligible") || msg.includes("valid");
-                      const isAuth = msg.includes("[AUTH]");
-                      const isImei = msg.includes("[IMEI]") || msg.includes("[POLICY]");
-                      return (
-                        <div key={msg} className="flex items-start gap-2.5 font-mono">
-                          {isLast && processingPct < 100 ? (
-                            <span className="w-3.5 h-3.5 mt-0.5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin shrink-0" />
-                          ) : (
-                            <span className={`text-[10px] shrink-0 mt-px font-bold ${isGreen ? "text-emerald-500" : isAuth ? "text-blue-500" : isImei ? "text-purple-400" : "text-slate-600"}`}>›</span>
-                          )}
-                          <span className={`text-[11px] leading-snug ${
-                            isLast && processingPct < 100
-                              ? "text-blue-100"
-                              : isGreen
-                                ? "text-emerald-400"
-                                : isAuth
-                                  ? "text-blue-300"
-                                  : isImei
-                                    ? "text-purple-300"
-                                    : "text-slate-500"
-                          }`}>{msg}</span>
-                        </div>
-                      );
-                    })}
-                    {processingPct < 100 && <span className="text-blue-400 text-xs animate-pulse font-mono">▌</span>}
+                  {/* Trust badges */}
+                  <div className="grid grid-cols-3 gap-2 pb-6">
+                    {[
+                      { icon: "🔒", label: "256-bit SSL", sub: "Encrypted" },
+                      { icon: "🌍", label: "15,000+",    sub: "Devices Unlocked" },
+                      { icon: "⚡",        label: "2–24 hrs",  sub: "Avg Delivery" },
+                    ].map(t => (
+                      <div key={t.label} className="flex flex-col items-center gap-0.5 rounded-xl py-3"
+                        style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                        <span className="text-[18px] leading-none mb-0.5">{t.icon}</span>
+                        <p className="font-black text-[11px]" style={{ color: "#e2e8f0" }}>{t.label}</p>
+                        <p className="text-[9px] uppercase tracking-wide font-bold" style={{ color: "#374151" }}>{t.sub}</p>
+                      </div>
+                    ))}
                   </div>
-                </div>
 
-                {/* ── Trust strip ── */}
-                <div className="grid grid-cols-3 gap-2">
-                  {[
-                    { icon: "🔒", label: "256-bit SSL" },
-                    { icon: "🌍", label: "15,000+ Unlocked" },
-                    { icon: "⚡", label: "Avg 2–24 hrs" },
-                  ].map(t => (
-                    <div key={t.label} className="flex flex-col items-center gap-1 rounded-xl py-2.5 shadow-sm"
-                      style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
-                      <span className="text-base leading-none">{t.icon}</span>
-                      <span className="text-[9px] font-bold tracking-wide text-center" style={{ color: "#64748b" }}>{t.label}</span>
-                    </div>
-                  ))}
                 </div>
-              </div>
-              </div>
-              </div>
               </div>
             )}
 

@@ -1724,15 +1724,8 @@ export function GsmBot() {
         }),
       });
       const data = (await res.json()) as BotResponse;
-      setMessages(prev => [...prev, { role: "assistant", content: data.message }]);
-
-      // Follow-up prompt: ask user to describe issue while waiting
-      setTimeout(() => {
-        setMessages(prev => [...prev, {
-          role: "assistant",
-          content: "✍️ **While you wait, please describe your issue in detail:**\n\nInclude:\n• Your device model & IMEI (if applicable)\n• What you've already tried\n• Any error messages you saw\n\nThe more detail you share now, the faster our agent can help you! 🚀",
-        }]);
-      }, 900);
+      // Note: data.message is the server confirmation — shown in Live Support chatbox,
+      // not here. showDescribePrompt (useEffect) handles the follow-up in humanMode.
 
       const sid = data.sessionId ?? null;
       setSessionId(sid);
@@ -1746,8 +1739,7 @@ export function GsmBot() {
         await pollHumanMessages(sid);
       }
     } catch {
-      // API unreachable — still enter human mode with a clear message
-      setMessages(prev => [...prev, { role: "assistant", content: "🔗 You're now connected to our support queue!\n\nWhile you wait for a human agent to join, **please describe your issue in detail** — include your device model, IMEI (if applicable), what you've already tried, and any error messages you saw. The more you share now, the faster we can help you! ✍️\n\nYou can also reach us directly:\n• **WhatsApp:** [+254112628799](https://wa.me/254112628799)\n• **Telegram:** [t.me/markjsbb](https://t.me/markjsbb)" }]);
+      // API unreachable — enter human mode; showDescribePrompt will handle the follow-up
       setHumanMode(true);
       setSessionStatus("waiting");
       setHumanEmailStep(false);
