@@ -1948,24 +1948,24 @@ export function GsmBot() {
                   </div>
                 </div>
 
-                {showDescribePrompt && (
-                  <div className="flex gap-2 justify-start" style={{ animation: "fadeSlideIn 0.4s ease forwards" }}>
-                    <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center shrink-0 mt-0.5">
-                      <Headphones size={11} className="text-emerald-600" />
-                    </div>
-                    <div className="max-w-[90%] rounded-2xl rounded-bl-sm px-3.5 py-3 text-sm leading-relaxed"
-                      style={{ background: "linear-gradient(135deg,#f0fdf4,#ecfdf5)", border: "1px solid rgba(34,197,94,0.2)" }}>
-                      <p className="text-[10px] font-bold text-gray-500 mb-1.5">Support Team</p>
-                      <p className="font-bold text-[12px] text-gray-800 mb-2">✍️ While you wait, describe your issue:</p>
-                      <ul className="text-[11px] text-gray-600 space-y-1 mb-2">
-                        <li>• Device model &amp; IMEI (if applicable)</li>
-                        <li>• What you've already tried</li>
-                        <li>• Any error messages you saw</li>
-                      </ul>
-                      <p className="text-[11px] text-emerald-700 font-semibold">The more detail now → the faster we resolve it 🚀</p>
-                    </div>
+                <div className="flex gap-2 justify-start" style={{ animation: "fadeSlideIn 0.45s ease both", animationDelay: "1.2s" }}>
+                  <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center shrink-0 mt-0.5">
+                    <Headphones size={11} className="text-emerald-600" />
                   </div>
-                )}
+                  <div className="max-w-[90%] rounded-2xl rounded-bl-sm px-3.5 py-3 text-sm leading-relaxed"
+                    style={{ background: "linear-gradient(135deg,#f0fdf4,#ecfdf5)", border: "1px solid rgba(34,197,94,0.2)" }}>
+                    <p className="text-[10px] font-bold text-gray-500 mb-1.5">Support Team</p>
+                    <p className="font-bold text-[12px] text-gray-800 mb-2">✍️ While you wait, please describe your issue in detail:</p>
+                    <p className="text-[11px] text-gray-500 mb-1.5 font-semibold">Include:</p>
+                    <ul className="text-[11px] text-gray-600 space-y-1 mb-2.5">
+                      <li>• Your device model &amp; IMEI (if applicable)</li>
+                      <li>• What you've already tried</li>
+                      <li>• Any error messages you saw</li>
+                    </ul>
+                    <p className="text-[11px] text-emerald-700 font-semibold">The more detail you share now, the faster our agent can help you! 🚀</p>
+                  </div>
+                </div>
+                <style>{`@keyframes fadeSlideIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }`}</style>
 
                 {humanMessages.map(msg => {
                   const isAdmin = msg.senderType === "admin";

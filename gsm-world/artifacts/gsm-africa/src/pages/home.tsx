@@ -349,11 +349,30 @@ function HomeImeiChecker() {
   );
 }
 
+const HERO_UNLOCKS = [
+  { model: "iPhone 15 Pro", country: "Nairobi, KE" },
+  { model: "Samsung S24 Ultra", country: "Lagos, NG" },
+  { model: "iPhone 14 Plus", country: "Accra, GH" },
+  { model: "Pixel 8 Pro", country: "Cairo, EG" },
+  { model: "iPhone 13 Pro", country: "Kampala, UG" },
+  { model: "OnePlus 12", country: "Johannesburg, ZA" },
+  { model: "Xiaomi 14 Pro", country: "Kigali, RW" },
+  { model: "Samsung A55", country: "Dar es Salaam, TZ" },
+  { model: "iPhone 15", country: "Lusaka, ZM" },
+  { model: "Tecno Phantom X2", country: "Addis Ababa, ET" },
+];
+
 export function Home() {
   const [, navigate] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
+  const [heroIdx, setHeroIdx] = useState(() => Math.floor(Math.random() * HERO_UNLOCKS.length));
   const { data: categoriesData } = useListCategories();
   const { data: productTotalData } = useListProducts({ limit: 1, page: 1 });
+
+  useEffect(() => {
+    const t = setInterval(() => setHeroIdx(i => (i + 1) % HERO_UNLOCKS.length), 4000);
+    return () => clearInterval(t);
+  }, []);
 
   useEffect(() => {
     if (document.getElementById("gsm-styles")) return;
@@ -448,8 +467,8 @@ export function Home() {
             <div className="w-9 h-9 rounded-xl flex items-center justify-center mb-1.5" style={{ background: "linear-gradient(135deg,rgba(59,130,246,0.22),rgba(99,102,241,0.22))", border: "1px solid rgba(99,102,241,0.45)" }}>
               <Unlock size={16} className="text-blue-300" />
             </div>
-            <p className="text-[10px] font-black text-white leading-tight">iPhone 15 Pro</p>
-            <p className="text-[9px] leading-tight" style={{ color: "rgba(255,255,255,0.35)" }}>Kenya</p>
+            <p className="text-[10px] font-black text-white leading-tight">{HERO_UNLOCKS[heroIdx].model}</p>
+            <p className="text-[9px] leading-tight" style={{ color: "rgba(255,255,255,0.35)" }}>{HERO_UNLOCKS[heroIdx].country}</p>
             <div className="flex items-center gap-1 mt-1">
               <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse shrink-0" />
               <p className="text-[9px] font-black text-green-400">UNLOCKED ✓</p>

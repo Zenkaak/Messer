@@ -1055,6 +1055,22 @@ export function DirectUnlockPage() {
                     </div>
                   </div>
 
+                  {/* Queue position + ETA strip */}
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { label: "Queue Position", value: `#${Math.max(1, 4 - Math.floor(processingPct / 30))}`, color: "#f59e0b", sub: "in unlock queue" },
+                      { label: "Est. Completion", value: processingPct < 50 ? "~18 min" : processingPct < 85 ? "~6 min" : "~1 min", color: "#60a5fa", sub: "at current rate" },
+                      { label: "Server Region", value: "AF-01", color: "#a78bfa", sub: "GSM cluster" },
+                    ].map(({ label, value, color, sub }) => (
+                      <div key={label} className="rounded-xl px-2 py-2.5 flex flex-col items-center text-center"
+                        style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                        <p className="text-[13px] font-black leading-none" style={{ color }}>{value}</p>
+                        <p className="text-[8px] font-black uppercase tracking-wider mt-1" style={{ color: "rgba(255,255,255,0.3)" }}>{label}</p>
+                        <p className="text-[8px] mt-0.5" style={{ color: "rgba(255,255,255,0.15)" }}>{sub}</p>
+                      </div>
+                    ))}
+                  </div>
+
                   {/* Circular progress + stage checklist */}
                   <div className="rounded-2xl p-5" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
                     <div className="flex items-center gap-5">
