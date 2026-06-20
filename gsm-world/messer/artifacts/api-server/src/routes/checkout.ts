@@ -413,11 +413,12 @@ router.post("/checkout", async (req, res) => {
 
     // Admin notification — fire-and-forget
     getSmtpConfig().then((cfg) => {
-      const adminEmail = cfg.emailFrom;
-      if (adminEmail) {
-        const itemSummary = itemsForEmail.map((i) => `${i.productName} ×${i.quantity}`).join(", ");
+      const itemSummary = itemsForEmail.map((i) => `${i.productName} ×${i.quantity}`).join(", ");
+      const targets = [cfg.emailFrom, "support@dasnett.site"].filter((e): e is string => Boolean(e) && e.trim() !== "");
+      const uniqueTargets = [...new Set(targets)];
+      uniqueTargets.forEach(to => {
         sendEmail({
-          to: adminEmail,
+          to,
           ...adminNewOrderAlertEmail({
             orderId: order.id,
             orderCode: order.orderCode,
@@ -429,7 +430,7 @@ router.post("/checkout", async (req, res) => {
             paymentMethod,
           }),
         }).catch((err) => logger.error({ err }, "Failed to send admin order alert"));
-      }
+      });
     }).catch(() => { /* non-fatal */ });
 
     res.json(response);

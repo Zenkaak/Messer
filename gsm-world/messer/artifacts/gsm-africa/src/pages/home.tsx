@@ -101,45 +101,63 @@ export function Home() {
   ];
 
   return (
-    <div className="flex flex-col min-h-screen" style={{ background: "#080d18", color: "#e2e8f0" }}>
+    <div className="flex flex-col min-h-screen" style={{ background: "#060b14", color: "#e2e8f0" }}>
 
       {/* ── HERO ─────────────────────────────────────────────────────────────── */}
       <div className="relative overflow-hidden">
-        {/* Gradient layers */}
-        <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse 100% 70% at 50% -5%,rgba(59,130,246,0.22) 0%,transparent 70%)" }} />
-        <div className="absolute top-0 right-0 w-80 h-80 pointer-events-none opacity-[0.07]" style={{ background: "radial-gradient(circle,#818cf8 0%,transparent 70%)", transform: "translate(25%,-25%)" }} />
-        <div className="absolute bottom-0 left-0 w-64 h-64 pointer-events-none opacity-[0.06]" style={{ background: "radial-gradient(circle,#34d399 0%,transparent 70%)", transform: "translate(-30%,30%)" }} />
+        {/* Rich gradient layers */}
+        <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse 120% 80% at 50% -10%,rgba(99,102,241,0.28) 0%,transparent 65%)" }} />
+        <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse 80% 50% at 20% 50%,rgba(59,130,246,0.12) 0%,transparent 60%)" }} />
+        <div className="absolute top-0 right-0 w-72 h-72 pointer-events-none opacity-[0.15]" style={{ background: "radial-gradient(circle,#818cf8 0%,transparent 70%)", transform: "translate(20%,-20%)" }} />
+        <div className="absolute bottom-0 left-0 w-56 h-56 pointer-events-none opacity-[0.1]" style={{ background: "radial-gradient(circle,#34d399 0%,transparent 70%)", transform: "translate(-25%,25%)" }} />
+        {/* Grid pattern overlay */}
+        <div className="absolute inset-0 pointer-events-none opacity-[0.025]" style={{ backgroundImage: "repeating-linear-gradient(0deg,#fff 0,#fff 1px,transparent 1px,transparent 40px),repeating-linear-gradient(90deg,#fff 0,#fff 1px,transparent 1px,transparent 40px)" }} />
 
-        <div className="relative z-10 flex flex-col items-center text-center px-5 pt-10 pb-8">
-          {/* Live badge */}
-          <div className="inline-flex items-center gap-2 mb-5 px-3.5 py-1.5 rounded-full border text-xs font-bold"
-            style={{ background: "rgba(16,185,129,0.1)", borderColor: "rgba(16,185,129,0.3)", color: "#34d399" }}>
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            Live · Trusted since 2016 · 10,000+ customers
+        <div className="relative z-10 flex flex-col items-center text-center px-5 pt-10 pb-6">
+          {/* Trust badge */}
+          <div className="inline-flex items-center gap-2 mb-4 px-4 py-1.5 rounded-full border text-[11px] font-bold"
+            style={{ background: "rgba(16,185,129,0.12)", borderColor: "rgba(16,185,129,0.35)", color: "#34d399" }}>
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            Live · Trusted since 2016 · 10,000+ served
           </div>
 
-          <h1 className="font-black leading-[1.1] tracking-tight mb-3" style={{ fontSize: "clamp(30px,8vw,46px)", color: "#f8fafc" }}>
+          <h1 className="font-black leading-[1.05] tracking-tight mb-2" style={{ fontSize: "clamp(32px,9vw,50px)", color: "#f8fafc" }}>
             East Africa's #1<br />
-            <span style={{ background: "linear-gradient(90deg,#60a5fa 0%,#a78bfa 50%,#34d399 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+            <span style={{ background: "linear-gradient(90deg,#60a5fa 0%,#818cf8 45%,#34d399 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>
               Phone Services Hub
             </span>
           </h1>
 
-          <p className="text-sm font-medium mb-6 max-w-xs leading-relaxed" style={{ color: "#94a3b8" }}>
-            Unlock any phone · Remove iCloud locks · Buy gift cards · Top up server credits — delivered in under 2 hours, worldwide.
+          <p className="text-[13px] font-medium mb-5 max-w-xs leading-relaxed" style={{ color: "#94a3b8" }}>
+            Unlock any phone · Remove iCloud locks · Buy gift cards · Top up server credits
           </p>
 
+          {/* Floating feature pills */}
+          <div className="flex flex-wrap gap-2 justify-center mb-5 max-w-sm">
+            {[
+              { icon: "⚡", label: "Instant delivery" },
+              { icon: "🔒", label: "100% secure" },
+              { icon: "🌍", label: "Works worldwide" },
+              { icon: "💬", label: "24/7 support" },
+            ].map(({ icon, label }) => (
+              <span key={label} className="flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1 rounded-full"
+                style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "#cbd5e1" }}>
+                {icon} {label}
+              </span>
+            ))}
+          </div>
+
           {/* CTA buttons */}
-          <div className="flex gap-3 mb-7 w-full max-w-xs">
+          <div className="flex gap-3 mb-6 w-full max-w-xs">
             <Link href="/products" className="flex-1">
-              <button className="w-full flex items-center justify-center gap-2 font-black text-sm px-5 py-3 rounded-2xl text-white transition-all active:scale-95"
-                style={{ background: "linear-gradient(135deg,#3b82f6,#6366f1)", boxShadow: "0 6px 24px rgba(99,102,241,0.4)" }}>
+              <button className="w-full flex items-center justify-center gap-2 font-black text-sm px-5 py-3.5 rounded-2xl text-white transition-all active:scale-95"
+                style={{ background: "linear-gradient(135deg,#4f46e5,#3b82f6)", boxShadow: "0 8px 28px rgba(79,70,229,0.45)" }}>
                 Browse Store <ArrowRight size={14} />
               </button>
             </Link>
             <Link href="/direct-unlock" className="flex-1">
-              <button className="w-full flex items-center justify-center gap-2 font-bold text-sm px-5 py-3 rounded-2xl border transition-all active:scale-95"
-                style={{ background: "rgba(255,255,255,0.06)", borderColor: "rgba(255,255,255,0.15)", color: "#e2e8f0" }}>
+              <button className="w-full flex items-center justify-center gap-2 font-bold text-sm px-5 py-3.5 rounded-2xl border transition-all active:scale-95"
+                style={{ background: "rgba(255,255,255,0.07)", borderColor: "rgba(255,255,255,0.18)", color: "#f1f5f9" }}>
                 Unlock Now
               </button>
             </Link>
@@ -148,44 +166,59 @@ export function Home() {
           {/* Search */}
           <form onSubmit={handleSearch} className="w-full max-w-sm">
             <div className="relative flex items-center">
-              <Search size={14} className="absolute left-4 pointer-events-none" style={{ color: "#64748b" }} />
+              <Search size={14} className="absolute left-4 pointer-events-none" style={{ color: "#4b5563" }} />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 placeholder="Search — iPhone, Samsung, Steam..."
-                className="w-full pl-10 pr-[72px] py-3.5 rounded-2xl text-sm outline-none"
+                className="w-full pl-10 pr-[76px] py-3.5 rounded-2xl text-sm outline-none"
                 style={{
                   background: "rgba(255,255,255,0.07)",
-                  border: "1px solid rgba(255,255,255,0.11)",
+                  border: "1px solid rgba(255,255,255,0.12)",
                   color: "#f1f5f9",
                   caretColor: "#60a5fa",
                 }}
               />
-              <button type="submit" className="absolute right-1.5 text-xs font-bold px-3.5 py-2 rounded-xl text-white"
-                style={{ background: "linear-gradient(135deg,#3b82f6,#6366f1)" }}>
+              <button type="submit" className="absolute right-1.5 text-xs font-bold px-4 py-2 rounded-xl text-white"
+                style={{ background: "linear-gradient(135deg,#4f46e5,#3b82f6)" }}>
                 Search
               </button>
             </div>
           </form>
         </div>
 
+        {/* Scrolling service ticker */}
+        <div className="relative z-10 overflow-hidden py-2.5 border-y" style={{ borderColor: "rgba(255,255,255,0.06)", background: "rgba(0,0,0,0.3)" }}>
+          <div className="flex gap-8 animate-marquee whitespace-nowrap" style={{ animationDuration: "20s" }}>
+            {["📱 iPhone Unlock", "🤖 Android FRP", "☁️ iCloud Bypass", "🎮 PSN Cards", "💸 USDT Accepted", "🔧 26 Tool Rentals", "⚡ Server Credits", "🌍 Works in Any Country", "📱 iPhone Unlock", "🤖 Android FRP", "☁️ iCloud Bypass", "🎮 PSN Cards", "💸 USDT Accepted", "🔧 26 Tool Rentals", "⚡ Server Credits", "🌍 Works in Any Country"].map((item, i) => (
+              <span key={i} className="text-[11px] font-semibold shrink-0" style={{ color: "#64748b" }}>{item}</span>
+            ))}
+          </div>
+        </div>
+
         {/* Stats strip */}
-        <div className="relative z-10 grid grid-cols-4 border-t" style={{ borderColor: "rgba(255,255,255,0.07)", background: "rgba(0,0,0,0.25)" }}>
+        <div className="relative z-10 grid grid-cols-4 border-b" style={{ borderColor: "rgba(255,255,255,0.06)", background: "rgba(0,0,0,0.2)" }}>
           {[
-            { value: productStat,  label: "Products"   },
-            { value: categoryStat, label: "Categories" },
-            { value: "98%",        label: "Success"    },
-            { value: "24/7",       label: "Support"    },
-          ].map(({ value, label }, i) => (
-            <div key={label} className="flex flex-col items-center py-3"
-              style={{ borderRight: i < 3 ? "1px solid rgba(255,255,255,0.07)" : undefined }}>
-              <span className="font-black text-base leading-none" style={{ color: "#f8fafc" }}>{value}</span>
-              <span className="text-[9px] font-semibold mt-0.5 uppercase tracking-widest" style={{ color: "#60a5fa" }}>{label}</span>
+            { value: productStat,  label: "Products",   accent: "#60a5fa" },
+            { value: categoryStat, label: "Categories", accent: "#818cf8" },
+            { value: "98%",        label: "Success",    accent: "#34d399" },
+            { value: "24/7",       label: "Support",    accent: "#f59e0b" },
+          ].map(({ value, label, accent }, i) => (
+            <div key={label} className="flex flex-col items-center py-3.5"
+              style={{ borderRight: i < 3 ? "1px solid rgba(255,255,255,0.06)" : undefined }}>
+              <span className="font-black text-[17px] leading-none" style={{ color: accent }}>{value}</span>
+              <span className="text-[9px] font-bold mt-1 uppercase tracking-widest" style={{ color: "#475569" }}>{label}</span>
             </div>
           ))}
         </div>
       </div>
+
+      {/* ── TICKER STYLE / MARQUEE CSS ────────────────────────────────────────── */}
+      <style>{`
+        @keyframes marquee { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+        .animate-marquee { animation: marquee linear infinite; }
+      `}</style>
 
       {/* ── TOP PRICES TABLE ─────────────────────────────────────────────────── */}
       <div className="px-4 pt-7 pb-3">

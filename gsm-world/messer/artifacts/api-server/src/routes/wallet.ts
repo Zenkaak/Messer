@@ -131,8 +131,8 @@ router.post("/wallet/add-fund/nowpayments", async (req, res) => {
   const payload = getUser(req.headers.authorization);
   if (!payload) { res.status(401).json({ error: "Unauthorized" }); return; }
   const { amount, payCurrency } = req.body || {};
-  if (!amount || isNaN(Number(amount)) || Number(amount) < 13) {
-    res.status(400).json({ error: "Minimum top-up amount is $13 USD" });
+  if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
+    res.status(400).json({ error: "Please enter a valid amount greater than $0" });
     return;
   }
   const enabled = await isNowPaymentsEnabled();

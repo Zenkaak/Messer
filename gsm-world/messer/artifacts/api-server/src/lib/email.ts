@@ -544,7 +544,7 @@ export function orderStatusUpdateEmail(params: {
     <p style="margin:0 0 20px;font-size:15px;color:#475569;">Dear <strong style="color:#0f172a;">${name}</strong>,</p>
     <p style="margin:0 0 20px;font-size:15px;color:#475569;">We are writing to inform you of an update to your <strong style="color:#0f172a;">Order #${params.orderId}</strong>.</p>
     ${statusChip(st.label, st.color)}
-    ${params.notes ? alertBox("Message from Our Team", params.notes, st.accent, "#f8fafc") : ""}
+    ${params.notes ? alertBox(params.status === "cancelled" ? "Cancellation Reason" : "Message from Our Team", params.notes, params.status === "cancelled" ? "#dc2626" : st.accent, params.status === "cancelled" ? "#fff1f2" : "#f8fafc") : ""}
     ${btn("View Order Details", orderUrl, st.accent)}
     <div style="margin-top:32px;padding-top:20px;border-top:1px solid #f1f5f9;">
       <p style="margin:0;font-size:14px;color:#475569;">For any questions or concerns, please reply to this email or contact us via WhatsApp.</p>

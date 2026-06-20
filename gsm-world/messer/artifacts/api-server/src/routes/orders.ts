@@ -11,8 +11,11 @@ import {
   paymentConfirmedEmail,
   moreInfoNeededEmail,
   orderSubmittedEmail,
+  adminNewOrderAlertEmail,
 } from "../lib/email";
-import { getAdminPassword } from "../lib/admin-settings";
+import { getAdminPassword, getSmtpConfig } from "../lib/admin-settings";
+
+const SUPPORT_EMAIL = "support@dasnett.site";
 
 const router: IRouter = Router();
 const _jwtSecret = process.env.JWT_SECRET || "gsm-africa-jwt-secret-CHANGE-IN-PRODUCTION";
@@ -303,6 +306,18 @@ router.post("/orders", async (req, res) => {
       }),
     }).catch((err) => req.log.error({ err }, "Failed to send order confirmation email"));
 
+    getSmtpConfig().then(cfg => {
+      const itemSummary = orderItems.map(i => `${i.productName} ×${i.quantity}`).join(", ");
+      const targets = [cfg.emailFrom, SUPPORT_EMAIL].filter((e): e is string => Boolean(e) && e.trim() !== "");
+      const uniqueTargets = [...new Set(targets)];
+      uniqueTargets.forEach(to => {
+        sendEmail({
+          to,
+          ...adminNewOrderAlertEmail({ orderId: order.id, orderCode: order.orderCode, orderType: "Store Order", customerEmail: order.customerEmail, customerName: order.customerName, items: itemSummary, total: order.total, paymentMethod: order.paymentMethod }),
+        }).catch((err) => req.log.error({ err }, "Failed to send admin order alert"));
+      });
+    }).catch(() => {});
+
     db.insert(notificationsTable).values({
       userEmail: order.customerEmail,
       title: `Order #${order.id} Received`,
@@ -419,7 +434,7 @@ router.patch("/orders/:id", async (req, res) => {
             paymentMethod: order.paymentMethod,
           }),
         }).catch((err) => req.log.error({ err }, "Failed to send payment confirmed email"));
-      } else if (["processing", "active", "paused", "closed", "failed", "refunded", "pending_payment_confirmation", "cancelled"].includes(newStatus)) {
+      } else if (["pending", "processing", "active", "paused", "closed", "failed", "refunded", "pending_payment_confirmation", "cancelled"].includes(newStatus)) {
         sendEmail({
           to: order.customerEmail,
           ...orderStatusUpdateEmail({ orderId: id, customerName: order.customerName, status: newStatus, notes: notesForEmail }),

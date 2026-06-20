@@ -1429,10 +1429,12 @@ export function GsmBot() {
   const [humanSending, setHumanSending] = useState(false);
   const [humanFile, setHumanFile] = useState<File | null>(null);
   const [lastPollTime, setLastPollTime] = useState<Date | null>(null);
-  // Email capture step for guest users
+  // Email + phone capture step for guest users
   const [humanEmailStep, setHumanEmailStep] = useState(false);
   const [capturedEmail, setCapturedEmail] = useState("");
+  const [capturedPhone, setCapturedPhone] = useState("");
   const [emailError, setEmailError] = useState("");
+  const [phoneError, setPhoneError] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const humanInputRef = useRef<HTMLInputElement>(null);
@@ -1691,13 +1693,16 @@ export function GsmBot() {
     void sendMessage(`Tell me more about: ${p.name} (ID: ${p.id})`);
   }
 
-  // ── Request human (core, accepts optional guest email) ────────────────────
-  async function requestHuman(guestEmail?: string) {
+  // ── Request human (core, accepts optional guest email + phone) ───────────
+  async function requestHuman(guestEmail?: string, guestPhone?: string) {
     if (loading) return;
     setLoading(true);
     try {
       const visitorEmail = user?.email || guestEmail || null;
       const visitorName = user?.name || user?.email?.split("@")[0] || (guestEmail ? guestEmail.split("@")[0] : null);
+      const visitorPhone = guestPhone || null;
+      let visitorTimezone: string | null = null;
+      try { visitorTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { /* ignore */ }
       const res = await fetch(`${base}/api/chat/bot`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1706,6 +1711,8 @@ export function GsmBot() {
           visitorId: visitorId.current,
           visitorName,
           visitorEmail,
+          visitorPhone,
+          visitorTimezone,
         }),
       });
       const data = (await res.json()) as BotResponse;
@@ -1717,6 +1724,7 @@ export function GsmBot() {
       setHumanMode(true);
       setHumanEmailStep(false);
       setCapturedEmail("");
+      setCapturedPhone("");
       setLastPollTime(new Date());
       if (sid) {
         await pollHumanMessages(sid);
@@ -1732,24 +1740,42 @@ export function GsmBot() {
     }
   }
 
-  // ── Initiate human request — connect immediately for everyone ─────────────
+  // ── Initiate human request — show email+phone form for guests ────────────
   function startHumanRequest() {
     if (loading) return;
+    if (!user) {
+      // Guest: collect contact details first
+      setHumanEmailStep(true);
+      setCapturedEmail("");
+      setCapturedPhone("");
+      setEmailError("");
+      setPhoneError("");
+      setTimeout(() => emailCaptureRef.current?.focus(), 100);
+      return;
+    }
     void requestHuman();
   }
 
-  // ── Submit captured email then connect ────────────────────────────────────
+  // ── Submit captured email + phone then connect ────────────────────────────
   function submitEmailAndConnect() {
     const email = capturedEmail.trim();
-    const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-    if (!valid) {
+    const phone = capturedPhone.trim();
+    let hasError = false;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       setEmailError("Please enter a valid email address.");
-      emailCaptureRef.current?.focus();
-      return;
+      hasError = true;
+    } else {
+      setEmailError("");
     }
-    setEmailError("");
+    if (!phone) {
+      setPhoneError("Phone number is required so our agent can call you back.");
+      hasError = true;
+    } else {
+      setPhoneError("");
+    }
+    if (hasError) { emailCaptureRef.current?.focus(); return; }
     setHumanEmailStep(false);
-    void requestHuman(email);
+    void requestHuman(email, phone);
   }
 
   // ── Send human message ────────────────────────────────────────────────────
@@ -2197,34 +2223,49 @@ export function GsmBot() {
               {/* Bot input area */}
               <div className="px-3 pb-3 pt-2 border-t border-gray-100 shrink-0 space-y-2">
                 {humanEmailStep ? (
-                  /* ── Email capture step ── */
-                  <div className="space-y-1.5">
-                    <div className="flex items-center gap-1.5 text-[11px] font-semibold text-blue-700 bg-blue-50 border border-blue-100 rounded-xl px-3 py-1.5">
-                      <Mail size={11} className="shrink-0" />
-                      Enter your email to connect with a human agent
+                  /* ── Email + Phone capture step for guests ── */
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-1.5 text-[11px] font-semibold text-blue-700 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2">
+                      <Headphones size={11} className="shrink-0" />
+                      Enter your contact info so our agent can assist you
                     </div>
-                    <div className="flex gap-2">
+                    <div>
                       <input
                         ref={emailCaptureRef}
                         type="email"
                         value={capturedEmail}
                         onChange={e => { setCapturedEmail(e.target.value); setEmailError(""); }}
-                        onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); submitEmailAndConnect(); } if (e.key === "Escape") { setHumanEmailStep(false); setCapturedEmail(""); } }}
-                        placeholder="your@email.com"
+                        onKeyDown={e => { if (e.key === "Escape") { setHumanEmailStep(false); setCapturedEmail(""); setCapturedPhone(""); } }}
+                        placeholder="Email address *"
                         disabled={loading}
-                        className={`flex-1 bg-gray-50 border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-1 ${emailError ? "border-red-400 focus:border-red-400 focus:ring-red-300" : "border-gray-200 focus:border-blue-400 focus:ring-blue-400"}`}
+                        className={`w-full bg-gray-50 border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-1 ${emailError ? "border-red-400 focus:border-red-400 focus:ring-red-300" : "border-gray-200 focus:border-blue-400 focus:ring-blue-400"}`}
                       />
-                      <button onClick={submitEmailAndConnect} disabled={loading || !capturedEmail.trim()}
-                        className="w-9 h-9 text-white rounded-xl flex items-center justify-center disabled:opacity-40 transition-colors shrink-0"
-                        style={{ background: "linear-gradient(135deg,#1a2332 0%,#1e3a5f 100%)" }}>
-                        {loading ? <RefreshCw size={14} className="animate-spin" /> : <Send size={14} />}
+                      {emailError && <p className="text-[10px] text-red-500 font-medium px-1 mt-0.5">{emailError}</p>}
+                    </div>
+                    <div>
+                      <input
+                        type="tel"
+                        value={capturedPhone}
+                        onChange={e => { setCapturedPhone(e.target.value); setPhoneError(""); }}
+                        onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); submitEmailAndConnect(); } }}
+                        placeholder="Phone number (e.g. 0712345678) *"
+                        disabled={loading}
+                        className={`w-full bg-gray-50 border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-1 ${phoneError ? "border-red-400 focus:border-red-400 focus:ring-red-300" : "border-gray-200 focus:border-blue-400 focus:ring-blue-400"}`}
+                      />
+                      {phoneError && <p className="text-[10px] text-red-500 font-medium px-1 mt-0.5">{phoneError}</p>}
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={submitEmailAndConnect} disabled={loading || !capturedEmail.trim() || !capturedPhone.trim()}
+                        className="flex-1 flex items-center justify-center gap-1.5 text-white rounded-xl py-2 text-[12px] font-bold disabled:opacity-40 transition-colors"
+                        style={{ background: "linear-gradient(135deg,#059669 0%,#047857 100%)" }}>
+                        {loading ? <RefreshCw size={13} className="animate-spin" /> : <Headphones size={13} />}
+                        Connect to Agent
+                      </button>
+                      <button onClick={() => { setHumanEmailStep(false); setCapturedEmail(""); setCapturedPhone(""); setEmailError(""); setPhoneError(""); }}
+                        className="text-[11px] text-slate-400 hover:text-slate-600 transition-colors px-2">
+                        Cancel
                       </button>
                     </div>
-                    {emailError && <p className="text-[11px] text-red-500 font-medium px-1">{emailError}</p>}
-                    <button onClick={() => { setHumanEmailStep(false); setCapturedEmail(""); setEmailError(""); }}
-                      className="text-[11px] text-slate-400 hover:text-slate-600 transition-colors">
-                      Skip — connect without email
-                    </button>
                   </div>
                 ) : (
                   <>

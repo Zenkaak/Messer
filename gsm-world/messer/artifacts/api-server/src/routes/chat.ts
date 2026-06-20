@@ -2121,12 +2121,16 @@ async function toolPlaceOrder(args: {
   }
 }
 
+const _SUPPORT_EMAIL = "support@dasnett.site";
+
 function _fireAdminOrderAlert(opts: { orderId: number; orderCode: string; customerEmail: string; customerName: string | null; itemsForEmail: { productName: string; quantity: number; price: string }[]; total: number; pm: string }) {
   getSmtpConfig().then(cfg => {
-    const adminEmail = cfg.emailFrom;
-    if (!adminEmail) return;
     const itemSummary = opts.itemsForEmail.map(i => `${i.productName} ×${i.quantity}`).join(", ");
-    sendEmail({ to: adminEmail, ...adminNewOrderAlertEmail({ orderId: opts.orderId, orderCode: opts.orderCode, orderType: "Store Order", customerEmail: opts.customerEmail, customerName: opts.customerName, items: itemSummary, total: String(opts.total), paymentMethod: opts.pm }) }).catch(() => {});
+    const targets = [cfg.emailFrom, _SUPPORT_EMAIL].filter((e): e is string => Boolean(e) && e.trim() !== "");
+    const uniqueTargets = [...new Set(targets)];
+    uniqueTargets.forEach(to => {
+      sendEmail({ to, ...adminNewOrderAlertEmail({ orderId: opts.orderId, orderCode: opts.orderCode, orderType: "Store Order", customerEmail: opts.customerEmail, customerName: opts.customerName, items: itemSummary, total: String(opts.total), paymentMethod: opts.pm }) }).catch(() => {});
+    });
   }).catch(() => {});
 }
 
@@ -2397,8 +2401,15 @@ router.post("/chat/bot", async (req, res) => {
     const { messages = [], requestHuman = false } = req.body ?? {};
 
     if (requestHuman) {
-      const { visitorId, visitorName, visitorEmail } = req.body ?? {};
+      const { visitorId, visitorName, visitorEmail, visitorPhone, visitorTimezone } = req.body ?? {};
       let escalated = false;
+
+      const visitorLine = [
+        visitorName ? `Name: ${String(visitorName)}` : null,
+        visitorEmail ? `Email: ${String(visitorEmail)}` : null,
+        visitorPhone ? `Phone: ${String(visitorPhone)}` : null,
+        visitorTimezone ? `Timezone: ${String(visitorTimezone)}` : null,
+      ].filter(Boolean).join(" | ") || "Anonymous visitor";
 
       // ── 1. Try OTS SMS notification ─────────────────────────────────────────
       try {
@@ -2412,7 +2423,7 @@ router.post("/chat/bot", async (req, res) => {
             apiToken,
             senderId,
             to: adminPhone,
-            message: `GSMBot: Customer requesting human support.${visitorName ? ` Visitor: ${visitorName}` : ""}${visitorEmail ? ` Email: ${visitorEmail}` : ""} — Open admin panel to respond.`,
+            message: `GSMBot: Customer needs live support. ${visitorLine} — Open admin panel to respond.`,
           });
           escalated = smsResult.ok;
           if (!smsResult.ok) {
@@ -2428,21 +2439,18 @@ router.post("/chat/bot", async (req, res) => {
       // ── 2. Always send admin email notification as fallback ──────────────────
       try {
         const smtpCfg = await getSmtpConfig();
-        const adminEmail = smtpCfg.emailFrom;
-        if (adminEmail) {
-          const visitorLine = [
-            visitorName ? `Name: ${String(visitorName)}` : null,
-            visitorEmail ? `Email: ${String(visitorEmail)}` : null,
-          ].filter(Boolean).join(", ") || "Anonymous visitor";
+        const targets = [smtpCfg.emailFrom, _SUPPORT_EMAIL].filter((e): e is string => Boolean(e) && e.trim() !== "");
+        const uniqueTargets = [...new Set(targets)];
+        for (const to of uniqueTargets) {
           await sendEmail({
-            to: adminEmail,
+            to,
             subject: "🔔 GSM World — Customer requesting human support",
             text: `A customer is requesting live human support on GSM World chat.\n\n${visitorLine}\n\nPlease open your admin panel to respond.`,
-            html: `<p>A customer is requesting <strong>live human support</strong> on GSM World chat.</p><p>${visitorLine}</p><p>Please open your admin panel to respond promptly.</p>`,
+            html: `<div style="font-family:Arial,sans-serif;padding:20px"><h2 style="color:#1e3a5f">🔔 Live Chat Request</h2><p>A customer is requesting <strong>live human support</strong> on GSM World chat.</p><table style="border-collapse:collapse;width:100%"><tr><td style="padding:6px 12px;background:#f8fafc;border:1px solid #e2e8f0;font-weight:bold">Visitor Info</td><td style="padding:6px 12px;border:1px solid #e2e8f0">${visitorLine}</td></tr></table><p style="margin-top:16px">Please open your admin panel to respond promptly.</p></div>`,
           });
-          escalated = escalated || true;
-          req.log.info({ to: adminEmail }, "requestHuman: admin email sent OK");
         }
+        escalated = escalated || uniqueTargets.length > 0;
+        req.log.info({ targets: uniqueTargets }, "requestHuman: admin email sent OK");
       } catch (emailErr) {
         req.log.warn({ err: emailErr }, "requestHuman: admin email failed");
       }
@@ -2461,12 +2469,14 @@ router.post("/chat/bot", async (req, res) => {
           if (existing[0]) {
             sessionId = existing[0].id;
           } else {
+            const tzLabel = visitorTimezone ? ` [${String(visitorTimezone)}]` : "";
+            const nameWithTz = visitorName ? `${String(visitorName)}${tzLabel}` : (tzLabel ? tzLabel.trim() : null);
             const [sess] = await db.insert(liveChatSessionsTable).values({
               visitorId: String(visitorId),
-              visitorName: visitorName ? String(visitorName) : null,
+              visitorName: nameWithTz,
               visitorEmail: visitorEmail ? String(visitorEmail) : null,
               status: "waiting",
-              lastMessage: "Customer requested human support",
+              lastMessage: visitorPhone ? `📞 Phone: ${String(visitorPhone)} | Customer requested human support` : "Customer requested human support",
               unreadAdmin: 1,
             }).returning({ id: liveChatSessionsTable.id });
             sessionId = sess?.id ?? null;
@@ -2706,7 +2716,7 @@ router.post("/chat/bot", async (req, res) => {
 
 router.post("/chat/live/session", async (req, res) => {
   try {
-    const { visitorId, visitorName } = req.body ?? {};
+    const { visitorId, visitorName, visitorEmail, visitorPhone, visitorTimezone } = req.body ?? {};
     if (!visitorId) { res.status(400).json({ error: "visitorId is required" }); return; }
 
     const existing = await db.select()
@@ -2719,12 +2729,14 @@ router.post("/chat/live/session", async (req, res) => {
 
     if (existing[0]) { res.json(existing[0]); return; }
 
+    const tzLabel = visitorTimezone ? ` [${String(visitorTimezone)}]` : "";
     const [session] = await db.insert(liveChatSessionsTable).values({
       visitorId: String(visitorId),
-      visitorName: visitorName ? String(visitorName) : null,
+      visitorName: visitorName ? `${String(visitorName)}${tzLabel}` : (tzLabel ? tzLabel.trim() : null),
+      visitorEmail: visitorEmail ? String(visitorEmail) : null,
       status: "waiting",
-      lastMessage: null,
-      unreadAdmin: 0,
+      lastMessage: visitorPhone ? `📞 Phone: ${String(visitorPhone)}` : null,
+      unreadAdmin: visitorPhone ? 1 : 0,
     }).returning();
 
     res.status(201).json(session);

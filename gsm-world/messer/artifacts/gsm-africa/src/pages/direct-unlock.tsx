@@ -738,84 +738,73 @@ export function DirectUnlockPage() {
         </div>
       )}
 
-      {/* Step 3b: Processing — 70-second animated verification screen */}
+      {/* Step 3b: Processing — professional verification progress card */}
       {step === "processing" && (
         <div className="space-y-4">
-          <div className="bg-orange-50 border-2 border-orange-400 rounded-2xl p-4 flex items-start gap-3">
-            <span className="text-orange-500 text-lg shrink-0">⚠️</span>
-            <div>
-              <p className="font-black text-orange-800 text-sm">Do not close this page</p>
-              <p className="text-orange-700 text-xs mt-0.5">We are verifying your device. Closing may delay your order.</p>
-            </div>
-          </div>
-
-          <div className="rounded-2xl overflow-hidden border border-white/10" style={{ background: "#0d1117" }}>
-            {/* Terminal title bar */}
-            <div className="flex items-center gap-2 px-4 py-2.5" style={{ background: "#161b22", borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
-              <span className="w-3 h-3 rounded-full bg-red-500" />
-              <span className="w-3 h-3 rounded-full bg-yellow-500" />
-              <span className="w-3 h-3 rounded-full bg-green-500" />
-              <span className="ml-2 text-[10px] text-gray-400 font-mono">gsm-unlock-engine — verification</span>
-              <div className="ml-auto flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                <span className="text-[10px] text-green-400 font-mono">LIVE</span>
-              </div>
-            </div>
-
-            {/* Device info row */}
-            <div className="px-4 py-3 flex items-center gap-3" style={{ background: "#0d1117", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-              <div className="w-8 h-8 rounded-lg bg-blue-500/15 border border-blue-500/20 flex items-center justify-center shrink-0">
+          {/* Header card */}
+          <div className="rounded-2xl p-4" style={{ background: "linear-gradient(135deg,#1e3a5f 0%,#0f172a 100%)", border: "1px solid rgba(99,102,241,0.3)" }}>
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: "rgba(99,102,241,0.2)", border: "1px solid rgba(99,102,241,0.4)" }}>
                 {BRAND_LOGOS[selectedBrand?.brand ?? ""] ? (
-                  <img src={BRAND_LOGOS[selectedBrand?.brand ?? ""]} alt="" className="w-6 h-6 object-contain" />
+                  <img src={BRAND_LOGOS[selectedBrand?.brand ?? ""]} alt="" className="w-7 h-7 object-contain" />
                 ) : (
-                  <span className="text-sm">{selectedBrand?.icon}</span>
+                  <span className="text-xl">{selectedBrand?.icon}</span>
                 )}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[11px] font-bold text-white truncate">{selectedModel?.name}</p>
-                <p className="text-[10px] text-gray-500 font-mono">{selectedBrand?.brand}</p>
+                <p className="font-bold text-sm text-white truncate">{selectedModel?.name}</p>
+                <p className="text-[11px] text-blue-300 mt-0.5">{selectedBrand?.brand} · Compatibility Check</p>
               </div>
-              <span className="text-[10px] font-bold text-blue-400 font-mono shrink-0">{processingPct}%</span>
+              <span className="text-lg font-black text-blue-400 shrink-0">{processingPct}%</span>
             </div>
-
             {/* Progress bar */}
-            <div className="px-4 py-2" style={{ background: "#0d1117" }}>
-              <div className="h-1.5 bg-white/8 rounded-full overflow-hidden">
-                <div
-                  className="h-full rounded-full transition-all duration-500"
-                  style={{ width: `${processingPct}%`, background: "linear-gradient(90deg,#3b82f6,#10b981)" }}
-                />
-              </div>
+            <div className="h-2 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.08)" }}>
+              <div
+                className="h-full rounded-full transition-all duration-700"
+                style={{ width: `${processingPct}%`, background: "linear-gradient(90deg,#6366f1,#3b82f6,#10b981)" }}
+              />
             </div>
-
-            {/* Terminal log output */}
-            <div className="px-4 pb-4 space-y-1 min-h-[140px]">
-              {PROCESSING_MSGS.slice(0, processingIdx + 1).slice(-8).map((msg, _relIdx, arr) => {
-                const isLast = _relIdx === arr.length - 1;
-                const isGreen = msg.includes("✓") || msg.includes("OK") || msg.includes("clean") || msg.includes("eligible") || msg.includes("valid");
-                return (
-                  <div key={msg} className="flex items-start gap-2 font-mono">
-                    {isLast && processingPct < 100 ? (
-                      <span className="w-3 h-3 mt-0.5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin shrink-0 inline-block" />
-                    ) : (
-                      <span className={`text-xs shrink-0 mt-px ${isGreen ? "text-green-500" : "text-gray-600"}`}>›</span>
-                    )}
-                    <span className={`text-[11px] leading-snug ${
-                      isLast && processingPct < 100 ? "text-white" :
-                      isGreen ? "text-green-400" : "text-gray-400"
-                    }`}>{msg}</span>
-                  </div>
-                );
-              })}
-              {processingPct < 100 && (
-                <div className="flex items-center gap-1 font-mono mt-1">
-                  <span className="text-green-500 text-xs animate-pulse">▊</span>
-                </div>
-              )}
-            </div>
+            <p className="text-[10px] text-blue-300 mt-1.5 text-right">
+              {processingPct < 100 ? "Verifying device compatibility…" : "Verification complete ✓"}
+            </p>
           </div>
 
-          <p className="text-center text-xs text-gray-400">Verification takes ~70 seconds — do not close this page</p>
+          {/* Verification steps */}
+          <div className="rounded-2xl overflow-hidden border border-gray-100">
+            {PROCESSING_MSGS.slice(0, processingIdx + 1).slice(-6).map((msg, _relIdx, arr) => {
+              const isLast = _relIdx === arr.length - 1;
+              const isDone = !isLast || processingPct >= 100;
+              const isGreen = msg.includes("✓") || msg.includes("OK") || msg.includes("clean") || msg.includes("eligible") || msg.includes("valid");
+              return (
+                <div key={msg} className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: _relIdx < arr.length - 1 ? "1px solid #f1f5f9" : undefined, background: isLast && !isDone ? "#f8faff" : "white" }}>
+                  <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${isDone ? (isGreen ? "bg-green-100" : "bg-slate-100") : "bg-blue-50"}`}>
+                    {isDone ? (
+                      <span className={`text-[10px] font-bold ${isGreen ? "text-green-600" : "text-slate-400"}`}>{isGreen ? "✓" : "›"}</span>
+                    ) : (
+                      <span className="w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin inline-block" />
+                    )}
+                  </div>
+                  <span className={`text-[12px] leading-snug flex-1 ${isLast && !isDone ? "text-blue-700 font-semibold" : isGreen ? "text-green-700" : "text-slate-500"}`}>
+                    {msg}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Trust footer */}
+          <div className="flex items-center justify-center gap-4 py-2">
+            {[
+              { icon: "🔒", label: "Secure & Encrypted" },
+              { icon: "✅", label: "Official Method" },
+              { icon: "⏱", label: "~70 seconds" },
+            ].map(({ icon, label }) => (
+              <div key={label} className="flex items-center gap-1 text-[10px] text-slate-500 font-medium">
+                <span>{icon}</span> {label}
+              </div>
+            ))}
+          </div>
+          <p className="text-center text-xs text-slate-400 font-medium">Please keep this page open — verification in progress</p>
         </div>
       )}
 
