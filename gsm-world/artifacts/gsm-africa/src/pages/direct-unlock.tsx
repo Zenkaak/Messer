@@ -543,11 +543,12 @@ export function DirectUnlockPage() {
     setImeiLuhnError(false);
     setImeiInfo(null);
     setImeiTacLoading(true);
-    const tac = imei.slice(0, 8);
-    fetch(`/api/imei/lookup/${tac}`)
+    fetch(`/api/imei/lookup?imei=${imei}`)
       .then(r => r.json())
-      .then((d: { brand?: string | null; model?: string | null; os?: string | null }) => {
-        setImeiInfo({ brand: d.brand ?? null, model: d.model ?? null, os: d.os ?? null });
+      .then((d: { brand?: string | null; model?: string | null; marketingName?: string | null; manufacturer?: string | null; simLock?: string | null; carrier?: string | null }) => {
+        const displayModel = d.marketingName ?? d.model ?? null;
+        const displayBrand = d.brand ?? d.manufacturer ?? null;
+        setImeiInfo({ brand: displayBrand, model: displayModel, os: d.simLock ?? null });
       })
       .catch(() => setImeiInfo({ brand: null, model: null, os: null }))
       .finally(() => setImeiTacLoading(false));
@@ -1055,31 +1056,36 @@ export function DirectUnlockPage() {
                     )}
                     {imeiInfo && !imeiTacLoading && !imeiLuhnError && (
                       <div className="rounded-xl border border-emerald-200 bg-emerald-50 overflow-hidden">
-                        <div className="flex items-center gap-2.5 px-4 py-3 border-b border-emerald-100">
-                          <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center shrink-0">
-                            <Smartphone size={16} className="text-emerald-600" />
+                        <div className="flex items-center gap-2.5 px-4 py-3">
+                          <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
+                            <Smartphone size={18} className="text-emerald-600" />
                           </div>
-                          <div className="flex-1">
+                          <div className="flex-1 min-w-0">
                             {(imeiInfo.brand || imeiInfo.model) ? (
                               <>
-                                <p className="font-black text-emerald-900 text-[13px] leading-tight">
-                                  {[imeiInfo.brand, imeiInfo.model].filter(Boolean).join(" ")}
+                                <p className="font-black text-emerald-900 text-[13px] leading-tight truncate">
+                                  {[imeiInfo.brand, imeiInfo.model].filter(Boolean).join(" · ")}
                                 </p>
-                                {imeiInfo.os && (
-                                  <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-100 rounded-full px-1.5 py-0.5 inline-block mt-0.5">
-                                    {imeiInfo.os}
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-100 border border-emerald-200 rounded-full px-1.5 py-0.5">
+                                    ✓ IMEI Valid
                                   </span>
-                                )}
+                                  {imeiInfo.os && imeiInfo.os !== "Carrier check required" && (
+                                    <span className="text-[10px] font-semibold text-blue-600 bg-blue-50 border border-blue-200 rounded-full px-1.5 py-0.5">
+                                      {imeiInfo.os}
+                                    </span>
+                                  )}
+                                </div>
                               </>
                             ) : (
-                              <p className="font-semibold text-emerald-800 text-[12px]">IMEI valid — device confirmed</p>
+                              <p className="font-semibold text-emerald-800 text-[12px]">✓ IMEI valid — device confirmed</p>
                             )}
                           </div>
-                          <CheckCircle2 size={16} className="text-emerald-500 shrink-0" />
+                          <CheckCircle2 size={18} className="text-emerald-500 shrink-0" />
                         </div>
-                        <div className="flex items-center gap-2 px-4 py-2.5">
-                          <RefreshCw size={11} className="text-emerald-500 animate-spin shrink-0" />
-                          <p className="text-[11px] text-emerald-700 font-semibold">Proceeding to secure verification…</p>
+                        <div className="flex items-center gap-2 px-4 py-2 bg-emerald-100/50 border-t border-emerald-100">
+                          <RefreshCw size={10} className="text-emerald-600 animate-spin shrink-0" />
+                          <p className="text-[10px] text-emerald-700 font-bold">Proceeding to secure verification automatically…</p>
                         </div>
                       </div>
                     )}
