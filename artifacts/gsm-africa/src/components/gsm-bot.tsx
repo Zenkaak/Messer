@@ -113,6 +113,26 @@ function getVisitorId(): string {
   }
 }
 
+function luhnCheck(imei: string): boolean {
+  const digits = imei.replace(/\D/g, "");
+  if (digits.length !== 15) return false;
+  let sum = 0;
+  for (let i = 0; i < digits.length; i++) {
+    let d = parseInt(digits[digits.length - 1 - i], 10);
+    if (i % 2 === 1) {
+      d *= 2;
+      if (d > 9) d -= 9;
+    }
+    sum += d;
+  }
+  return sum % 10 === 0;
+}
+
+function extractImei(text: string): string | null {
+  const m = text.match(/\b(\d{15})\b/);
+  return m ? m[1] : null;
+}
+
 // ─── Chat history helpers ─────────────────────────────────────────────────────
 interface SavedConversation {
   id: string;
@@ -1428,6 +1448,7 @@ export function GsmBot() {
   const [humanInput, setHumanInput] = useState("");
   const [humanSending, setHumanSending] = useState(false);
   const [humanFile, setHumanFile] = useState<File | null>(null);
+  const [imeiWarning, setImeiWarning] = useState<string | null>(null);
   const [lastPollTime, setLastPollTime] = useState<Date | null>(null);
   // Email + phone capture step for guest users
   const [humanEmailStep, setHumanEmailStep] = useState(false);
@@ -1944,6 +1965,23 @@ export function GsmBot() {
                   </div>
                 </div>
 
+                <div className="flex gap-2 justify-start">
+                  <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center shrink-0 mt-0.5">
+                    <Headphones size={11} className="text-emerald-600" />
+                  </div>
+                  <div className="max-w-[85%] bg-gray-100 text-gray-800 rounded-2xl rounded-bl-sm px-3.5 py-2.5 text-sm leading-relaxed">
+                    <p className="text-[10px] font-bold text-gray-500 mb-1">Support Team</p>
+                    <p className="font-semibold mb-1.5">While you wait, please describe your issue in detail:</p>
+                    <p className="text-[12px] mb-1">Include:</p>
+                    <ul className="space-y-0.5 mb-1.5 text-[12px]">
+                      <li>• Your device model &amp; IMEI (if applicable)</li>
+                      <li>• What you've already tried</li>
+                      <li>• Any error messages you saw</li>
+                    </ul>
+                    <p className="text-[12px]">The more detail you share now, the faster our agent can help you! 🚀</p>
+                  </div>
+                </div>
+
                 {humanMessages.map(msg => {
                   const isAdmin = msg.senderType === "admin";
                   return (
@@ -1998,6 +2036,12 @@ export function GsmBot() {
               {/* Human input area */}
               {sessionStatus !== "closed" && (
                 <div className="px-3 pb-3 pt-2 border-t border-gray-100 shrink-0 space-y-2">
+                  {imeiWarning && (
+                    <div className="flex items-center gap-1.5 bg-red-50 border border-red-200 rounded-lg px-3 py-1.5">
+                      <AlertCircle size={12} className="text-red-500 shrink-0" />
+                      <span className="text-[11px] font-semibold text-red-600">{imeiWarning}</span>
+                    </div>
+                  )}
                   <div className="flex gap-2 items-end">
                     <input
                       ref={fileInputRef}
@@ -2021,11 +2065,20 @@ export function GsmBot() {
                     <input
                       ref={humanInputRef}
                       value={humanInput}
-                      onChange={e => setHumanInput(e.target.value)}
+                      onChange={e => {
+                        const val = e.target.value;
+                        setHumanInput(val);
+                        const imei = extractImei(val);
+                        if (imei) {
+                          setImeiWarning(luhnCheck(imei) ? null : "Invalid IMEI — please double-check this number.");
+                        } else {
+                          setImeiWarning(null);
+                        }
+                      }}
                       onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendHumanMessage(); } }}
                       placeholder="Type your message…"
                       disabled={humanSending}
-                      className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 h-9"
+                      className={`flex-1 bg-gray-50 border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-1 h-9 ${imeiWarning ? "border-red-400 focus:border-red-400 focus:ring-red-200" : "border-gray-200 focus:border-blue-400 focus:ring-blue-400"}`}
                     />
                     <button onClick={sendHumanMessage}
                       disabled={humanSending || (!humanInput.trim() && !humanFile)}
