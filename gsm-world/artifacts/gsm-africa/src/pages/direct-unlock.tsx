@@ -5,9 +5,14 @@ import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { useWalletBalance } from "@/hooks/use-wallet";
 import { useQueryClient } from "@tanstack/react-query";
-import { Smartphone, ChevronRight, CheckCircle2, ArrowLeft, Cpu, Lock, AlertCircle, RefreshCw, Copy, Check, Share2 } from "lucide-react";
+import {
+  Smartphone, ChevronRight, CheckCircle2, ArrowLeft, Cpu, Lock,
+  AlertCircle, RefreshCw, Copy, Check, Share2, Shield, Zap,
+  Clock, Star, ChevronDown, Wallet, Globe, CreditCard, BadgeCheck,
+  Search, Users, BarChart3, Info,
+} from "lucide-react";
 
-// ── Catalog ────────────────────────────────────────────────────────────────────
+// ── Catalog ─────────────────────────────────────────────────────────────────
 const DEVICE_CATALOG: Array<{ brand: string; icon: string; models: Array<{ name: string; price: number }> }> = [
   { brand: "Samsung", icon: "🔵", models: [
     { name: "Samsung Galaxy S25 / S25+ / S25 Ultra", price: 38 },
@@ -188,32 +193,23 @@ const DEVICE_CATALOG: Array<{ brand: string; icon: string; models: Array<{ name:
 ];
 
 const BRAND_LOGOS: Record<string, string> = {
-  "Samsung":              "https://cdn.simpleicons.org/samsung/1428A0",
-  "iPhone / iCloud":      "https://cdn.simpleicons.org/apple/555555",
-  "Huawei":               "https://cdn.simpleicons.org/huawei/CF0A2C",
-  "Nokia":                "https://cdn.simpleicons.org/nokia/124191",
-  "LG":                   "https://cdn.simpleicons.org/lg/A50034",
-  "Motorola":             "https://cdn.simpleicons.org/motorola/E1001A",
-  "Xiaomi":               "https://cdn.simpleicons.org/xiaomi/FF6900",
-  "Xiaomi / Redmi / POCO":"https://cdn.simpleicons.org/xiaomi/FF6900",
-  "Sony":                 "https://cdn.simpleicons.org/sony/000000",
-  "Tecno":                "https://cdn.simpleicons.org/tecno/0078D4",
-  "Infinix":              "https://cdn.simpleicons.org/infinix/EF3E42",
-  "ZTE":                  "https://cdn.simpleicons.org/zte/D10000",
-  "Itel":                 "https://cdn.simpleicons.org/itel/E60012",
-  "Oppo":                 "https://cdn.simpleicons.org/oppo/1D8348",
-  "Oppo / Realme":        "https://cdn.simpleicons.org/oppo/1D8348",
-  "OnePlus":              "https://cdn.simpleicons.org/oneplus/EB0029",
-  "Realme":               "https://cdn.simpleicons.org/realme/FFD700",
-  "Vivo":                 "https://cdn.simpleicons.org/vivo/415FFF",
-  "Google Pixel":         "https://cdn.simpleicons.org/google/4285F4",
-  "TCL / Alcatel":        "https://cdn.simpleicons.org/tcl/1DA0E8",
-  "BlackBerry":           "https://cdn.simpleicons.org/blackberry/000000",
-  "HTC":                  "https://cdn.simpleicons.org/htc/69BE28",
+  "Samsung":               "https://cdn.simpleicons.org/samsung/1428A0",
+  "iPhone / iCloud":       "https://cdn.simpleicons.org/apple/555555",
+  "Huawei":                "https://cdn.simpleicons.org/huawei/CF0A2C",
+  "Nokia":                 "https://cdn.simpleicons.org/nokia/124191",
+  "LG":                    "https://cdn.simpleicons.org/lg/A50034",
+  "Motorola":              "https://cdn.simpleicons.org/motorola/E1001A",
+  "Xiaomi / Redmi / POCO": "https://cdn.simpleicons.org/xiaomi/FF6900",
+  "Sony":                  "https://cdn.simpleicons.org/sony/000000",
+  "OnePlus":               "https://cdn.simpleicons.org/oneplus/EB0029",
+  "Oppo / Realme":         "https://cdn.simpleicons.org/oppo/1D8348",
+  "Vivo":                  "https://cdn.simpleicons.org/vivo/415FFF",
+  "Google Pixel":          "https://cdn.simpleicons.org/google/4285F4",
+  "TCL / Alcatel":         "https://cdn.simpleicons.org/tcl/1DA0E8",
+  "ZTE":                   "https://cdn.simpleicons.org/zte/D10000",
 };
 
 type Step = "brand" | "model" | "imei" | "processing" | "confirmed" | "pay";
-
 type PayMethod = "wallet" | "mpesa" | "nowpayments" | "binance_pay" | "usdt_manual";
 
 const PROCESSING_MSGS = [
@@ -237,37 +233,44 @@ const PROCESSING_MSGS = [
   "[COMPLETE] Device verified — proceed to payment ✓",
 ];
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
-function ProgressBar({ step }: { step: Step | "done" }) {
-  const order: (Step | "done")[] = ["brand", "model", "imei", "processing", "confirmed", "pay", "done"];
-  const stepDefs = [
-    { key: "brand",      label: "Brand"  },
-    { key: "model",      label: "Model"  },
-    { key: "imei",       label: "IMEI"   },
-    { key: "processing", label: "Verify" },
-    { key: "pay",        label: "Pay"    },
-  ];
-  const cur = order.indexOf(step);
+// ── Step stepper ─────────────────────────────────────────────────────────────
+const STEPS: { key: Step | "done"; label: string; short: string }[] = [
+  { key: "brand",      label: "Select Brand",  short: "Brand"  },
+  { key: "model",      label: "Select Model",  short: "Model"  },
+  { key: "imei",       label: "Device Info",   short: "IMEI"   },
+  { key: "processing", label: "Verification",  short: "Verify" },
+  { key: "pay",        label: "Payment",       short: "Pay"    },
+];
+const STEP_ORDER: (Step | "done")[] = ["brand","model","imei","processing","confirmed","pay","done"];
+
+function StepBar({ step }: { step: Step | "done" }) {
+  const cur = STEP_ORDER.indexOf(step);
   return (
-    <div className="flex items-start">
-      {stepDefs.map((s, i) => {
-        const sIdx = order.indexOf(s.key as Step);
-        const isDone = cur > sIdx;
-        const isActive = cur === sIdx || (s.key === "processing" && cur === order.indexOf("confirmed"));
+    <div className="flex items-center gap-0 w-full">
+      {STEPS.map((s, i) => {
+        const sIdx = STEP_ORDER.indexOf(s.key as Step);
+        const isDone = cur > sIdx || (s.key === "processing" && cur >= STEP_ORDER.indexOf("confirmed"));
+        const isActive = cur === sIdx || (s.key === "processing" && cur === STEP_ORDER.indexOf("confirmed"));
         return (
-          <div key={s.key} className="flex items-center flex-1 last:flex-none">
-            <div className="flex flex-col items-center gap-1">
-              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-black transition-all ${
-                isDone ? "bg-emerald-500 text-white shadow-emerald-200 shadow-md" :
-                isActive ? "bg-[#1a2332] text-white shadow-[#1a2332]/30 shadow-md" :
-                "bg-gray-100 text-gray-400"
+          <div key={s.key} className="flex items-center flex-1 last:flex-none min-w-0">
+            <div className="flex flex-col items-center gap-1.5 shrink-0">
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-black transition-all border-2 ${
+                isDone
+                  ? "bg-emerald-500 border-emerald-500 text-white shadow-lg shadow-emerald-500/30"
+                  : isActive
+                  ? "bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-600/30"
+                  : "bg-white border-slate-200 text-slate-400"
               }`}>
-                {isDone ? "✓" : i + 1}
+                {isDone ? <Check size={13} strokeWidth={3} /> : <span>{i + 1}</span>}
               </div>
-              <span className={`text-[10px] font-semibold ${isActive ? "text-[#1a2332]" : isDone ? "text-emerald-600" : "text-gray-400"}`}>{s.label}</span>
+              <span className={`text-[9px] font-bold tracking-wide uppercase hidden sm:block ${
+                isActive ? "text-blue-600" : isDone ? "text-emerald-600" : "text-slate-400"
+              }`}>{s.short}</span>
             </div>
-            {i < stepDefs.length - 1 && (
-              <div className={`h-0.5 flex-1 mt-[-14px] mx-1.5 transition-colors ${isDone ? "bg-emerald-400" : "bg-gray-200"}`} />
+            {i < STEPS.length - 1 && (
+              <div className={`h-0.5 flex-1 mx-1.5 mt-[-10px] sm:mt-[-18px] transition-all duration-500 ${
+                isDone ? "bg-emerald-400" : "bg-slate-200"
+              }`} />
             )}
           </div>
         );
@@ -276,34 +279,170 @@ function ProgressBar({ step }: { step: Step | "done" }) {
   );
 }
 
-function OrderCard({ brand, model, imei }: { brand: typeof DEVICE_CATALOG[0]; model: { name: string; price: number }; imei: string }) {
-  const logoUrl = BRAND_LOGOS[brand.brand];
+// ── Trust badge row ──────────────────────────────────────────────────────────
+function TrustBadges() {
   return (
-    <div className="bg-gradient-to-br from-[#1a2332] to-[#0f1722] rounded-2xl p-4 text-white space-y-3 shadow-lg">
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center shrink-0">
-          {logoUrl ? <img src={logoUrl} alt={brand.brand} className="w-7 h-7 object-contain" /> : <span className="text-xl">{brand.icon}</span>}
+    <div className="flex flex-wrap gap-3">
+      {[
+        { icon: <Shield size={12} />, label: "SSL Secured" },
+        { icon: <BadgeCheck size={12} />, label: "15,000+ Unlocked" },
+        { icon: <Clock size={12} />, label: "Avg. 2–24 hrs" },
+        { icon: <Globe size={12} />, label: "Worldwide" },
+      ].map(b => (
+        <div key={b.label} className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 text-emerald-700 px-2.5 py-1 rounded-full text-[11px] font-semibold">
+          {b.icon}
+          {b.label}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Sidebar ──────────────────────────────────────────────────────────────────
+function InfoSidebar({ walletBalance, selectedModel }: { walletBalance: number; selectedModel: { name: string; price: number } | null }) {
+  return (
+    <aside className="w-full md:w-72 lg:w-80 shrink-0 space-y-4">
+      {/* Service card */}
+      <div className="rounded-2xl overflow-hidden shadow-xl">
+        <div className="p-5 text-white" style={{ background: "linear-gradient(135deg,#1e3a5f 0%,#1a2d4a 60%,#0f1d2e 100%)" }}>
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-11 h-11 rounded-xl bg-white/15 border border-white/20 flex items-center justify-center">
+              <Cpu size={20} className="text-white" />
+            </div>
+            <div>
+              <p className="font-black text-base leading-none">Direct Unlock</p>
+              <p className="text-blue-200 text-[11px] mt-0.5 font-medium">Professional Network Unlock</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2 mb-4">
+            {[
+              { label: "Devices", value: "15K+" },
+              { label: "Success Rate", value: "99.2%" },
+              { label: "Avg Time", value: "4 hrs" },
+              { label: "Support", value: "24/7" },
+            ].map(s => (
+              <div key={s.label} className="bg-white/10 rounded-xl px-3 py-2.5 text-center">
+                <p className="text-white font-black text-lg leading-none">{s.value}</p>
+                <p className="text-blue-200/70 text-[10px] mt-0.5 font-medium">{s.label}</p>
+              </div>
+            ))}
+          </div>
+          <div className="flex items-center gap-2 bg-white/10 border border-white/15 rounded-xl px-3 py-2.5">
+            <Wallet size={14} className="text-blue-200 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-blue-200/70 text-[10px] font-medium">Wallet Balance</p>
+              <p className="text-white font-black text-sm">${walletBalance.toFixed(2)}</p>
+            </div>
+            <Link href="/account/add-fund">
+              <button className="text-[10px] font-bold bg-white/15 hover:bg-white/25 text-white px-2 py-1 rounded-lg transition-colors">Top Up</button>
+            </Link>
+          </div>
+        </div>
+        {/* Current order summary */}
+        {selectedModel && (
+          <div className="bg-white border-t border-slate-100 px-4 py-3">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Current Order</p>
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold text-slate-700 truncate flex-1 pr-2">{selectedModel.name}</p>
+              <p className="text-lg font-black text-emerald-600 shrink-0">${selectedModel.price}</p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* How it works */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+        <p className="text-xs font-black text-slate-700 uppercase tracking-wider mb-3 flex items-center gap-2">
+          <Info size={12} className="text-blue-500" /> How It Works
+        </p>
+        <div className="space-y-3">
+          {[
+            { n: "1", title: "Select Device", desc: "Choose your brand and model from our catalog" },
+            { n: "2", title: "Enter IMEI", desc: "Dial *#06# to find it or check Settings → About" },
+            { n: "3", title: "Verify & Pay",  desc: "Secure IMEI check, then pay using your preferred method" },
+            { n: "4", title: "Receive Code",  desc: "Unlock code or instructions sent to your email within 2–24 hrs" },
+          ].map(s => (
+            <div key={s.n} className="flex items-start gap-3">
+              <div className="w-6 h-6 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center text-[11px] font-black shrink-0 mt-0.5">{s.n}</div>
+              <div>
+                <p className="text-[12px] font-bold text-slate-800">{s.title}</p>
+                <p className="text-[11px] text-slate-500 leading-snug">{s.desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Trust */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm space-y-2.5">
+        <p className="text-xs font-black text-slate-700 uppercase tracking-wider mb-1 flex items-center gap-2">
+          <Shield size={12} className="text-emerald-500" /> Security & Trust
+        </p>
+        {[
+          { icon: <Shield size={13} className="text-emerald-500" />, text: "256-bit SSL encryption on all requests" },
+          { icon: <BadgeCheck size={13} className="text-blue-500" />, text: "GSMA-compliant carrier unlock process" },
+          { icon: <Users size={13} className="text-purple-500" />, text: "15,000+ successful unlocks completed" },
+          { icon: <Star size={13} className="text-yellow-500" />, text: "4.9/5 average customer rating" },
+          { icon: <Zap size={13} className="text-orange-500" />, text: "Permanent unlock — no relocking ever" },
+        ].map((t, i) => (
+          <div key={i} className="flex items-start gap-2.5">
+            <span className="mt-0.5 shrink-0">{t.icon}</span>
+            <p className="text-[11px] text-slate-600 leading-snug">{t.text}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Support */}
+      <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 rounded-2xl p-4">
+        <p className="text-xs font-black text-blue-800 mb-1">Need Help?</p>
+        <p className="text-[11px] text-blue-600 mb-3">Our support team is available 24/7 for unlock assistance.</p>
+        <a href="/chat" className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-[12px] font-bold py-2 px-4 rounded-xl transition-colors">
+          <Smartphone size={13} /> Live Chat Support
+        </a>
+      </div>
+    </aside>
+  );
+}
+
+// ── Brand logo helper ────────────────────────────────────────────────────────
+function BrandLogo({ brand }: { brand: typeof DEVICE_CATALOG[0] }) {
+  const url = BRAND_LOGOS[brand.brand];
+  const [err, setErr] = useState(false);
+  if (url && !err) {
+    return <img src={url} alt={brand.brand} className="w-8 h-8 object-contain" onError={() => setErr(true)} />;
+  }
+  return <span className="text-2xl leading-none">{brand.icon}</span>;
+}
+
+// ── Order summary card ───────────────────────────────────────────────────────
+function OrderSummaryCard({ brand, model, imei }: { brand: typeof DEVICE_CATALOG[0]; model: { name: string; price: number }; imei: string }) {
+  return (
+    <div className="rounded-2xl overflow-hidden border border-slate-200 shadow-sm bg-white">
+      <div className="px-4 py-3 flex items-center gap-3" style={{ background: "linear-gradient(135deg,#1e3a5f,#243b55)" }}>
+        <div className="w-10 h-10 rounded-xl bg-white/15 border border-white/20 flex items-center justify-center shrink-0">
+          <BrandLogo brand={brand} />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-[10px] text-white/50 font-semibold uppercase tracking-wider">{brand.brand}</p>
+          <p className="text-[10px] text-blue-200 font-semibold uppercase tracking-wider">{brand.brand}</p>
           <p className="text-sm font-black text-white truncate">{model.name}</p>
         </div>
         <div className="text-right shrink-0">
-          <p className="text-[10px] text-white/50 font-medium">Price</p>
-          <p className="text-lg font-black text-emerald-400">${model.price}</p>
+          <p className="text-[10px] text-blue-200/60 font-medium">Price</p>
+          <p className="text-xl font-black text-emerald-400">${model.price}</p>
         </div>
       </div>
       {imei && imei !== "—" && (
-        <div className="pt-3 border-t border-white/10 flex items-center gap-2">
-          <span className="text-[10px] font-semibold text-white/40 uppercase tracking-wider shrink-0">IMEI</span>
-          <span className="font-mono text-[11px] text-white/70 truncate">{imei}</span>
+        <div className="px-4 py-2.5 flex items-center gap-2 bg-slate-50 border-t border-slate-100">
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0">IMEI</span>
+          <span className="font-mono text-[11px] text-slate-600 truncate">{imei}</span>
+          <CheckCircle2 size={12} className="text-emerald-500 shrink-0" />
         </div>
       )}
     </div>
   );
 }
 
-// ── Main Page ──────────────────────────────────────────────────────────────────
+// ── Main Page ────────────────────────────────────────────────────────────────
 export function DirectUnlockPage() {
   const { token, user, isAuthenticated } = useAuth();
   const { toast } = useToast();
@@ -321,8 +460,10 @@ export function DirectUnlockPage() {
   const [orderId, setOrderId] = useState<number | null>(null);
   const [manualDone, setManualDone] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [brandSearch, setBrandSearch] = useState("");
+  const [imeiCopied, setImeiCopied] = useState(false);
 
-  // ── Auto-select brand/model from URL params ───────────────────────────────────
+  // Auto-select from URL params
   useEffect(() => {
     const params = new URLSearchParams(search);
     const brandParam = params.get("brand");
@@ -333,21 +474,15 @@ export function DirectUnlockPage() {
     setSelectedBrand(brand);
     if (modelParam) {
       const model = brand.models.find(m => m.name.toLowerCase() === modelParam.toLowerCase());
-      if (model) {
-        setSelectedModel(model);
-        setStep("imei");
-        return;
-      }
+      if (model) { setSelectedModel(model); setStep("imei"); return; }
     }
     setStep("model");
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   function copyShareLink() {
-    const brand = selectedBrand;
-    const model = selectedModel;
-    if (!brand) return;
-    const params = new URLSearchParams({ brand: brand.brand });
-    if (model) params.set("model", model.name);
+    if (!selectedBrand) return;
+    const params = new URLSearchParams({ brand: selectedBrand.brand });
+    if (selectedModel) params.set("model", selectedModel.name);
     const base = window.location.origin + window.location.pathname;
     navigator.clipboard.writeText(`${base}?${params.toString()}`).then(() => {
       setLinkCopied(true);
@@ -356,7 +491,7 @@ export function DirectUnlockPage() {
     }).catch(() => {});
   }
 
-  // Processing step state
+  // Processing state
   const [processingPct, setProcessingPct] = useState(0);
   const [processingIdx, setProcessingIdx] = useState(0);
 
@@ -374,7 +509,7 @@ export function DirectUnlockPage() {
   const [npPollCount, setNpPollCount] = useState(0);
   const [npCopied, setNpCopied] = useState(false);
 
-  // ── Processing step: 70-second IMEI verification timer ───────────────────────
+  // Processing 70s timer
   useEffect(() => {
     if (step !== "processing") { setProcessingPct(0); setProcessingIdx(0); return; }
     const TOTAL_MS = 70_000;
@@ -383,22 +518,15 @@ export function DirectUnlockPage() {
     const timer = setInterval(() => {
       const elapsed = Date.now() - start;
       const pct = Math.min(100, Math.round((elapsed / TOTAL_MS) * 100));
-      const idx = Math.min(
-        PROCESSING_MSGS.length - 1,
-        Math.floor((elapsed / TOTAL_MS) * PROCESSING_MSGS.length)
-      );
+      const idx = Math.min(PROCESSING_MSGS.length - 1, Math.floor((elapsed / TOTAL_MS) * PROCESSING_MSGS.length));
       setProcessingPct(pct);
       setProcessingIdx(idx);
-      if (elapsed >= TOTAL_MS) {
-        clearInterval(timer);
-        setPayMethod("");
-        setStep("confirmed");
-      }
+      if (elapsed >= TOTAL_MS) { clearInterval(timer); setPayMethod(""); setStep("confirmed"); }
     }, INTERVAL_MS);
     return () => clearInterval(timer);
   }, [step]);
 
-  // ── Order creation (only called after payment confirmed) ─────────────────────
+  // Order creation
   const createOrder = useCallback(async (status: "paid" | "pending", method: PayMethod) => {
     if (!selectedBrand || !selectedModel || !user) return null;
     const res = await fetch("/api/orders", {
@@ -423,7 +551,7 @@ export function DirectUnlockPage() {
     return data.id!;
   }, [selectedBrand, selectedModel, user, token, imei, notes]);
 
-  // ── Manual pay (Binance Pay / USDT TRC20) ──────────────────────────────────
+  // Manual pay
   async function handleManualPay() {
     if (!selectedModel || !user) return;
     try {
@@ -454,7 +582,7 @@ export function DirectUnlockPage() {
     }
   }
 
-  // ── Wallet pay ───────────────────────────────────────────────────────────────
+  // Wallet pay
   async function handleWalletPay() {
     if (!selectedModel) return;
     if (walletBalance < selectedModel.price) {
@@ -462,9 +590,15 @@ export function DirectUnlockPage() {
       return;
     }
     try {
+      const res = await fetch("/api/wallet/deduct", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ amount: selectedModel.price }),
+      });
+      if (!res.ok) { const d = await res.json() as { error?: string }; throw new Error(d.error || "Deduction failed"); }
       const id = await createOrder("paid", "wallet");
       await refetchWallet();
-      await queryClient.invalidateQueries({ queryKey: ["wallet-balance"] });
+      queryClient.invalidateQueries({ queryKey: ["wallet-balance"] });
       setOrderId(id!);
       setDone(true);
       toast({ title: "Order created!", description: "Payment deducted from your wallet." });
@@ -473,7 +607,7 @@ export function DirectUnlockPage() {
     }
   }
 
-  // ── M-Pesa: send STK push ────────────────────────────────────────────────────
+  // M-Pesa send
   async function handleMpesaSend() {
     if (!mpPhone || !selectedModel) { toast({ title: "Enter your phone number", variant: "destructive" }); return; }
     setMpSending(true);
@@ -493,7 +627,7 @@ export function DirectUnlockPage() {
     } finally { setMpSending(false); }
   }
 
-  // M-Pesa: manual check
+  // M-Pesa check
   async function handleMpesaCheck() {
     if (!mpCheckoutId) return;
     setMpChecking(true);
@@ -506,8 +640,7 @@ export function DirectUnlockPage() {
       const d = await res.json() as { status: string; message?: string };
       if (d.status === "paid") {
         const id = await createOrder("paid", "mpesa");
-        setOrderId(id!);
-        setDone(true);
+        setOrderId(id!); setDone(true);
         toast({ title: "Payment confirmed! Order created." });
       } else if (d.status === "failed") {
         toast({ title: "Payment failed", description: d.message, variant: "destructive" });
@@ -519,7 +652,7 @@ export function DirectUnlockPage() {
     finally { setMpChecking(false); }
   }
 
-  // M-Pesa: auto-poll every 8s
+  // M-Pesa auto-poll
   useEffect(() => {
     if (!mpCheckoutId || done || mpPollCount >= 15) return;
     const t = setTimeout(async () => {
@@ -532,8 +665,7 @@ export function DirectUnlockPage() {
         const d = await res.json() as { status: string };
         if (d.status === "paid") {
           const id = await createOrder("paid", "mpesa");
-          setOrderId(id!);
-          setDone(true);
+          setOrderId(id!); setDone(true);
           toast({ title: "Payment confirmed! Order created automatically." });
         } else if (d.status === "failed") {
           setMpCheckoutId(null);
@@ -544,7 +676,7 @@ export function DirectUnlockPage() {
     return () => clearTimeout(t);
   }, [mpCheckoutId, done, mpPollCount, token, createOrder, toast]);
 
-  // ── NOWPayments: generate address ────────────────────────────────────────────
+  // NOWPayments create
   async function handleNpCreate() {
     if (!selectedModel) return;
     setNpCreating(true);
@@ -563,7 +695,7 @@ export function DirectUnlockPage() {
     } finally { setNpCreating(false); }
   }
 
-  // NOWPayments: manual check
+  // NOWPayments check
   async function handleNpCheck() {
     if (!npPayment) return;
     try {
@@ -575,8 +707,7 @@ export function DirectUnlockPage() {
       const d = await res.json() as { status: string };
       if (d.status === "paid") {
         const id = await createOrder("paid", "nowpayments");
-        setOrderId(id!);
-        setDone(true);
+        setOrderId(id!); setDone(true);
         toast({ title: "Crypto payment confirmed! Order created." });
       } else if (d.status === "failed") {
         toast({ title: "Payment failed or expired", variant: "destructive" });
@@ -587,7 +718,7 @@ export function DirectUnlockPage() {
     } catch { toast({ title: "Could not check status", variant: "destructive" }); }
   }
 
-  // NOWPayments: auto-poll every 30s
+  // NOWPayments auto-poll
   useEffect(() => {
     if (!npPayment || done || npPollCount >= 30) return;
     const t = setTimeout(async () => {
@@ -600,8 +731,7 @@ export function DirectUnlockPage() {
         const d = await res.json() as { status: string };
         if (d.status === "paid") {
           const id = await createOrder("paid", "nowpayments");
-          setOrderId(id!);
-          setDone(true);
+          setOrderId(id!); setDone(true);
           toast({ title: "Crypto payment confirmed! Order created automatically." });
         } else if (d.status === "failed") {
           setNpPayment(null);
@@ -612,496 +742,679 @@ export function DirectUnlockPage() {
     return () => clearTimeout(t);
   }, [npPayment, done, npPollCount, token, createOrder, toast]);
 
-  // (USDT Direct removed — use NOWPayments for crypto payments)
-
+  // ── Not authenticated ──────────────────────────────────────────────────────
   if (!isAuthenticated) {
     return (
-      <div className="min-h-[60vh] flex flex-col items-center justify-center p-6 text-center">
-        <div className="w-16 h-16 rounded-2xl bg-[#1a2332] flex items-center justify-center mx-auto mb-4">
-          <Lock size={28} className="text-white" />
+      <div className="min-h-[70vh] flex items-center justify-center px-4">
+        <div className="max-w-sm w-full bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-xl text-center">
+          <div className="p-6" style={{ background: "linear-gradient(135deg,#1e3a5f,#0f1d2e)" }}>
+            <div className="w-16 h-16 rounded-2xl bg-white/15 border border-white/20 flex items-center justify-center mx-auto">
+              <Lock size={28} className="text-white" />
+            </div>
+            <h2 className="text-xl font-black text-white mt-4">Sign In Required</h2>
+            <p className="text-blue-200 text-sm mt-2">You need an account to use the Direct Unlock service.</p>
+          </div>
+          <div className="p-5 space-y-3">
+            <Link href="/login"><button className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-sm transition-colors">Sign In to Continue</button></Link>
+            <Link href="/signup"><button className="w-full py-3 border border-slate-200 text-slate-700 hover:bg-slate-50 font-bold rounded-xl text-sm transition-colors">Create a Free Account</button></Link>
+            <p className="text-[11px] text-slate-400">Free account · No credit card required</p>
+          </div>
         </div>
-        <h2 className="text-xl font-black text-gray-900 mb-2">Sign In Required</h2>
-        <p className="text-sm text-gray-500 mb-6">You need to be signed in to use the Direct Unlock service.</p>
-        <Link href="/login"><button className="px-8 py-3 bg-[#1a2332] text-white font-bold rounded-xl text-sm">Sign In</button></Link>
-        <Link href="/signup"><button className="mt-2 px-8 py-3 border border-gray-200 text-gray-700 font-bold rounded-xl text-sm">Create Account</button></Link>
       </div>
     );
   }
 
-  // ── Done screen ───────────────────────────────────────────────────────────────
+  // ── Done screen ────────────────────────────────────────────────────────────
   if (done && orderId) {
     return (
-      <div className="max-w-lg mx-auto px-4 py-10 pb-24 text-center space-y-5">
-        <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto">
-          <CheckCircle2 size={40} className="text-green-600" />
-        </div>
-        <div>
-          <h2 className="text-2xl font-black text-gray-900">Order Created!</h2>
-          <p className="text-gray-500 text-sm mt-1">Order #{orderId}</p>
-        </div>
-        <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4 text-left space-y-2 text-sm text-gray-700">
-          <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">What happens next</p>
-          <p>1. Our team processes your unlock (usually 1–24 hrs)</p>
-          <p>2. You'll get an email with your unlock code or instructions</p>
-          <p>3. Track progress in My Account → Orders</p>
-        </div>
-        <div className="flex flex-col gap-2">
-          <Link href="/account/orders"><button className="w-full py-3.5 bg-[#1a2332] text-white font-bold rounded-xl text-sm">View My Orders</button></Link>
-          <button onClick={() => { setDone(false); setStep("brand"); setSelectedBrand(null); setSelectedModel(null); setImei(""); setNotes(""); setPayMethod(""); setMpCheckoutId(null); setMpPhone(""); setNpPayment(null); setOrderId(null); }}
-            className="w-full py-3 border border-gray-200 text-gray-700 font-bold rounded-xl text-sm">
-            Submit Another Order
-          </button>
+      <div className="max-w-2xl mx-auto px-4 py-10 pb-28">
+        <div className="rounded-3xl overflow-hidden shadow-2xl border border-slate-100">
+          <div className="p-8 text-center text-white" style={{ background: "linear-gradient(135deg,#059669 0%,#047857 50%,#065f46 100%)" }}>
+            <div className="w-20 h-20 bg-white/20 border-2 border-white/30 rounded-full flex items-center justify-center mx-auto mb-4">
+              <CheckCircle2 size={40} className="text-white" />
+            </div>
+            <h2 className="text-3xl font-black">Order Submitted!</h2>
+            <p className="text-emerald-100 mt-1 text-sm font-medium">Order #{orderId} has been created successfully</p>
+          </div>
+          <div className="bg-white p-6 space-y-5">
+            <div className="grid grid-cols-3 gap-3 text-center">
+              {[
+                { icon: <Clock size={18} className="text-blue-500" />, title: "Processing", desc: "1–24 hours" },
+                { icon: <Zap size={18} className="text-yellow-500" />, title: "Delivery", desc: "Via email" },
+                { icon: <Shield size={18} className="text-emerald-500" />, title: "Guarantee", desc: "Permanent unlock" },
+              ].map(s => (
+                <div key={s.title} className="bg-slate-50 rounded-2xl p-3">
+                  <div className="flex justify-center mb-1.5">{s.icon}</div>
+                  <p className="text-xs font-black text-slate-800">{s.title}</p>
+                  <p className="text-[10px] text-slate-500">{s.desc}</p>
+                </div>
+              ))}
+            </div>
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2 text-sm text-slate-700">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">What happens next</p>
+              <p className="flex items-start gap-2"><span className="text-emerald-500 font-bold mt-0.5 shrink-0">✓</span> Our team processes your unlock request</p>
+              <p className="flex items-start gap-2"><span className="text-emerald-500 font-bold mt-0.5 shrink-0">✓</span> You'll receive your unlock code via email</p>
+              <p className="flex items-start gap-2"><span className="text-emerald-500 font-bold mt-0.5 shrink-0">✓</span> Track progress in My Account → Orders</p>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Link href="/account/orders"><button className="w-full py-3.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-sm transition-colors">View My Orders</button></Link>
+              <button onClick={() => { setDone(false); setStep("brand"); setSelectedBrand(null); setSelectedModel(null); setImei(""); setNotes(""); setPayMethod(""); setMpCheckoutId(null); setMpPhone(""); setNpPayment(null); setOrderId(null); setBrandSearch(""); setManualDone(false); }}
+                className="w-full py-3 border border-slate-200 text-slate-700 hover:bg-slate-50 font-bold rounded-xl text-sm transition-colors">
+                Submit Another Unlock
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     );
   }
 
+  // ── Main layout ────────────────────────────────────────────────────────────
   return (
-    <div className="max-w-lg mx-auto px-4 py-6 pb-24">
-      {/* Header */}
-      <div className="mb-6">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 rounded-xl bg-[#1a2332] flex items-center justify-center">
-            <Cpu size={20} className="text-white" />
+    <div className="min-h-screen" style={{ background: "#f8fafc" }}>
+      {/* Hero header */}
+      <div className="text-white py-7 px-4" style={{ background: "linear-gradient(135deg,#1e3a5f 0%,#1a2d4a 60%,#0f1d2e 100%)" }}>
+        <div className="max-w-6xl mx-auto">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-10 h-10 rounded-xl bg-white/15 border border-white/20 flex items-center justify-center shrink-0">
+              <Cpu size={20} className="text-white" />
+            </div>
+            <div>
+              <h1 className="text-xl font-black leading-none">Direct Unlock Service</h1>
+              <p className="text-blue-200/80 text-[12px] mt-0.5">Professional carrier unlock for any device, worldwide</p>
+            </div>
+            {(selectedBrand || step !== "brand") && (
+              <button onClick={copyShareLink}
+                className="ml-auto flex items-center gap-1.5 bg-white/10 hover:bg-white/20 border border-white/15 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-colors">
+                {linkCopied ? <Check size={11} /> : <Share2 size={11} />}
+                {linkCopied ? "Copied!" : "Share"}
+              </button>
+            )}
           </div>
-          <div>
-            <h1 className="text-xl font-black text-gray-900">Direct Unlock</h1>
-            <p className="text-xs text-gray-500">Pay to unlock · Order created automatically on confirmation</p>
-          </div>
+          <TrustBadges />
         </div>
-        <ProgressBar step={step} />
       </div>
 
-      {/* Step 1: Brand */}
-      {step === "brand" && (
-        <div className="space-y-3">
-          <p className="text-sm font-bold text-gray-700 mb-3">Select your device brand:</p>
-          <div className="grid grid-cols-2 gap-2">
-            {DEVICE_CATALOG.map((brand) => {
-              const logoUrl = BRAND_LOGOS[brand.brand];
-              return (
-                <button key={brand.brand} onClick={() => { setSelectedBrand(brand); setSelectedModel(null); setStep("model"); }}
-                  className="flex items-center gap-3 bg-white border border-gray-200 rounded-2xl p-4 text-left hover:border-[#1a2332] hover:shadow-md transition-all group">
-                  <div className="w-9 h-9 rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-center shrink-0 overflow-hidden">
-                    {logoUrl ? (
-                      <img src={logoUrl} alt={brand.brand} className="w-7 h-7 object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; (e.target as HTMLImageElement).nextElementSibling?.removeAttribute("style"); }} />
-                    ) : null}
-                    <span className={`text-lg ${logoUrl ? "hidden" : ""}`}>{brand.icon}</span>
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-bold text-gray-800 truncate">{brand.brand}</p>
-                    <p className="text-[10px] text-gray-400">{brand.models.length} models</p>
-                  </div>
-                  <ChevronRight size={12} className="text-gray-300 group-hover:text-[#1a2332] shrink-0" />
-                </button>
-              );
-            })}
-          </div>
+      {/* Step bar */}
+      <div className="bg-white border-b border-slate-200 px-4 py-3 shadow-sm sticky top-0 z-20">
+        <div className="max-w-6xl mx-auto">
+          <StepBar step={step} />
         </div>
-      )}
+      </div>
 
-      {/* Step 2: Model */}
-      {step === "model" && selectedBrand && (
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 mb-3">
-            <button onClick={() => setStep("brand")} className="w-8 h-8 rounded-full border border-gray-200 flex items-center justify-center text-gray-500 hover:text-[#1a2332]"><ArrowLeft size={14} /></button>
-            <div className="flex-1">
-              <p className="text-xs text-gray-400 font-medium">{selectedBrand.icon} {selectedBrand.brand}</p>
-              <p className="text-sm font-bold text-gray-900">Select your model:</p>
-            </div>
-            <button
-              onClick={copyShareLink}
-              title="Copy shareable link for this brand"
-              className="flex items-center gap-1.5 px-2.5 py-1.5 border border-gray-200 rounded-lg text-[11px] font-semibold text-gray-500 hover:text-[#1a2332] hover:border-[#1a2332] transition-colors"
-            >
-              {linkCopied ? <Check size={11} className="text-green-600" /> : <Share2 size={11} />}
-              {linkCopied ? "Copied!" : "Share"}
-            </button>
-          </div>
-          {selectedBrand.models.map((model) => (
-            <button key={model.name} onClick={() => { setSelectedModel(model); setStep("imei"); }}
-              className="w-full flex items-center justify-between bg-white border border-gray-200 rounded-xl px-4 py-3.5 text-left hover:border-[#1a2332] hover:shadow-sm transition-all group">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center">
-                  <Smartphone size={14} className="text-gray-500" />
+      {/* Body */}
+      <div className="max-w-6xl mx-auto px-4 py-6 pb-28">
+        <div className="flex flex-col md:flex-row gap-6 items-start">
+
+          {/* ── Main content ── */}
+          <div className="flex-1 min-w-0 space-y-5">
+
+            {/* ── Step 1: Brand ── */}
+            {step === "brand" && (
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="px-5 py-4 border-b border-slate-100">
+                  <h2 className="font-black text-slate-900 text-base">Select Your Device Brand</h2>
+                  <p className="text-slate-500 text-[12px] mt-0.5">{DEVICE_CATALOG.length} brands supported — choose the manufacturer of your device</p>
                 </div>
-                <p className="text-sm font-medium text-gray-800">{model.name}</p>
+                <div className="p-4">
+                  {/* Search */}
+                  <div className="relative mb-4">
+                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      value={brandSearch}
+                      onChange={e => setBrandSearch(e.target.value)}
+                      placeholder="Search brand…"
+                      className="w-full pl-9 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 bg-slate-50"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                    {DEVICE_CATALOG
+                      .filter(b => !brandSearch || b.brand.toLowerCase().includes(brandSearch.toLowerCase()))
+                      .map(brand => (
+                        <button
+                          key={brand.brand}
+                          onClick={() => { setSelectedBrand(brand); setSelectedModel(null); setStep("model"); setBrandSearch(""); }}
+                          className="group flex items-center gap-3 bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-300 rounded-xl p-3 text-left transition-all hover:shadow-md"
+                        >
+                          <div className="w-10 h-10 rounded-xl bg-white border border-slate-100 shadow-sm flex items-center justify-center shrink-0 overflow-hidden">
+                            <BrandLogo brand={brand} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[12px] font-black text-slate-800 leading-tight truncate">{brand.brand}</p>
+                            <p className="text-[10px] text-slate-400 mt-0.5 font-medium">{brand.models.length} models</p>
+                          </div>
+                          <ChevronRight size={13} className="text-slate-300 group-hover:text-blue-500 shrink-0 transition-colors" />
+                        </button>
+                      ))}
+                  </div>
+                </div>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <span className="text-sm font-black text-green-700">${model.price}</span>
-                <ChevronRight size={12} className="text-gray-300 group-hover:text-[#1a2332]" />
+            )}
+
+            {/* ── Step 2: Model ── */}
+            {step === "model" && selectedBrand && (
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-3">
+                  <button onClick={() => setStep("brand")}
+                    className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:border-slate-400 transition-colors shrink-0">
+                    <ArrowLeft size={14} />
+                  </button>
+                  <div className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0">
+                    <BrandLogo brand={selectedBrand} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h2 className="font-black text-slate-900 text-base leading-none">{selectedBrand.brand}</h2>
+                    <p className="text-slate-500 text-[12px] mt-0.5">Select your exact model</p>
+                  </div>
+                  <span className="bg-blue-100 text-blue-700 text-[10px] font-black px-2.5 py-1 rounded-full shrink-0">{selectedBrand.models.length} models</span>
+                </div>
+                <div className="p-3 space-y-1.5 max-h-[540px] overflow-y-auto">
+                  {selectedBrand.models.map((model) => {
+                    const tier = model.price >= 100 ? "premium" : model.price >= 50 ? "high" : model.price >= 25 ? "mid" : "budget";
+                    const tierColors: Record<string, string> = { premium: "bg-purple-100 text-purple-700", high: "bg-blue-100 text-blue-700", mid: "bg-emerald-100 text-emerald-700", budget: "bg-slate-100 text-slate-500" };
+                    const tierLabel: Record<string, string> = { premium: "Premium", high: "High-end", mid: "Mid-range", budget: "Budget" };
+                    return (
+                      <button key={model.name}
+                        onClick={() => { setSelectedModel(model); setStep("imei"); }}
+                        className="w-full flex items-center gap-3 bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-300 rounded-xl px-4 py-3 text-left transition-all group hover:shadow-sm">
+                        <div className="w-8 h-8 rounded-lg bg-white border border-slate-100 flex items-center justify-center shrink-0">
+                          <Smartphone size={14} className="text-slate-400 group-hover:text-blue-500 transition-colors" />
+                        </div>
+                        <p className="text-[13px] font-semibold text-slate-800 flex-1 min-w-0 truncate">{model.name}</p>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${tierColors[tier]}`}>{tierLabel[tier]}</span>
+                          <span className="text-base font-black text-emerald-600">${model.price}</span>
+                          <ChevronRight size={12} className="text-slate-300 group-hover:text-blue-500 transition-colors" />
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            </button>
-          ))}
-        </div>
-      )}
+            )}
 
-      {/* Step 3: IMEI */}
-      {step === "imei" && selectedBrand && selectedModel && (
-        <div className="space-y-4">
-          <div className="flex items-center gap-2 mb-1">
-            <button onClick={() => setStep("model")} className="w-8 h-8 rounded-full border border-gray-200 flex items-center justify-center text-gray-500 hover:text-[#1a2332]"><ArrowLeft size={14} /></button>
-            <p className="text-sm font-bold text-gray-900 flex-1">Enter device details</p>
-            <button
-              onClick={copyShareLink}
-              title="Copy shareable link for this device"
-              className="flex items-center gap-1.5 px-2.5 py-1.5 border border-gray-200 rounded-lg text-[11px] font-semibold text-gray-500 hover:text-[#1a2332] hover:border-[#1a2332] transition-colors"
-            >
-              {linkCopied ? <Check size={11} className="text-green-600" /> : <Share2 size={11} />}
-              {linkCopied ? "Copied!" : "Share Link"}
-            </button>
-          </div>
-          <OrderCard brand={selectedBrand} model={selectedModel} imei={imei || "—"} />
-          <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">IMEI or Serial Number *</label>
-            <input type="text" value={imei} onChange={(e) => setImei(e.target.value)} placeholder="Enter 15-digit IMEI or serial number"
-              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a2332] font-mono" />
-            <p className="text-[11px] text-gray-400 mt-1">Dial *#06# to get your IMEI, or find it in Settings → About Phone.</p>
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Notes (optional)</label>
-            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. carrier, country, special instructions…"
-              rows={2} className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a2332] resize-none" />
-          </div>
-          <button onClick={() => { if (!imei.trim()) { toast({ title: "IMEI/serial required", variant: "destructive" }); return; } setStep("processing"); }}
-            className="w-full py-3.5 bg-[#1a2332] text-white font-bold rounded-xl text-sm">
-            Continue to Payment
-          </button>
-        </div>
-      )}
-
-      {/* Step 3b: Processing — 70-second animated verification screen */}
-      {step === "processing" && (
-        <div className="space-y-4">
-          <div className="bg-orange-50 border-2 border-orange-400 rounded-2xl p-4 flex items-start gap-3">
-            <span className="text-orange-500 text-lg shrink-0">⚠️</span>
-            <div>
-              <p className="font-black text-orange-800 text-sm">Do not close this page</p>
-              <p className="text-orange-700 text-xs mt-0.5">We are verifying your device. Closing may delay your order.</p>
-            </div>
-          </div>
-
-          <div className="rounded-2xl overflow-hidden border border-white/10" style={{ background: "#0d1117" }}>
-            {/* Terminal title bar */}
-            <div className="flex items-center gap-2 px-4 py-2.5" style={{ background: "#161b22", borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
-              <span className="w-3 h-3 rounded-full bg-red-500" />
-              <span className="w-3 h-3 rounded-full bg-yellow-500" />
-              <span className="w-3 h-3 rounded-full bg-green-500" />
-              <span className="ml-2 text-[10px] text-gray-400 font-mono">gsm-unlock-engine — verification</span>
-              <div className="ml-auto flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                <span className="text-[10px] text-green-400 font-mono">LIVE</span>
+            {/* ── Step 3: IMEI ── */}
+            {step === "imei" && selectedBrand && selectedModel && (
+              <div className="space-y-4">
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                  <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-3">
+                    <button onClick={() => setStep("model")}
+                      className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:border-slate-400 transition-colors shrink-0">
+                      <ArrowLeft size={14} />
+                    </button>
+                    <div>
+                      <h2 className="font-black text-slate-900 text-base leading-none">Device Information</h2>
+                      <p className="text-slate-500 text-[12px] mt-0.5">Enter your IMEI number to continue</p>
+                    </div>
+                  </div>
+                  <div className="p-5 space-y-5">
+                    <OrderSummaryCard brand={selectedBrand} model={selectedModel} imei={imei || "—"} />
+                    <div className="space-y-1.5">
+                      <label className="block text-[11px] font-black text-slate-500 uppercase tracking-wider">IMEI or Serial Number <span className="text-red-500">*</span></label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={imei}
+                          onChange={e => setImei(e.target.value)}
+                          placeholder="Enter 15-digit IMEI (e.g. 123456789012345)"
+                          className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 bg-slate-50 pr-10"
+                        />
+                        {imei.length >= 14 && (
+                          <button onClick={() => { setImeiCopied(true); navigator.clipboard.writeText(imei); setTimeout(() => setImeiCopied(false), 1500); }}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700">
+                            {imeiCopied ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} />}
+                          </button>
+                        )}
+                      </div>
+                      <div className="flex items-start gap-2 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2.5">
+                        <Info size={12} className="text-blue-500 mt-0.5 shrink-0" />
+                        <p className="text-[11px] text-blue-700">Dial <strong className="font-mono">*#06#</strong> to get your IMEI, or go to Settings → About Phone → IMEI Information.</p>
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="block text-[11px] font-black text-slate-500 uppercase tracking-wider">Notes <span className="text-slate-300">(optional)</span></label>
+                      <textarea
+                        value={notes}
+                        onChange={e => setNotes(e.target.value)}
+                        placeholder="e.g. carrier name, country, special instructions…"
+                        rows={2}
+                        className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 bg-slate-50 resize-none"
+                      />
+                    </div>
+                    <button
+                      onClick={() => { if (!imei.trim()) { toast({ title: "IMEI / serial number required", variant: "destructive" }); return; } setStep("processing"); }}
+                      className="w-full py-4 text-white font-black rounded-xl text-sm flex items-center justify-center gap-2 transition-all shadow-lg hover:shadow-xl"
+                      style={{ background: "linear-gradient(135deg,#2563eb,#1d4ed8)" }}>
+                      <Shield size={16} />
+                      Verify Device &amp; Continue
+                    </button>
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
 
-            {/* Device info row */}
-            <div className="px-4 py-3 flex items-center gap-3" style={{ background: "#0d1117", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-              <div className="w-8 h-8 rounded-lg bg-blue-500/15 border border-blue-500/20 flex items-center justify-center shrink-0">
-                {BRAND_LOGOS[selectedBrand?.brand ?? ""] ? (
-                  <img src={BRAND_LOGOS[selectedBrand?.brand ?? ""]} alt="" className="w-6 h-6 object-contain" />
-                ) : (
-                  <span className="text-sm">{selectedBrand?.icon}</span>
+            {/* ── Step 3b: Processing ── */}
+            {step === "processing" && (
+              <div className="space-y-4">
+                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3">
+                  <AlertCircle size={18} className="text-amber-500 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-black text-amber-800 text-sm">Do not close this page</p>
+                    <p className="text-amber-700 text-[12px] mt-0.5">Your device is being verified against global carrier databases. This takes approximately 70 seconds.</p>
+                  </div>
+                </div>
+                <div className="rounded-2xl overflow-hidden border border-slate-800/50 shadow-2xl" style={{ background: "#0d1117" }}>
+                  {/* Terminal title bar */}
+                  <div className="flex items-center gap-2 px-4 py-3" style={{ background: "#161b22", borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+                    <span className="w-3 h-3 rounded-full bg-red-500" />
+                    <span className="w-3 h-3 rounded-full bg-yellow-500" />
+                    <span className="w-3 h-3 rounded-full bg-green-500" />
+                    <span className="ml-3 text-[11px] text-slate-400 font-mono font-semibold">gsm-unlock-engine v3.2 — secure verification</span>
+                    <div className="ml-auto flex items-center gap-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      <span className="text-[10px] text-emerald-400 font-mono font-bold">LIVE</span>
+                    </div>
+                  </div>
+                  {/* Device row */}
+                  <div className="px-4 py-3 flex items-center gap-3" style={{ background: "#0d1117", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                    <div className="w-8 h-8 rounded-lg bg-blue-500/15 border border-blue-500/20 flex items-center justify-center shrink-0">
+                      {BRAND_LOGOS[selectedBrand?.brand ?? ""]
+                        ? <img src={BRAND_LOGOS[selectedBrand?.brand ?? ""]} alt="" className="w-6 h-6 object-contain" />
+                        : <span className="text-sm">{selectedBrand?.icon}</span>}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[12px] font-bold text-white truncate">{selectedModel?.name}</p>
+                      <p className="text-[10px] text-slate-500 font-mono">{selectedBrand?.brand} · IMEI: {imei}</p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span className="text-[11px] font-black text-blue-400 font-mono">{processingPct}%</span>
+                    </div>
+                  </div>
+                  {/* Progress bar */}
+                  <div className="px-4 pt-3 pb-1" style={{ background: "#0d1117" }}>
+                    <div className="h-2 bg-white/5 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full transition-all duration-500"
+                        style={{ width: `${processingPct}%`, background: "linear-gradient(90deg,#3b82f6,#10b981)" }} />
+                    </div>
+                  </div>
+                  {/* Terminal output */}
+                  <div className="px-4 pb-5 pt-2 space-y-1.5 min-h-[160px]">
+                    {PROCESSING_MSGS.slice(0, processingIdx + 1).slice(-9).map((msg, _i, arr) => {
+                      const isLast = _i === arr.length - 1;
+                      const isGreen = msg.includes("✓") || msg.includes("OK") || msg.includes("clean") || msg.includes("eligible") || msg.includes("valid");
+                      return (
+                        <div key={msg} className="flex items-start gap-2 font-mono">
+                          {isLast && processingPct < 100 ? (
+                            <span className="w-3 h-3 mt-0.5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin shrink-0 inline-block" />
+                          ) : (
+                            <span className={`text-xs shrink-0 mt-px ${isGreen ? "text-emerald-500" : "text-slate-600"}`}>›</span>
+                          )}
+                          <span className={`text-[11px] leading-snug ${
+                            isLast && processingPct < 100 ? "text-white" : isGreen ? "text-emerald-400" : "text-slate-500"
+                          }`}>{msg}</span>
+                        </div>
+                      );
+                    })}
+                    {processingPct < 100 && <span className="text-emerald-500 text-xs animate-pulse font-mono">▊</span>}
+                  </div>
+                </div>
+                <p className="text-center text-xs text-slate-400">Verification in progress — approximately {Math.ceil((100 - processingPct) * 0.7)} seconds remaining</p>
+              </div>
+            )}
+
+            {/* ── Step 3c: Confirmed ── */}
+            {step === "confirmed" && selectedBrand && selectedModel && (
+              <div className="space-y-4">
+                <div className="rounded-2xl overflow-hidden shadow-xl border border-emerald-200">
+                  <div className="p-6 text-white text-center space-y-4" style={{ background: "linear-gradient(135deg,#059669 0%,#047857 50%,#065f46 100%)" }}>
+                    <div className="w-16 h-16 rounded-full bg-white/20 border-2 border-white/30 flex items-center justify-center mx-auto">
+                      <CheckCircle2 size={32} className="text-white" />
+                    </div>
+                    <div>
+                      <p className="font-black text-2xl tracking-tight">Device Verified!</p>
+                      <p className="text-emerald-100 text-sm mt-1">{selectedBrand.brand} — {selectedModel.name}</p>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                      {[
+                        { icon: "✓", label: "IMEI Valid" },
+                        { icon: "✓", label: "Not Blacklisted" },
+                        { icon: "✓", label: "Eligible" },
+                      ].map(b => (
+                        <div key={b.label} className="bg-white/10 border border-white/15 rounded-xl py-2 px-1">
+                          <p className="text-emerald-300 font-black text-lg leading-none">{b.icon}</p>
+                          <p className="text-white/80 text-[10px] mt-1 font-semibold">{b.label}</p>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex items-center justify-between bg-white/10 border border-white/15 rounded-xl px-4 py-3">
+                      <p className="text-emerald-100/80 text-sm font-medium">Unlock Price</p>
+                      <p className="text-2xl font-black text-white">${selectedModel.price}</p>
+                    </div>
+                  </div>
+                  <div className="bg-white px-5 py-4 space-y-2">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">What happens after payment</p>
+                    {[
+                      { icon: <Clock size={13} className="text-blue-500" />, text: "Unlock processed within 30 min – 24 hrs" },
+                      { icon: <Zap size={13} className="text-yellow-500" />, text: "Unlock code sent to your registered email" },
+                      { icon: <Shield size={13} className="text-emerald-500" />, text: "Permanent unlock — works on all carriers" },
+                    ].map((s, i) => (
+                      <div key={i} className="flex items-center gap-2.5">
+                        <span className="shrink-0">{s.icon}</span>
+                        <p className="text-[12px] text-slate-600">{s.text}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <button
+                  onClick={() => setStep("pay")}
+                  className="w-full py-4 text-white font-black rounded-2xl text-base flex items-center justify-center gap-2 shadow-xl transition-all hover:shadow-2xl"
+                  style={{ background: "linear-gradient(135deg,#1e3a5f,#0f1d2e)" }}>
+                  <CreditCard size={18} />
+                  Proceed to Payment →
+                </button>
+              </div>
+            )}
+
+            {/* ── Step 4: Pay ── */}
+            {step === "pay" && selectedBrand && selectedModel && (
+              <div className="space-y-4">
+                {/* Back / title */}
+                <div className="flex items-center gap-3">
+                  {!mpCheckoutId && !npPayment && (
+                    <button onClick={() => setStep("imei")}
+                      className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:border-slate-400 transition-colors shrink-0">
+                      <ArrowLeft size={14} />
+                    </button>
+                  )}
+                  <div>
+                    <h2 className="font-black text-slate-900 text-base leading-none">
+                      {mpCheckoutId ? "Complete M-Pesa Payment" : npPayment ? "Complete Crypto Payment" : "Choose Payment Method"}
+                    </h2>
+                    <p className="text-slate-500 text-[12px] mt-0.5">Order is created automatically after payment is confirmed</p>
+                  </div>
+                </div>
+
+                <OrderSummaryCard brand={selectedBrand} model={selectedModel} imei={imei} />
+
+                {/* Payment method selector */}
+                {!mpCheckoutId && !npPayment && (
+                  <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+                    <div className="px-5 py-3 border-b border-slate-100">
+                      <p className="text-[11px] font-black text-slate-500 uppercase tracking-wider">Payment Methods</p>
+                    </div>
+                    <div className="p-3 space-y-2">
+                      {([
+                        { id: "wallet" as PayMethod, label: "Wallet Balance", icon: <Wallet size={16} className="text-emerald-600" />, sub: `Balance: $${walletBalance.toFixed(2)}${walletBalance < selectedModel.price ? " — insufficient" : ""}`, warn: walletBalance < selectedModel.price, badge: "Instant" },
+                        { id: "mpesa" as PayMethod, label: "M-Pesa", icon: <Smartphone size={16} className="text-green-600" />, sub: "STK push to your phone — auto-confirm", warn: false, badge: "Auto" },
+                        { id: "nowpayments" as PayMethod, label: "Crypto (NOWPayments)", icon: <span className="text-lg leading-none font-black text-slate-700">₿</span>, sub: "BTC, ETH, USDT and 100+ coins — auto-confirm", warn: false, badge: "Auto" },
+                        { id: "binance_pay" as PayMethod, label: "Binance Pay", icon: <span className="text-lg leading-none">🟡</span>, sub: "Manual verification within 10-30 min", warn: false, badge: "Manual" },
+                        { id: "usdt_manual" as PayMethod, label: "USDT TRC20 (Manual)", icon: <span className="text-lg leading-none">💲</span>, sub: "Send to our address — manual verification", warn: false, badge: "Manual" },
+                      ] as const).map(pm => (
+                        <button key={pm.id} onClick={() => setPayMethod(pm.id)}
+                          className={`w-full flex items-center gap-3 border rounded-xl px-4 py-3 text-left transition-all ${
+                            payMethod === pm.id
+                              ? "border-blue-400 bg-blue-50 shadow-sm"
+                              : "border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-white"
+                          }`}>
+                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border ${payMethod === pm.id ? "bg-white border-blue-200" : "bg-white border-slate-100"}`}>
+                            {pm.icon}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[13px] font-bold text-slate-800">{pm.label}</p>
+                            <p className={`text-[11px] ${pm.warn ? "text-orange-500 font-semibold" : "text-slate-400"}`}>{pm.sub}</p>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${
+                              pm.badge === "Instant" ? "bg-emerald-100 text-emerald-700" :
+                              pm.badge === "Auto" ? "bg-blue-100 text-blue-700" :
+                              "bg-slate-100 text-slate-500"
+                            }`}>{pm.badge}</span>
+                            {pm.warn && <AlertCircle size={14} className="text-orange-500" />}
+                            <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${payMethod === pm.id ? "border-blue-500" : "border-slate-300"}`}>
+                              {payMethod === pm.id && <div className="w-2 h-2 rounded-full bg-blue-500" />}
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* ── Wallet ── */}
+                {payMethod === "wallet" && !mpCheckoutId && !npPayment && (
+                  <div className="space-y-2">
+                    <button onClick={handleWalletPay} disabled={walletBalance < selectedModel.price}
+                      className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-black rounded-xl text-sm flex items-center justify-center gap-2 transition-colors shadow-lg">
+                      <Wallet size={16} /> Pay ${selectedModel.price} from Wallet
+                    </button>
+                    {walletBalance < selectedModel.price && (
+                      <Link href="/account/add-fund">
+                        <button className="w-full py-3 border border-emerald-400 text-emerald-700 hover:bg-emerald-50 font-bold rounded-xl text-sm transition-colors">Top Up Wallet Now</button>
+                      </Link>
+                    )}
+                  </div>
+                )}
+
+                {/* ── M-Pesa ── */}
+                {payMethod === "mpesa" && !mpCheckoutId && (
+                  <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-sm">
+                    <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-sm text-green-800">
+                      We'll send an STK push for <strong>${selectedModel.price}</strong> (≈ KES {(selectedModel.price * 130).toLocaleString()}). Enter your PIN to pay.
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-black text-slate-500 uppercase tracking-wider mb-2">M-Pesa Phone Number</label>
+                      <div className="flex items-center border border-slate-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-blue-500/30 focus-within:border-blue-400">
+                        <span className="px-3 py-3 bg-slate-50 text-sm text-slate-600 font-bold border-r border-slate-200">+254</span>
+                        <input type="tel" value={mpPhone} onChange={e => setMpPhone(e.target.value)} placeholder="7XX XXX XXX" className="flex-1 px-3 py-3 text-sm focus:outline-none bg-white" />
+                      </div>
+                    </div>
+                    <button onClick={handleMpesaSend} disabled={mpSending}
+                      className="w-full py-3.5 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white font-bold rounded-xl text-sm flex items-center justify-center gap-2 transition-colors">
+                      {mpSending
+                        ? <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Sending…</>
+                        : <><Smartphone size={15} /> Send STK Push — ${selectedModel.price}</>}
+                    </button>
+                  </div>
+                )}
+                {payMethod === "mpesa" && mpCheckoutId && (
+                  <div className="bg-white border border-green-200 rounded-2xl p-5 space-y-4 shadow-sm">
+                    <div className="text-center">
+                      <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <Smartphone size={22} className="text-green-600" />
+                      </div>
+                      <p className="font-black text-green-800 text-lg">STK Push Sent!</p>
+                      <p className="text-sm text-green-700 mt-1">Enter your M-Pesa PIN. Order created automatically on confirmation.</p>
+                    </div>
+                    <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-3 py-2.5">
+                      <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse shrink-0" />
+                      <p className="text-[12px] text-green-800 font-medium">
+                        {mpPollCount >= 15 ? "Auto-check stopped. Use button below." : `Checking automatically… (${mpPollCount}/15)`}
+                      </p>
+                    </div>
+                    <button onClick={handleMpesaCheck} disabled={mpChecking}
+                      className="w-full py-3 border border-green-500 text-green-700 hover:bg-green-50 font-bold rounded-xl text-sm flex items-center justify-center gap-2 disabled:opacity-60 transition-colors">
+                      {mpChecking ? <><span className="w-4 h-4 border-2 border-green-600 border-t-transparent rounded-full animate-spin" /> Checking…</> : <><RefreshCw size={14} /> Check Payment Now</>}
+                    </button>
+                    <button onClick={() => { setMpCheckoutId(null); setMpPollCount(0); }} className="w-full py-2 text-xs text-slate-400 hover:text-slate-600">Try again with a different number</button>
+                  </div>
+                )}
+
+                {/* ── NOWPayments ── */}
+                {payMethod === "nowpayments" && !npPayment && (
+                  <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-sm">
+                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm text-slate-700">
+                      Pay <strong>${selectedModel.price}</strong> in cryptocurrency. Order is created automatically after on-chain confirmation.
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-black text-slate-500 uppercase tracking-wider mb-2">Select Cryptocurrency</label>
+                      <select value={npCurrency} onChange={e => setNpCurrency(e.target.value)}
+                        className="w-full border border-slate-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 bg-slate-50">
+                        <option value="usdttrc20">USDT (TRC20 / TRON)</option>
+                        <option value="usdterc20">USDT (ERC20 / Ethereum)</option>
+                        <option value="btc">Bitcoin (BTC)</option>
+                        <option value="eth">Ethereum (ETH)</option>
+                        <option value="ltc">Litecoin (LTC)</option>
+                        <option value="xrp">Ripple (XRP)</option>
+                        <option value="bnbbsc">BNB (BSC)</option>
+                        <option value="trx">TRON (TRX)</option>
+                        <option value="usdcbsc">USDC (BSC)</option>
+                        <option value="doge">Dogecoin (DOGE)</option>
+                      </select>
+                    </div>
+                    <button onClick={handleNpCreate} disabled={npCreating}
+                      className="w-full py-3.5 bg-slate-900 hover:bg-slate-800 disabled:opacity-60 text-white font-bold rounded-xl text-sm flex items-center justify-center gap-2 transition-colors">
+                      {npCreating ? <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Generating…</> : <>₿ Generate Payment Address</>}
+                    </button>
+                  </div>
+                )}
+                {payMethod === "nowpayments" && npPayment && (
+                  <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-black text-slate-500 uppercase tracking-wider">Send exactly</span>
+                      <span className="font-black text-xl text-slate-900">{npPayment.payAmount} {npPayment.payCurrency.toUpperCase()}</span>
+                    </div>
+                    <div className="flex flex-col items-center gap-3">
+                      <QRCodeSVG value={npPayment.payAddress} size={144} level="M" className="rounded-2xl border-4 border-white shadow-lg" />
+                      <p className="text-xs text-slate-500">Scan or copy the address below</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-black text-slate-500 uppercase tracking-wider mb-1.5">Payment Address</p>
+                      <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5">
+                        <span className="font-mono text-[11px] text-slate-700 break-all flex-1">{npPayment.payAddress}</span>
+                        <button onClick={() => { navigator.clipboard.writeText(npPayment.payAddress); setNpCopied(true); setTimeout(() => setNpCopied(false), 2000); toast({ title: "Address copied!" }); }}
+                          className={`shrink-0 p-1.5 rounded-lg text-xs font-bold transition-colors ${npCopied ? "bg-emerald-500 text-white" : "bg-slate-200 text-slate-700 hover:bg-slate-300"}`}>
+                          {npCopied ? <Check size={12} /> : <Copy size={12} />}
+                        </button>
+                      </div>
+                    </div>
+                    {npPayment.expiresAt && <p className="text-[11px] text-orange-600 font-medium">⏱ Expires: {new Date(npPayment.expiresAt).toLocaleTimeString()}</p>}
+                    <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-xl px-3 py-2.5">
+                      <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse shrink-0" />
+                      <span className="text-[12px] text-blue-700">{npPollCount >= 30 ? "Auto-check stopped." : `Checking every 30s… (${npPollCount}/30)`}</span>
+                    </div>
+                    <button onClick={handleNpCheck} className="w-full py-3 border border-blue-300 text-blue-700 hover:bg-blue-50 font-bold rounded-xl text-sm flex items-center justify-center gap-2 transition-colors">
+                      <RefreshCw size={14} /> Check Payment
+                    </button>
+                    <button onClick={() => { setNpPayment(null); setNpPollCount(0); }} className="w-full py-2 text-xs text-slate-400 hover:text-slate-600">Cancel / Change currency</button>
+                  </div>
+                )}
+
+                {/* ── Binance Pay ── */}
+                {payMethod === "binance_pay" && !mpCheckoutId && !npPayment && (
+                  manualDone && orderId ? (
+                    <div className="bg-white border border-green-200 rounded-2xl p-6 space-y-3 text-center shadow-sm">
+                      <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto"><CheckCircle2 size={28} className="text-green-600" /></div>
+                      <p className="font-black text-lg text-slate-800">Order #{orderId} Submitted!</p>
+                      <p className="text-sm text-slate-500">Our team verifies your payment within <strong>10-30 minutes</strong>.</p>
+                    </div>
+                  ) : (
+                    <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-sm">
+                      <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 space-y-3">
+                        <p className="text-[12px] font-bold text-yellow-800">Send ${selectedModel.price} USD via Binance Pay</p>
+                        <div className="flex items-center gap-3 bg-white border border-yellow-200 rounded-xl px-4 py-3">
+                          <span className="text-2xl">🟡</span>
+                          <div className="flex-1">
+                            <p className="text-[10px] text-slate-400 font-medium">Binance Pay ID</p>
+                            <p className="text-2xl font-black text-slate-900 tracking-widest">490759406</p>
+                          </div>
+                          <button onClick={() => { navigator.clipboard.writeText("490759406"); toast({ title: "Copied!" }); }}
+                            className="w-9 h-9 rounded-xl bg-yellow-100 text-yellow-700 flex items-center justify-center hover:bg-yellow-200 transition-colors">
+                            <Copy size={14} />
+                          </button>
+                        </div>
+                        <p className="text-[11px] text-yellow-700">Payment label: <strong>GSM World Unlock</strong></p>
+                      </div>
+                      <button onClick={handleManualPay}
+                        className="w-full py-4 bg-yellow-500 hover:bg-yellow-600 text-white font-black rounded-xl text-sm flex items-center justify-center gap-2 transition-colors shadow-lg">
+                        <CheckCircle2 size={16} /> I've Sent ${selectedModel.price} — Place Order
+                      </button>
+                    </div>
+                  )
+                )}
+
+                {/* ── USDT Manual ── */}
+                {payMethod === "usdt_manual" && !mpCheckoutId && !npPayment && (
+                  manualDone && orderId ? (
+                    <div className="bg-white border border-green-200 rounded-2xl p-6 space-y-3 text-center shadow-sm">
+                      <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto"><CheckCircle2 size={28} className="text-green-600" /></div>
+                      <p className="font-black text-lg text-slate-800">Order #{orderId} Submitted!</p>
+                      <p className="text-sm text-slate-500">Our team verifies your payment within <strong>10-30 minutes</strong>.</p>
+                    </div>
+                  ) : (
+                    <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-sm">
+                      <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 space-y-3">
+                        <p className="text-[12px] font-bold text-emerald-800">Send ${selectedModel.price} USDT via TRC20 Network</p>
+                        <div className="flex flex-col items-center gap-3">
+                          <QRCodeSVG value="TNgDQqmgQo5soUH8pGv6LgB69zCVCS7gq5" size={120} level="M" className="rounded-2xl border-4 border-white shadow-lg" />
+                          <p className="text-[11px] text-slate-500">Scan QR or copy address below</p>
+                        </div>
+                        <div className="flex items-center gap-2 bg-white border border-emerald-200 rounded-xl px-3 py-2.5">
+                          <span className="font-mono text-[11px] text-slate-700 break-all flex-1">TNgDQqmgQo5soUH8pGv6LgB69zCVCS7gq5</span>
+                          <button onClick={() => { navigator.clipboard.writeText("TNgDQqmgQo5soUH8pGv6LgB69zCVCS7gq5"); toast({ title: "Address copied!" }); }}
+                            className="shrink-0 p-1.5 rounded-lg bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition-colors">
+                            <Copy size={12} />
+                          </button>
+                        </div>
+                        <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2 flex items-start gap-2">
+                          <AlertCircle size={13} className="text-red-500 shrink-0 mt-0.5" />
+                          <p className="text-[11px] text-red-700 font-medium">TRC20 only — Sending via ERC20 will result in loss of funds.</p>
+                        </div>
+                      </div>
+                      <button onClick={handleManualPay}
+                        className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl text-sm flex items-center justify-center gap-2 transition-colors shadow-lg">
+                        <CheckCircle2 size={16} /> I've Sent ${selectedModel.price} USDT — Place Order
+                      </button>
+                    </div>
+                  )
                 )}
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[11px] font-bold text-white truncate">{selectedModel?.name}</p>
-                <p className="text-[10px] text-gray-500 font-mono">{selectedBrand?.brand}</p>
-              </div>
-              <span className="text-[10px] font-bold text-blue-400 font-mono shrink-0">{processingPct}%</span>
-            </div>
-
-            {/* Progress bar */}
-            <div className="px-4 py-2" style={{ background: "#0d1117" }}>
-              <div className="h-1.5 bg-white/8 rounded-full overflow-hidden">
-                <div
-                  className="h-full rounded-full transition-all duration-500"
-                  style={{ width: `${processingPct}%`, background: "linear-gradient(90deg,#3b82f6,#10b981)" }}
-                />
-              </div>
-            </div>
-
-            {/* Terminal log output */}
-            <div className="px-4 pb-4 space-y-1 min-h-[140px]">
-              {PROCESSING_MSGS.slice(0, processingIdx + 1).slice(-8).map((msg, _relIdx, arr) => {
-                const isLast = _relIdx === arr.length - 1;
-                const isGreen = msg.includes("✓") || msg.includes("OK") || msg.includes("clean") || msg.includes("eligible") || msg.includes("valid");
-                return (
-                  <div key={msg} className="flex items-start gap-2 font-mono">
-                    {isLast && processingPct < 100 ? (
-                      <span className="w-3 h-3 mt-0.5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin shrink-0 inline-block" />
-                    ) : (
-                      <span className={`text-xs shrink-0 mt-px ${isGreen ? "text-green-500" : "text-gray-600"}`}>›</span>
-                    )}
-                    <span className={`text-[11px] leading-snug ${
-                      isLast && processingPct < 100 ? "text-white" :
-                      isGreen ? "text-green-400" : "text-gray-400"
-                    }`}>{msg}</span>
-                  </div>
-                );
-              })}
-              {processingPct < 100 && (
-                <div className="flex items-center gap-1 font-mono mt-1">
-                  <span className="text-green-500 text-xs animate-pulse">▊</span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <p className="text-center text-xs text-gray-400">Verification takes ~70 seconds — do not close this page</p>
-        </div>
-      )}
-
-      {/* Step 3c: Check Successful confirmation */}
-      {step === "confirmed" && selectedBrand && selectedModel && (
-        <div className="space-y-4">
-          <div className="relative overflow-hidden rounded-2xl shadow-xl" style={{ background: "linear-gradient(135deg, #16a34a 0%, #059669 50%, #0d9488 100%)" }}>
-            <div className="absolute top-0 right-0 w-40 h-40 rounded-full bg-white/5 -translate-y-10 translate-x-10 pointer-events-none" />
-            <div className="relative p-6 text-white text-center space-y-4">
-              <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur-sm border border-white/30 flex items-center justify-center mx-auto">
-                <span className="text-3xl">✅</span>
-              </div>
-              <div>
-                <p className="font-black text-2xl tracking-tight">Device Verified!</p>
-                <p className="text-emerald-100 text-sm mt-1 font-medium">{selectedBrand.brand} — {selectedModel.name}</p>
-              </div>
-              <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 text-left space-y-2.5 border border-white/20">
-                <p className="text-[10px] font-bold text-white/60 uppercase tracking-widest mb-1">What happens next</p>
-                <div className="flex items-start gap-2"><span className="text-emerald-300 mt-0.5 shrink-0">✓</span><p className="text-sm text-white/90">Device has been verified successfully</p></div>
-                <div className="flex items-start gap-2"><span className="text-emerald-300 mt-0.5 shrink-0">⏱</span><p className="text-sm text-white/90">Order processed within <strong>30–60 min</strong> after payment</p></div>
-                <div className="flex items-start gap-2"><span className="text-emerald-300 mt-0.5 shrink-0">📧</span><p className="text-sm text-white/90">Unlock code sent to your email once complete</p></div>
-              </div>
-              <div className="flex items-center justify-between bg-white/10 rounded-xl px-4 py-3 border border-white/20">
-                <p className="text-sm font-medium text-white/70">Unlock Price</p>
-                <p className="text-2xl font-black text-white">${selectedModel.price}</p>
-              </div>
-            </div>
-          </div>
-          <button
-            onClick={() => setStep("pay")}
-            className="w-full py-4 bg-[#1a2332] text-white font-black rounded-2xl text-base flex items-center justify-center gap-2 shadow-lg hover:bg-[#243044] transition-colors">
-            Proceed to Payment →
-          </button>
-        </div>
-      )}
-
-      {/* Step 4: Pay — payment happens here, order created on confirmation */}
-      {step === "pay" && selectedBrand && selectedModel && (
-        <div className="space-y-4">
-          <div className="flex items-center gap-2 mb-1">
-            {!mpCheckoutId && !npPayment && (
-              <button onClick={() => setStep("imei")} className="w-8 h-8 rounded-full border border-gray-200 flex items-center justify-center text-gray-500 hover:text-[#1a2332]"><ArrowLeft size={14} /></button>
             )}
-            <p className="text-sm font-bold text-gray-900">
-              {mpCheckoutId ? "Complete M-Pesa payment" : npPayment ? "Complete crypto payment" : "Choose payment method"}
-            </p>
+
           </div>
 
-          <OrderCard brand={selectedBrand} model={selectedModel} imei={imei} />
+          {/* ── Sidebar (desktop) ── */}
+          <div className="hidden md:block">
+            <InfoSidebar walletBalance={walletBalance} selectedModel={selectedModel} />
+          </div>
 
-          {/* Method selector — hidden once a payment is in progress */}
-          {!mpCheckoutId && !npPayment && (
-            <div className="space-y-2">
-              {([
-                { id: "wallet" as PayMethod, label: "Wallet Balance", icon: "💰", sub: `Balance: $${walletBalance.toFixed(2)}${walletBalance < selectedModel.price ? " — insufficient" : ""}`, warn: walletBalance < selectedModel.price },
-                { id: "binance_pay" as PayMethod, label: "Binance Pay", icon: "🟡", sub: "Manual — Admin verifies within 10-30 min", warn: false },
-                { id: "usdt_manual" as PayMethod, label: "USDT TRC20 (Manual)", icon: "💲", sub: "Send to our address — Admin verifies within 10-30 min", warn: false },
-                { id: "mpesa" as PayMethod, label: "M-Pesa", icon: "📱", sub: "STK push → auto-confirm → order created", warn: false },
-                { id: "nowpayments" as PayMethod, label: "Crypto (NOWPayments)", icon: "₿", sub: "BTC, ETH, USDT and 100+ coins → auto-confirm → order created", warn: false },
-              ] as const).map((pm) => (
-                <button key={pm.id} onClick={() => setPayMethod(pm.id)}
-                  className={`w-full flex items-center gap-3 border rounded-xl px-4 py-3.5 text-left transition-all ${payMethod === pm.id ? "border-[#1a2332] bg-[#1a2332]/5" : "border-gray-200 bg-white hover:border-gray-300"}`}>
-                  <span className="text-xl">{pm.icon}</span>
-                  <div className="flex-1">
-                    <p className="text-sm font-bold text-gray-800">{pm.label}</p>
-                    <p className={`text-[11px] ${pm.warn ? "text-orange-500" : "text-gray-400"}`}>{pm.sub}</p>
-                  </div>
-                  {pm.warn && <AlertCircle size={14} className="text-orange-500 shrink-0" />}
-                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${payMethod === pm.id ? "border-[#1a2332]" : "border-gray-300"}`}>
-                    {payMethod === pm.id && <div className="w-2 h-2 rounded-full bg-[#1a2332]" />}
-                  </div>
-                </button>
+        </div>
+
+        {/* ── Mobile sidebar info strip ── */}
+        <div className="md:hidden mt-6 space-y-3">
+          <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+              <Shield size={11} className="text-emerald-500" /> Why choose GSM World?
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { icon: <BadgeCheck size={13} className="text-blue-500" />, text: "15,000+ unlocked" },
+                { icon: <Clock size={13} className="text-orange-500" />, text: "2–24 hr delivery" },
+                { icon: <Shield size={13} className="text-emerald-500" />, text: "Permanent unlock" },
+                { icon: <Star size={13} className="text-yellow-500" />, text: "4.9/5 rating" },
+              ].map((t, i) => (
+                <div key={i} className="flex items-center gap-2 bg-slate-50 rounded-xl px-3 py-2.5">
+                  {t.icon}
+                  <span className="text-[11px] font-semibold text-slate-700">{t.text}</span>
+                </div>
               ))}
             </div>
-          )}
-
-          {/* ── Wallet ─────────────────────────────────────────────────────── */}
-          {payMethod === "wallet" && !mpCheckoutId && !npPayment && (
-            <button onClick={handleWalletPay} disabled={walletBalance < selectedModel.price}
-              className="w-full py-4 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-black rounded-xl text-sm flex items-center justify-center gap-2">
-              💰 Pay ${selectedModel.price} from Wallet
-            </button>
-          )}
-          {payMethod === "wallet" && walletBalance < selectedModel.price && (
+          </div>
+          <div className="flex items-center justify-between bg-white border border-slate-200 rounded-2xl px-4 py-3 shadow-sm">
+            <div className="flex items-center gap-2">
+              <Wallet size={14} className="text-slate-500" />
+              <div>
+                <p className="text-[10px] text-slate-400 font-medium">Wallet Balance</p>
+                <p className="text-slate-800 font-black text-sm">${walletBalance.toFixed(2)}</p>
+              </div>
+            </div>
             <Link href="/account/add-fund">
-              <button className="w-full py-3 border border-green-600 text-green-700 font-bold rounded-xl text-sm">Top Up Wallet Now</button>
+              <button className="text-[11px] font-bold bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg transition-colors">Top Up</button>
             </Link>
-          )}
-
-          {/* ── M-Pesa ─────────────────────────────────────────────────────── */}
-          {payMethod === "mpesa" && !mpCheckoutId && (
-            <div className="space-y-3">
-              <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-sm text-green-800">
-                We'll send an STK push for <strong>${selectedModel.price}</strong> (≈ KES {(selectedModel.price * 130).toLocaleString()}). Enter your PIN to pay — order is created automatically.
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">M-Pesa Phone Number</label>
-                <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden">
-                  <span className="px-3 py-2.5 bg-gray-100 text-sm text-gray-600 font-medium border-r border-gray-200">+254</span>
-                  <input type="tel" value={mpPhone} onChange={(e) => setMpPhone(e.target.value)} placeholder="7XX XXX XXX" className="flex-1 px-3 py-2.5 text-sm focus:outline-none" />
-                </div>
-              </div>
-              <button onClick={handleMpesaSend} disabled={mpSending}
-                className="w-full py-3.5 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white font-bold rounded-xl text-sm flex items-center justify-center gap-2">
-                {mpSending ? <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Sending…</> : <><Smartphone size={16} /> Send STK Push — ${selectedModel.price}</>}
-              </button>
-            </div>
-          )}
-          {payMethod === "mpesa" && mpCheckoutId && (
-            <div className="bg-green-50 border border-green-300 rounded-xl p-5 space-y-4">
-              <div className="text-center">
-                <div className="w-12 h-12 bg-green-600 rounded-full flex items-center justify-center mx-auto mb-2">
-                  <Smartphone size={20} className="text-white" />
-                </div>
-                <p className="font-bold text-green-800">STK Push Sent!</p>
-                <p className="text-sm text-green-700 mt-1">Enter your M-Pesa PIN. Order is created automatically on confirmation.</p>
-              </div>
-              <div className="flex items-center gap-2 bg-green-100 border border-green-200 rounded-lg px-3 py-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse shrink-0" />
-                <p className="text-xs text-green-800 font-medium">
-                  {mpPollCount >= 15 ? "Auto-check stopped. Use the button below." : `Checking automatically… (${mpPollCount}/15)`}
-                </p>
-              </div>
-              <button onClick={handleMpesaCheck} disabled={mpChecking}
-                className="w-full py-2.5 border border-green-500 text-green-700 hover:bg-green-100 font-bold rounded-xl text-sm flex items-center justify-center gap-2 disabled:opacity-60">
-                {mpChecking ? <><span className="w-4 h-4 border-2 border-green-600 border-t-transparent rounded-full animate-spin" /> Checking…</> : <><RefreshCw size={14} /> Check Now</>}
-              </button>
-              <button onClick={() => { setMpCheckoutId(null); setMpPollCount(0); }} className="w-full py-2 text-xs text-gray-400 hover:text-gray-600">Try again with different number</button>
-            </div>
-          )}
-
-          {/* ── NOWPayments ─────────────────────────────────────────────────── */}
-          {payMethod === "nowpayments" && !npPayment && (
-            <div className="space-y-3">
-              <div className="bg-[#1a1a2e]/5 border border-[#1a1a2e]/20 rounded-xl p-3 text-sm text-gray-700">
-                Pay <strong>${selectedModel.price}</strong> in crypto. Order is created automatically after confirmation.
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Pay with</label>
-                <select value={npCurrency} onChange={e => setNpCurrency(e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none">
-                  <option value="usdttrc20">USDT (TRC20 / TRON)</option>
-                  <option value="usdterc20">USDT (ERC20 / Ethereum)</option>
-                  <option value="btc">Bitcoin (BTC)</option>
-                  <option value="eth">Ethereum (ETH)</option>
-                  <option value="ltc">Litecoin (LTC)</option>
-                  <option value="xrp">Ripple (XRP)</option>
-                  <option value="bnbbsc">BNB (BSC)</option>
-                  <option value="trx">TRON (TRX)</option>
-                  <option value="usdcbsc">USDC (BSC)</option>
-                  <option value="doge">Dogecoin (DOGE)</option>
-                </select>
-              </div>
-              <button onClick={handleNpCreate} disabled={npCreating}
-                className="w-full py-3.5 bg-[#1a1a2e] hover:bg-[#2a2a4e] disabled:opacity-60 text-white font-bold rounded-xl text-sm flex items-center justify-center gap-2">
-                {npCreating ? <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Generating…</> : <>₿ Generate Payment Address</>}
-              </button>
-            </div>
-          )}
-          {payMethod === "nowpayments" && npPayment && (
-            <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-gray-500 uppercase">Send exactly</span>
-                <span className="font-black text-lg text-[#1a1a2e]">{npPayment.payAmount} {npPayment.payCurrency.toUpperCase()}</span>
-              </div>
-              <div className="flex flex-col items-center gap-3">
-                <QRCodeSVG value={npPayment.payAddress} size={140} level="M" className="rounded-xl border-4 border-white shadow" />
-                <p className="text-xs text-gray-500">Scan QR code or copy address below</p>
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-gray-500 mb-1">Payment address</p>
-                <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
-                  <span className="font-mono text-xs text-gray-700 break-all flex-1">{npPayment.payAddress}</span>
-                  <button onClick={() => { navigator.clipboard.writeText(npPayment.payAddress); setNpCopied(true); setTimeout(() => setNpCopied(false), 2000); toast({ title: "Address copied!" }); }}
-                    className={`shrink-0 px-2 py-1 rounded text-xs font-bold transition-colors ${npCopied ? "bg-green-600 text-white" : "bg-gray-200 text-gray-700"}`}>
-                    {npCopied ? <Check size={12} /> : <Copy size={12} />}
-                  </button>
-                </div>
-              </div>
-              {npPayment.expiresAt && <p className="text-[10px] text-orange-600">⏱ Expires: {new Date(npPayment.expiresAt).toLocaleTimeString()}</p>}
-              <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
-                <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse shrink-0" />
-                <span className="text-xs text-blue-700">{npPollCount >= 30 ? "Auto-check stopped." : `Checking every 30s… (${npPollCount}/30)`}</span>
-              </div>
-              <button onClick={handleNpCheck} className="w-full py-2.5 border border-blue-400 text-blue-700 hover:bg-blue-50 font-bold rounded-xl text-sm flex items-center justify-center gap-2">
-                <RefreshCw size={14} /> Check Now
-              </button>
-              <button onClick={() => { setNpPayment(null); setNpPollCount(0); }} className="w-full py-2 text-xs text-gray-400 hover:text-gray-600">Cancel / Change currency</button>
-            </div>
-          )}
-
-
-          {/* ── Binance Pay ─────────────────────────────────────────────────── */}
-          {payMethod === "binance_pay" && !mpCheckoutId && !npPayment && (
-            manualDone && orderId ? (
-              <div className="bg-white border border-green-200 rounded-2xl p-5 space-y-3 text-center">
-                <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto"><span className="text-2xl">✅</span></div>
-                <p className="font-black text-lg text-gray-800">Order #{orderId} Submitted!</p>
-                <p className="text-sm text-gray-500">Our team verifies your payment within <strong>10-30 minutes</strong>.</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 space-y-3">
-                  <p className="text-xs font-bold text-yellow-800">Send ${selectedModel.price} USD via Binance Pay</p>
-                  <div className="flex items-center gap-3 bg-white border border-yellow-200 rounded-lg px-3 py-2.5">
-                    <span className="text-2xl">🟡</span>
-                    <div className="flex-1">
-                      <p className="text-[10px] text-gray-400">Binance ID</p>
-                      <p className="text-xl font-black text-gray-900 tracking-widest">490759406</p>
-                    </div>
-                    <button onClick={() => { navigator.clipboard.writeText("490759406"); toast({ title: "Copied!" }); }}
-                      className="p-2 rounded-lg bg-yellow-100 text-yellow-700"><Copy size={14} /></button>
-                  </div>
-                  <p className="text-[10px] text-yellow-700">Label: GSM World — Manual Confirmation</p>
-                </div>
-                <button onClick={handleManualPay}
-                  className="w-full py-3.5 bg-yellow-500 hover:bg-yellow-600 text-white font-black rounded-xl text-sm flex items-center justify-center gap-2">
-                  ✅ I’ve Sent ${selectedModel.price} — Confirm Order
-                </button>
-              </div>
-            )
-          )}
-
-          {/* ── USDT Manual ─────────────────────────────────────────────────── */}
-          {payMethod === "usdt_manual" && !mpCheckoutId && !npPayment && (
-            manualDone && orderId ? (
-              <div className="bg-white border border-green-200 rounded-2xl p-5 space-y-3 text-center">
-                <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto"><span className="text-2xl">✅</span></div>
-                <p className="font-black text-lg text-gray-800">Order #{orderId} Submitted!</p>
-                <p className="text-sm text-gray-500">Our team verifies your payment within <strong>10-30 minutes</strong>.</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <div className="bg-green-50 border border-green-200 rounded-xl p-4 space-y-3">
-                  <p className="text-xs font-bold text-green-800">Send ${selectedModel.price} USDT via TRC20</p>
-                  <div className="flex flex-col items-center gap-2">
-                    <QRCodeSVG value="TNgDQqmgQo5soUH8pGv6LgB69zCVCS7gq5" size={110} level="M" className="rounded-xl border-4 border-white shadow" />
-                  </div>
-                  <div className="flex items-center gap-2 bg-white border border-green-200 rounded-lg px-2 py-2">
-                    <span className="font-mono text-[10px] text-gray-700 break-all flex-1">TNgDQqmgQo5soUH8pGv6LgB69zCVCS7gq5</span>
-                    <button onClick={() => { navigator.clipboard.writeText("TNgDQqmgQo5soUH8pGv6LgB69zCVCS7gq5"); toast({ title: "Address copied!" }); }}
-                      className="shrink-0 p-1.5 rounded-lg bg-green-100 text-green-700"><Copy size={13} /></button>
-                  </div>
-                  <p className="text-[10px] font-bold text-green-800">Network: TRON (TRC20) only</p>
-                </div>
-                <button onClick={handleManualPay}
-                  className="w-full py-3.5 bg-green-700 hover:bg-green-800 text-white font-black rounded-xl text-sm flex items-center justify-center gap-2">
-                  ✅ I’ve Sent ${selectedModel.price} USDT — Confirm Order
-                </button>
-              </div>
-            )
-          )}
-
+          </div>
         </div>
-      )}
+
+      </div>
     </div>
   );
 }
