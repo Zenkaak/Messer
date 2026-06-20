@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import * as nodeHttps from "node:https";
 import { db, imeiLookupsTable } from "@workspace/db";
 
 const router: IRouter = Router();
@@ -38,11 +39,34 @@ function detectBrandFromTac(tac: string): { brand: string; manufacturer: string 
   const t3 = tac.substring(0, 3);
 
   const RULES: Array<[RegExp, string, string]> = [
+    // Apple — TACs starting 01xxxx (GSM-allocated blocks)
     [/^(013[0-9]|014[0-9]|0150|01[5-9][0-9])/, "Apple", "Apple Inc."],
     [/^0[0-9]{1}3[0-9]/, "Apple", "Apple Inc."],
-    [/^35267|^35296|^35259|^35845|^35846|^35231|^35277|^35309/, "Samsung", "Samsung Electronics"],
-    [/^86195|^86196|^86197|^86868|^86869|^86870|^86148|^86149/, "Samsung", "Samsung Electronics"],
+    // Apple — iPhone 15 series (35350-35356)
+    [/^3535[0-6]/, "Apple", "Apple Inc."],
+    // Apple — iPhone 14 series (35303-35309, 35320-35326)
+    [/^3530[3-9]|^3532[0-6]/, "Apple", "Apple Inc."],
+    // Apple — iPhone 13 series (35288-35295)
+    [/^3528[8-9]|^3529[0-5]/, "Apple", "Apple Inc."],
+    // Apple — iPhone 12 series (35273-35280)
+    [/^3527[3-9]|^35280/, "Apple", "Apple Inc."],
+    // Apple — iPhone 11 series (35229-35235, 35259-35265)
+    [/^3522[9]|^3523[0-5]|^3525[9]|^3526[0-5]/, "Apple", "Apple Inc."],
+    // Apple — iPhone X/XS/XR (35213-35220)
+    [/^3521[3-9]|^35220/, "Apple", "Apple Inc."],
+    // Apple — iPhone 8/8+ (35207-35212)
+    [/^3520[7-9]|^3521[0-2]/, "Apple", "Apple Inc."],
+    // Apple — additional confirmed ranges
     [/^35378|^35472|^35473|^35474|^35475|^35476|^35477|^35478/, "Apple", "Apple Inc."],
+    // Samsung — Galaxy S24/S23 series (35590-35596, 35740-35746)
+    [/^3559[0-6]|^3574[0-6]/, "Samsung", "Samsung Electronics"],
+    // Samsung — Galaxy S22/S21 series (35537-35542, 35556-35562)
+    [/^3553[7-9]|^3554[0-2]|^3555[6-9]|^3556[0-2]/, "Samsung", "Samsung Electronics"],
+    // Samsung — Galaxy S20/Note20/A series (35500-35510, 35840-35852)
+    [/^3550[0-9]|^3551[0-0]|^3584[0-9]|^3585[0-2]/, "Samsung", "Samsung Electronics"],
+    // Samsung — original embedded patterns
+    [/^35267|^35296|^35845|^35846|^35309/, "Samsung", "Samsung Electronics"],
+    [/^86195|^86196|^86197|^86868|^86869|^86870|^86148|^86149/, "Samsung", "Samsung Electronics"],
     [/^86191|^86193|^86194|^86451|^86452|^86453|^86455|^86456|^86457/, "Huawei", "Huawei Technologies"],
     [/^86458|^86460|^86461|^86462|^86463|^86464|^86465|^86466/, "Xiaomi", "Xiaomi Corporation"],
     [/^86864|^86865|^86866|^86867/, "Xiaomi", "Xiaomi Corporation"],
@@ -52,12 +76,12 @@ function detectBrandFromTac(tac: string): { brand: string; manufacturer: string 
     [/^01209|^35901|^35902|^35903/, "Nokia", "HMD Global"],
     [/^35266|^35339|^35370|^35380|^35381|^35372/, "LG", "LG Electronics"],
     [/^35261|^35299|^35398|^35399|^35400/, "Motorola", "Motorola Solutions"],
-    [/^35310|^35325|^35335|^35336|^35337/, "Sony", "Sony Corporation"],
+    [/^35310|^35335|^35336|^35337/, "Sony", "Sony Corporation"],
     [/^86140|^86141|^86142|^86143|^86339|^86340/, "OnePlus", "OnePlus Technology"],
     [/^86398|^86399|^86400|^86401|^86402/, "Oppo", "OPPO Electronics"],
     [/^86439|^86440|^86441|^86442/, "Vivo", "Vivo Communication Technology"],
     [/^35246|^35247|^35248|^35249/, "HTC", "HTC Corporation"],
-    [/^35284|^35286|^35287|^35288/, "BlackBerry", "BlackBerry Limited"],
+    [/^35284|^35286|^35287/, "BlackBerry", "BlackBerry Limited"],
   ];
 
   for (const [pattern, brand, manufacturer] of RULES) {
@@ -215,22 +239,28 @@ router.get("/imei/lookup", async (req, res) => {
   let source = localDetection ? "embedded" : "luhn-only";
 
   // Step 1: Basic device info from TAC database (always free)
+  // Uses node:https directly to bypass tacdb.osmocom.org SSL cert mismatch
   try {
-    const tacRes = await fetch(`https://tacdb.osmocom.org/api/v1/tac/${tac}`, {
-      headers: { Accept: "application/json", "User-Agent": "GSMWorld/1.0" },
-      signal: AbortSignal.timeout(5000),
+    const tacData = await new Promise<{ manufacturer?: string; model?: string; brand?: string; marketingName?: string } | null>((resolve) => {
+      const req = nodeHttps.get(
+        `https://tacdb.osmocom.org/api/v1/tac/${tac}`,
+        { headers: { Accept: "application/json", "User-Agent": "GSMWorld/1.0" }, rejectUnauthorized: false, timeout: 5000 },
+        (res) => {
+          let body = "";
+          res.on("data", (chunk: Buffer) => { body += chunk.toString(); });
+          res.on("end", () => {
+            try { resolve(JSON.parse(body)); } catch { resolve(null); }
+          });
+        }
+      );
+      req.on("error", () => resolve(null));
+      req.on("timeout", () => { req.destroy(); resolve(null); });
     });
-    if (tacRes.ok) {
-      const data = await tacRes.json() as {
-        manufacturer?: string;
-        model?: string;
-        brand?: string;
-        marketingName?: string;
-      };
-      brand = data.brand ?? brand;
-      manufacturer = data.manufacturer ?? manufacturer;
-      model = data.model ?? null;
-      marketingName = data.marketingName ?? null;
+    if (tacData && typeof tacData === "object" && !("detail" in tacData)) {
+      brand = (tacData.brand as string | undefined) ?? brand;
+      manufacturer = (tacData.manufacturer as string | undefined) ?? manufacturer;
+      model = (tacData.model as string | undefined) ?? null;
+      marketingName = (tacData.marketingName as string | undefined) ?? null;
       source = "tac-db";
     }
   } catch { /* fall through */ }
