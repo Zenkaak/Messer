@@ -192,10 +192,10 @@ function FreeLookupSection() {
           <input
             type="tel"
             value={imei}
-            onChange={e => { setImei(e.target.value); setResult(null); setError(null); }}
+            onChange={e => { const v = e.target.value.replace(/\D/g, "").slice(0, 15); setImei(v); setResult(null); setError(null); }}
             onKeyDown={e => { if (e.key === "Enter") handleCheck(); }}
             placeholder="Enter 15-digit IMEI (e.g. 358401059999991)"
-            maxLength={20}
+            maxLength={15}
             className="flex-1 px-3 py-2.5 rounded-xl text-sm focus:outline-none"
             style={{
               background: "rgba(255,255,255,0.07)",
@@ -206,7 +206,7 @@ function FreeLookupSection() {
           />
           <button
             onClick={handleCheck}
-            disabled={loading || imei.replace(/[\s\-]/g, "").length < 15}
+            disabled={loading || imei.length !== 15}
             className="px-4 py-2.5 text-white text-sm font-bold rounded-xl disabled:opacity-40 transition-all flex items-center gap-1.5"
             style={{ background: "linear-gradient(135deg,#0f766e,#0d9488)" }}>
             {loading ? <Loader2 size={14} className="animate-spin" /> : null}
@@ -214,9 +214,14 @@ function FreeLookupSection() {
           </button>
         </div>
 
-        <p className="text-[10px] mt-1.5" style={{ color: "#475569" }}>
-          Tip: dial <span className="font-mono font-bold text-teal-400">*#06#</span> on your device to get the IMEI.
-        </p>
+        <div className="flex items-center justify-between mt-1.5">
+          <p className="text-[10px]" style={{ color: "#475569" }}>
+            Tip: dial <span className="font-mono font-bold text-teal-400">*#06#</span> to get the IMEI.
+          </p>
+          <span className="text-[10px] font-mono" style={{ color: imei.length === 15 ? "#4ade80" : imei.length > 0 ? "#f59e0b" : "#475569" }}>
+            {imei.length}/15
+          </span>
+        </div>
 
         {/* Error */}
         {error && (

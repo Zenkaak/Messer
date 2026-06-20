@@ -956,11 +956,12 @@ export function DirectUnlockPage() {
                         <input
                           type="text"
                           value={imei}
-                          onChange={e => setImei(e.target.value)}
+                          onChange={e => setImei(e.target.value.replace(/\D/g, "").slice(0, 15))}
                           placeholder="Enter 15-digit IMEI (e.g. 123456789012345)"
+                          maxLength={15}
                           className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 bg-slate-50 pr-10"
                         />
-                        {imei.length >= 14 && (
+                        {imei.length === 15 && (
                           <button onClick={() => { setImeiCopied(true); navigator.clipboard.writeText(imei); setTimeout(() => setImeiCopied(false), 1500); }}
                             className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700">
                             {imeiCopied ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} />}
@@ -982,9 +983,15 @@ export function DirectUnlockPage() {
                         className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 bg-slate-50 resize-none"
                       />
                     </div>
+                    {imei.length > 0 && imei.length !== 15 && (
+                      <p className="text-[11px] text-red-500 font-semibold text-center -mt-2">
+                        IMEI must be exactly 15 digits ({imei.length}/15)
+                      </p>
+                    )}
                     <button
-                      onClick={() => { if (!imei.trim()) { toast({ title: "IMEI / serial number required", variant: "destructive" }); return; } setStep("processing"); }}
-                      className="w-full py-4 text-white font-black rounded-xl text-sm flex items-center justify-center gap-2 transition-all shadow-lg hover:shadow-xl"
+                      onClick={() => { if (imei.length !== 15) { toast({ title: "IMEI must be exactly 15 digits", description: `You entered ${imei.length} digit${imei.length !== 1 ? "s" : ""}`, variant: "destructive" }); return; } setStep("processing"); }}
+                      disabled={imei.length !== 15}
+                      className="w-full py-4 text-white font-black rounded-xl text-sm flex items-center justify-center gap-2 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
                       style={{ background: "linear-gradient(135deg,#2563eb,#1d4ed8)" }}>
                       <Shield size={16} />
                       Verify Device &amp; Continue

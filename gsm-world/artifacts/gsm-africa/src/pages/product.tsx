@@ -342,15 +342,25 @@ export function ProductPage() {
                     IMEI <span className="text-gray-400 font-normal normal-case">(optional)</span>
                   </label>
                   <input
-                    type="text"
+                    type="tel"
                     value={imeiValue}
-                    onChange={(e) => setImeiValue(e.target.value)}
-                    placeholder="Enter device IMEI if applicable"
-                    className="w-full border border-gray-200 rounded-xl px-3.5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-gray-50"
+                    onChange={(e) => setImeiValue(e.target.value.replace(/\D/g, "").slice(0, 15))}
+                    placeholder="Enter 15-digit IMEI"
+                    maxLength={15}
+                    className="w-full border border-gray-200 rounded-xl px-3.5 py-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-400 bg-gray-50"
                   />
-                  <p className="text-[11px] text-gray-400 mt-1.5">
-                    Provide the device IMEI if this service requires it
-                  </p>
+                  <div className="flex items-center justify-between mt-1.5">
+                    <p className="text-[11px] text-gray-400">
+                      {imeiValue.length > 0 && imeiValue.length !== 15
+                        ? <span className="text-red-400 font-semibold">Must be exactly 15 digits</span>
+                        : "Provide the device IMEI if this service requires it"}
+                    </p>
+                    {imeiValue.length > 0 && (
+                      <span className="text-[10px] font-mono" style={{ color: imeiValue.length === 15 ? "#16a34a" : "#f59e0b" }}>
+                        {imeiValue.length}/15
+                      </span>
+                    )}
+                  </div>
                 </div>
               )}
 

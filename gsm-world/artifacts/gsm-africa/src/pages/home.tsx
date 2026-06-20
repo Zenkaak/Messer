@@ -269,23 +269,28 @@ function HomeImeiChecker() {
               <div className="flex gap-2">
                 <input
                   type="tel" value={imei}
-                  onChange={e => { setImei(e.target.value); setError(null); }}
+                  onChange={e => { const v = e.target.value.replace(/\D/g, "").slice(0, 15); setImei(v); setError(null); }}
                   onKeyDown={e => { if (e.key === "Enter") handleCheck(); }}
-                  placeholder="Enter 15-digit IMEI…" maxLength={20}
+                  placeholder="Enter 15-digit IMEI…" maxLength={15}
                   className="flex-1 px-3.5 py-3 rounded-xl text-sm focus:outline-none focus:ring-2"
                   style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "#f1f5f9", caretColor: "#60a5fa" }}
                 />
                 <button onClick={handleCheck}
-                  disabled={loading || imei.replace(/[\s\-]/g, "").length < 15}
+                  disabled={loading || imei.length !== 15}
                   className="gsm-btn-primary px-4 py-3 font-black text-sm text-white rounded-xl disabled:opacity-40 flex items-center gap-1.5"
                   style={{ background: "linear-gradient(135deg,#3b82f6,#6366f1)", boxShadow: "0 4px 12px rgba(99,102,241,0.3)" }}>
                   {loading ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
                   {loading ? "…" : "Check"}
                 </button>
               </div>
-              <p className="text-[10px] mt-1.5" style={{ color: "#334155" }}>
-                Dial <span className="font-mono font-bold" style={{ color: "#60a5fa" }}>*#06#</span> to get your IMEI
-              </p>
+              <div className="flex items-center justify-between mt-1.5">
+                <p className="text-[10px]" style={{ color: "#334155" }}>
+                  Dial <span className="font-mono font-bold" style={{ color: "#60a5fa" }}>*#06#</span> to get your IMEI
+                </p>
+                <span className="text-[10px] font-mono" style={{ color: imei.length === 15 ? "#4ade80" : imei.length > 0 ? "#f59e0b" : "#334155" }}>
+                  {imei.length}/15
+                </span>
+              </div>
               {error && (
                 <div className="mt-3 flex items-start gap-2 rounded-xl p-3"
                   style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)" }}>
