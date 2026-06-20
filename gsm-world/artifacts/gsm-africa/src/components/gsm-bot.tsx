@@ -1495,11 +1495,10 @@ export function GsmBot() {
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, humanMessages]);
 
-  // Show describe-issue prompt in Live Support chatbox after a short delay
+  // Show describe-issue prompt in Live Support chatbox immediately when human mode starts
   useEffect(() => {
     if (!humanMode) { setShowDescribePrompt(false); return; }
-    const t = setTimeout(() => setShowDescribePrompt(true), 1400);
-    return () => clearTimeout(t);
+    setShowDescribePrompt(true);
   }, [humanMode]);
 
   // Poll for human chat messages

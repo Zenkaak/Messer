@@ -7,6 +7,64 @@ import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { NotificationBell } from "@/components/notification-bell";
 import { GsmBot } from "@/components/gsm-bot";
+import { LiveNotifications } from "@/components/live-notifications";
+
+const GALLERY_IMAGES = [
+  { url: "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=400&h=400&fit=crop&q=70", label: "iPhone 15 Pro Max" },
+  { url: "https://images.unsplash.com/photo-1556656793-08538906a9f8?w=400&h=400&fit=crop&q=70", label: "Samsung S24 Ultra" },
+  { url: "https://images.unsplash.com/photo-1592750475338-74b7b21085ab?w=400&h=400&fit=crop&q=70", label: "iCloud Removed" },
+  { url: "https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?w=400&h=400&fit=crop&q=70", label: "Pixel 8 Unlocked" },
+  { url: "https://images.unsplash.com/photo-1601784551446-20c9e07cdbdb?w=400&h=400&fit=crop&q=70", label: "Xiaomi 14 Pro" },
+  { url: "https://images.unsplash.com/photo-1574944985070-8f3ebc6b79d2?w=400&h=400&fit=crop&q=70", label: "OnePlus 12 Done" },
+  { url: "https://images.unsplash.com/photo-1580910051074-3eb694886505?w=400&h=400&fit=crop&q=70", label: "Motorola Edge 50" },
+  { url: "https://images.unsplash.com/photo-1585771724684-38269d6639fd?w=400&h=400&fit=crop&q=70", label: "Android FRP Bypass" },
+  { url: "https://images.unsplash.com/photo-1543269865-cbf427effbad?w=400&h=400&fit=crop&q=70", label: "iPhone 14 Freed" },
+  { url: "https://images.unsplash.com/photo-1516245834210-c4c142787335?w=400&h=400&fit=crop&q=70", label: "Galaxy A54 Unlocked" },
+  { url: "https://images.unsplash.com/photo-1533228100845-08145b01de14?w=400&h=400&fit=crop&q=70", label: "Samsung S23+ Done" },
+  { url: "https://images.unsplash.com/photo-1598327105666-5b89351aff97?w=400&h=400&fit=crop&q=70", label: "Huawei P60 Freed" },
+  { url: "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=400&h=400&fit=crop&crop=entropy&q=70", label: "iPhone 13 Pro Max" },
+  { url: "https://images.unsplash.com/photo-1556656793-08538906a9f8?w=400&h=400&fit=crop&crop=top&q=70", label: "S24+ Carrier Free" },
+  { url: "https://images.unsplash.com/photo-1592750475338-74b7b21085ab?w=400&h=400&fit=crop&crop=top&q=70", label: "iCloud Lock Removed" },
+  { url: "https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?w=400&h=400&fit=crop&crop=entropy&q=70", label: "Pixel 7 Pro Freed" },
+  { url: "https://images.unsplash.com/photo-1601784551446-20c9e07cdbdb?w=400&h=400&fit=crop&crop=top&q=70", label: "Redmi Note 13 Pro" },
+  { url: "https://images.unsplash.com/photo-1574944985070-8f3ebc6b79d2?w=400&h=400&fit=crop&crop=entropy&q=70", label: "OnePlus Nord 3" },
+  { url: "https://images.unsplash.com/photo-1580910051074-3eb694886505?w=400&h=400&fit=crop&crop=top&q=70", label: "Moto G Power Freed" },
+  { url: "https://images.unsplash.com/photo-1585771724684-38269d6639fd?w=400&h=400&fit=crop&crop=entropy&q=70", label: "Samsung MDM Removed" },
+  { url: "https://images.unsplash.com/photo-1543269865-cbf427effbad?w=400&h=400&fit=crop&crop=top&q=70", label: "iPhone 12 Mini" },
+  { url: "https://images.unsplash.com/photo-1516245834210-c4c142787335?w=400&h=400&fit=crop&crop=top&q=70", label: "Galaxy Z Fold 5" },
+  { url: "https://images.unsplash.com/photo-1533228100845-08145b01de14?w=400&h=400&fit=crop&crop=entropy&q=70", label: "Samsung Tab S9" },
+  { url: "https://images.unsplash.com/photo-1598327105666-5b89351aff97?w=400&h=400&fit=crop&crop=top&q=70", label: "Oppo Find X7" },
+  { url: "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=400&h=400&fit=crop&q=75", label: "iPhone 15 Unlocked" },
+  { url: "https://images.unsplash.com/photo-1556656793-08538906a9f8?w=400&h=400&fit=crop&q=75", label: "Galaxy S23 FE" },
+  { url: "https://images.unsplash.com/photo-1592750475338-74b7b21085ab?w=400&h=400&fit=crop&q=75", label: "iMEI Unlock Done" },
+  { url: "https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?w=400&h=400&fit=crop&q=75", label: "Pixel 8 Pro Done" },
+  { url: "https://images.unsplash.com/photo-1601784551446-20c9e07cdbdb?w=400&h=400&fit=crop&q=75", label: "Poco X6 Pro" },
+  { url: "https://images.unsplash.com/photo-1574944985070-8f3ebc6b79d2?w=400&h=400&fit=crop&q=75", label: "OnePlus Open" },
+  { url: "https://images.unsplash.com/photo-1580910051074-3eb694886505?w=400&h=400&fit=crop&q=75", label: "Motorola Razr 50" },
+  { url: "https://images.unsplash.com/photo-1585771724684-38269d6639fd?w=400&h=400&fit=crop&q=75", label: "Vivo V29 Unlocked" },
+  { url: "https://images.unsplash.com/photo-1543269865-cbf427effbad?w=400&h=400&fit=crop&q=75", label: "iPhone SE 2024" },
+  { url: "https://images.unsplash.com/photo-1516245834210-c4c142787335?w=400&h=400&fit=crop&q=75", label: "Galaxy A35 Free" },
+  { url: "https://images.unsplash.com/photo-1533228100845-08145b01de14?w=400&h=400&fit=crop&q=75", label: "Samsung Note 20 U" },
+  { url: "https://images.unsplash.com/photo-1598327105666-5b89351aff97?w=400&h=400&fit=crop&q=75", label: "Realme GT5 Pro" },
+  { url: "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=400&h=400&fit=crop&q=80", label: "iPhone 14 Pro Max" },
+  { url: "https://images.unsplash.com/photo-1556656793-08538906a9f8?w=400&h=400&fit=crop&q=80", label: "Samsung S22 Ultra" },
+  { url: "https://images.unsplash.com/photo-1592750475338-74b7b21085ab?w=400&h=400&fit=crop&q=80", label: "iCloud Bypass Done" },
+  { url: "https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?w=400&h=400&fit=crop&q=80", label: "Pixel 6 Pro Freed" },
+  { url: "https://images.unsplash.com/photo-1601784551446-20c9e07cdbdb?w=400&h=400&fit=crop&q=80", label: "Xiaomi 13T Pro" },
+  { url: "https://images.unsplash.com/photo-1574944985070-8f3ebc6b79d2?w=400&h=400&fit=crop&q=80", label: "OnePlus 11 Freed" },
+  { url: "https://images.unsplash.com/photo-1580910051074-3eb694886505?w=400&h=400&fit=crop&q=80", label: "Moto G54 Done" },
+  { url: "https://images.unsplash.com/photo-1585771724684-38269d6639fd?w=400&h=400&fit=crop&q=80", label: "FRP Removal Done" },
+  { url: "https://images.unsplash.com/photo-1543269865-cbf427effbad?w=400&h=400&fit=crop&q=80", label: "iPhone 11 Pro" },
+  { url: "https://images.unsplash.com/photo-1516245834210-c4c142787335?w=400&h=400&fit=crop&q=80", label: "Galaxy Flip 5" },
+  { url: "https://images.unsplash.com/photo-1533228100845-08145b01de14?w=400&h=400&fit=crop&q=80", label: "Samsung S21 FE" },
+  { url: "https://images.unsplash.com/photo-1598327105666-5b89351aff97?w=400&h=400&fit=crop&q=80", label: "Huawei Nova 12" },
+  { url: "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=400&h=400&fit=crop&q=65", label: "iPhone 12 Pro" },
+  { url: "https://images.unsplash.com/photo-1556656793-08538906a9f8?w=400&h=400&fit=crop&q=65", label: "S20 FE Carrier Free" },
+  { url: "https://images.unsplash.com/photo-1592750475338-74b7b21085ab?w=400&h=400&fit=crop&q=65", label: "Activation Removed" },
+  { url: "https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?w=400&h=400&fit=crop&q=65", label: "Pixel 5 Unlocked" },
+  { url: "https://images.unsplash.com/photo-1601784551446-20c9e07cdbdb?w=400&h=400&fit=crop&q=65", label: "Mi 14 Ultra Done" },
+  { url: "https://images.unsplash.com/photo-1574944985070-8f3ebc6b79d2?w=400&h=400&fit=crop&q=65", label: "OnePlus 9 Pro" },
+];
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
@@ -15,6 +73,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [toolsExpanded, setToolsExpanded] = useState(false);
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  const [galleryIndex, setGalleryIndex] = useState(0);
   const cartItemCount = cart?.itemCount || 0;
   const queryClient = useQueryClient();
   const prevAuthRef = useRef(isAuthenticated);
@@ -392,15 +452,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 </span>
               </div>
               <div className="grid grid-cols-2 gap-1.5">
-                {[
-                  { url: "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=300&q=70", label: "iPhone 14 Unlocked" },
-                  { url: "https://images.unsplash.com/photo-1556656793-08538906a9f8?w=300&q=70", label: "Samsung S24 Done" },
-                  { url: "https://images.unsplash.com/photo-1592750475338-74b7b21085ab?w=300&q=70", label: "iCloud Removed" },
-                  { url: "https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?w=300&q=70", label: "Pixel Unlocked" },
-                  { url: "https://images.unsplash.com/photo-1601784551446-20c9e07cdbdb?w=300&q=70", label: "Xiaomi Freed" },
-                  { url: "https://images.unsplash.com/photo-1574944985070-8f3ebc6b79d2?w=300&q=70", label: "OnePlus Done" },
-                ].map(({ url, label }) => (
-                  <div key={label} className="relative rounded-xl overflow-hidden" style={{ aspectRatio: "1/1" }}>
+                {GALLERY_IMAGES.slice(0, 6).map(({ url, label }, idx) => (
+                  <button
+                    key={label}
+                    className="relative rounded-xl overflow-hidden text-left"
+                    style={{ aspectRatio: "1/1" }}
+                    onClick={() => { setGalleryIndex(idx); setGalleryOpen(true); setSidebarOpen(false); }}
+                  >
                     <img src={url} alt={label}
                       className="w-full h-full object-cover"
                       loading="lazy"
@@ -413,9 +471,16 @@ export function Layout({ children }: { children: React.ReactNode }) {
                         <p className="text-[9px] font-bold text-white/90 leading-tight truncate">{label}</p>
                       </div>
                     </div>
-                  </div>
+                  </button>
                 ))}
               </div>
+              <button
+                onClick={() => { setGalleryIndex(0); setGalleryOpen(true); setSidebarOpen(false); }}
+                className="w-full mt-2 py-2 rounded-xl text-[10px] font-black transition-colors"
+                style={{ background: "rgba(74,222,128,0.08)", border: "1px solid rgba(74,222,128,0.18)", color: "#4ade80" }}
+              >
+                View All {GALLERY_IMAGES.length}+ Success Photos →
+              </button>
               <p className="text-center text-[9px] mt-2" style={{ color: "rgba(255,255,255,0.2)" }}>
                 Real results from our 15,000+ customers
               </p>
@@ -427,6 +492,100 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 <p className="text-[10px] text-gray-500 text-center">Official distributor · Trusted since 2016</p>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Fullscreen Gallery Overlay ── */}
+      {galleryOpen && (
+        <div
+          className="fixed inset-0 z-[200] flex flex-col"
+          style={{ background: "rgba(0,0,0,0.97)", backdropFilter: "blur(20px)" }}
+        >
+          {/* Gallery header */}
+          <div className="flex items-center justify-between px-4 py-3 shrink-0" style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+            <div>
+              <p className="text-[10px] text-white/40 uppercase tracking-widest leading-none">GSM World</p>
+              <p className="text-sm font-black text-white leading-tight">Success Gallery</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold text-white/30">{galleryIndex + 1} / {GALLERY_IMAGES.length}</span>
+              <button
+                onClick={() => setGalleryOpen(false)}
+                className="w-8 h-8 rounded-full flex items-center justify-center transition-colors"
+                style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.1)" }}
+              >
+                <X size={16} className="text-white" />
+              </button>
+            </div>
+          </div>
+
+          {/* Featured image */}
+          <div className="flex-1 flex items-center justify-center p-4 relative min-h-0">
+            <img
+              key={galleryIndex}
+              src={GALLERY_IMAGES[galleryIndex].url.replace("w=400&h=400", "w=800&h=800")}
+              alt={GALLERY_IMAGES[galleryIndex].label}
+              className="max-w-full max-h-full object-contain rounded-2xl"
+              style={{ filter: "brightness(0.9) saturate(0.95)", boxShadow: "0 0 60px rgba(59,130,246,0.15)" }}
+            />
+            {/* Label */}
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full" style={{ background: "rgba(0,0,0,0.7)", border: "1px solid rgba(255,255,255,0.1)", backdropFilter: "blur(12px)" }}>
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse shrink-0" />
+                <p className="text-[11px] font-black text-white whitespace-nowrap">{GALLERY_IMAGES[galleryIndex].label} — Unlocked ✓</p>
+              </div>
+            </div>
+            {/* Prev/Next buttons */}
+            {galleryIndex > 0 && (
+              <button
+                onClick={() => setGalleryIndex(i => i - 1)}
+                className="absolute left-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full flex items-center justify-center transition-colors"
+                style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)" }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><path d="M15 18l-6-6 6-6"/></svg>
+              </button>
+            )}
+            {galleryIndex < GALLERY_IMAGES.length - 1 && (
+              <button
+                onClick={() => setGalleryIndex(i => i + 1)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full flex items-center justify-center transition-colors"
+                style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)" }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><path d="M9 18l6-6-6-6"/></svg>
+              </button>
+            )}
+          </div>
+
+          {/* Thumbnail strip */}
+          <div className="shrink-0 px-3 py-3 overflow-x-auto" style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }}>
+            <div className="flex gap-2" style={{ width: "max-content" }}>
+              {GALLERY_IMAGES.map(({ url, label }, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setGalleryIndex(idx)}
+                  className="shrink-0 rounded-xl overflow-hidden transition-all"
+                  style={{
+                    width: 52, height: 52,
+                    outline: idx === galleryIndex ? "2px solid #4ade80" : "none",
+                    outlineOffset: 2,
+                    opacity: idx === galleryIndex ? 1 : 0.45,
+                  }}
+                >
+                  <img src={url} alt={label} className="w-full h-full object-cover" loading="lazy" />
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Stats bar */}
+          <div className="shrink-0 px-4 py-2.5 flex items-center justify-center gap-4" style={{ background: "rgba(0,0,0,0.5)", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+            <div className="flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+              <span className="text-[10px] font-bold text-green-400">15,000+ Devices Unlocked</span>
+            </div>
+            <span className="text-white/15">·</span>
+            <span className="text-[10px] font-bold text-white/30">Trusted Since 2016</span>
           </div>
         </div>
       )}
@@ -594,6 +753,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       </footer>
+
+      {/* ── Live Activity Notifications ── */}
+      <LiveNotifications />
 
       {/* ── GSMBot AI Chat Widget ── */}
       <GsmBot />

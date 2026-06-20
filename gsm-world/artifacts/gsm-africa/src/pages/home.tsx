@@ -442,6 +442,32 @@ export function Home() {
           backgroundSize: "36px 36px",
         }} />
 
+        {/* Floating unlock success card — top right */}
+        <div className="absolute z-20 pointer-events-none gsm-float" style={{ top: 22, right: 14 }}>
+          <div className="rounded-2xl px-3 py-2.5 flex flex-col items-center" style={{ background: "rgba(4,14,32,0.88)", border: "1px solid rgba(99,102,241,0.35)", backdropFilter: "blur(16px)", boxShadow: "0 8px 32px rgba(59,130,246,0.18), inset 0 1px 0 rgba(255,255,255,0.06)" }}>
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center mb-1.5" style={{ background: "linear-gradient(135deg,rgba(59,130,246,0.22),rgba(99,102,241,0.22))", border: "1px solid rgba(99,102,241,0.45)" }}>
+              <Unlock size={16} className="text-blue-300" />
+            </div>
+            <p className="text-[10px] font-black text-white leading-tight">iPhone 15 Pro</p>
+            <p className="text-[9px] leading-tight" style={{ color: "rgba(255,255,255,0.35)" }}>Kenya</p>
+            <div className="flex items-center gap-1 mt-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse shrink-0" />
+              <p className="text-[9px] font-black text-green-400">UNLOCKED ✓</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Floating rating badge */}
+        <div className="absolute z-20 pointer-events-none gsm-float-slow" style={{ top: 155, right: 14 }}>
+          <div className="rounded-xl px-2.5 py-1.5 flex items-center gap-1.5" style={{ background: "rgba(4,14,32,0.85)", border: "1px solid rgba(245,158,11,0.3)", backdropFilter: "blur(12px)" }}>
+            <span className="text-amber-400 text-sm leading-none">⭐</span>
+            <div>
+              <p className="text-[10px] font-black text-white leading-none">4.9/5</p>
+              <p className="text-[8px] leading-none" style={{ color: "rgba(255,255,255,0.35)" }}>15K+ Reviews</p>
+            </div>
+          </div>
+        </div>
+
         <div className="relative z-10 px-5 pt-9 pb-6">
           {/* Trust badge */}
           <div className="gsm-badge-pop inline-flex items-center gap-2 mb-4 px-3 py-1.5 rounded-full text-[11px] font-bold"
