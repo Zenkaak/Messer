@@ -1718,6 +1718,14 @@ export function GsmBot() {
       const data = (await res.json()) as BotResponse;
       setMessages(prev => [...prev, { role: "assistant", content: data.message }]);
 
+      // Follow-up: prompt user to describe their issue while waiting
+      setTimeout(() => {
+        setMessages(prev => [...prev, {
+          role: "assistant",
+          content: "✍️ **While you wait, please describe your issue in detail:**\n\nInclude:\n• Your device model & IMEI (if applicable)\n• What you\'ve already tried\n• Any error messages you saw\n\nThe more detail you share now, the faster our agent can help you! 🚀",
+        }]);
+      }, 800);
+
       const sid = data.sessionId ?? null;
       setSessionId(sid);
       setSessionStatus("waiting");
@@ -1759,23 +1767,14 @@ export function GsmBot() {
   // ── Submit captured email + phone then connect ────────────────────────────
   function submitEmailAndConnect() {
     const email = capturedEmail.trim();
-    const phone = capturedPhone.trim();
-    let hasError = false;
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       setEmailError("Please enter a valid email address.");
-      hasError = true;
-    } else {
-      setEmailError("");
+      emailCaptureRef.current?.focus();
+      return;
     }
-    if (!phone) {
-      setPhoneError("Phone number is required so our agent can call you back.");
-      hasError = true;
-    } else {
-      setPhoneError("");
-    }
-    if (hasError) { emailCaptureRef.current?.focus(); return; }
+    setEmailError("");
     setHumanEmailStep(false);
-    void requestHuman(email, phone);
+    void requestHuman(email);
   }
 
   // ── Send human message ────────────────────────────────────────────────────
@@ -2223,11 +2222,14 @@ export function GsmBot() {
               {/* Bot input area */}
               <div className="px-3 pb-3 pt-2 border-t border-gray-100 shrink-0 space-y-2">
                 {humanEmailStep ? (
-                  /* ── Email + Phone capture step for guests ── */
+                  /* ── Email capture step for guests ── */
                   <div className="space-y-2">
-                    <div className="flex items-center gap-1.5 text-[11px] font-semibold text-blue-700 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2">
-                      <Headphones size={11} className="shrink-0" />
-                      Enter your contact info so our agent can assist you
+                    <div className="flex items-start gap-2 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2.5">
+                      <Headphones size={13} className="text-blue-600 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-[11px] font-bold text-blue-800">Enter your email to connect</p>
+                        <p className="text-[10px] text-blue-600 leading-relaxed mt-0.5">We'll email you when an agent joins your chat so you don't have to wait at the screen.</p>
+                      </div>
                     </div>
                     <div>
                       <input
@@ -2235,34 +2237,25 @@ export function GsmBot() {
                         type="email"
                         value={capturedEmail}
                         onChange={e => { setCapturedEmail(e.target.value); setEmailError(""); }}
-                        onKeyDown={e => { if (e.key === "Escape") { setHumanEmailStep(false); setCapturedEmail(""); setCapturedPhone(""); } }}
-                        placeholder="Email address *"
+                        onKeyDown={e => {
+                          if (e.key === "Enter") { e.preventDefault(); submitEmailAndConnect(); }
+                          if (e.key === "Escape") { setHumanEmailStep(false); setCapturedEmail(""); setEmailError(""); }
+                        }}
+                        placeholder="your@email.com"
                         disabled={loading}
-                        className={`w-full bg-gray-50 border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-1 ${emailError ? "border-red-400 focus:border-red-400 focus:ring-red-300" : "border-gray-200 focus:border-blue-400 focus:ring-blue-400"}`}
+                        className={`w-full bg-white border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 ${emailError ? "border-red-400 focus:ring-red-200" : "border-gray-200 focus:border-blue-400 focus:ring-blue-100"}`}
                       />
-                      {emailError && <p className="text-[10px] text-red-500 font-medium px-1 mt-0.5">{emailError}</p>}
-                    </div>
-                    <div>
-                      <input
-                        type="tel"
-                        value={capturedPhone}
-                        onChange={e => { setCapturedPhone(e.target.value); setPhoneError(""); }}
-                        onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); submitEmailAndConnect(); } }}
-                        placeholder="Phone number (e.g. 0712345678) *"
-                        disabled={loading}
-                        className={`w-full bg-gray-50 border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-1 ${phoneError ? "border-red-400 focus:border-red-400 focus:ring-red-300" : "border-gray-200 focus:border-blue-400 focus:ring-blue-400"}`}
-                      />
-                      {phoneError && <p className="text-[10px] text-red-500 font-medium px-1 mt-0.5">{phoneError}</p>}
+                      {emailError && <p className="text-[10px] text-red-500 font-medium px-1 mt-1">{emailError}</p>}
                     </div>
                     <div className="flex gap-2">
-                      <button onClick={submitEmailAndConnect} disabled={loading || !capturedEmail.trim() || !capturedPhone.trim()}
-                        className="flex-1 flex items-center justify-center gap-1.5 text-white rounded-xl py-2 text-[12px] font-bold disabled:opacity-40 transition-colors"
+                      <button onClick={submitEmailAndConnect} disabled={loading || !capturedEmail.trim()}
+                        className="flex-1 flex items-center justify-center gap-1.5 text-white rounded-xl py-2.5 text-[12px] font-bold disabled:opacity-40 transition-all"
                         style={{ background: "linear-gradient(135deg,#059669 0%,#047857 100%)" }}>
                         {loading ? <RefreshCw size={13} className="animate-spin" /> : <Headphones size={13} />}
                         Connect to Agent
                       </button>
-                      <button onClick={() => { setHumanEmailStep(false); setCapturedEmail(""); setCapturedPhone(""); setEmailError(""); setPhoneError(""); }}
-                        className="text-[11px] text-slate-400 hover:text-slate-600 transition-colors px-2">
+                      <button onClick={() => { setHumanEmailStep(false); setCapturedEmail(""); setEmailError(""); }}
+                        className="text-[11px] text-slate-400 hover:text-slate-600 transition-colors px-3">
                         Cancel
                       </button>
                     </div>
