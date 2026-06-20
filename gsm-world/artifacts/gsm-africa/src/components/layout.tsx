@@ -380,6 +380,47 @@ export function Layout({ children }: { children: React.ReactNode }) {
               </div>
             )}
 
+
+            {/* ── SUCCESS GALLERY ── */}
+            <div className="px-3 pt-2 pb-3">
+              <div className="flex items-center gap-2 mb-2.5 px-1">
+                <div className="w-1 h-5 rounded-full" style={{ background: "linear-gradient(to bottom,#4ade80,#22d3ee)" }} />
+                <p className="text-[11px] font-black text-white/80">Success Gallery</p>
+                <span className="ml-auto text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+                  style={{ background: "rgba(74,222,128,0.15)", color: "#4ade80", border: "1px solid rgba(74,222,128,0.25)" }}>
+                  LIVE
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-1.5">
+                {[
+                  { url: "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=300&q=70", label: "iPhone 14 Unlocked" },
+                  { url: "https://images.unsplash.com/photo-1556656793-08538906a9f8?w=300&q=70", label: "Samsung S24 Done" },
+                  { url: "https://images.unsplash.com/photo-1592750475338-74b7b21085ab?w=300&q=70", label: "iCloud Removed" },
+                  { url: "https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?w=300&q=70", label: "Pixel Unlocked" },
+                  { url: "https://images.unsplash.com/photo-1601784551446-20c9e07cdbdb?w=300&q=70", label: "Xiaomi Freed" },
+                  { url: "https://images.unsplash.com/photo-1574944985070-8f3ebc6b79d2?w=300&q=70", label: "OnePlus Done" },
+                ].map(({ url, label }) => (
+                  <div key={label} className="relative rounded-xl overflow-hidden" style={{ aspectRatio: "1/1" }}>
+                    <img src={url} alt={label}
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                      style={{ filter: "brightness(0.75) saturate(0.9)" }}
+                    />
+                    <div className="absolute inset-0 flex items-end"
+                      style={{ background: "linear-gradient(to top,rgba(0,0,0,0.75) 0%,transparent 55%)" }}>
+                      <div className="w-full px-1.5 py-1.5 flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                        <p className="text-[9px] font-bold text-white/90 leading-tight truncate">{label}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="text-center text-[9px] mt-2" style={{ color: "rgba(255,255,255,0.2)" }}>
+                Real results from our 15,000+ customers
+              </p>
+            </div>
+
             <div className="px-4 pb-4 pt-2 border-t shrink-0" style={{ borderColor: "rgba(255,255,255,0.08)" }}>
               <div className="flex items-center gap-2 justify-center">
                 <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />

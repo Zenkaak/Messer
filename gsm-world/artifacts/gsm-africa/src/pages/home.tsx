@@ -92,8 +92,25 @@ const GSM_STYLES = `
   }
   .gsm-btn-primary:active { transform:scale(0.96); }
 
+  @keyframes gsmMarquee {
+    0%   { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
+  }
+  .gsm-marquee-track {
+    display:flex;
+    width:max-content;
+    animation:gsmMarquee 28s linear infinite;
+  }
+  .gsm-marquee-track:hover { animation-play-state:paused; }
+  .gsm-marquee-wrap { overflow:hidden; position:relative; }
+  .gsm-marquee-wrap::before,
+  .gsm-marquee-wrap::after {
+    content:""; position:absolute; top:0; bottom:0; width:40px; z-index:2; pointer-events:none;
+  }
+  .gsm-marquee-wrap::before { left:0;  background:linear-gradient(to right,#060b15,transparent); }
+  .gsm-marquee-wrap::after  { right:0; background:linear-gradient(to left, #060b15,transparent); }
   @media (prefers-reduced-motion: reduce) {
-    .gsm-float, .gsm-float-slow, .gsm-pulse-orb, .gsm-ring-pulse { animation:none; }
+    .gsm-float, .gsm-float-slow, .gsm-pulse-orb, .gsm-ring-pulse, .gsm-marquee-track { animation:none; }
   }
 `;
 
@@ -405,7 +422,16 @@ export function Home() {
     <div className="flex flex-col min-h-screen" style={{ background: "#060b15", color: "#e2e8f0" }}>
 
       {/* ─── HERO ──────────────────────────────────────────────────────────────── */}
-      <div className="relative overflow-hidden" style={{ background: "linear-gradient(160deg,#0a1628 0%,#07101f 55%,#060b15 100%)", minHeight: 310 }}>
+      <div className="relative overflow-hidden" style={{ minHeight: 310, background: "#07101f" }}>
+        {/* Hero background image */}
+        <div className="absolute inset-0 pointer-events-none" style={{
+          backgroundImage: "url('https://images.unsplash.com/photo-1581092580497-e0d23cbdf1dc?w=800&q=70')",
+          backgroundSize: "cover", backgroundPosition: "center top",
+          opacity: 0.08, filter: "saturate(0.3) brightness(1.5)",
+        }} />
+        <div className="absolute inset-0 pointer-events-none" style={{
+          background: "linear-gradient(160deg,rgba(10,22,40,0.97) 0%,rgba(7,16,31,0.92) 55%,rgba(6,11,21,0.98) 100%)",
+        }} />
         {/* Background layers */}
         <div className="absolute pointer-events-none gsm-float-slow"
           style={{ top: -80, right: -60, width: 280, height: 280, background: "radial-gradient(circle,rgba(59,130,246,0.18) 0%,transparent 65%)" }} />
@@ -478,6 +504,46 @@ export function Home() {
                 {typeof value === "number" ? <AnimCount target={value} suffix={suffix ?? ""} /> : <>{value}</>}
               </span>
               <span className="text-[9px] font-bold mt-0.5 uppercase tracking-widest" style={{ color: "#3b82f6" }}>{label}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ─── BRAND MARQUEE ─────────────────────────────────────────────────────── */}
+      <div className="gsm-marquee-wrap py-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+        <div className="gsm-marquee-track gap-3 px-3">
+          {[
+            // First copy
+            { icon: "📱", label: "iPhone Unlock",   color: "#3b82f6" },
+            { icon: "☁️", label: "iCloud Removal",  color: "#38bdf8" },
+            { icon: "🤖", label: "FRP Bypass",      color: "#f59e0b" },
+            { icon: "🔓", label: "Network Unlock",  color: "#a78bfa" },
+            { icon: "🛡️", label: "IMEI Check",     color: "#4ade80" },
+            { icon: "⚡", label: "Server Credits",  color: "#f87171" },
+            { icon: "💳", label: "Gift Cards",      color: "#fb923c" },
+            { icon: "🔧", label: "Tool Rentals",    color: "#22d3ee" },
+            { icon: "📡", label: "Samsung Unlock",  color: "#818cf8" },
+            { icon: "🌍", label: "Worldwide",       color: "#34d399" },
+            { icon: "🏆", label: "15K+ Unlocked",  color: "#fbbf24" },
+            { icon: "🚀", label: "Instant Delivery",color: "#60a5fa" },
+            // Second copy (seamless loop)
+            { icon: "📱", label: "iPhone Unlock",   color: "#3b82f6" },
+            { icon: "☁️", label: "iCloud Removal",  color: "#38bdf8" },
+            { icon: "🤖", label: "FRP Bypass",      color: "#f59e0b" },
+            { icon: "🔓", label: "Network Unlock",  color: "#a78bfa" },
+            { icon: "🛡️", label: "IMEI Check",     color: "#4ade80" },
+            { icon: "⚡", label: "Server Credits",  color: "#f87171" },
+            { icon: "💳", label: "Gift Cards",      color: "#fb923c" },
+            { icon: "🔧", label: "Tool Rentals",    color: "#22d3ee" },
+            { icon: "📡", label: "Samsung Unlock",  color: "#818cf8" },
+            { icon: "🌍", label: "Worldwide",       color: "#34d399" },
+            { icon: "🏆", label: "15K+ Unlocked",  color: "#fbbf24" },
+            { icon: "🚀", label: "Instant Delivery",color: "#60a5fa" },
+          ].map(({ icon, label, color }, i) => (
+            <div key={i} className="shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-full"
+              style={{ background: `${color}14`, border: `1px solid ${color}28` }}>
+              <span className="text-base leading-none">{icon}</span>
+              <span className="text-[11px] font-bold whitespace-nowrap" style={{ color }}>{label}</span>
             </div>
           ))}
         </div>
