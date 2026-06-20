@@ -573,6 +573,65 @@ export function OrderPage() {
         </div>
       </div>
 
+      {/* ── PROCESSING HERO (paid / processing) ── */}
+      {["paid", "processing"].includes(order.paymentStatus) && (
+        <div className="relative flex flex-col items-center justify-center mb-5 pt-2 pb-1 select-none" style={{ minHeight: 172 }}>
+          <style>{`
+            @keyframes orbitA { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+            @keyframes orbitB { from { transform: rotate(0deg); } to { transform: rotate(-360deg); } }
+            @keyframes scanLine { 0%,100% { top: 10%; opacity: 0.7; } 50% { top: 80%; opacity: 0.3; } }
+            @keyframes pulseGlow { 0%,100% { box-shadow: 0 0 28px 6px rgba(59,130,246,0.22); } 50% { box-shadow: 0 0 48px 14px rgba(99,102,241,0.35); } }
+          `}</style>
+
+          {/* Outer ring 1 */}
+          <div className="absolute rounded-full" style={{
+            width: 154, height: 154,
+            border: "1px dashed rgba(59,130,246,0.22)",
+            animation: "orbitA 12s linear infinite",
+            top: "50%", left: "50%", transform: "translate(-50%, -50%)",
+          }}>
+            <div style={{ position: "absolute", top: -3, left: "50%", transform: "translateX(-50%)", width: 6, height: 6, borderRadius: "50%", background: "#3b82f6", boxShadow: "0 0 8px #3b82f6" }} />
+          </div>
+          {/* Outer ring 2 */}
+          <div className="absolute rounded-full" style={{
+            width: 118, height: 118,
+            border: "1px dashed rgba(139,92,246,0.2)",
+            animation: "orbitB 8s linear infinite",
+            top: "50%", left: "50%", transform: "translate(-50%, -50%)",
+          }}>
+            <div style={{ position: "absolute", top: -3, left: "50%", transform: "translateX(-50%)", width: 5, height: 5, borderRadius: "50%", background: "#8b5cf6", boxShadow: "0 0 7px #8b5cf6" }} />
+          </div>
+
+          {/* Center orb */}
+          <div className="relative flex items-center justify-center" style={{
+            width: 72, height: 72, borderRadius: "50%",
+            background: "linear-gradient(135deg, rgba(30,64,175,0.6), rgba(79,70,229,0.6))",
+            border: "1.5px solid rgba(99,102,241,0.5)",
+            animation: "pulseGlow 2.6s ease-in-out infinite",
+            zIndex: 2,
+          }}>
+            {/* Scan line */}
+            <div style={{
+              position: "absolute", left: 0, right: 0, height: 1.5,
+              background: "linear-gradient(90deg, transparent, rgba(96,165,250,0.85), transparent)",
+              animation: "scanLine 2s ease-in-out infinite",
+              borderRadius: 2, zIndex: 3,
+            }} />
+            <Smartphone size={26} style={{ color: "#93c5fd", position: "relative", zIndex: 4 }} />
+          </div>
+
+          {/* Status text */}
+          <div className="mt-4 text-center z-10">
+            <p className="text-[10px] font-black tracking-[0.22em] uppercase animate-pulse" style={{ color: "#60a5fa" }}>
+              {order.paymentStatus === "processing" ? "🔓 Unlocking In Progress" : "✅ Payment Verified — Processing"}
+            </p>
+            <p className="text-[11px] mt-1" style={{ color: "rgba(255,255,255,0.28)" }}>
+              Estimated: 2–24 hrs · We'll email you when done
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* ── ORDER STATUS CARD ── */}
       <div className="rounded-2xl p-4 mb-4" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
         <div className="flex items-start justify-between mb-4">

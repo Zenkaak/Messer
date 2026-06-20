@@ -81,12 +81,12 @@ export function LiveNotifications() {
     <div
       className="fixed z-[150] pointer-events-auto cursor-pointer select-none"
       style={{
-        bottom: 80,
+        top: 62,
         left: 12,
         right: 12,
-        maxWidth: 300,
+        maxWidth: 320,
         transform: exiting
-          ? "translateY(12px) scale(0.96)"
+          ? "translateY(-12px) scale(0.96)"
           : "translateY(0) scale(1)",
         opacity: exiting ? 0 : 1,
         transition: "transform 0.32s cubic-bezier(0.22,1,0.36,1), opacity 0.32s ease",
@@ -128,7 +128,7 @@ export function LiveNotifications() {
       </div>
       <style>{`
         @keyframes liveNotifIn {
-          from { transform: translateY(14px) scale(0.94); opacity: 0; }
+          from { transform: translateY(-16px) scale(0.94); opacity: 0; }
           to   { transform: translateY(0) scale(1); opacity: 1; }
         }
       `}</style>

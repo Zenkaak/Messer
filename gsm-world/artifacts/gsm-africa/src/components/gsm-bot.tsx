@@ -1406,7 +1406,14 @@ export function GsmBot() {
       const saved = localStorage.getItem("gsm_chat_history");
       if (saved) {
         const parsed = JSON.parse(saved) as ChatMessage[];
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // Strip any "while you wait" messages — those belong only in the Live Support panel
+          const cleaned = parsed.filter(
+            m => !m.content.toLowerCase().includes("while you wait") &&
+                 !m.content.toLowerCase().includes("describe your issue in detail")
+          );
+          if (cleaned.length > 0) return cleaned;
+        }
       }
     } catch { /* ignore */ }
     return [WELCOME];
