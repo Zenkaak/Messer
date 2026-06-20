@@ -691,38 +691,62 @@ function PasswordLoginCard({
   );
 }
 
-// ─── OTP Login Card ──────────────────────────────────────────────────────────
-function OtpLoginCard({ email, onSuccess }: { email: string; onSuccess: (token: string, user: { id: number; email: string; name: string | null }) => void }) {
-  const [otp, setOtp] = useState("");
+// ─── Secure OTP login card ────────────────────────────────────────────────────
+function OtpLoginCard({
+  email,
+  base,
+  onSuccess,
+}: {
+  email: string;
+  base: string;
+  onSuccess: (token: string, user: { id: number; email: string; name: string | null }) => void;
+}) {
+  const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [resent, setResent] = useState(false);
 
-  async function handleVerify(e: React.FormEvent) {
+  const verifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!otp.trim()) return;
-    setLoading(true);
-    setError("");
+    if (!code.trim() || code.trim().length < 6) { setError("Enter the 6-digit code from your email."); return; }
+    setLoading(true); setError("");
     try {
-      const base = apiBase();
       const r = await fetch(`${base}/api/auth/otp-login/verify`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, code: otp.trim() }),
+        body: JSON.stringify({ email: email.toLowerCase().trim(), code: code.trim() }),
       });
       const data = await r.json() as { token?: string; user?: { id: number; email: string; name: string | null }; error?: string };
       if (r.ok && data.token && data.user) {
         setDone(true);
         onSuccess(data.token, data.user);
       } else {
-        setError(data.error ?? "Invalid or expired code. Please try again.");
+        setError(data.error ?? "Invalid or expired code. Try again or request a new code.");
       }
     } catch {
       setError("Could not connect — please try again.");
     } finally {
       setLoading(false);
     }
-  }
+  };
+
+  const resendOtp = async () => {
+    setResending(true); setError(""); setResent(false);
+    try {
+      await fetch(`${base}/api/auth/otp-login/send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.toLowerCase().trim() }),
+      });
+      setResent(true);
+    } catch {
+      setError("Could not resend — please try again.");
+    } finally {
+      setResending(false);
+    }
+  };
 
   if (done) {
     return (
@@ -734,37 +758,40 @@ function OtpLoginCard({ email, onSuccess }: { email: string; onSuccess: (token: 
   }
 
   return (
-    <form onSubmit={handleVerify} className="mt-2 rounded-xl border border-slate-200 bg-white overflow-hidden text-xs shadow-sm">
-      <div className="flex items-center gap-1.5 px-3 py-2 bg-slate-50 border-b border-slate-100">
-        <Shield size={11} className="text-blue-500" />
-        <span className="font-bold text-slate-700 text-[11px]">Enter Your OTP Code</span>
+    <form onSubmit={verifyOtp} className="mt-2 rounded-xl border border-slate-200 bg-white overflow-hidden text-xs shadow-sm">
+      <div className="flex items-center gap-1.5 px-3 py-2 bg-blue-50 border-b border-blue-100">
+        <Lock size={11} className="text-blue-500" />
+        <span className="font-bold text-blue-800 text-[11px]">Enter Your One-Time Code</span>
         <span className="ml-auto text-[9px] text-slate-400 font-medium">Code is hidden</span>
       </div>
       <div className="px-3 py-3 space-y-2.5">
-        <p className="text-[10px] text-slate-500">A 6-digit code was sent to <strong>{email}</strong></p>
+        <p className="text-slate-500 text-[10px]">Check your email at <strong>{email.slice(0, 3)}***@{email.split("@")[1]}</strong> for the 6-digit code.</p>
         <div>
           <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">One-Time Code</label>
           <input
             type="password"
             inputMode="numeric"
-            value={otp}
-            onChange={e => setOtp(e.target.value)}
+            value={code}
+            onChange={e => { setCode(e.target.value); setError(""); }}
             placeholder="••••••"
             maxLength={6}
-            className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs mt-1 focus:outline-none focus:border-blue-400 bg-white tracking-widest"
-            autoFocus
-            required
+            autoComplete="one-time-code"
+            className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs mt-1 font-mono tracking-widest focus:outline-none focus:border-blue-400 bg-white"
           />
         </div>
         {error && <p className="text-red-500 text-[10px] font-medium">{error}</p>}
+        {resent && <p className="text-green-600 text-[10px] font-medium">New code sent to your email!</p>}
         <button
           type="submit"
-          disabled={loading || otp.length < 4}
+          disabled={loading || !code.trim()}
           className="w-full py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold rounded-lg flex items-center justify-center gap-1.5 transition-colors text-[11px]"
         >
           {loading
             ? <div className="w-3.5 h-3.5 border-2 border-white/50 border-t-white rounded-full animate-spin" />
-            : <><UserCheck size={12} /> Verify &amp; Sign In</>}
+            : <><UserCheck size={12} /> Verify & Sign In</>}
+        </button>
+        <button type="button" onClick={resendOtp} disabled={resending} className="w-full text-[10px] text-slate-400 hover:text-slate-600 transition-colors">
+          {resending ? "Sending…" : "Resend code"}
         </button>
       </div>
     </form>
@@ -1369,7 +1396,7 @@ function renderContent(text: string, onLinkClick: () => void): React.ReactNode {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export function GsmBot() {
-  const { user, isAuthenticated, login, logout } = useAuth();
+  const { user, isAuthenticated, login } = useAuth();
   const [open, setOpen] = useState(false);
   const [tooltipVisible, setTooltipVisible] = useState(true);
   // Bot chat state
@@ -1402,10 +1429,12 @@ export function GsmBot() {
   const [humanSending, setHumanSending] = useState(false);
   const [humanFile, setHumanFile] = useState<File | null>(null);
   const [lastPollTime, setLastPollTime] = useState<Date | null>(null);
-  // Email capture step for guest users
+  // Email + phone capture step for guest users
   const [humanEmailStep, setHumanEmailStep] = useState(false);
   const [capturedEmail, setCapturedEmail] = useState("");
+  const [capturedPhone, setCapturedPhone] = useState("");
   const [emailError, setEmailError] = useState("");
+  const [phoneError, setPhoneError] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const humanInputRef = useRef<HTMLInputElement>(null);
@@ -1421,24 +1450,6 @@ export function GsmBot() {
       localStorage.setItem("gsm_chat_history", JSON.stringify(toSave));
     } catch { /* ignore */ }
   }, [messages]);
-
-  // Clear all chat state whenever the user logs in or out
-  const prevAuthRef = useRef<boolean | null>(null);
-  useEffect(() => {
-    if (prevAuthRef.current === null) {
-      // First mount — just record the current state, don't wipe
-      prevAuthRef.current = isAuthenticated;
-      return;
-    }
-    if (prevAuthRef.current === isAuthenticated) return;
-    prevAuthRef.current = isAuthenticated;
-    // Auth changed — wipe messages, saved history and current chat from storage
-    try { localStorage.removeItem("gsm_chat_history"); } catch { /* ignore */ }
-    try { localStorage.removeItem("gsm_saved_conversations"); } catch { /* ignore */ }
-    setMessages([WELCOME]);
-    setSavedConversations([]);
-    setShowHistory(false);
-  }, [isAuthenticated]);
 
   function startNewChat() {
     const hasUser = messages.some(m => m.role === "user");
@@ -1548,6 +1559,7 @@ export function GsmBot() {
       const cartSessionId = typeof window !== "undefined" ? (localStorage.getItem("gsm_session_id") ?? undefined) : undefined;
       const botToken = typeof window !== "undefined" ? (localStorage.getItem("gsmafrica_token") ?? undefined) : undefined;
 
+      const resellerRef = typeof window !== "undefined" ? (sessionStorage.getItem("gsm_reseller_ref") ?? undefined) : undefined;
       const res = await fetch(`${base}/api/chat/bot`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "Accept": "text/event-stream" },
@@ -1557,6 +1569,7 @@ export function GsmBot() {
           isAuthenticated: isAuthenticated && !!user?.email,
           sessionId: cartSessionId ?? visitorId.current,
           botToken,
+          resellerSlug: resellerRef,
         }),
       });
 
@@ -1604,56 +1617,10 @@ export function GsmBot() {
       // Strip the signal from the final text
       const cleanText = fullText.replace(/\[SHOW_HUMAN_BUTTON\]/g, "").trim();
 
-      // Replace bare "Done" / empty responses with a contextual message
-      const DONE_RE = /^[\s✅✓🎉🔔]*(?:done|completed?|got\s+it|confirmed?|success(?:fully)?|noted|alright|okay|ok|great|perfect|sure|understood|will\s+do)[!.…\s]*$/i;
-      function actionFallback(action: string | null, data: Record<string, unknown> | null): string {
-        switch (action) {
-          case "cart_item_added": {
-            const d = data as { productName?: string } | null;
-            return d?.productName ? `✅ **${d.productName}** has been added to your cart!` : "✅ Item added to your cart!";
-          }
-          case "checkout_done": {
-            const d = data as { orderId?: number; currency?: string; total?: number } | null;
-            return d?.orderId
-              ? `✅ Order #${d.orderId} placed successfully! You'll receive a confirmation email shortly.`
-              : "✅ Your order has been placed!";
-          }
-          case "order_cancelled":
-            return "Your order has been cancelled. If you paid, a refund will be processed within 24 hours.";
-          case "password_reset_done":
-            return "✅ Your password has been reset. You can now sign in with your new password.";
-          case "login_success":
-            return "✅ You're now signed in! How can I help you today?";
-          case "logout_user":
-            return "You've been signed out. See you next time!";
-          case "wallet_topup_mpesa":
-          case "wallet_topup_nowpayments":
-          case "wallet_topup_usdt":
-            return "✅ Top-up initiated! Complete the payment using the details below and your wallet will be credited automatically.";
-          case "show_wallet_balance":
-            return "Here's your current wallet balance:";
-          case "wallet_insufficient_funds":
-            return "Your wallet balance is too low for this purchase. You can top up using M-Pesa, crypto, or other methods.";
-          case "show_payment_mpesa":
-          case "show_payment_binance":
-          case "show_payment_usdt":
-            return "Here are your payment details. Complete the payment and your order will be processed automatically:";
-          case "show_mpesa_pending":
-            return "✅ M-Pesa STK push sent to your phone! Check your phone and enter your PIN to complete payment.";
-          case "show_nowpayments":
-            return "Here's your crypto payment address. Send the exact amount shown and your order will be confirmed automatically:";
-          default:
-            return "Is there anything else I can help you with?";
-        }
-      }
-      const resolvedText = (!cleanText || (cleanText.length < 80 && DONE_RE.test(cleanText)))
-        ? actionFallback(finalAction, finalActionData)
-        : cleanText;
-
       // Build the final message with any action widgets attached
       const msg: ChatMessage = {
         role: "assistant",
-        content: resolvedText,
+        content: cleanText || "Done!",
         showHumanButton: finalShowHumanButton || undefined,
       };
 
@@ -1684,10 +1651,10 @@ export function GsmBot() {
         msg.loginSuccessData = ld;
         // Persist token and log user in via auth context
         login(ld.token, ld.user);
-      } else if (finalAction === "show_password_login" && finalActionData) {
-        msg.passwordLoginData = finalActionData as unknown as { email: string };
       } else if (finalAction === "show_otp_login" && finalActionData) {
         msg.otpLoginData = finalActionData as unknown as { email: string };
+      } else if (finalAction === "show_password_login" && finalActionData) {
+        msg.passwordLoginData = finalActionData as unknown as { email: string };
       } else if (finalAction === "password_reset_done") {
         msg.passwordResetDone = true;
       } else if (finalAction === "show_nowpayments" && finalActionData) {
@@ -1706,9 +1673,6 @@ export function GsmBot() {
         msg.walletBalanceData = finalActionData as unknown as WalletBalanceData;
       } else if (finalAction === "wallet_insufficient_funds" && finalActionData) {
         msg.walletInsufficientFundsData = finalActionData as unknown as WalletInsufficientFundsData;
-      } else if (finalAction === "logout_user") {
-        // Actually log the user out — clear token and auth state
-        logout();
       }
 
       setMessages(prev => [...prev.slice(0, -1), msg]);
@@ -1729,13 +1693,16 @@ export function GsmBot() {
     void sendMessage(`Tell me more about: ${p.name} (ID: ${p.id})`);
   }
 
-  // ── Request human (core, accepts optional guest email) ────────────────────
-  async function requestHuman(guestEmail?: string) {
+  // ── Request human (core, accepts optional guest email + phone) ───────────
+  async function requestHuman(guestEmail?: string, guestPhone?: string) {
     if (loading) return;
     setLoading(true);
     try {
       const visitorEmail = user?.email || guestEmail || null;
       const visitorName = user?.name || user?.email?.split("@")[0] || (guestEmail ? guestEmail.split("@")[0] : null);
+      const visitorPhone = guestPhone || null;
+      let visitorTimezone: string | null = null;
+      try { visitorTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { /* ignore */ }
       const res = await fetch(`${base}/api/chat/bot`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1744,6 +1711,8 @@ export function GsmBot() {
           visitorId: visitorId.current,
           visitorName,
           visitorEmail,
+          visitorPhone,
+          visitorTimezone,
         }),
       });
       const data = (await res.json()) as BotResponse;
@@ -1755,13 +1724,14 @@ export function GsmBot() {
       setHumanMode(true);
       setHumanEmailStep(false);
       setCapturedEmail("");
+      setCapturedPhone("");
       setLastPollTime(new Date());
       if (sid) {
         await pollHumanMessages(sid);
       }
     } catch {
       // API unreachable — still enter human mode with a clear message
-      setMessages(prev => [...prev, { role: "assistant", content: "🔗 Connecting you to a human agent now...\n\nOur support team has been notified and will respond here shortly. While you wait, you can also reach us on:\n• **WhatsApp:** [+254112628799](https://wa.me/254112628799)\n• **Telegram:** [t.me/markjsbb](https://t.me/markjsbb)" }]);
+      setMessages(prev => [...prev, { role: "assistant", content: "🔗 You're now connected to our support queue!\n\nWhile you wait for a human agent to join, **please describe your issue in detail** — include your device model, IMEI (if applicable), what you've already tried, and any error messages you saw. The more you share now, the faster we can help you! ✍️\n\nYou can also reach us directly:\n• **WhatsApp:** [+254112628799](https://wa.me/254112628799)\n• **Telegram:** [t.me/markjsbb](https://t.me/markjsbb)" }]);
       setHumanMode(true);
       setSessionStatus("waiting");
       setHumanEmailStep(false);
@@ -1770,24 +1740,42 @@ export function GsmBot() {
     }
   }
 
-  // ── Initiate human request — connect immediately for everyone ─────────────
+  // ── Initiate human request — show email+phone form for guests ────────────
   function startHumanRequest() {
     if (loading) return;
+    if (!user) {
+      // Guest: collect contact details first
+      setHumanEmailStep(true);
+      setCapturedEmail("");
+      setCapturedPhone("");
+      setEmailError("");
+      setPhoneError("");
+      setTimeout(() => emailCaptureRef.current?.focus(), 100);
+      return;
+    }
     void requestHuman();
   }
 
-  // ── Submit captured email then connect ────────────────────────────────────
+  // ── Submit captured email + phone then connect ────────────────────────────
   function submitEmailAndConnect() {
     const email = capturedEmail.trim();
-    const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-    if (!valid) {
+    const phone = capturedPhone.trim();
+    let hasError = false;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       setEmailError("Please enter a valid email address.");
-      emailCaptureRef.current?.focus();
-      return;
+      hasError = true;
+    } else {
+      setEmailError("");
     }
-    setEmailError("");
+    if (!phone) {
+      setPhoneError("Phone number is required so our agent can call you back.");
+      hasError = true;
+    } else {
+      setPhoneError("");
+    }
+    if (hasError) { emailCaptureRef.current?.focus(); return; }
     setHumanEmailStep(false);
-    void requestHuman(email);
+    void requestHuman(email, phone);
   }
 
   // ── Send human message ────────────────────────────────────────────────────
@@ -2118,10 +2106,7 @@ export function GsmBot() {
             <>
               {/* ── BOT CHAT BODY ── */}
               <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2.5">
-                {messages.map((m, i) => {
-                  // Hide the empty placeholder bubble while streaming — dots handle the indicator
-                  if (m.role === "assistant" && !m.content && i === messages.length - 1 && loading) return null;
-                  return (
+                {messages.map((m, i) => (
                   <div key={i} className={`flex gap-2 ${m.role === "user" ? "justify-end" : "justify-start"}`}>
                     {m.role === "assistant" && (
                       <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center shrink-0 mt-0.5">
@@ -2162,17 +2147,18 @@ export function GsmBot() {
                       )}
                       {m.cartAddedData && <CartAddedWidget data={m.cartAddedData} onClose={() => setOpen(false)} />}
                       {m.loginSuccessData && <LoginSuccessWidget data={m.loginSuccessData} />}
-                      {m.passwordLoginData && (
-                        <PasswordLoginCard
-                          email={m.passwordLoginData.email}
+                      {m.otpLoginData && (
+                        <OtpLoginCard
+                          email={m.otpLoginData.email}
+                          base={base}
                           onSuccess={(token, user) => {
                             login(token, user);
                           }}
                         />
                       )}
-                      {m.otpLoginData && (
-                        <OtpLoginCard
-                          email={m.otpLoginData.email}
+                      {m.passwordLoginData && (
+                        <PasswordLoginCard
+                          email={m.passwordLoginData.email}
                           onSuccess={(token, user) => {
                             login(token, user);
                           }}
@@ -2202,8 +2188,7 @@ export function GsmBot() {
                       </div>
                     )}
                   </div>
-                  );
-                })}
+                ))}
 
                 {loading && (
                   <div className="flex gap-2 justify-start">
@@ -2238,34 +2223,49 @@ export function GsmBot() {
               {/* Bot input area */}
               <div className="px-3 pb-3 pt-2 border-t border-gray-100 shrink-0 space-y-2">
                 {humanEmailStep ? (
-                  /* ── Email capture step ── */
-                  <div className="space-y-1.5">
-                    <div className="flex items-center gap-1.5 text-[11px] font-semibold text-blue-700 bg-blue-50 border border-blue-100 rounded-xl px-3 py-1.5">
-                      <Mail size={11} className="shrink-0" />
-                      Enter your email to connect with a human agent
+                  /* ── Email + Phone capture step for guests ── */
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-1.5 text-[11px] font-semibold text-blue-700 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2">
+                      <Headphones size={11} className="shrink-0" />
+                      Enter your contact info so our agent can assist you
                     </div>
-                    <div className="flex gap-2">
+                    <div>
                       <input
                         ref={emailCaptureRef}
                         type="email"
                         value={capturedEmail}
                         onChange={e => { setCapturedEmail(e.target.value); setEmailError(""); }}
-                        onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); submitEmailAndConnect(); } if (e.key === "Escape") { setHumanEmailStep(false); setCapturedEmail(""); } }}
-                        placeholder="your@email.com"
+                        onKeyDown={e => { if (e.key === "Escape") { setHumanEmailStep(false); setCapturedEmail(""); setCapturedPhone(""); } }}
+                        placeholder="Email address *"
                         disabled={loading}
-                        className={`flex-1 bg-gray-50 border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-1 ${emailError ? "border-red-400 focus:border-red-400 focus:ring-red-300" : "border-gray-200 focus:border-blue-400 focus:ring-blue-400"}`}
+                        className={`w-full bg-gray-50 border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-1 ${emailError ? "border-red-400 focus:border-red-400 focus:ring-red-300" : "border-gray-200 focus:border-blue-400 focus:ring-blue-400"}`}
                       />
-                      <button onClick={submitEmailAndConnect} disabled={loading || !capturedEmail.trim()}
-                        className="w-9 h-9 text-white rounded-xl flex items-center justify-center disabled:opacity-40 transition-colors shrink-0"
-                        style={{ background: "linear-gradient(135deg,#1a2332 0%,#1e3a5f 100%)" }}>
-                        {loading ? <RefreshCw size={14} className="animate-spin" /> : <Send size={14} />}
+                      {emailError && <p className="text-[10px] text-red-500 font-medium px-1 mt-0.5">{emailError}</p>}
+                    </div>
+                    <div>
+                      <input
+                        type="tel"
+                        value={capturedPhone}
+                        onChange={e => { setCapturedPhone(e.target.value); setPhoneError(""); }}
+                        onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); submitEmailAndConnect(); } }}
+                        placeholder="Phone number (e.g. 0712345678) *"
+                        disabled={loading}
+                        className={`w-full bg-gray-50 border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-1 ${phoneError ? "border-red-400 focus:border-red-400 focus:ring-red-300" : "border-gray-200 focus:border-blue-400 focus:ring-blue-400"}`}
+                      />
+                      {phoneError && <p className="text-[10px] text-red-500 font-medium px-1 mt-0.5">{phoneError}</p>}
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={submitEmailAndConnect} disabled={loading || !capturedEmail.trim() || !capturedPhone.trim()}
+                        className="flex-1 flex items-center justify-center gap-1.5 text-white rounded-xl py-2 text-[12px] font-bold disabled:opacity-40 transition-colors"
+                        style={{ background: "linear-gradient(135deg,#059669 0%,#047857 100%)" }}>
+                        {loading ? <RefreshCw size={13} className="animate-spin" /> : <Headphones size={13} />}
+                        Connect to Agent
+                      </button>
+                      <button onClick={() => { setHumanEmailStep(false); setCapturedEmail(""); setCapturedPhone(""); setEmailError(""); setPhoneError(""); }}
+                        className="text-[11px] text-slate-400 hover:text-slate-600 transition-colors px-2">
+                        Cancel
                       </button>
                     </div>
-                    {emailError && <p className="text-[11px] text-red-500 font-medium px-1">{emailError}</p>}
-                    <button onClick={() => { setHumanEmailStep(false); setCapturedEmail(""); setEmailError(""); }}
-                      className="text-[11px] text-slate-400 hover:text-slate-600 transition-colors">
-                      Skip — connect without email
-                    </button>
                   </div>
                 ) : (
                   <>

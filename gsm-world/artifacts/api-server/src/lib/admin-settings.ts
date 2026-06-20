@@ -50,6 +50,7 @@ const SETTING_KEYS = [
   "openai_api_url",
   "imei_info_api_token",
   "bot_system_prompt",
+  "callmebot_api_key",
   "cascade_models",
   "cascade_updated_at",
   "support_phone",
@@ -523,4 +524,28 @@ export async function getCascadeStatus(): Promise<{
     } catch { /* fall through */ }
   }
   return { models, updatedAt: updatedAt ?? null, isDefault };
+}
+
+export async function getCallMeBotApiKey(): Promise<string | null> {
+  return (await getSetting("callmebot_api_key")) || process.env.CALLMEBOT_API_KEY || null;
+}
+
+// ── WhatsApp notification via CallMeBot ───────────────────────────────────────
+const _WA_ADMIN_PHONE = "254112628799";
+
+export async function sendWhatsAppNotification(message: string): Promise<{ ok: boolean; reason?: string }> {
+  try {
+    const apiKey = await getCallMeBotApiKey();
+    if (!apiKey) return { ok: false, reason: "CallMeBot API key not configured" };
+    const encoded = encodeURIComponent(message);
+    const url = `https://api.callmebot.com/whatsapp.php?phone=${_WA_ADMIN_PHONE}&text=${encoded}&apikey=${apiKey}`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+    const text = await res.text();
+    if (!res.ok || text.toLowerCase().includes("error")) {
+      return { ok: false, reason: text.slice(0, 200) };
+    }
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, reason: err instanceof Error ? err.message : String(err) };
+  }
 }
