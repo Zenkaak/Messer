@@ -1452,6 +1452,36 @@ export function GsmBot() {
   const visitorId = useRef(getVisitorId());
   const base = apiBase();
 
+  // IMEI auto-lookup states
+  const [imeiDetected, setImeiDetected] = useState<string | null>(null);
+  const [imeiLookupResult, setImeiLookupResult] = useState<{ brand: string | null; model: string | null; simLock: string | null } | null>(null);
+  const [imeiLookupLoading, setImeiLookupLoading] = useState(false);
+
+  // Detect 15-digit IMEI in bot input and auto-lookup device info
+  useEffect(() => {
+    const digits = input.replace(/[\s\-]/g, "");
+    if (!/^\d{15}$/.test(digits) || !luhnValid(digits)) {
+      if (imeiDetected) { setImeiDetected(null); setImeiLookupResult(null); }
+      return;
+    }
+    if (digits === imeiDetected) return;
+    setImeiDetected(digits);
+    setImeiLookupResult(null);
+    setImeiLookupLoading(true);
+    fetch(`${base}/api/imei/lookup?imei=${digits}`)
+      .then(r => r.json())
+      .then((d: { brand?: string | null; model?: string | null; marketingName?: string | null; manufacturer?: string | null; simLock?: string | null }) => {
+        setImeiLookupResult({
+          brand: d.brand ?? d.manufacturer ?? null,
+          model: d.marketingName ?? d.model ?? null,
+          simLock: d.simLock ?? null,
+        });
+      })
+      .catch(() => setImeiLookupResult({ brand: null, model: null, simLock: null }))
+      .finally(() => setImeiLookupLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [input]);
+
   useEffect(() => {
     try {
       const toSave = messages.map(m => ({ role: m.role, content: m.content }));
@@ -2289,6 +2319,63 @@ export function GsmBot() {
                       className="w-full flex items-center justify-center gap-1.5 text-[11px] font-semibold text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-xl py-1.5 transition-colors border border-slate-200 disabled:opacity-40">
                       <Phone size={11} /> Talk to a human agent
                     </button>
+                    {/* IMEI auto-lookup banner */}
+                    {imeiLookupLoading && imeiDetected && (
+                      <div className="flex items-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2">
+                        <RefreshCw size={11} className="text-blue-500 animate-spin shrink-0" />
+                        <p className="text-[11px] text-blue-700 font-semibold">Looking up device info for {imeiDetected}…</p>
+                      </div>
+                    )}
+                    {!imeiLookupLoading && imeiDetected && imeiLookupResult && (
+                      <div className="rounded-xl border border-emerald-200 bg-emerald-50 overflow-hidden">
+                        <div className="flex items-center gap-2 px-3 py-2">
+                          <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center shrink-0">
+                            <Smartphone size={14} className="text-emerald-600" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            {(imeiLookupResult.brand || imeiLookupResult.model) ? (
+                              <p className="text-[12px] font-bold text-emerald-900 truncate">
+                                {[imeiLookupResult.brand, imeiLookupResult.model].filter(Boolean).join(" · ")}
+                              </p>
+                            ) : (
+                              <p className="text-[12px] font-bold text-emerald-900">IMEI verified ✓</p>
+                            )}
+                            <p className="text-[10px] text-emerald-600 font-medium">IMEI {imeiDetected}</p>
+                          </div>
+                        </div>
+                        <div className="flex border-t border-emerald-100">
+                          <button
+                            onClick={() => {
+                              const device = [imeiLookupResult.brand, imeiLookupResult.model].filter(Boolean).join(" ");
+                              const msg = device
+                                ? `I want to unlock my ${device} — IMEI: ${imeiDetected}`
+                                : `I want to unlock my device — IMEI: ${imeiDetected}`;
+                              setInput("");
+                              setImeiDetected(null);
+                              setImeiLookupResult(null);
+                              void sendMessage(msg);
+                            }}
+                            className="flex-1 text-[11px] font-bold text-white py-1.5 transition-colors"
+                            style={{ background: "linear-gradient(135deg,#1a2332 0%,#1e3a5f 100%)" }}>
+                            🔓 Unlock this device
+                          </button>
+                          <button
+                            onClick={() => {
+                              const device = [imeiLookupResult.brand, imeiLookupResult.model].filter(Boolean).join(" ");
+                              const msg = device
+                                ? `My device is ${device} (IMEI: ${imeiDetected}). `
+                                : `My device IMEI is ${imeiDetected}. `;
+                              setInput(msg);
+                              setImeiDetected(null);
+                              setImeiLookupResult(null);
+                              inputRef.current?.focus();
+                            }}
+                            className="flex-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border-l border-emerald-100 py-1.5 hover:bg-emerald-100 transition-colors">
+                            💬 Add to message
+                          </button>
+                        </div>
+                      </div>
+                    )}
                     <div className="flex gap-2">
                       <input
                         ref={inputRef}
