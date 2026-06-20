@@ -209,6 +209,19 @@ const BRAND_LOGOS: Record<string, string> = {
   "ZTE":                   "https://cdn.simpleicons.org/zte/D10000",
 };
 
+// ── Luhn check ───────────────────────────────────────────────────────────────
+function luhnCheck(imei: string): boolean {
+  const digits = imei.replace(/\D/g, "");
+  if (digits.length !== 15) return false;
+  let sum = 0;
+  for (let i = 0; i < digits.length; i++) {
+    let d = parseInt(digits[i], 10);
+    if (i % 2 === 1) { d *= 2; if (d > 9) d -= 9; }
+    sum += d;
+  }
+  return sum % 10 === 0;
+}
+
 type Step = "brand" | "model" | "imei" | "processing" | "confirmed" | "pay";
 type PayMethod = "wallet" | "mpesa" | "nowpayments" | "binance_pay" | "usdt_manual";
 
@@ -462,6 +475,9 @@ export function DirectUnlockPage() {
   const [linkCopied, setLinkCopied] = useState(false);
   const [brandSearch, setBrandSearch] = useState("");
   const [imeiCopied, setImeiCopied] = useState(false);
+  const [imeiInfo, setImeiInfo] = useState<{ brand: string | null; model: string | null; os: string | null } | null>(null);
+  const [imeiTacLoading, setImeiTacLoading] = useState(false);
+  const [imeiLuhnError, setImeiLuhnError] = useState(false);
 
   // Auto-select from URL params
   useEffect(() => {
@@ -508,6 +524,43 @@ export function DirectUnlockPage() {
   const [npPayment, setNpPayment] = useState<{ paymentId: string; payAddress: string; payAmount: number; payCurrency: string; expiresAt?: string } | null>(null);
   const [npPollCount, setNpPollCount] = useState(0);
   const [npCopied, setNpCopied] = useState(false);
+
+  // TAC lookup when IMEI reaches 15 valid digits
+  useEffect(() => {
+    if (step !== "imei") return;
+    if (imei.length !== 15) {
+      setImeiInfo(null);
+      setImeiTacLoading(false);
+      setImeiLuhnError(false);
+      return;
+    }
+    if (!luhnCheck(imei)) {
+      setImeiInfo(null);
+      setImeiTacLoading(false);
+      setImeiLuhnError(true);
+      return;
+    }
+    setImeiLuhnError(false);
+    setImeiInfo(null);
+    setImeiTacLoading(true);
+    const tac = imei.slice(0, 8);
+    fetch(`/api/imei/lookup/${tac}`)
+      .then(r => r.json())
+      .then((d: { brand?: string | null; model?: string | null; os?: string | null }) => {
+        setImeiInfo({ brand: d.brand ?? null, model: d.model ?? null, os: d.os ?? null });
+      })
+      .catch(() => setImeiInfo({ brand: null, model: null, os: null }))
+      .finally(() => setImeiTacLoading(false));
+  }, [imei, step]);
+
+  // Auto-proceed to processing once lookup completes on valid IMEI
+  useEffect(() => {
+    if (step !== "imei") return;
+    if (imei.length !== 15 || imeiLuhnError || imeiTacLoading) return;
+    if (imeiInfo === null) return;
+    const timer = setTimeout(() => setStep("processing"), 1200);
+    return () => clearTimeout(timer);
+  }, [imei, step, imeiInfo, imeiTacLoading, imeiLuhnError]);
 
   // Processing 70s timer
   useEffect(() => {
@@ -984,13 +1037,59 @@ export function DirectUnlockPage() {
                       />
                     </div>
                     {imei.length > 0 && imei.length !== 15 && (
-                      <p className="text-[11px] text-red-500 font-semibold text-center -mt-2">
-                        IMEI must be exactly 15 digits ({imei.length}/15)
+                      <p className="text-[11px] text-amber-600 font-semibold text-center -mt-2">
+                        {imei.length}/15 digits entered
                       </p>
                     )}
+                    {imeiLuhnError && (
+                      <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2.5">
+                        <AlertCircle size={13} className="text-red-500 shrink-0" />
+                        <p className="text-[11px] text-red-600 font-semibold">Invalid IMEI — please double-check this number.</p>
+                      </div>
+                    )}
+                    {imeiTacLoading && (
+                      <div className="flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2.5">
+                        <RefreshCw size={13} className="text-blue-500 animate-spin shrink-0" />
+                        <p className="text-[11px] text-blue-700 font-semibold">Verifying device… auto-proceeding in a moment</p>
+                      </div>
+                    )}
+                    {imeiInfo && !imeiTacLoading && !imeiLuhnError && (
+                      <div className="rounded-xl border border-emerald-200 bg-emerald-50 overflow-hidden">
+                        <div className="flex items-center gap-2.5 px-4 py-3 border-b border-emerald-100">
+                          <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center shrink-0">
+                            <Smartphone size={16} className="text-emerald-600" />
+                          </div>
+                          <div className="flex-1">
+                            {(imeiInfo.brand || imeiInfo.model) ? (
+                              <>
+                                <p className="font-black text-emerald-900 text-[13px] leading-tight">
+                                  {[imeiInfo.brand, imeiInfo.model].filter(Boolean).join(" ")}
+                                </p>
+                                {imeiInfo.os && (
+                                  <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-100 rounded-full px-1.5 py-0.5 inline-block mt-0.5">
+                                    {imeiInfo.os}
+                                  </span>
+                                )}
+                              </>
+                            ) : (
+                              <p className="font-semibold text-emerald-800 text-[12px]">IMEI valid — device confirmed</p>
+                            )}
+                          </div>
+                          <CheckCircle2 size={16} className="text-emerald-500 shrink-0" />
+                        </div>
+                        <div className="flex items-center gap-2 px-4 py-2.5">
+                          <RefreshCw size={11} className="text-emerald-500 animate-spin shrink-0" />
+                          <p className="text-[11px] text-emerald-700 font-semibold">Proceeding to secure verification…</p>
+                        </div>
+                      </div>
+                    )}
                     <button
-                      onClick={() => { if (imei.length !== 15) { toast({ title: "IMEI must be exactly 15 digits", description: `You entered ${imei.length} digit${imei.length !== 1 ? "s" : ""}`, variant: "destructive" }); return; } setStep("processing"); }}
-                      disabled={imei.length !== 15}
+                      onClick={() => {
+                        if (imei.length !== 15) { toast({ title: "IMEI must be exactly 15 digits", description: `You entered ${imei.length} digit${imei.length !== 1 ? "s" : ""}`, variant: "destructive" }); return; }
+                        if (imeiLuhnError) { toast({ title: "Invalid IMEI", description: "Please double-check your IMEI number.", variant: "destructive" }); return; }
+                        setStep("processing");
+                      }}
+                      disabled={imei.length !== 15 || imeiLuhnError}
                       className="w-full py-4 text-white font-black rounded-xl text-sm flex items-center justify-center gap-2 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
                       style={{ background: "linear-gradient(135deg,#2563eb,#1d4ed8)" }}>
                       <Shield size={16} />
