@@ -25,6 +25,7 @@ import {
   getUsdtNetwork,
   getBinancePayId,
   getSmtpConfig,
+  sendWhatsAppNotification,
 } from "../lib/admin-settings";
 import { sendEmail, orderSubmittedEmail, pendingManualPaymentEmail, adminNewOrderAlertEmail } from "../lib/email";
 import { initiateSTKPush } from "../lib/mpesa";
@@ -2455,7 +2456,15 @@ router.post("/chat/bot", async (req, res) => {
         req.log.warn({ err: emailErr }, "requestHuman: admin email failed");
       }
 
-      // ── 3. Create / reuse live chat session in DB ────────────────────────────
+      // ── 3. WhatsApp notification via CallMeBot ───────────────────────────────
+      sendWhatsAppNotification(
+        `🔔 GSM World Live Chat\nCustomer needs support!\n${visitorLine}\nOpen admin panel to respond.`
+      ).then(r => {
+        if (r.ok) req.log.info("requestHuman: WhatsApp notification sent OK");
+        else req.log.warn({ reason: r.reason }, "requestHuman: WhatsApp notification failed");
+      }).catch(() => {});
+
+      // ── 4. Create / reuse live chat session in DB ────────────────────────────
       let sessionId: number | null = null;
       if (visitorId) {
         try {
