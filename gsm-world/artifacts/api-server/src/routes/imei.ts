@@ -4,7 +4,34 @@ import { db, imeiLookupsTable } from "@workspace/db";
 
 const router: IRouter = Router();
 
-// Simple in-memory rate limiter: 10 lookups per IP per minute
+// ── In-memory IMEI result cache ───────────────────────────────────────────────
+// TAC data is static (a device's brand/model never changes).
+// Cache for 24 hours — massive win at scale since the same device IMEIs
+// are looked up repeatedly by many users.
+interface CachedResult {
+  data: Record<string, unknown>;
+  expiresAt: number;
+}
+const _imeiCache = new Map<string, CachedResult>();
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+// Request coalescing: if two requests for the same IMEI arrive simultaneously,
+// the second waits for the first's promise rather than firing a duplicate API call.
+const _imeiInFlight = new Map<string, Promise<Record<string, unknown>>>();
+
+// Prune expired cache entries every 30 minutes to prevent unbounded growth
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of _imeiCache) {
+    if (now > entry.expiresAt) _imeiCache.delete(key);
+  }
+  // Also prune stale rate-limit entries
+  for (const [ip, entry] of _imeiRateMap) {
+    if (now > entry.resetAt) _imeiRateMap.delete(ip);
+  }
+}, 30 * 60 * 1000).unref();
+
+// ── Rate limiter: 10 lookups per IP per minute ────────────────────────────────
 const _imeiRateMap = new Map<string, { count: number; resetAt: number }>();
 const IMEI_RATE_LIMIT = 10;
 const IMEI_RATE_WINDOW_MS = 60_000;
@@ -222,103 +249,137 @@ router.get("/imei/lookup", async (req, res) => {
     return;
   }
 
+  // ── Cache hit: serve instantly without hitting any external API ──────────────
+  const cached = _imeiCache.get(imei);
+  if (cached && Date.now() < cached.expiresAt) {
+    res.setHeader("X-Cache", "HIT");
+    res.json(cached.data);
+    return;
+  }
+
+  // ── Request coalescing: deduplicate concurrent lookups for the same IMEI ─────
+  // If another request is already in-flight for this IMEI, wait for it instead
+  // of firing a duplicate external API call.
+  const inFlight = _imeiInFlight.get(imei);
+  if (inFlight) {
+    const result = await inFlight;
+    res.setHeader("X-Cache", "COALESCED");
+    res.json(result);
+    return;
+  }
+
   const tac = imei.slice(0, 8);
   const localDetection = detectBrandFromTac(tac);
 
-  // Load IMEI.info token (optional — enables real SimLock check)
-  let imeiInfoToken: string | null = null;
-  try {
-    const { getImeiInfoApiToken } = await import("../lib/admin-settings");
-    imeiInfoToken = await getImeiInfoApiToken();
-  } catch { /* not configured — free basic mode */ }
+  // Register in-flight promise so concurrent requests for the same IMEI coalesce
+  const computeResult = async (): Promise<Record<string, unknown>> => {
+    // Load IMEI.info token (optional — enables real SimLock check)
+    let imeiInfoToken: string | null = null;
+    try {
+      const { getImeiInfoApiToken } = await import("../lib/admin-settings");
+      imeiInfoToken = await getImeiInfoApiToken();
+    } catch { /* not configured — free basic mode */ }
 
-  let brand: string | null = localDetection?.brand ?? null;
-  let manufacturer: string | null = localDetection?.manufacturer ?? null;
-  let model: string | null = null;
-  let marketingName: string | null = null;
-  let source = localDetection ? "embedded" : "luhn-only";
+    let brand: string | null = localDetection?.brand ?? null;
+    let manufacturer: string | null = localDetection?.manufacturer ?? null;
+    let model: string | null = null;
+    let marketingName: string | null = null;
+    let source = localDetection ? "embedded" : "luhn-only";
 
-  // Step 1: Basic device info from TAC database (always free)
-  // Uses node:https directly to bypass tacdb.osmocom.org SSL cert mismatch
-  try {
-    const tacData = await new Promise<{ manufacturer?: string; model?: string; brand?: string; marketingName?: string } | null>((resolve) => {
-      const req = nodeHttps.get(
-        `https://tacdb.osmocom.org/api/v1/tac/${tac}`,
-        { headers: { Accept: "application/json", "User-Agent": "GSMWorld/1.0" }, rejectUnauthorized: false, timeout: 5000 },
-        (res) => {
-          let body = "";
-          res.on("data", (chunk: Buffer) => { body += chunk.toString(); });
-          res.on("end", () => {
-            try { resolve(JSON.parse(body)); } catch { resolve(null); }
-          });
-        }
-      );
-      req.on("error", () => resolve(null));
-      req.on("timeout", () => { req.destroy(); resolve(null); });
-    });
-    if (tacData && typeof tacData === "object" && !("detail" in tacData)) {
-      brand = (tacData.brand as string | undefined) ?? brand;
-      manufacturer = (tacData.manufacturer as string | undefined) ?? manufacturer;
-      model = (tacData.model as string | undefined) ?? null;
-      marketingName = (tacData.marketingName as string | undefined) ?? null;
-      source = "tac-db";
+    // Step 1: Basic device info from TAC database (always free)
+    // Uses node:https directly to bypass tacdb.osmocom.org SSL cert mismatch
+    try {
+      const tacData = await new Promise<{ manufacturer?: string; model?: string; brand?: string; marketingName?: string } | null>((resolve) => {
+        const httpsReq = nodeHttps.get(
+          `https://tacdb.osmocom.org/api/v1/tac/${tac}`,
+          { headers: { Accept: "application/json", "User-Agent": "GSMWorld/1.0" }, rejectUnauthorized: false, timeout: 5000 },
+          (httpsRes) => {
+            let body = "";
+            httpsRes.on("data", (chunk: Buffer) => { body += chunk.toString(); });
+            httpsRes.on("end", () => {
+              try { resolve(JSON.parse(body)); } catch { resolve(null); }
+            });
+          }
+        );
+        httpsReq.on("error", () => resolve(null));
+        httpsReq.on("timeout", () => { httpsReq.destroy(); resolve(null); });
+      });
+      if (tacData && typeof tacData === "object" && !("detail" in tacData) && !("not found" in String(tacData))) {
+        brand = (tacData.brand as string | undefined) ?? brand;
+        manufacturer = (tacData.manufacturer as string | undefined) ?? manufacturer;
+        model = (tacData.model as string | undefined) ?? null;
+        marketingName = (tacData.marketingName as string | undefined) ?? null;
+        if (brand || model) source = "tac-db";
+      }
+    } catch { /* fall through */ }
+
+    // Derive region + SIM config from what we know
+    const appleRegion = brand === "Apple" ? getAppleModelRegion(model) : null;
+    const simConfig = getSimConfig(marketingName, brand, model);
+
+    // Step 2: IMEI.info for real SimLock (only when API token is configured)
+    let simLock = "Carrier check required";
+    let carrier: string | null = null;
+    let blacklist: string | null = null;
+    let enhanced = false;
+
+    if (imeiInfoToken) {
+      const info = await fetchImeiInfo(imei, imeiInfoToken);
+      if (info) {
+        simLock   = info.simLock   ?? simLock;
+        carrier   = info.carrier   ?? null;
+        blacklist = info.blacklist ?? null;
+        enhanced  = true;
+      }
     }
-  } catch { /* fall through */ }
 
-  // Derive region + SIM config from what we know
-  const appleRegion = brand === "Apple" ? getAppleModelRegion(model) : null;
-  const simConfig = getSimConfig(marketingName, brand, model);
+    const result: Record<string, unknown> = {
+      imei,
+      tac,
+      valid: true,
+      manufacturer,
+      brand,
+      model,
+      marketingName,
+      source,
+      modelRegion:     appleRegion?.region ?? null,
+      modelRegionFull: appleRegion?.regionFull ?? null,
+      simConfig,
+      simLock,
+      carrier,
+      blacklist,
+      enhanced,
+      note: !enhanced
+        ? "SimLock status requires a carrier-level check. Configure an IMEI.info API token in Admin Settings to enable it."
+        : undefined,
+    };
 
-  // Step 2: IMEI.info for real SimLock (only when API token is configured)
-  let simLock = "Carrier check required";
-  let carrier: string | null = null;
-  let blacklist: string | null = null;
-  let enhanced = false;
+    // Log lookup to DB (fire and forget — never fail the response)
+    db.insert(imeiLookupsTable).values({
+      imei,
+      brand,
+      model,
+      marketingName,
+      simLock,
+      carrier,
+      blacklist,
+      enhanced,
+      source,
+    }).catch(() => { /* ignore DB errors */ });
 
-  if (imeiInfoToken) {
-    const info = await fetchImeiInfo(imei, imeiInfoToken);
-    if (info) {
-      simLock   = info.simLock   ?? simLock;
-      carrier   = info.carrier   ?? null;
-      blacklist = info.blacklist ?? null;
-      enhanced  = true;
-    }
-  }
-
-  const result = {
-    imei,
-    tac,
-    valid: true,
-    manufacturer,
-    brand,
-    model,
-    marketingName,
-    source,
-    modelRegion:     appleRegion?.region ?? null,
-    modelRegionFull: appleRegion?.regionFull ?? null,
-    simConfig,
-    simLock,
-    carrier,
-    blacklist,
-    enhanced,
-    note: !enhanced
-      ? "SimLock status requires a carrier-level check. Configure an IMEI.info API token in Admin Settings to enable it."
-      : undefined,
+    return result;
   };
 
-  // Log lookup to DB (fire and forget — never fail the response)
-  db.insert(imeiLookupsTable).values({
-    imei,
-    brand,
-    model,
-    marketingName,
-    simLock,
-    carrier,
-    blacklist,
-    enhanced,
-    source,
-  }).catch(() => { /* ignore DB errors */ });
+  const promise = computeResult().finally(() => _imeiInFlight.delete(imei));
+  _imeiInFlight.set(imei, promise);
 
+  const result = await promise;
+
+  // Store in cache (24h TTL) — subsequent lookups for this IMEI cost nothing
+  _imeiCache.set(imei, { data: result, expiresAt: Date.now() + CACHE_TTL_MS });
+
+  res.setHeader("X-Cache", "MISS");
+  res.setHeader("Cache-Control", "public, max-age=86400");
   res.json(result);
 });
 

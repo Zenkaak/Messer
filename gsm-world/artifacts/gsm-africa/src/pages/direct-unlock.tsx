@@ -1152,7 +1152,15 @@ export function DirectUnlockPage() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="font-black text-white text-[14px] truncate">{selectedModel?.name}</p>
-                        <p className="text-[10px] font-mono mt-0.5" style={{ color: "#6366f1" }}>{selectedBrand?.brand}</p>
+                        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                          <p className="text-[10px] font-mono" style={{ color: "#6366f1" }}>{selectedBrand?.brand}</p>
+                          {imeiInfo?.brand && (
+                            <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full"
+                              style={{ background: "rgba(34,197,94,0.15)", color: "#4ade80", border: "1px solid rgba(34,197,94,0.25)" }}>
+                              ✓ IMEI VERIFIED
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <div className="shrink-0">
                         <div className="px-2.5 py-1 rounded-full text-[10px] font-black"
@@ -1161,9 +1169,16 @@ export function DirectUnlockPage() {
                         </div>
                       </div>
                     </div>
-                    <div className="px-4 py-2.5 flex items-center gap-2">
-                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#475569" strokeWidth="2"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
-                      <p className="text-[11px] font-mono" style={{ color: "#475569" }}>IMEI: <span style={{ color: "#94a3b8" }}>{imei}</span></p>
+                    <div className="px-4 py-2.5 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#475569" strokeWidth="2"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+                        <p className="text-[11px] font-mono" style={{ color: "#475569" }}>IMEI: <span style={{ color: "#94a3b8" }}>{imei}</span></p>
+                      </div>
+                      {imeiInfo?.brand && (
+                        <span className="text-[9px] font-semibold" style={{ color: "#475569" }}>
+                          {imeiInfo.brand}{imeiInfo.model ? ` · ${imeiInfo.model}` : ""}
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -1340,6 +1355,15 @@ export function DirectUnlockPage() {
                     <div>
                       <p className="font-black text-2xl tracking-tight">Device Verified!</p>
                       <p className="text-emerald-100 text-sm mt-1">{selectedBrand.brand} — {selectedModel.name}</p>
+                      {imeiInfo?.brand && (
+                        <div className="inline-flex items-center gap-1.5 mt-2 px-3 py-1 rounded-full"
+                          style={{ background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.25)" }}>
+                          <CheckCircle2 size={11} className="text-emerald-200" />
+                          <span className="text-[10px] font-black text-emerald-100 tracking-wide">
+                            {imeiInfo.brand} · IMEI {imei.slice(0,6)}···{imei.slice(-2)} Verified
+                          </span>
+                        </div>
+                      )}
                     </div>
                     <div className="grid grid-cols-3 gap-2 text-center">
                       {[

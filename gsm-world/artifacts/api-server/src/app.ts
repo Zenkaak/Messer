@@ -1,4 +1,4 @@
-import express, { type Express } from "express";
+import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
 import path from "path";
@@ -6,56 +6,96 @@ import router from "./routes";
 import { logger } from "./lib/logger";
 import { runMigrations } from "./lib/migrations";
 
-// Run DB migrations on every cold start (covers both dev and Vercel serverless).
-// Fire-and-forget — never blocks request handling.
+// Run DB migrations on every cold start. Fire-and-forget.
 runMigrations().catch((err) => logger.warn({ err }, "Migration on cold-start failed"));
 
 const app: Express = express();
 
+// ── Gzip compression (built-in Node.js zlib — no extra package) ───────────────
+// Reduces JSON/text payload size 60-80%; essential for high-concurrency.
+import zlib from "node:zlib";
+const COMPRESSIBLE_RE = /json|text|javascript|xml|svg/i;
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const ae = String(req.headers["accept-encoding"] ?? "");
+  const enc = ae.includes("br") ? "br" : ae.includes("gzip") ? "gzip" : null;
+  if (!enc) { next(); return; }
+
+  const origJson = res.json.bind(res);
+  const origSend = res.send.bind(res);
+
+  const compress = (buf: Buffer, cb: (out: Buffer) => void) => {
+    const fn = enc === "br" ? zlib.brotliCompress : zlib.gzip;
+    fn(buf, enc === "br"
+      ? { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 4 } }
+      : {},
+      (err, out) => { if (err || !out) { cb(buf); } else { cb(out); } });
+  };
+
+  const wrapSend = (body: unknown): Response => {
+    const ct = String(res.getHeader("Content-Type") ?? "");
+    if (!COMPRESSIBLE_RE.test(ct)) return origSend(body as Buffer);
+    const raw = Buffer.isBuffer(body) ? body : Buffer.from(String(body));
+    compress(raw, (out) => {
+      res.setHeader("Content-Encoding", enc);
+      res.setHeader("Vary", "Accept-Encoding");
+      res.removeHeader("Content-Length");
+      res.setHeader("Content-Length", out.length);
+      origSend(out);
+    });
+    return res;
+  };
+
+  (res as unknown as { json: typeof origJson }).json = (body: unknown) => {
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    return wrapSend(JSON.stringify(body));
+  };
+  (res as unknown as { send: typeof origSend }).send = (body: unknown) => wrapSend(body);
+
+  next();
+});
+
+// ── Logging ───────────────────────────────────────────────────────────────────
 app.use(
   pinoHttp({
     logger,
+    autoLogging: {
+      ignore: (req) => req.url === "/api/healthz",
+    },
     serializers: {
-      req(req) {
-        return {
-          id: req.id,
-          method: req.method,
-          url: req.url?.split("?")[0],
-        };
-      },
-      res(res) {
-        return {
-          statusCode: res.statusCode,
-        };
-      },
+      req(req) { return { id: req.id, method: req.method, url: req.url?.split("?")[0] }; },
+      res(res) { return { statusCode: res.statusCode }; },
     },
   }),
 );
+
+// ── Security headers ──────────────────────────────────────────────────────────
+app.use((_req: Request, res: Response, next: NextFunction) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "SAMEORIGIN");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  next();
+});
+
+// ── CORS ──────────────────────────────────────────────────────────────────────
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow server-to-server / mobile-app requests with no Origin header
     if (!origin) { callback(null, true); return; }
-    // Allow localhost in development
     if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) { callback(null, true); return; }
-    // Allow any Vercel, Replit, or Neon preview domain
     if (/\.(vercel\.app|replit\.app|replit\.dev|repl\.co)$/.test(origin)) { callback(null, true); return; }
-    // Allow explicitly configured production domain(s) from REPLIT_DOMAINS
     const allowed = (process.env.REPLIT_DOMAINS ?? "").split(",").map(d => d.trim()).filter(Boolean);
     if (allowed.some(d => origin === `https://${d}` || origin === `http://${d}`)) { callback(null, true); return; }
-    // Reject everything else
     callback(new Error("CORS not allowed"), false);
   },
   credentials: true,
 }));
+
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: true, limit: "2mb" }));
 
+// ── Routes ────────────────────────────────────────────────────────────────────
 app.use("/api", router);
 
-// SPA fallback — serve the Vite-built index.html for all non-API routes.
-// In production (Vercel Lambda), index.html is copied next to index.js by
-// scripts/vercel-output.mjs. In local dev this route is never reached because
-// Vite serves the frontend directly.
+// SPA fallback
 app.get("/{*path}", (_req, res) => {
   const indexHtml = path.resolve(__dirname, "index.html");
   res.sendFile(indexHtml);
