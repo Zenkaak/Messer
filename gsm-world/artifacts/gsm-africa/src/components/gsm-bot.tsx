@@ -1537,13 +1537,18 @@ export function GsmBot() {
       ]);
     }, WARN_MS);
     inactivityCloseRef.current = setTimeout(() => {
-      setMessages(prev => [
-        ...prev,
-        {
-          role: "assistant" as const,
-          content: "👋 Your session has been closed due to 30 minutes of inactivity. Feel free to open the chat anytime — we're here to help!",
-        },
-      ]);
+      // Save current conversation to history so the user can resume it
+      setMessages(prev => {
+        const hasUser = prev.some(m => m.role === "user");
+        if (hasUser) persistConversation(prev);
+        return [
+          {
+            role: "assistant" as const,
+            content: "👋 Your session was saved due to 30 minutes of inactivity. Tap the **history icon** (top-left) to pick up where you left off!",
+          },
+        ];
+      });
+      setSavedConversations(getSavedConversations());
       setOpen(false);
     }, CLOSE_MS);
   // eslint-disable-next-line react-hooks/exhaustive-deps
