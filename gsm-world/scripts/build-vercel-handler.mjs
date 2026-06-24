@@ -83,6 +83,7 @@ const result = await esbuild.build({
     index: path.join(apiServerDir, "src", "handler.ts"),
   },
   platform: "node",
+  target: "node22",
   bundle: true,
   format: "cjs",
   outdir: funcDir,
