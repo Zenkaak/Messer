@@ -2883,6 +2883,7 @@ router.post("/chat/bot", async (req, res) => {
         const abortTimer = setTimeout(() => abortCtrl.abort(), 7000);
 
         let response: Response;
+        let _fetchFailed = false;
         try {
           response = await fetch(`${openaiBase}/v1/chat/completions`, {
             method: "POST",
@@ -2905,12 +2906,12 @@ router.post("/chat/bot", async (req, res) => {
             }),
           });
         } catch (fetchErr) {
-          clearTimeout(abortTimer);
           req.log.warn({ model: modelName, err: String(fetchErr) }, "AI fetch error — trying next model");
-          continue modelLoop;
+          _fetchFailed = true;
         } finally {
           clearTimeout(abortTimer);
         }
+        if (_fetchFailed) continue modelLoop;
 
         if (!response.ok) {
           const errBody = await response.text().catch(() => "");
