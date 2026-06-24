@@ -2872,7 +2872,6 @@ router.post("/chat/bot", async (req, res) => {
     const baseMessages = [...openaiMessages]; // snapshot before any tool results
     let botResponded = false;
 
-    try {
     let _modelDone = false;
     for (const modelName of modelCascade) {
       // Each model attempt starts from a clean snapshot (no leftover tool results)
