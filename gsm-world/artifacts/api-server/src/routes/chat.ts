@@ -2670,7 +2670,13 @@ router.post("/chat/bot", async (req, res) => {
       return;
     }
 
-    const [apiKey, waContact] = await Promise.all([getOpenAiKey(), getWhatsappContact()]);
+    // ── Fetch all config in parallel (all have 60s in-memory cache) ─────────────
+    const [apiKey, waContact, openaiBase, _prefetchedCascade] = await Promise.all([
+      getOpenAiKey(),
+      getWhatsappContact(),
+      getOpenAiBaseUrl(),
+      getWorkingCascade(),
+    ]);
     const waLink = `wa.me/${waContact.replace(/^\+/, "")}`;
     if (!apiKey) {
       const offlineMsg = `I'm currently offline for maintenance. Please WhatsApp us at ${waLink} for support or click "Talk to a human agent" below.`;
@@ -2687,10 +2693,8 @@ router.post("/chat/bot", async (req, res) => {
       return;
     }
 
-    const openaiBase = await getOpenAiBaseUrl();
-
     const safeMessages = Array.isArray(messages)
-      ? messages.slice(-14).filter(
+      ? messages.slice(-6).filter(
           (m: unknown) =>
             m != null &&
             typeof m === "object" &&
@@ -2772,6 +2776,8 @@ router.post("/chat/bot", async (req, res) => {
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
       res.setHeader("X-Accel-Buffering", "no");
+      // Flush headers immediately so the client sees the connection open right away
+      res.flushHeaders?.();
     }
     const sseWrite = wantsStream
       ? (t: string) => res.write(`data: ${JSON.stringify({ t })}\n\n`)
@@ -2814,11 +2820,32 @@ router.post("/chat/bot", async (req, res) => {
       }
     }
 
+    // ── Instant greeting short-circuit (bypass AI entirely) ───────────────────
+    // For simple openers like "hi", "hello", "hey", respond instantly without
+    // an AI call. This achieves <200ms response for the most common first message.
+    {
+      let _latestUserMsg = "";
+      for (let _i = openaiMessages.length - 1; _i >= 0; _i--) {
+        if (openaiMessages[_i].role === "user") {
+          _latestUserMsg = String(openaiMessages[_i].content ?? "").trim();
+          break;
+        }
+      }
+      const _isFirstOrSecondTurn = safeMessages.filter(m => (m as { role: string }).role === "assistant").length === 0;
+      const _isGreeting = /^(hi+|hey+|hello+|helo+|hii+|howdy|yo|sup|greetings|good\s*(morning|afternoon|evening|day)|what'?s up|wassup|hola|salut|bonjour|jambo|sema|mambo|niaje)[\s!?.]*$/i.test(_latestUserMsg);
+      if (_isGreeting && _isFirstOrSecondTurn) {
+        const storeName = "GSM World";
+        const greetMsg = `Hi there! 👋 Welcome to ${storeName}!\n\nI'm your virtual assistant. I can help you:\n• 🔓 Unlock your phone\n• 🛒 Browse & order products\n• 📦 Track an existing order\n• 💳 Check payment options\n\nWhat can I help you with today?`;
+        sseDone({ message: greetMsg });
+        return;
+      }
+    }
+
     // ── Model cascade → Tool-call loop ────────────────────────────────────────
     // Cascade is dynamically maintained in DB by the weekly cron health-check.
     // Falls back to hardcoded defaults if the DB has no value yet.
     const isOpenRouter = openaiBase.toLowerCase().includes("openrouter");
-    const modelCascade = isOpenRouter ? await getWorkingCascade() : ["gpt-4o-mini"];
+    const modelCascade = isOpenRouter ? _prefetchedCascade : ["gpt-4o-mini"];
 
     const baseMessages = [...openaiMessages]; // snapshot before any tool results
     let botResponded = false;
@@ -2830,7 +2857,7 @@ router.post("/chat/bot", async (req, res) => {
 
       for (let iter = 0; iter < 4; iter++) {
         const abortCtrl = new AbortController();
-        const abortTimer = setTimeout(() => abortCtrl.abort(), 10000);
+        const abortTimer = setTimeout(() => abortCtrl.abort(), 7000);
 
         let response: Response;
         try {
