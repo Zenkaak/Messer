@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { ilike, eq, and, or, desc, gt, sql } from "drizzle-orm";
 import { z } from "zod";
 import jwt from "jsonwebtoken";
+import bcrypt from "bcryptjs";
 import {
   db,
   ordersTable,
@@ -13,27 +14,65 @@ import {
   cartItemsTable,
   paymentTransactionsTable,
   usersTable,
+  adminSettingsTable,
 } from "@workspace/db";
 import {
   getOpenAiKey,
   getOtsConfig,
   getOpenAiBaseUrl,
   getPaymentMethods,
-  getAdminPassword,
+  checkAdminPassword,
   getWhatsappContact,
   getUsdtWallet,
   getUsdtNetwork,
   getBinancePayId,
   getSmtpConfig,
+  getWorkingCascade,
   sendWhatsAppNotification,
 } from "../lib/admin-settings";
-import { sendEmail, orderSubmittedEmail, pendingManualPaymentEmail, adminNewOrderAlertEmail } from "../lib/email";
+import { sendEmail, orderSubmittedEmail, pendingManualPaymentEmail, adminNewOrderAlertEmail, otpEmail } from "../lib/email";
 import { initiateSTKPush } from "../lib/mpesa";
 import { createPayment } from "../lib/nowpayments";
 import { logger } from "../lib/logger";
 
 const _BOT_JWT_SECRET = process.env.JWT_SECRET || "gsm-africa-jwt-secret-CHANGE-IN-PRODUCTION";
+
+// ── AI concurrency semaphore ──────────────────────────────────────────────────
+// Caps simultaneous in-flight AI calls per worker. Without this, 1000 users
+// hitting the bot at once would fire 1000 concurrent fetch() calls to OpenRouter,
+// saturating Node's connection pool and causing OOM / network timeouts for everyone.
+// At 150 concurrent slots: assuming avg 8 s per call → ~18 req/s throughput per worker.
+let _aiInFlight = 0;
+const _AI_MAX_CONCURRENT = 150;
+function _tryAcquireAi(): boolean {
+  if (_aiInFlight >= _AI_MAX_CONCURRENT) return false;
+  _aiInFlight++;
+  return true;
+}
+function _releaseAi(): void {
+  _aiInFlight = Math.max(0, _aiInFlight - 1);
+}
 const _USD_TO_KES = 130;
+
+// ─── OTP helpers (inline to avoid Vercel serverless localhost calls) ───────────
+async function _setOtp(key: string, code: string, ttlMs: number) {
+  const val = JSON.stringify({ code, expiresAt: Date.now() + ttlMs });
+  await db.insert(adminSettingsTable)
+    .values({ key: `otp:${key}`, value: val })
+    .onConflictDoUpdate({ target: adminSettingsTable.key, set: { value: val, updatedAt: new Date() } });
+}
+async function _getOtp(key: string): Promise<{ code: string; expiresAt: number } | null> {
+  const rows = await db.select({ value: adminSettingsTable.value })
+    .from(adminSettingsTable).where(eq(adminSettingsTable.key, `otp:${key}`)).limit(1);
+  if (!rows.length || !rows[0].value) return null;
+  try { return JSON.parse(rows[0].value) as { code: string; expiresAt: number }; } catch { return null; }
+}
+async function _deleteOtp(key: string) {
+  await db.delete(adminSettingsTable).where(eq(adminSettingsTable.key, `otp:${key}`));
+}
+function _makeUserToken(userId: number, email: string) {
+  return jwt.sign({ userId, email }, _BOT_JWT_SECRET, { expiresIn: "30d" });
+}
 
 function resolveBotSession(sessionId: string | null | undefined, botToken: string | null | undefined): { resolvedSession: string; userId: number | null } {
   let resolvedSession = sessionId || "guest-session";
@@ -167,7 +206,7 @@ async function buildSystemPrompt(waContact?: string): Promise<string> {
       .from(productsTable)
       .where(eq(productsTable.featured, true))
       .orderBy(productsTable.categoryId, productsTable.name)
-      .limit(60),
+      .limit(25),
     getPaymentMethods(),
     db.execute(sql`SELECT category_id, COUNT(*)::int as cnt FROM products GROUP BY category_id`),
   ]);
@@ -206,7 +245,7 @@ async function buildSystemPrompt(waContact?: string): Promise<string> {
         ? ` (was $${parseFloat(item.origPrice).toFixed(2)})`
         : "";
       const reqFields = getRequiredOrderFields(item.name, item.desc, catName);
-      catalogSection += `  [ID:${item.id}] ${item.name} — $${parseFloat(item.price).toFixed(2)}${sale}${stock} [needs: ${reqFields.join(", ")}]\n`;
+      catalogSection += `  [ID:${item.id}] ${item.name} — $${parseFloat(item.price).toFixed(2)}${sale}${stock}\n`;
     }
   }
 
@@ -324,13 +363,12 @@ YOUR TOOLS — CALL IMMEDIATELY, NEVER JUST DESCRIBE WHAT YOU COULD DO
 8.  navigate_to(page, label) — send user to any page on the site
 9.  add_to_cart(product_id, quantity) — add a product to the customer's cart
 10. send_login_otp(email) — send OTP for passwordless login
-11. show_otp_login_form(email) — display secure OTP entry card (call right after send_login_otp; NEVER ask OTP in plain chat)
-12. verify_login_otp(email, code) — verify OTP and log customer in (called internally by OTP card)
-13. signup_user(email, name, password) — create new account
-14. send_password_reset_otp(email) — send password reset code (ALWAYS ask email FIRST before calling)
-15. reset_user_password(email, code, new_password) — set new password
-16. place_order(payment_method, customer_email, ...) — complete purchase and create order
-17. add_wallet_funds(payment_method, amount, phone?, pay_currency?) — top up wallet balance
+11. verify_login_otp(email, code) — verify OTP and log customer in
+12. signup_user(email, name, password) — create new account
+13. send_password_reset_otp(email) — send password reset code
+14. reset_user_password(email, code, new_password) — set new password
+15. place_order(payment_method, customer_email, ...) — complete purchase and create order
+16. add_wallet_funds(payment_method, amount, phone?, pay_currency?) — top up wallet balance
 
 RULE: When a customer asks anything, call the relevant tool immediately. Never say "I can check" or "let me look" — just do it.
 
@@ -355,7 +393,28 @@ PAYMENT METHOD RULES (critical):
 
 CART RULE: If place_order returns "Cart is empty" → silently call add_to_cart again for the same product, then retry place_order. Never mention this to the customer.
 
-DONE PROHIBITION: NEVER say "Done", "Completed", or declare success unless place_order has returned success=true in THIS conversation turn. If tools haven't confirmed success, say "Let me retry that" and continue.
+RESPONSE QUALITY RULES (CRITICAL — enforced on every message):
+  ✗ NEVER say "Done", "Completed", "All done!", "Done!", "Got it!", "Sure!", "Certainly!", "Of course!" as a standalone response or to declare success.
+  ✗ NEVER say a bare "Done" after a tool call. Always follow up with a real, helpful message.
+  ✗ NEVER declare success unless place_order, add_wallet_funds, or another action tool has explicitly returned success=true in THIS conversation turn.
+  ✗ NEVER say "Is there anything else I can help you with?" or any variant of that phrase. The ONLY time it is acceptable is when a flow is 100% complete: a tool returned success=true in THIS turn AND the customer's entire goal is satisfied AND nothing further is needed. In all other situations this phrase is ABSOLUTELY FORBIDDEN. Specific examples where you must NOT say it:
+      – After answering a question (delivery time, price, policy, etc.) — the customer has not finished; they may want to order next.
+      – After send_login_otp, show_otp_login_form, show_password_login_form — the customer has not logged in yet.
+      – After add_to_cart — the customer has not paid; you still need payment info and to call place_order.
+      – While collecting required fields (email, IMEI, model, phone number, hardware ID) — the flow is not done.
+      – After asking a question — you are mid-conversation; wait for the answer.
+      – After lookup_order — the customer may still need help with the order.
+      – Any time the customer could logically take another step to complete their goal.
+    Instead of that phrase, always advance the conversation: state what happened, what is next, or ask the single next question needed.
+  ✓ After a tool succeeds → give the customer the RESULT: what happened, what's next, and what they should do now.
+  ✓ If tools haven't confirmed success → say "Let me retry that" and continue attempting — do not stop.
+  ✓ Every reply must advance the conversation: confirm what happened, give next steps, or ask the single next question needed.
+  EXAMPLES of correct responses after tool calls:
+    ✓ After send_login_otp: [immediately call show_otp_login_form — no words at all]
+    ✓ After place_order success: "Your order is confirmed! 🎉 Order #[id] — you'll get a confirmation email shortly. Delivery: [SLA]. Track it at /account/orders."
+    ✓ After add_to_cart: Confirm to the customer what was added: "✅ [Product name] at $[price] has been added to your cart."
+    ✓ After cancel_order: "Order #[id] has been cancelled. Your payment will be refunded. What else can I do for you?"
+    ✓ After lookup_order: [share the status details directly — don't just say "I looked it up"]
 
 ══════════════════════════════════════════════════════════════
 REQUIRED FIELDS PER SERVICE TYPE
@@ -390,12 +449,19 @@ Wallet balance can be used for instant one-click checkout on any order.
 ══════════════════════════════════════════════════════════════
 LOGIN / SIGNUP / PASSWORD RESET (do it all in chat)
 ══════════════════════════════════════════════════════════════
-⚠️ ALREADY AUTHENTICATED CHECK: If you see "[SYSTEM: This user is AUTHENTICATED]" in context and the user asks to "login", "log in", "sign in", or "create account", DO NOT start a login flow. Instead reply: "You're already signed in as [their email]! Is there anything else I can help you with?" and stop.
+⚠️ ALREADY AUTHENTICATED CHECK: If you see "[SYSTEM: This user is AUTHENTICATED]" in the conversation and the user asks to "login", "log in", "sign in", or "create account", DO NOT start a login flow. Instead reply: "You're already signed in as [their full email]! What else can I do for you?" and stop.
+
+LOGOUT: If the user asks to "log out", "sign out", "logout", or "switch accounts" → call logout_user() immediately. Do NOT just say "you have been logged out" without calling the tool first.
+
+EMAIL DISPLAY RULE: ALWAYS show the user's email address in FULL. NEVER mask, abbreviate, or obfuscate it (e.g. never show "***g**@gmail.com" or "j***@g***.com"). If the user asks "what email am I logged in with?" or "what is my email?", reply with their complete email address exactly as provided in the [SYSTEM] block above.
 
 LOGIN — first ask: "Would you prefer a one-time code (OTP) sent to your email, or log in with your password?"
   OTP path (easiest — no password needed):
+    ⚠️ CHOICE DETECTION: If the user replies "Otp", "OTP", "otp", "1", "yes", "code", "one time code", or any phrasing selecting OTP after you asked OTP-or-password:
+       IMMEDIATELY reply ONLY: "What's your email address? I'll send a login code there." — nothing else. Do NOT say "Is there anything else I can help you with?" during an active login — that is FORBIDDEN.
     1. Ask email → send_login_otp(email)
-    2. Call show_otp_login_form(email) — displays a SECURE card where they enter OTP privately
+    2. IMMEDIATELY after send_login_otp returns (success OR fail), call show_otp_login_form(email) — do NOT say anything first.
+    ⚠️ CRITICAL: After send_login_otp you MUST call show_otp_login_form with the same email right away. Do NOT say "Done", "Sent", "I've sent", or ANY other words — just call show_otp_login_form immediately. The form itself shows the user what to do.
     ⚠️ NEVER ask the customer to type their OTP code in the chat message box. Always use show_otp_login_form immediately after send_login_otp.
   Password path (secure form):
     1. Ask email
@@ -407,11 +473,9 @@ SIGNUP (new customer):
   2. signup_user(email, name, password) — account created and logged in ✓
 
 FORGOT PASSWORD:
-  ⚠️ ALWAYS ask for the user's email address FIRST before doing anything. Do NOT call send_password_reset_otp until you have their email.
-  1. Ask: "What is your email address?" → wait for reply → send_password_reset_otp(email)
-  2. Tell them to check their inbox for a reset code
-  3. Ask reset code + new password → reset_user_password(email, code, new_password)
-  4. Offer OTP login to get them in immediately
+  1. Ask email → send_password_reset_otp(email)
+  2. Ask reset code + new password → reset_user_password(email, code, new_password)
+  3. Offer OTP login to get them in immediately
 
 ══════════════════════════════════════════════════════════════
 ORDER STATUS GUIDE — WHAT EACH STATUS MEANS
@@ -511,7 +575,7 @@ TROUBLESHOOTING — RESOLVE THESE YOURSELF BEFORE ESCALATING:
 
 "I forgot my account password":
   Use FORGOT PASSWORD flow immediately — no escalation needed.
-  1. Ask for their email first. 2. send_password_reset_otp(email) → collect code + new password → reset_user_password()
+  send_password_reset_otp(email) → collect code + new password → reset_user_password()
 
 "I want to cancel my order":
   1. lookup_order(email, order_id) to check status
@@ -580,16 +644,18 @@ NEVER ASSUME UNAVAILABILITY — ALWAYS SEARCH FIRST
 ✓ RIGHT: call search_products("Google Play gift card") → only say unavailable if result is empty
 
 ══════════════════════════════════════════════════════════════
-CUSTOM DENOMINATIONS — ALWAYS ACCEPT ANY AMOUNT
+CUSTOM DENOMINATIONS — ALWAYS ACCEPT ANY AMOUNT ≥ $10
 ══════════════════════════════════════════════════════════════
-Catalog amounts (e.g. $10, $25, $50, $100) are samples — customers can order ANY amount.
+Catalog amounts (e.g. $10, $25, $50, $100) are samples — customers can order ANY amount ≥ $10.
 "$500", "500usd", "500 usd", "500" all mean the same thing → normalize to $500.
+MINIMUM: $10. If requested amount is under $10, say: "Our minimum gift card order is $10 — shall I go with $10?"
 If amount not in catalog:
   • search_products("[brand] [region]") — search by brand only, strip the dollar amount
-  • add_to_cart with the closest product ID found
+  • add_to_cart with the closest product ID found (YOU call add_to_cart — never tell the customer to do it)
   • Set device_identifier = "Custom denomination: $[amount] [brand] [region]"
   • Tell customer: "Custom amount confirmed — our team delivers the code to your email within 20 minutes to 1 hour."
   • NEVER refuse a custom amount. NEVER stop the flow. Continue to email and payment.
+  • NEVER say "we don't carry that amount", "that denomination isn't listed", or "check the store for options" — just add it as custom.
 
 ══════════════════════════════════════════════════════════════
 ORDER LOOKUP RULES
@@ -903,7 +969,6 @@ RESELLER PROGRAM — /reseller
 ══════════════════════════════════════════════════════════════
 GSM World has a dedicated Reseller Program. Key facts:
   • Apply at /reseller (must be logged in)
-  • One-time $15 USD security fee to activate (paid via USDT or M-Pesa)
   • Earn 10% commission on every sale through your unique store link
   • Your store URL: /store/your-slug — shows all products, branded to you
   • Minimum payout: $10 USD — request via the Withdrawals tab on /reseller
@@ -989,12 +1054,42 @@ S3 — Show service + price. Collect IMEI + email. Payment.
 ━━━ FLOW 8: Gift Cards ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 TRIGGERS: "gift card", "PSN", "PlayStation", "Xbox", "Steam", "Google Play", "Netflix", "Roblox", "iTunes", "Spotify"
 
-S1 — navigate_to("gift-cards", "Gift Cards Store")
-S2 — Confirm what brand/region they want + tell them what's available
-S3 — Ask: "Which denomination? (e.g. $50)" — any amount accepted, including custom
-S3b— If amount not in catalog: search_products("[brand] [region]") → add_to_cart closest match → set device_identifier = "Custom: $[amount] [brand] [region]" → tell customer "Custom amount confirmed — delivered within 20 minutes to 1 hour."
-S4 — Collect email only (NO IMEI for gift cards)
-S5 — Payment → place_order. Delivery: instant–30 min standard, up to 1 hour custom.
+⚠️ CRITICAL GIFT CARD RULES (read before choosing a path):
+  • NEVER tell the customer to "add to cart", "click Add to Cart", or "select the card" — YOU do it for them by CALLING the add_to_cart TOOL FUNCTION.
+  • NEVER say "we don't have that denomination" or "that amount isn't pre-listed" — accept ANY amount ≥ $10 as a custom order.
+  • If the user's message already contains brand + amount, skip navigation entirely and go straight to calling add_to_cart.
+  • ALWAYS pass replace_cart: true when calling add_to_cart for a gift card — this clears any stale items from a previous session so the customer is NEVER charged for the wrong product.
+
+⚠️ CRITICAL EXECUTION RULE (applies to ALL tool calls, especially add_to_cart):
+  • Before calling add_to_cart, ALWAYS tell the customer the exact product name and price being added: "I'll add [exact product name] at $[price] to your cart." — This prevents wrong products from being ordered.
+  • Wait for the customer to confirm OR proceed immediately if the context is unambiguous (e.g. they already specified brand + model + price).
+  • You MUST call the actual add_to_cart FUNCTION TOOL after announcing the product — do NOT just narrate without calling the tool.
+  • If the product search returns multiple results, pick the MOST SPECIFIC match to what the customer asked for — never pick a generic or broader product when a specific one is available.
+
+PATH A — User already specified brand AND amount (e.g. "Google Play USA $50", "PSN $25"):
+  A1 — search_products("[brand] [region]") to get the product ID.
+         • If search returns a matching gift card product: use that product_id.
+         • If search returns found:false or no gift card products: call search_products("[brand] gift card") — if still no match, call get_category_products("Gift Cards") to get the full gift card catalog and pick the closest matching product by brand/region (e.g. "Google Play USA Gift Card" for a Google Play USA request).
+         • NEVER skip this step — you MUST have a valid product_id from the catalog before calling add_to_cart.
+  A2 — IMMEDIATELY call add_to_cart(product_id, 1, custom_price=[customer's exact requested dollar amount], replace_cart: true).
+         • ALWAYS pass custom_price equal to the customer's requested denomination (e.g. 50 for a "$50" Google Play card).
+         • ALWAYS pass replace_cart: true — clears stale cart items and ensures only THIS product is ordered.
+         • This ensures the order total matches what the customer asked for, NOT the catalog price.
+         • Set device_identifier = "Custom: $[amount] [brand] [region]" if exact denomination not in catalog.
+         • Do NOT write anything about adding to cart — just call the tool directly.
+  ⚠️ PATH A CONTINUATION RULE: After add_to_cart you MUST immediately proceed to A3. Do NOT say "Is there anything else?" Do NOT pause. Do NOT wait. Keep going straight through A1→A2→A3→A4→place_order without stopping under any circumstances.
+  A3 — Collect email if not already known (NO IMEI — never ask for IMEI on gift cards)
+  A4 — Ask payment method → place_order. Delivery: instant–30 min standard, up to 1 hour custom.
+
+PATH B — User said "buy gift card" with no brand or amount yet:
+  B1 — navigate_to("gift-cards", "Gift Cards Store") and ask: "Which brand and region? (e.g. Google Play USA, PSN UK)"
+  B2 — Once they reply with brand/region: ask denomination. Accept any amount ≥ $10.
+  B3 — search_products("[brand] [region]") → if no exact match, call get_category_products("Gift Cards") and pick the closest gift card product.
+         IMMEDIATELY call add_to_cart(product_id, 1, custom_price=[amount], replace_cart: true).
+         device_identifier = "Custom: $[amount] [brand] [region]" if needed.
+  B4 — Collect email (NO IMEI). Payment → place_order.
+
+MINIMUM ORDER: $10. If requested amount is less than $10, say: "The minimum gift card order is $10 — would you like to go with $10 instead?"
 
 ━━━ FLOW 9: Other Brand Unlocks (Huawei, Motorola, Nokia, etc.) ━━
 TRIGGERS: "unlock Huawei", "Motorola unlock", "Nokia unlock", "Xiaomi unlock", "LG unlock", "OnePlus unlock"
@@ -1171,6 +1266,8 @@ const TOOLS = [
         properties: {
           product_id: { type: "number", description: "Product ID to add (get from search_products or get_product_details)" },
           quantity: { type: "number", description: "Quantity to add (default 1)" },
+          custom_price: { type: "number", description: "Override the catalog price with a custom amount (USD). Use this for gift cards or custom denomination orders where the customer requested a specific amount different from the catalog price. E.g. if customer wants a $50 Google Play card, pass 50 here." },
+          replace_cart: { type: "boolean", description: "If true, clears ALL existing items from the cart before adding this product. Use this for every new gift card order to prevent stale items from a previous order being charged accidentally." },
         },
         required: ["product_id"],
       },
@@ -1325,6 +1422,14 @@ const TOOLS = [
         },
         required: ["payment_method", "amount"],
       },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "logout_user",
+      description: "Log out the currently authenticated user. Call immediately when the user asks to log out, sign out, or switch accounts. No parameters needed.",
+      parameters: { type: "object", properties: {} },
     },
   },
 ];
@@ -1815,6 +1920,15 @@ async function sendOtsSms(params: { apiToken: string; senderId: string | null; t
 
 // ─── Streaming helpers ────────────────────────────────────────────────────────
 
+/**
+ * Returns true when an AI response is a premature conversation-closer
+ * ("Is there anything else I can help you with?" and its variants).
+ * Free OpenRouter models often emit these mid-flow instead of continuing.
+ */
+function isConversationCloser(text: string): boolean {
+  return /is there anything else (i|we) (can|could|may) help|anything else (i|we) can (do|help)|how (else |can i |may i)(help|assist)|what else can i (do|help|assist)/i.test(text);
+}
+
 /** Consumes an OpenAI SSE stream. If `sseWrite` is provided, text tokens are
  *  forwarded as they arrive (only when no tool-calls have started). Returns
  *  the accumulated text and fully-assembled tool-call list. */
@@ -1875,7 +1989,7 @@ async function consumeStream(
 }
 
 // ─── New tool executors (cart / auth / checkout) ─────────────────────────────
-async function toolAddToCart(productId: number, quantity: number, sessionId: string, botToken?: string | null): Promise<Record<string, unknown>> {
+async function toolAddToCart(productId: number, quantity: number, sessionId: string, botToken?: string | null, customPrice?: number | null, replaceCart?: boolean): Promise<Record<string, unknown>> {
   try {
     // Direct DB — no internal HTTP call (serverless-safe)
     const { resolvedSession } = resolveBotSession(sessionId, botToken);
@@ -1884,22 +1998,34 @@ async function toolAddToCart(productId: number, quantity: number, sessionId: str
     const [product] = await db.select().from(productsTable).where(eq(productsTable.id, productId)).limit(1);
     if (!product) return { success: false, error: "Product not found" };
 
+    // Use custom_price if provided (e.g. gift card custom denominations), otherwise use catalog price
+    const effectivePrice = (customPrice && customPrice > 0) ? String(customPrice.toFixed(2)) : product.price;
+
+    // If replace_cart is set, clear ALL existing cart items first to prevent stale items
+    if (replaceCart) {
+      await db.delete(cartItemsTable).where(eq(cartItemsTable.sessionId, resolvedSession));
+    }
+
     const [existing] = await db.select().from(cartItemsTable)
       .where(and(eq(cartItemsTable.sessionId, resolvedSession), eq(cartItemsTable.productId, productId)));
 
     if (existing) {
       await db.update(cartItemsTable)
-        .set({ quantity: existing.quantity + qty })
+        .set({ quantity: existing.quantity + qty, priceAtAdd: effectivePrice })
         .where(and(eq(cartItemsTable.sessionId, resolvedSession), eq(cartItemsTable.productId, productId)));
     } else {
-      await db.insert(cartItemsTable).values({ sessionId: resolvedSession, productId, quantity: qty, priceAtAdd: product.price });
+      await db.insert(cartItemsTable).values({ sessionId: resolvedSession, productId, quantity: qty, priceAtAdd: effectivePrice });
     }
 
+    const requiredFields = getRequiredOrderFields(product.name, product.description ?? "", product.categoryId?.toString() ?? "");
     return {
       success: true,
       productName: product.name,
-      price: `$${parseFloat(product.price).toFixed(2)}`,
+      price: `$${parseFloat(effectivePrice).toFixed(2)}`,
       quantity: qty,
+      description: product.description ?? null,
+      requiredOrderFields: requiredFields,
+      reminder: `Before calling place_order you MUST collect from the customer: ${requiredFields.join(", ")}. Do not skip any field.`,
     };
   } catch (err) {
     logger.error({ err }, "toolAddToCart failed");
@@ -1909,75 +2035,122 @@ async function toolAddToCart(productId: number, quantity: number, sessionId: str
 
 async function toolSendLoginOtp(email: string): Promise<Record<string, unknown>> {
   try {
-    const port = process.env.PORT ?? "5000";
-    const r = await fetch(`http://localhost:${port}/api/auth/otp-login/send`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: email.toLowerCase().trim() }),
-    });
-    const data = await r.json() as { success?: boolean; error?: string };
-    if (r.ok) return { success: true };
-    return { success: false, error: data.error ?? "Failed to send OTP" };
-  } catch {
+    const normalEmail = email.toLowerCase().trim();
+    const rows = await db.select({ id: usersTable.id, status: usersTable.status })
+      .from(usersTable).where(eq(usersTable.email, normalEmail)).limit(1);
+    if (!rows.length) return { success: true };
+    if (rows[0].status === "disabled" || rows[0].status === "banned") {
+      return { success: false, error: "Your account is not allowed. Contact support." };
+    }
+    const otp = String(Math.floor(100000 + Math.random() * 900000));
+    await _setOtp(`login:${normalEmail}`, otp, 10 * 60 * 1000);
+    const emailResult = await sendEmail({ to: normalEmail, ...otpEmail(otp) });
+    if (!emailResult.sent) {
+      return { success: false, error: `Could not send verification code: ${emailResult.reason ?? "email delivery failed"}. Check Admin email settings.` };
+    }
+    return { success: true };
+  } catch (err) {
+    logger.error({ err }, "toolSendLoginOtp failed");
     return { success: false, error: "Could not send OTP — email service may be unavailable" };
   }
 }
 
 async function toolVerifyLoginOtp(email: string, code: string): Promise<Record<string, unknown>> {
   try {
-    const port = process.env.PORT ?? "5000";
-    const r = await fetch(`http://localhost:${port}/api/auth/otp-login/verify`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: email.toLowerCase().trim(), code: code.trim() }),
-    });
-    const data = await r.json() as { token?: string; user?: { id: number; email: string; name: string | null }; error?: string };
-    if (r.ok && data.token && data.user) return { success: true, token: data.token, user: data.user };
-    return { success: false, error: data.error ?? "Invalid or expired code" };
-  } catch {
+    const normalEmail = email.toLowerCase().trim();
+    const key = `login:${normalEmail}`;
+    const entry = await _getOtp(key);
+    if (!entry || entry.code !== String(code).trim()) {
+      return { success: false, error: "Invalid or expired code" };
+    }
+    if (Date.now() > entry.expiresAt) {
+      await _deleteOtp(key);
+      return { success: false, error: "Code has expired. Please request a new one." };
+    }
+    await _deleteOtp(key);
+    const rows = await db.select({ id: usersTable.id, email: usersTable.email, name: usersTable.name, status: usersTable.status })
+      .from(usersTable).where(eq(usersTable.email, normalEmail)).limit(1);
+    if (!rows.length) return { success: false, error: "User not found" };
+    const user = rows[0];
+    if (user.status === "disabled" || user.status === "banned") {
+      return { success: false, error: "Your account is not allowed. Contact support." };
+    }
+    const token = _makeUserToken(user.id, user.email);
+    return { success: true, token, user: { id: user.id, email: user.email, name: user.name } };
+  } catch (err) {
+    logger.error({ err }, "toolVerifyLoginOtp failed");
     return { success: false, error: "Verification service unavailable" };
   }
 }
 
 async function toolSignupUser(email: string, name: string, password: string): Promise<Record<string, unknown>> {
   try {
-    const port = process.env.PORT ?? "5000";
-    const r = await fetch(`http://localhost:${port}/api/auth/register`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: email.toLowerCase().trim(), name: name.trim(), password }),
-    });
-    const data = await r.json() as { token?: string; user?: { id: number; email: string; name: string | null }; error?: string; emailSent?: boolean };
-    if (r.ok && data.token && data.user) return { success: true, token: data.token, user: data.user, emailSent: data.emailSent };
-    return { success: false, error: data.error ?? "Registration failed" };
-  } catch {
+    const normalEmail = email.toLowerCase().trim();
+    if (!password || password.length < 6) {
+      return { success: false, error: "Password must be at least 6 characters" };
+    }
+    const existing = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.email, normalEmail)).limit(1);
+    if (existing.length > 0) {
+      return { success: false, error: "An account with this email already exists" };
+    }
+    const passwordHash = await bcrypt.hash(password, 10);
+    const [user] = await db.insert(usersTable).values({
+      email: normalEmail, passwordHash, name: name.trim() || null,
+    }).returning({ id: usersTable.id, email: usersTable.email, name: usersTable.name });
+    const token = _makeUserToken(user.id, user.email);
+    const otp = String(Math.floor(100000 + Math.random() * 900000));
+    await _setOtp(normalEmail, otp, 10 * 60 * 1000);
+    const emailResult = await sendEmail({ to: normalEmail, ...otpEmail(otp) });
+    return { success: true, token, user: { id: user.id, email: user.email, name: user.name }, emailSent: emailResult.sent };
+  } catch (err) {
+    logger.error({ err }, "toolSignupUser failed");
     return { success: false, error: "Registration service unavailable" };
   }
 }
 
 async function toolSendPasswordResetOtp(email: string): Promise<Record<string, unknown>> {
   try {
-    const port = process.env.PORT ?? "5000";
-    const r = await fetch(`http://localhost:${port}/api/auth/password-reset/send`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: email.toLowerCase().trim() }),
-    });
-    if (r.ok) return { success: true };
-    const data = await r.json() as { error?: string };
-    return { success: false, error: data.error ?? "Failed to send reset code" };
-  } catch {
+    const normalEmail = email.toLowerCase().trim();
+    const rows = await db.select({ id: usersTable.id, status: usersTable.status })
+      .from(usersTable).where(eq(usersTable.email, normalEmail)).limit(1);
+    if (!rows.length) return { success: true };
+    if (rows[0].status === "disabled" || rows[0].status === "banned") {
+      return { success: false, error: "Account disabled. Contact support." };
+    }
+    const otp = String(Math.floor(100000 + Math.random() * 900000));
+    await _setOtp(`reset:${normalEmail}`, otp, 10 * 60 * 1000);
+    const emailResult = await sendEmail({ to: normalEmail, ...otpEmail(otp) });
+    if (!emailResult.sent) {
+      return { success: false, error: `Could not send reset code: ${emailResult.reason ?? "email delivery failed"}` };
+    }
+    return { success: true };
+  } catch (err) {
+    logger.error({ err }, "toolSendPasswordResetOtp failed");
     return { success: false, error: "Service unavailable" };
   }
 }
 
 async function toolResetUserPassword(email: string, code: string, newPassword: string): Promise<Record<string, unknown>> {
   try {
-    const port = process.env.PORT ?? "5000";
-    const r = await fetch(`http://localhost:${port}/api/auth/password-reset/reset`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: email.toLowerCase().trim(), code: code.trim(), newPassword }),
-    });
-    if (r.ok) return { success: true };
-    const data = await r.json() as { error?: string };
-    return { success: false, error: data.error ?? "Password reset failed" };
-  } catch {
+    const normalEmail = email.toLowerCase().trim();
+    const key = `reset:${normalEmail}`;
+    const entry = await _getOtp(key);
+    if (!entry || entry.code !== String(code).trim()) {
+      return { success: false, error: "Invalid or expired reset code" };
+    }
+    if (Date.now() > entry.expiresAt) {
+      await _deleteOtp(key);
+      return { success: false, error: "Reset code has expired. Please request a new one." };
+    }
+    await _deleteOtp(key);
+    if (!newPassword || newPassword.length < 6) {
+      return { success: false, error: "Password must be at least 6 characters" };
+    }
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    await db.update(usersTable).set({ passwordHash }).where(eq(usersTable.email, normalEmail));
+    return { success: true };
+  } catch (err) {
+    logger.error({ err }, "toolResetUserPassword failed");
     return { success: false, error: "Service unavailable" };
   }
 }
@@ -1985,7 +2158,7 @@ async function toolResetUserPassword(email: string, code: string, newPassword: s
 async function toolPlaceOrder(args: {
   paymentMethod: string; customerEmail: string; customerName?: string;
   customerPhone?: string; deviceIdentifier?: string; payCurrency?: string;
-  sessionId?: string | null; botToken?: string | null;
+  sessionId?: string | null; botToken?: string | null; resellerSlug?: string | null;
 }): Promise<Record<string, unknown>> {
   try {
     const pm = args.paymentMethod.toLowerCase().replace(/^binance$/, "binance_pay");
@@ -2012,19 +2185,6 @@ async function toolPlaceOrder(args: {
       return { success: false, error: "Cart is empty" };
     }
 
-    // Minimum price enforcement: all non-credit items must be ≥ $10 USD
-    const MIN_ITEM_PRICE_USD = 10;
-    for (const r of cartRows) {
-      const itemPrice = parseFloat(r.cartItem.priceAtAdd);
-      const isCredit = /credit/i.test((r.product.name ?? "") + " " + (r.product.description ?? ""));
-      if (!isCredit && itemPrice < MIN_ITEM_PRICE_USD) {
-        return {
-          success: false,
-          error: `Minimum order price is $${MIN_ITEM_PRICE_USD.toFixed(2)} USD per item. "${r.product.name}" is priced at $${itemPrice.toFixed(2)}, which is below the minimum. Please contact support for assistance.`,
-        };
-      }
-    }
-
     const total = cartRows.reduce((acc, r) => acc + parseFloat(r.cartItem.priceAtAdd) * r.cartItem.quantity, 0);
     const orderCode = generateBotOrderCode();
     const customerEmail = args.customerEmail.toLowerCase();
@@ -2043,6 +2203,7 @@ async function toolPlaceOrder(args: {
       total: String(total),
       currency: "USD",
       deviceIdentifier: args.deviceIdentifier ?? null,
+      resellerSlug: args.resellerSlug ?? null,
     }).returning();
 
     // Insert order items
@@ -2065,10 +2226,16 @@ async function toolPlaceOrder(args: {
     // ── Payment-specific logic ──────────────────────────────────────────────
     if (pm === "wallet") {
       if (!loggedInUserId) return { success: false, error: "Must be logged in to pay with wallet" };
-      const [userRow] = await db.select({ walletBalance: usersTable.walletBalance }).from(usersTable).where(eq(usersTable.id, loggedInUserId)).limit(1);
-      const balance = parseFloat(userRow?.walletBalance ?? "0");
-      if (balance < total) return { success: false, error: `Insufficient wallet balance. You have $${balance.toFixed(2)} but need $${total.toFixed(2)}.` };
-      await db.update(usersTable).set({ walletBalance: sql`wallet_balance - ${total.toFixed(2)}` }).where(eq(usersTable.id, loggedInUserId));
+      // Atomic deduction: only deduct if wallet_balance >= total (prevents double-spend race)
+      const deducted = await db.update(usersTable)
+        .set({ walletBalance: sql`wallet_balance - ${total.toFixed(2)}` })
+        .where(and(eq(usersTable.id, loggedInUserId), sql`wallet_balance >= ${total.toFixed(2)}`))
+        .returning({ id: usersTable.id });
+      if (deducted.length === 0) {
+        const [userRow] = await db.select({ walletBalance: usersTable.walletBalance }).from(usersTable).where(eq(usersTable.id, loggedInUserId)).limit(1);
+        const balance = parseFloat(userRow?.walletBalance ?? "0");
+        return { success: false, error: `Insufficient wallet balance. You have $${balance.toFixed(2)} but need $${total.toFixed(2)}.` };
+      }
       await db.update(ordersTable).set({ paymentStatus: "paid" }).where(eq(ordersTable.id, order.id));
       await db.delete(cartItemsTable).where(eq(cartItemsTable.sessionId, resolvedSession));
       sendEmail({ to: customerEmail, ...orderSubmittedEmail({ orderId: order.id, orderCode, customerName, items: itemsForEmail, total: String(total), paymentMethod: pm }) }).catch(() => {});
@@ -2135,29 +2302,28 @@ async function toolPlaceOrder(args: {
   }
 }
 
-const _SUPPORT_EMAIL = "support@dasnett.site";
-
 function _fireAdminOrderAlert(opts: { orderId: number; orderCode: string; customerEmail: string; customerName: string | null; itemsForEmail: { productName: string; quantity: number; price: string }[]; total: number; pm: string }) {
   getSmtpConfig().then(cfg => {
+    const adminEmail = cfg.emailFrom;
+    if (!adminEmail) return;
     const itemSummary = opts.itemsForEmail.map(i => `${i.productName} ×${i.quantity}`).join(", ");
-    const targets = [cfg.emailFrom, _SUPPORT_EMAIL].filter((e): e is string => Boolean(e) && e.trim() !== "");
-    const uniqueTargets = [...new Set(targets)];
-    uniqueTargets.forEach(to => {
-      sendEmail({ to, ...adminNewOrderAlertEmail({ orderId: opts.orderId, orderCode: opts.orderCode, orderType: "Store Order", customerEmail: opts.customerEmail, customerName: opts.customerName, items: itemSummary, total: String(opts.total), paymentMethod: opts.pm }) }).catch(() => {});
-    });
+    sendEmail({ to: adminEmail, ...adminNewOrderAlertEmail({ orderId: opts.orderId, orderCode: opts.orderCode, orderType: "Store Order", customerEmail: opts.customerEmail, customerName: opts.customerName, items: itemSummary, total: String(opts.total), paymentMethod: opts.pm }) }).catch(() => {});
   }).catch(() => {});
 }
 
 async function toolGetWalletBalance(botToken: string | null): Promise<Record<string, unknown>> {
   if (!botToken) return { success: false, error: "You must be logged in to check wallet balance. Please log in first." };
+  const port = process.env.PORT ?? "5000";
   try {
-    const payload = jwt.verify(botToken, _BOT_JWT_SECRET) as { userId?: number };
-    if (!payload.userId) return { success: false, error: "Invalid session. Please log in again." };
-    const [row] = await db.select({ walletBalance: usersTable.walletBalance }).from(usersTable).where(eq(usersTable.id, payload.userId)).limit(1);
-    if (!row) return { success: false, error: "Account not found." };
-    return { success: true, balance: parseFloat(row.walletBalance ?? "0") };
+    const r = await fetch(`http://localhost:${port}/api/wallet/balance`, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${botToken}` },
+    });
+    const data = await r.json() as Record<string, unknown>;
+    if (r.ok) return { success: true, ...data };
+    return { success: false, error: (data as { error?: string }).error ?? "Could not retrieve balance." };
   } catch {
-    return { success: false, error: "Could not retrieve wallet balance." };
+    return { success: false, error: "Wallet service unavailable." };
   }
 }
 
@@ -2165,62 +2331,33 @@ async function toolAddWalletFunds(args: {
   paymentMethod: string; amount: number; phone?: string; payCurrency?: string; botToken?: string | null;
 }): Promise<Record<string, unknown>> {
   if (!args.botToken) return { success: false, error: "You must be logged in to top up your wallet. Please log in first." };
-  let loggedInUserId: number | null = null;
-  try {
-    const payload = jwt.verify(args.botToken, _BOT_JWT_SECRET) as { userId?: number };
-    loggedInUserId = payload.userId ?? null;
-  } catch { /* invalid token */ }
-  if (!loggedInUserId) return { success: false, error: "Invalid session. Please log in again." };
-
+  const port = process.env.PORT ?? "5000";
+  const headers: Record<string, string> = { "Content-Type": "application/json", Authorization: `Bearer ${args.botToken}` };
   const pm = args.paymentMethod.toLowerCase();
   try {
     if (pm === "mpesa") {
       if (!args.phone) return { success: false, error: "Phone number is required for M-Pesa top-up." };
-      const amountKes = Math.ceil(args.amount * _USD_TO_KES);
-      let stkRes: Awaited<ReturnType<typeof initiateSTKPush>>;
-      try {
-        stkRes = await initiateSTKPush({ phone: args.phone, amount: amountKes, orderId: 0, description: `Wallet top-up $${args.amount}` });
-      } catch (err) {
-        logger.error({ err }, "toolAddWalletFunds: STK Push failed");
-        return { success: false, error: "M-Pesa STK push failed. Please check the phone number and try again." };
-      }
-      await db.insert(paymentTransactionsTable).values({
-        orderId: null as unknown as number,
-        provider: "mpesa",
-        providerReference: stkRes.CheckoutRequestID,
-        amount: String(amountKes),
-        currency: "KES",
-        status: "pending",
-        rawResponse: { userId: loggedInUserId, amountUsd: args.amount, type: "wallet_topup" } as unknown as Record<string, unknown>,
+      const r = await fetch(`http://localhost:${port}/api/wallet/add-fund/mpesa`, {
+        method: "POST", headers, body: JSON.stringify({ phone: args.phone, amount: args.amount }),
       });
-      return { success: true, checkoutRequestId: stkRes.CheckoutRequestID, amountKes, amountUsd: args.amount, message: stkRes.CustomerMessage };
+      const data = await r.json() as Record<string, unknown>;
+      if (r.ok) return { success: true, ...data };
+      return { success: false, error: (data as { error?: string }).error ?? "M-Pesa top-up failed." };
     } else if (pm === "nowpayments") {
-      if (args.amount < 13) return { success: false, error: "Minimum amount for crypto top-up is $13." };
-      let payment: Awaited<ReturnType<typeof createPayment>>;
-      try {
-        payment = await createPayment({ priceAmount: args.amount, priceCurrency: "usd", payCurrency: args.payCurrency ?? "usdttrc20", orderId: `wallet-${loggedInUserId}-${Date.now()}`, orderDescription: `Wallet top-up $${args.amount}` });
-      } catch (payErr) {
-        const payMsg = payErr instanceof Error ? payErr.message : "NOWPayments error";
-        return { success: false, error: payMsg };
-      }
-      await db.insert(paymentTransactionsTable).values({
-        orderId: null as unknown as number,
-        provider: "nowpayments",
-        providerReference: payment.payment_id,
-        amount: String(args.amount),
-        currency: "USD",
-        status: "pending",
-        rawResponse: { ...payment as unknown as Record<string, unknown>, userId: loggedInUserId, type: "wallet_topup" },
+      const r = await fetch(`http://localhost:${port}/api/wallet/add-fund/nowpayments`, {
+        method: "POST", headers, body: JSON.stringify({ amount: args.amount, payCurrency: args.payCurrency ?? "usdttrc20" }),
       });
-      return { success: true, paymentId: payment.payment_id, payAddress: payment.pay_address, payAmount: payment.pay_amount, payCurrency: payment.pay_currency, expiresAt: payment.expiration_estimate_date, amountUsd: args.amount };
+      const data = await r.json() as Record<string, unknown>;
+      if (r.ok) return { success: true, ...data };
+      return { success: false, error: (data as { error?: string }).error ?? "Crypto top-up failed." };
     } else if (pm === "usdt") {
-      const [address, network] = await Promise.all([getUsdtWallet(), getUsdtNetwork()]);
-      if (!address) return { success: false, error: "USDT wallet address is not configured. Please contact support." };
-      return { success: true, addresses: [{ network: network ?? "TRC20", address, minDeposit: "$1 USDT" }], note: "Send USDT on the correct network only. Wrong network = funds lost permanently. Your wallet balance will be updated after 1–6 network confirmations." };
+      const r = await fetch(`http://localhost:${port}/api/wallet/add-fund/usdt`, { method: "GET", headers });
+      const data = await r.json() as Record<string, unknown>;
+      if (r.ok) return { success: true, ...data };
+      return { success: false, error: "Could not retrieve USDT deposit details." };
     }
     return { success: false, error: "Unknown payment method. Use: mpesa, nowpayments, or usdt." };
-  } catch (err) {
-    logger.error({ err }, "toolAddWalletFunds failed");
+  } catch {
     return { success: false, error: "Wallet top-up service unavailable. Please try again." };
   }
 }
@@ -2230,7 +2367,7 @@ type ToolCallItem = { id: string; type: string; function: { name: string; argume
 /** Execute a list of tool calls in parallel and return tool-role messages + action data. */
 async function runToolCalls(
   toolCalls: ToolCallItem[],
-  opts: { isAuthenticated: boolean; userEmail: string | null; sessionId?: string | null; botToken?: string | null },
+  opts: { isAuthenticated: boolean; userEmail: string | null; sessionId?: string | null; botToken?: string | null; resellerSlug?: string | null },
 ): Promise<{
   messages: Array<{ role: string; content: string; tool_call_id: string; name: string }>;
   actionType: string | null;
@@ -2299,7 +2436,9 @@ async function runToolCalls(
         result = JSON.stringify(r.found ? r.orders : r.message);
         if (r.found && (r.orders as unknown[])?.length) { lat = "show_orders"; lad = { orders: r.orders }; }
       } else if (fn === "add_to_cart") {
-        const r = await toolAddToCart(Number(args.product_id ?? 0), Number(args.quantity ?? 1), opts.sessionId ?? "guest-session", opts.botToken);
+        const customPrice = args.custom_price != null ? Number(args.custom_price) : null;
+        const replaceCart = args.replace_cart === true;
+        const r = await toolAddToCart(Number(args.product_id ?? 0), Number(args.quantity ?? 1), opts.sessionId ?? "guest-session", opts.botToken, customPrice, replaceCart);
         result = JSON.stringify(r);
         if (r.success) { lat = "cart_item_added"; lad = { productName: r.productName, quantity: r.quantity, price: r.price }; }
       } else if (fn === "show_password_login_form") {
@@ -2308,17 +2447,22 @@ async function runToolCalls(
         lad = { email };
         result = `Secure password login form displayed${email ? ` for ${email}` : ""}. Waiting for the user to enter their password.`;
       } else if (fn === "send_login_otp") {
-        if (userId !== null) {
+        if (opts.isAuthenticated) {
           result = JSON.stringify({ success: false, error: "already_authenticated", message: "User is already logged in. Do not send OTP." });
         } else {
           const r = await toolSendLoginOtp(String(args.email ?? ""));
           result = JSON.stringify(r);
+          // Auto-show the OTP entry card immediately — don't rely on model to call show_otp_login_form
+          if (r.success !== false) {
+            lat = "show_otp_login";
+            lad = { email: String(args.email ?? "").toLowerCase().trim() };
+          }
         }
       } else if (fn === "show_otp_login_form") {
         const email = String(args.email ?? "");
         lat = "show_otp_login";
         lad = { email };
-        result = `Secure OTP entry card displayed for ${email}. The customer will enter their code in the secure card without typing it in the chat.`;
+        result = `Secure OTP entry card displayed for ${email}. The customer will enter their code in the secure card — do NOT ask them to type it in the chat.`;
       } else if (fn === "verify_login_otp") {
         const r = await toolVerifyLoginOtp(String(args.email ?? ""), String(args.code ?? ""));
         result = JSON.stringify(r);
@@ -2354,6 +2498,7 @@ async function runToolCalls(
           payCurrency: args.pay_currency ? String(args.pay_currency) : undefined,
           sessionId: opts.sessionId ?? "guest-session",
           botToken: opts.botToken,
+          resellerSlug: args.reseller_slug ? String(args.reseller_slug) : (opts.resellerSlug ?? null),
         });
         result = JSON.stringify(r);
         if (r.success) {
@@ -2363,9 +2508,10 @@ async function runToolCalls(
             const np = rd.nowpayments as { paymentId: string; payAddress: string; payAmount: number; payCurrency: string; expiresAt?: string };
             lat = "show_nowpayments";
             lad = { orderId: rd.orderId, payAddress: np.payAddress, payAmount: np.payAmount, payCurrency: np.payCurrency, expiresAt: np.expiresAt, total: rd.total, currency: rd.currency };
-          } else if (pm === "mpesa" && rd.checkoutRequestId) {
+          } else if (pm === "mpesa" && rd.mpesa) {
+            const mp = rd.mpesa as { checkoutRequestId: string; message: string };
             lat = "show_mpesa_pending";
-            lad = { orderId: rd.orderId, checkoutRequestId: rd.checkoutRequestId, message: rd.message, total: rd.total, currency: rd.currency };
+            lad = { orderId: rd.orderId, checkoutRequestId: mp.checkoutRequestId, message: mp.message, total: rd.total, currency: rd.currency };
           } else if (pm === "wallet") {
             lat = "checkout_done";
             lad = { orderId: rd.orderId, paymentMethod: "wallet", total: rd.total, currency: rd.currency };
@@ -2399,6 +2545,11 @@ async function runToolCalls(
           lat = "show_wallet_balance";
           lad = { balance: r.balance };
         }
+      } else if (fn === "logout_user") {
+        // Signal the frontend to clear auth state and localStorage token
+        lat = "logout_user";
+        lad = {};
+        result = JSON.stringify({ success: true, message: "Logout signal sent to client." });
       } else if (fn === "add_wallet_funds") {
         const r = await toolAddWalletFunds({
           paymentMethod: String(args.payment_method ?? ""),
@@ -2440,15 +2591,8 @@ router.post("/chat/bot", async (req, res) => {
     const { messages = [], requestHuman = false } = req.body ?? {};
 
     if (requestHuman) {
-      const { visitorId, visitorName, visitorEmail, visitorPhone, visitorTimezone } = req.body ?? {};
+      const { visitorId, visitorName, visitorEmail } = req.body ?? {};
       let escalated = false;
-
-      const visitorLine = [
-        visitorName ? `Name: ${String(visitorName)}` : null,
-        visitorEmail ? `Email: ${String(visitorEmail)}` : null,
-        visitorPhone ? `Phone: ${String(visitorPhone)}` : null,
-        visitorTimezone ? `Timezone: ${String(visitorTimezone)}` : null,
-      ].filter(Boolean).join(" | ") || "Anonymous visitor";
 
       // ── 1. Try OTS SMS notification ─────────────────────────────────────────
       try {
@@ -2462,7 +2606,7 @@ router.post("/chat/bot", async (req, res) => {
             apiToken,
             senderId,
             to: adminPhone,
-            message: `GSMBot: Customer needs live support. ${visitorLine} — Open admin panel to respond.`,
+            message: `GSMBot: Customer requesting human support.${visitorName ? ` Visitor: ${visitorName}` : ""}${visitorEmail ? ` Email: ${visitorEmail}` : ""} — Open admin panel to respond.`,
           });
           escalated = smsResult.ok;
           if (!smsResult.ok) {
@@ -2478,18 +2622,21 @@ router.post("/chat/bot", async (req, res) => {
       // ── 2. Always send admin email notification as fallback ──────────────────
       try {
         const smtpCfg = await getSmtpConfig();
-        const targets = [smtpCfg.emailFrom, _SUPPORT_EMAIL].filter((e): e is string => Boolean(e) && e.trim() !== "");
-        const uniqueTargets = [...new Set(targets)];
-        for (const to of uniqueTargets) {
+        const adminEmail = smtpCfg.emailFrom;
+        if (adminEmail) {
+          const visitorLine = [
+            visitorName ? `Name: ${String(visitorName)}` : null,
+            visitorEmail ? `Email: ${String(visitorEmail)}` : null,
+          ].filter(Boolean).join(", ") || "Anonymous visitor";
           await sendEmail({
-            to,
+            to: adminEmail,
             subject: "🔔 GSM World — Customer requesting human support",
             text: `A customer is requesting live human support on GSM World chat.\n\n${visitorLine}\n\nPlease open your admin panel to respond.`,
-            html: `<div style="font-family:Arial,sans-serif;padding:20px"><h2 style="color:#1e3a5f">🔔 Live Chat Request</h2><p>A customer is requesting <strong>live human support</strong> on GSM World chat.</p><table style="border-collapse:collapse;width:100%"><tr><td style="padding:6px 12px;background:#f8fafc;border:1px solid #e2e8f0;font-weight:bold">Visitor Info</td><td style="padding:6px 12px;border:1px solid #e2e8f0">${visitorLine}</td></tr></table><p style="margin-top:16px">Please open your admin panel to respond promptly.</p></div>`,
+            html: `<p>A customer is requesting <strong>live human support</strong> on GSM World chat.</p><p>${visitorLine}</p><p>Please open your admin panel to respond promptly.</p>`,
           });
+          escalated = escalated || true;
+          req.log.info({ to: adminEmail }, "requestHuman: admin email sent OK");
         }
-        escalated = escalated || uniqueTargets.length > 0;
-        req.log.info({ targets: uniqueTargets }, "requestHuman: admin email sent OK");
       } catch (emailErr) {
         req.log.warn({ err: emailErr }, "requestHuman: admin email failed");
       }
@@ -2516,14 +2663,12 @@ router.post("/chat/bot", async (req, res) => {
           if (existing[0]) {
             sessionId = existing[0].id;
           } else {
-            const tzLabel = visitorTimezone ? ` [${String(visitorTimezone)}]` : "";
-            const nameWithTz = visitorName ? `${String(visitorName)}${tzLabel}` : (tzLabel ? tzLabel.trim() : null);
             const [sess] = await db.insert(liveChatSessionsTable).values({
               visitorId: String(visitorId),
-              visitorName: nameWithTz,
+              visitorName: visitorName ? String(visitorName) : null,
               visitorEmail: visitorEmail ? String(visitorEmail) : null,
               status: "waiting",
-              lastMessage: visitorPhone ? `📞 Phone: ${String(visitorPhone)} | Customer requested human support` : "Customer requested human support",
+              lastMessage: "Customer requested human support",
               unreadAdmin: 1,
             }).returning({ id: liveChatSessionsTable.id });
             sessionId = sess?.id ?? null;
@@ -2534,14 +2679,20 @@ router.post("/chat/bot", async (req, res) => {
       }
 
       res.json({
-        message: "🔗 You're now connected to our support queue!\n\nWhile you wait for a human agent to join, **please describe your issue in detail** — include your device model, IMEI (if applicable), what you've already tried, and any error messages you saw. The more you share now, the faster we can help you! ✍️",
+        message: "🔗 Connecting you to a human agent now...\n\nOur support team has been notified and will join this chat shortly. You can type your issue below and we'll respond as soon as possible.",
         escalated,
         sessionId,
       });
       return;
     }
 
-    const [apiKey, waContact] = await Promise.all([getOpenAiKey(), getWhatsappContact()]);
+    // ── Fetch all config in parallel (all have 60s in-memory cache) ─────────────
+    const [apiKey, waContact, openaiBase, _prefetchedCascade] = await Promise.all([
+      getOpenAiKey(),
+      getWhatsappContact(),
+      getOpenAiBaseUrl(),
+      getWorkingCascade(),
+    ]);
     const waLink = `wa.me/${waContact.replace(/^\+/, "")}`;
     if (!apiKey) {
       const offlineMsg = `I'm currently offline for maintenance. Please WhatsApp us at ${waLink} for support or click "Talk to a human agent" below.`;
@@ -2558,10 +2709,8 @@ router.post("/chat/bot", async (req, res) => {
       return;
     }
 
-    const openaiBase = await getOpenAiBaseUrl();
-
     const safeMessages = Array.isArray(messages)
-      ? messages.slice(-10).filter(
+      ? messages.slice(-6).filter(
           (m: unknown) =>
             m != null &&
             typeof m === "object" &&
@@ -2572,9 +2721,10 @@ router.post("/chat/bot", async (req, res) => {
       : [];
 
     // Read authenticated user context from request
-    const { userEmail: rawUserEmail, isAuthenticated: rawIsAuth, sessionId: rawSessionId, botToken: rawBotToken } = req.body as { userEmail?: string; isAuthenticated?: boolean; sessionId?: string; botToken?: string };
+    const { userEmail: rawUserEmail, isAuthenticated: rawIsAuth, sessionId: rawSessionId, botToken: rawBotToken, resellerSlug: rawResellerSlug } = req.body as { userEmail?: string; isAuthenticated?: boolean; sessionId?: string; botToken?: string; resellerSlug?: string };
     const userEmail = typeof rawUserEmail === "string" && rawUserEmail.includes("@") ? rawUserEmail.toLowerCase() : null;
     const isAuthenticated = rawIsAuth === true;
+    const reqResellerSlug = typeof rawResellerSlug === "string" && rawResellerSlug.length > 0 && rawResellerSlug.length <= 50 ? rawResellerSlug.toLowerCase() : null;
     const reqSessionId = typeof rawSessionId === "string" && rawSessionId.length > 0 ? rawSessionId : null;
     const reqBotToken = typeof rawBotToken === "string" && rawBotToken.length > 0 ? rawBotToken : null;
 
@@ -2585,10 +2735,52 @@ router.post("/chat/bot", async (req, res) => {
       ? `\n\n[SYSTEM: This user is AUTHENTICATED. Their verified email is: ${userEmail}. RULES:\n1. NEVER ask for their email — you already have it: ${userEmail}\n2. For place_order, always pass customer_email="${userEmail}" automatically — do NOT ask the customer for it\n3. For order lookups, use ${userEmail} automatically — just ask for the order number\n4. For gift card / unlock orders, skip the "What email should we send the code to?" question — use ${userEmail}]`
       : `\n\n[SYSTEM: This user is a GUEST (not logged in). For order lookups, you MUST ask for BOTH their email address AND their order number before calling lookup_order.]`;
 
+    const resellerContext = reqResellerSlug
+      ? `\n\n[SYSTEM: This session was referred by reseller store "${reqResellerSlug}". When calling place_order, you MUST always include reseller_slug="${reqResellerSlug}" as a parameter — never omit it, even if not explicitly mentioned by the customer.]`
+      : "";
+
     const openaiMessages: Array<Record<string, unknown>> = [
-      { role: "system", content: systemPrompt + authContext },
+      { role: "system", content: systemPrompt + authContext + resellerContext },
       ...safeMessages,
     ];
+
+    // Server-side OTP login flow interception — two steps:
+    // Step 1: user says "Otp" → force bot to ask for email
+    // Step 2: user provides email in OTP context → force bot to call send_login_otp(email)
+    if (!isAuthenticated) {
+      let latestUserText = "";
+      for (let i = openaiMessages.length - 1; i >= 0; i--) {
+        if (openaiMessages[i].role === "user") {
+          latestUserText = String(openaiMessages[i].content ?? "").trim();
+          break;
+        }
+      }
+
+      // Step 1: user chose OTP → ask for their email
+      if (/^(otp|one.?time.?code|one.?time|code|1)$/i.test(latestUserText)) {
+        openaiMessages.push({
+          role: "system",
+          content: "[FORCE ACTION: User just selected OTP as their login method. You MUST reply with exactly this and nothing else: 'What is your email address? I will send the login code there.' Do NOT say 'Is there anything else'. Do NOT explain OTP. Just ask for their email.]",
+        });
+      }
+
+      // Step 2: user just gave an email in an OTP login context → force send_login_otp
+      // Reliable signal: any of the last 4 USER messages was the OTP choice keyword
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+      if (emailRegex.test(latestUserText)) {
+        const recentUserTexts = openaiMessages
+          .filter(m => m.role === "user")
+          .slice(-4)
+          .map(m => String(m.content ?? "").trim());
+        const hadOtpChoice = recentUserTexts.some(t => /^(otp|one.?time.?code|one.?time|code|1)$/i.test(t));
+        if (hadOtpChoice) {
+          openaiMessages.push({
+            role: "system",
+            content: `[FORCE ACTION: The user just provided their email "${latestUserText}" for OTP login. You MUST call the tool send_login_otp with email="${latestUserText}" RIGHT NOW. Do NOT say anything else first. Do NOT say "Is there anything else I can help you with?". Your only response is to call send_login_otp("${latestUserText}") — nothing else.]`,
+          });
+        }
+      }
+    }
 
     let actionType: string | null = null;
     let actionData: Record<string, unknown> | null = null;
@@ -2600,6 +2792,8 @@ router.post("/chat/bot", async (req, res) => {
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
       res.setHeader("X-Accel-Buffering", "no");
+      // Flush headers immediately so the client sees the connection open right away
+      res.flushHeaders?.();
     }
     const sseWrite = wantsStream
       ? (t: string) => res.write(`data: ${JSON.stringify({ t })}\n\n`)
@@ -2609,20 +2803,76 @@ router.post("/chat/bot", async (req, res) => {
       else { res.json({ ...extra }); }
     };
 
+    // ── Server-side OTP email short-circuit ───────────────────────────────────
+    // Free OpenRouter models often ignore the FORCE ACTION injection and fall
+    // back to "Is there anything else I can help you with?". Instead of relying
+    // on the AI to call send_login_otp, detect the email-in-OTP-context here
+    // and bypass the AI entirely — call the tool directly and return the form.
+    if (!isAuthenticated) {
+      const _emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+      let _latestText = "";
+      for (let _i = openaiMessages.length - 1; _i >= 0; _i--) {
+        if (openaiMessages[_i].role === "user") {
+          _latestText = String(openaiMessages[_i].content ?? "").trim();
+          break;
+        }
+      }
+      if (_emailRe.test(_latestText)) {
+        const _recentUser = openaiMessages
+          .filter(m => m.role === "user")
+          .slice(-4)
+          .map(m => String(m.content ?? "").trim());
+        const _hadOtp = _recentUser.some(t => /^(otp|one.?time.?code|one.?time|code|1)$/i.test(t));
+        if (_hadOtp) {
+          const _email = _latestText.toLowerCase().trim();
+          const _otpRes = await toolSendLoginOtp(_email);
+          if (_otpRes.success === false) {
+            sseDone({ message: String(_otpRes.error ?? "Could not send verification code. Please try again.") });
+          } else {
+            sseDone({ action: "show_otp_login", actionData: { email: _email } });
+          }
+          return;
+        }
+      }
+    }
+
+    // ── Instant greeting short-circuit (bypass AI entirely) ───────────────────
+    // For simple openers like "hi", "hello", "hey", respond instantly without
+    // an AI call. This achieves <200ms response for the most common first message.
+    {
+      let _latestUserMsg = "";
+      for (let _i = openaiMessages.length - 1; _i >= 0; _i--) {
+        if (openaiMessages[_i].role === "user") {
+          _latestUserMsg = String(openaiMessages[_i].content ?? "").trim();
+          break;
+        }
+      }
+      const _isFirstOrSecondTurn = safeMessages.filter(m => (m as { role: string }).role === "assistant").length === 0;
+      const _isGreeting = /^(hi+|hey+|hello+|helo+|hii+|howdy|yo|sup|greetings|good\s*(morning|afternoon|evening|day)|what'?s up|wassup|hola|salut|bonjour|jambo|sema|mambo|niaje)[\s!?.]*$/i.test(_latestUserMsg);
+      if (_isGreeting && _isFirstOrSecondTurn) {
+        const storeName = "GSM World";
+        const greetMsg = `Hi there! 👋 Welcome to ${storeName}!\n\nI'm your virtual assistant. I can help you:\n• 🔓 Unlock your phone\n• 🛒 Browse & order products\n• 📦 Track an existing order\n• 💳 Check payment options\n\nWhat can I help you with today?`;
+        sseDone({ message: greetMsg });
+        return;
+      }
+    }
+
     // ── Model cascade → Tool-call loop ────────────────────────────────────────
-    // Try primary model first, then free fallbacks so the bot is always online.
+    // Cascade is dynamically maintained in DB by the weekly cron health-check.
+    // Falls back to hardcoded defaults if the DB has no value yet.
     const isOpenRouter = openaiBase.toLowerCase().includes("openrouter");
-    const modelCascade = isOpenRouter
-      ? [
-          "mistralai/mistral-7b-instruct:free",          // primary FREE — 7B, fastest response time
-          "meta-llama/llama-3.3-70b-instruct:free",     // fallback FREE — 70B, strong tool-calling
-          "openai/gpt-4o-mini",                          // paid fallback (if credits available)
-        ]
-      : ["gpt-4o-mini"];
+    const modelCascade = isOpenRouter ? _prefetchedCascade : ["gpt-4o-mini"];
+
+    // ── Concurrency gate ──────────────────────────────────────────────────────
+    if (!_tryAcquireAi()) {
+      sseDone({ message: "Our bot is handling a lot of requests right now. Please try again in a few seconds. 🙏" });
+      return;
+    }
 
     const baseMessages = [...openaiMessages]; // snapshot before any tool results
     let botResponded = false;
 
+    try {
     modelLoop:
     for (const modelName of modelCascade) {
       // Each model attempt starts from a clean snapshot (no leftover tool results)
@@ -2630,9 +2880,9 @@ router.post("/chat/bot", async (req, res) => {
 
       for (let iter = 0; iter < 4; iter++) {
         const abortCtrl = new AbortController();
-        const abortTimer = setTimeout(() => abortCtrl.abort(), 18000);
+        const abortTimer = setTimeout(() => abortCtrl.abort(), 7000);
 
-        let response: Response;
+        let response: Response | null = null;
         try {
           response = await fetch(`${openaiBase}/v1/chat/completions`, {
             method: "POST",
@@ -2649,29 +2899,24 @@ router.post("/chat/bot", async (req, res) => {
               tools: TOOLS,
               tool_choice: "auto",
               parallel_tool_calls: true,
-              max_tokens: 500,
+              max_tokens: 700,
               temperature: 0.3,
               stream: wantsStream,
             }),
           });
         } catch (fetchErr) {
-          clearTimeout(abortTimer);
-          const isTimeout = (fetchErr as Error).name === "AbortError" || (fetchErr as Error).name === "TimeoutError";
-          if (isTimeout) {
-            req.log.warn({ model: modelName }, "AI model timed out — trying next in cascade");
-            continue modelLoop;
-          }
-          throw fetchErr;
+          req.log.warn({ model: modelName, err: String(fetchErr) }, "AI fetch error — trying next model");
         } finally {
           clearTimeout(abortTimer);
         }
+        if (!response) continue modelLoop;
 
         if (!response.ok) {
           const errBody = await response.text().catch(() => "");
           req.log.warn({ model: modelName, status: response.status, body: errBody.slice(0, 200) }, "AI model error — trying next in cascade");
           // Rate limit: brief wait then retry same model
           if (response.status === 429 && iter < 2) {
-            await new Promise(r => setTimeout(r, 1500));
+            await new Promise(r => setTimeout(r, 600));
             continue;
           }
           // Any other failure: try next model in cascade
@@ -2680,12 +2925,33 @@ router.post("/chat/bot", async (req, res) => {
 
         if (wantsStream && response.body) {
           // ── Streaming path ────────────────────────────────────────────────
+          // After tool calls (iter > 0) we buffer the response so we can
+          // detect premature conversation-closers before they reach the client.
+          const bufferThisIter = iter > 0;
           const { text, toolCalls } = await consumeStream(
             response.body as unknown as ReadableStream<Uint8Array>,
-            sseWrite,
+            bufferThisIter ? undefined : sseWrite,
           );
 
           if (!toolCalls.length) {
+            if (!text) {
+              req.log.warn({ model: modelName }, "Streaming model returned empty text — trying next model");
+              continue modelLoop;
+            }
+            // Detect premature closer mid-flow and retry with correction
+            if (bufferThisIter && isConversationCloser(text) && msgs.length > 2 && iter < 3) {
+              req.log.warn({ model: modelName, snippet: text.slice(0, 100) }, "Model gave closing phrase mid-flow — injecting correction and retrying");
+              msgs.push({
+                role: "system" as const,
+                content: "[CORRECTION: You just responded with a conversation-closing phrase (e.g. 'Is there anything else I can help you with?') but the customer's task is NOT complete. Look at the tool results above and give a DIRECT, SPECIFIC reply that moves the conversation forward. Do NOT use any closing phrase.]",
+              });
+              continue;
+            }
+            // Flush buffered text to client (iter > 0 path)
+            if (bufferThisIter && sseWrite) {
+              const chunks = text.match(/.{1,40}/gsu) ?? [text];
+              for (const chunk of chunks) sseWrite(chunk);
+            }
             const hasHumanBtn = text.includes("[SHOW_HUMAN_BUTTON]");
             sseDone({ action: actionType, actionData, showHumanButton: hasHumanBtn || undefined });
             botResponded = true;
@@ -2693,7 +2959,7 @@ router.post("/chat/bot", async (req, res) => {
           }
 
           msgs.push({ role: "assistant", content: text || null, tool_calls: toolCalls });
-          const tr = await runToolCalls(toolCalls, { isAuthenticated, userEmail, sessionId: reqSessionId, botToken: reqBotToken });
+          const tr = await runToolCalls(toolCalls, { isAuthenticated, userEmail, sessionId: reqSessionId, botToken: reqBotToken, resellerSlug: reqResellerSlug });
           msgs.push(...tr.messages);
           if (tr.actionType) actionType = tr.actionType;
           if (tr.actionData) actionData = tr.actionData;
@@ -2711,7 +2977,7 @@ router.post("/chat/bot", async (req, res) => {
           };
 
           const assistantMsg = data.choices?.[0]?.message;
-          if (!assistantMsg) break;
+          if (!assistantMsg) continue modelLoop;
 
           const entry: Record<string, unknown> = { role: "assistant", content: assistantMsg.content ?? null };
           if (assistantMsg.tool_calls?.length) entry.tool_calls = assistantMsg.tool_calls;
@@ -2719,8 +2985,18 @@ router.post("/chat/bot", async (req, res) => {
 
           if (!assistantMsg.tool_calls?.length) {
             const rawReply = assistantMsg.content?.trim() ?? "";
+            if (!rawReply) continue modelLoop; // empty response — try next model
+            // Detect premature closer mid-flow and retry with correction
+            if (isConversationCloser(rawReply) && msgs.length > 2 && iter < 3) {
+              req.log.warn({ model: modelName, snippet: rawReply.slice(0, 100) }, "Model gave closing phrase mid-flow — injecting correction and retrying");
+              msgs.push({
+                role: "system" as const,
+                content: "[CORRECTION: You just responded with a conversation-closing phrase (e.g. 'Is there anything else I can help you with?') but the customer's task is NOT complete. Look at the tool results above and give a DIRECT, SPECIFIC reply that moves the conversation forward. Do NOT use any closing phrase.]",
+              });
+              continue;
+            }
             const hasHumanBtn2 = rawReply.includes("[SHOW_HUMAN_BUTTON]");
-            const reply = rawReply.replace(/\[SHOW_HUMAN_BUTTON\]/g, "").trim() || "Is there anything else I can help you with?";
+            const reply = rawReply.replace(/\[SHOW_HUMAN_BUTTON\]/g, "").trim();
             res.json({ message: reply, action: actionType, actionData, showHumanButton: hasHumanBtn2 || undefined });
             botResponded = true;
             break modelLoop;
@@ -2728,7 +3004,7 @@ router.post("/chat/bot", async (req, res) => {
 
           const tr = await runToolCalls(
             assistantMsg.tool_calls as ToolCallItem[],
-            { isAuthenticated, userEmail, sessionId: reqSessionId, botToken: reqBotToken },
+            { isAuthenticated, userEmail, sessionId: reqSessionId, botToken: reqBotToken, resellerSlug: reqResellerSlug },
           );
           msgs.push(...tr.messages);
           if (tr.actionType) actionType = tr.actionType;
@@ -2737,9 +3013,9 @@ router.post("/chat/bot", async (req, res) => {
       }
 
       if (!botResponded) {
-        // Tool-call iterations exhausted for this model — send final response
-        sseDone({ message: "Is there anything else I can help you with?", action: actionType, actionData });
-        botResponded = true;
+        // Tool-call iterations exhausted for this model — try the next model in cascade
+        req.log.warn({ model: modelName }, "Tool-call iterations exhausted — trying next model");
+        continue modelLoop;
       }
       break modelLoop;
     }
@@ -2763,6 +3039,8 @@ router.post("/chat/bot", async (req, res) => {
     } else {
       res.json({ message: fallbackMsg, showHumanButton: true });
     }
+  } finally {
+    _releaseAi();
   }
 });
 
@@ -2770,7 +3048,7 @@ router.post("/chat/bot", async (req, res) => {
 
 router.post("/chat/live/session", async (req, res) => {
   try {
-    const { visitorId, visitorName, visitorEmail, visitorPhone, visitorTimezone } = req.body ?? {};
+    const { visitorId, visitorName } = req.body ?? {};
     if (!visitorId) { res.status(400).json({ error: "visitorId is required" }); return; }
 
     const existing = await db.select()
@@ -2783,14 +3061,12 @@ router.post("/chat/live/session", async (req, res) => {
 
     if (existing[0]) { res.json(existing[0]); return; }
 
-    const tzLabel = visitorTimezone ? ` [${String(visitorTimezone)}]` : "";
     const [session] = await db.insert(liveChatSessionsTable).values({
       visitorId: String(visitorId),
-      visitorName: visitorName ? `${String(visitorName)}${tzLabel}` : (tzLabel ? tzLabel.trim() : null),
-      visitorEmail: visitorEmail ? String(visitorEmail) : null,
+      visitorName: visitorName ? String(visitorName) : null,
       status: "waiting",
-      lastMessage: visitorPhone ? `📞 Phone: ${String(visitorPhone)}` : null,
-      unreadAdmin: visitorPhone ? 1 : 0,
+      lastMessage: null,
+      unreadAdmin: 0,
     }).returning();
 
     res.status(201).json(session);
@@ -2804,8 +3080,7 @@ router.post("/chat/live/session", async (req, res) => {
 router.get("/chat/live/stats", async (req, res) => {
   try {
     const adminPwd = req.headers["x-admin-password"] as string | undefined;
-    const correctPwd = await getAdminPassword();
-    if (adminPwd !== correctPwd) { res.status(401).json({ error: "Unauthorized" }); return; }
+    if (!adminPwd || !(await checkAdminPassword(adminPwd))) { res.status(401).json({ error: "Unauthorized" }); return; }
 
     const sessions = await db.select().from(liveChatSessionsTable);
     const waiting = sessions.filter(s => s.status === "waiting").length;
@@ -2822,8 +3097,7 @@ router.get("/chat/live/stats", async (req, res) => {
 router.get("/chat/live", async (req, res) => {
   try {
     const adminPwd = req.headers["x-admin-password"] as string | undefined;
-    const correctPwd = await getAdminPassword();
-    if (adminPwd !== correctPwd) { res.status(401).json({ error: "Unauthorized" }); return; }
+    if (!adminPwd || !(await checkAdminPassword(adminPwd))) { res.status(401).json({ error: "Unauthorized" }); return; }
 
     const statusFilter = req.query.status ? String(req.query.status).split(",") : ["waiting", "active"];
     const sessions = await db.select().from(liveChatSessionsTable).orderBy(desc(liveChatSessionsTable.updatedAt));
@@ -2839,8 +3113,7 @@ router.get("/chat/live/:sessionId/messages", async (req, res) => {
     const sessionId = Number(req.params.sessionId);
     const visitorId = req.query.visitorId ? String(req.query.visitorId) : null;
     const adminPwd = req.headers["x-admin-password"] as string | undefined;
-    const correctPwd = await getAdminPassword();
-    const isAdmin = adminPwd === correctPwd;
+    const isAdmin = adminPwd ? await checkAdminPassword(adminPwd) : false;
 
     if (!isAdmin) {
       if (!visitorId) { res.status(401).json({ error: "Unauthorized" }); return; }
@@ -2888,8 +3161,7 @@ router.post("/chat/live/:sessionId/messages", async (req, res) => {
     const sessionId = Number(req.params.sessionId);
     const visitorId = req.query.visitorId ? String(req.query.visitorId) : null;
     const adminPwd = req.headers["x-admin-password"] as string | undefined;
-    const correctPwd = await getAdminPassword();
-    const isAdmin = adminPwd === correctPwd;
+    const isAdmin = adminPwd ? await checkAdminPassword(adminPwd) : false;
 
     const [session] = await db.select().from(liveChatSessionsTable)
       .where(eq(liveChatSessionsTable.id, sessionId)).limit(1);
@@ -2931,7 +3203,7 @@ router.post("/chat/live/:sessionId/messages", async (req, res) => {
     // Send email to visitor when admin joins the chat for the first time
     if (isAdmin && wasWaiting && session.visitorEmail) {
       try {
-        const storeUrl = process.env.APP_BASE_URL || process.env.PUBLIC_APP_URL || `https://${process.env.REPLIT_DOMAINS?.split(",")[0] || "gsmworld.vercel.app"}`;
+        const storeUrl = process.env.APP_BASE_URL || process.env.PUBLIC_APP_URL || "https://gsmworld.vercel.app";
         await sendEmail({
           to: session.visitorEmail,
           subject: "A support agent has joined your chat — GSM World",
@@ -2966,8 +3238,7 @@ router.patch("/chat/live/:sessionId", async (req, res) => {
     const sessionId = Number(req.params.sessionId);
     const visitorId = req.query.visitorId ? String(req.query.visitorId) : null;
     const adminPwd = req.headers["x-admin-password"] as string | undefined;
-    const correctPwd = await getAdminPassword();
-    const isAdmin = adminPwd === correctPwd;
+    const isAdmin = adminPwd ? await checkAdminPassword(adminPwd) : false;
 
     const [session] = await db.select().from(liveChatSessionsTable)
       .where(eq(liveChatSessionsTable.id, sessionId)).limit(1);
@@ -2996,7 +3267,7 @@ router.patch("/chat/live/:sessionId", async (req, res) => {
 });
 
 // ─── OTP email verification (for guests checking orders) ─────────────────────
-const otpStore = new Map<string, { code: string; expiry: number }>();
+// Uses DB-backed _setOtp/_getOtp so codes survive server restarts / serverless cold starts
 
 router.post("/chat/bot/otp/send", async (req, res) => {
   try {
@@ -3007,7 +3278,7 @@ router.post("/chat/bot/otp/send", async (req, res) => {
     }
     const lEmail = email.toLowerCase().trim();
     const code = Math.floor(100000 + Math.random() * 900000).toString();
-    otpStore.set(lEmail, { code, expiry: Date.now() + 10 * 60 * 1000 });
+    await _setOtp(`bot:${lEmail}`, code, 10 * 60 * 1000);
 
     await sendEmail({
       to: lEmail,
@@ -3039,12 +3310,12 @@ router.post("/chat/bot/otp/verify", async (req, res) => {
     const { email, code } = req.body as { email?: string; code?: string };
     if (!email || !code) { res.status(400).json({ ok: false, error: "Email and code required" }); return; }
     const lEmail = email.toLowerCase().trim();
-    const stored = otpStore.get(lEmail);
-    if (!stored || stored.code !== code.trim() || Date.now() > stored.expiry) {
+    const stored = await _getOtp(`bot:${lEmail}`);
+    if (!stored || stored.code !== code.trim() || Date.now() > stored.expiresAt) {
       res.status(400).json({ ok: false, error: "Invalid or expired verification code" });
       return;
     }
-    otpStore.delete(lEmail);
+    await _deleteOtp(`bot:${lEmail}`);
     res.json({ ok: true, verified: true, email: lEmail });
   } catch (err) {
     req.log.error({ err }, "OTP verify error");
@@ -3077,30 +3348,6 @@ router.post("/chat/sms/test", async (req, res) => {
     req.log.error({ err }, "OTS SMS test error");
     res.status(500).json({ error: "Internal server error" });
   }
-});
-
-// ─── IMEI TAC Lookup ─────────────────────────────────────────────────────────
-router.get("/imei/lookup/:imei", async (req, res) => {
-  const raw = String(req.params.imei ?? "").replace(/\D/g, "");
-  if (raw.length < 8) { res.status(400).json({ error: "IMEI must be at least 8 digits" }); return; }
-  const tac = raw.slice(0, 8);
-  try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 5000);
-    const r = await fetch(`https://imeidb.io/api/v1/tac/${tac}`, {
-      headers: { Accept: "application/json" },
-      signal: controller.signal,
-    });
-    clearTimeout(timer);
-    if (r.ok) {
-      const data = await r.json() as { brand?: string; model?: string; operating_system?: string };
-      if (data.brand) {
-        res.json({ brand: data.brand ?? null, model: data.model ?? null, os: data.operating_system ?? null });
-        return;
-      }
-    }
-  } catch { /* external API unavailable — fall through */ }
-  res.json({ brand: null, model: null, os: null });
 });
 
 export default router;
