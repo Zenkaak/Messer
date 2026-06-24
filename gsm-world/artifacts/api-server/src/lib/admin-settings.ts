@@ -482,11 +482,11 @@ export async function getImeiInfoApiToken(): Promise<string | null> {
 // If the DB has no value (first run), fall back to the hardcoded defaults.
 
 export const FALLBACK_CASCADE = [
-  "openai/gpt-oss-120b:free",
-  "openai/gpt-oss-20b:free",
-  "google/gemma-4-31b-it:free",
-  "nvidia/nemotron-3-super-120b-a12b:free",
+  "meta-llama/llama-3.1-8b-instruct:free",
+  "google/gemma-2-9b-it:free",
+  "qwen/qwen-2.5-7b-instruct:free",
   "meta-llama/llama-3.3-70b-instruct:free",
+  "google/gemma-4-31b-it:free",
 ];
 
 export async function getWorkingCascade(): Promise<string[]> {
