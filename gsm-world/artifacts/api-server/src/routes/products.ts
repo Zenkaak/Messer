@@ -135,11 +135,27 @@ router.get("/products", async (req, res) => {
   }
 });
 
+function isCreditsProduct(name: string): boolean {
+  return /credit/i.test(name);
+}
+
+function enforcePriceMinimum(name: string, price: string | number): string | null {
+  if (isCreditsProduct(String(name))) return null;
+  const p = parseFloat(String(price));
+  if (isNaN(p) || p < 10) return "Product price must be at least $10.00. (Exception: credit products only.)";
+  return null;
+}
+
 router.post("/products", requireAdmin, async (req, res) => {
   try {
     const parsed = insertProductSchema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const priceError = enforcePriceMinimum(parsed.data.name, parsed.data.price);
+    if (priceError) {
+      res.status(400).json({ error: priceError });
       return;
     }
     const [product] = await db.insert(productsTable).values(parsed.data).returning();
@@ -201,6 +217,11 @@ router.put("/products/:id", requireAdmin, async (req, res) => {
     const parsed = insertProductSchema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const priceError = enforcePriceMinimum(parsed.data.name, parsed.data.price);
+    if (priceError) {
+      res.status(400).json({ error: priceError });
       return;
     }
     const [product] = await db.update(productsTable).set(parsed.data).where(eq(productsTable.id, id)).returning();
