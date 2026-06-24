@@ -107,8 +107,8 @@ const GSM_STYLES = `
   .gsm-marquee-wrap::after {
     content:""; position:absolute; top:0; bottom:0; width:40px; z-index:2; pointer-events:none;
   }
-  .gsm-marquee-wrap::before { left:0;  background:linear-gradient(to right,#060b15,transparent); }
-  .gsm-marquee-wrap::after  { right:0; background:linear-gradient(to left, #060b15,transparent); }
+  .gsm-marquee-wrap::before { left:0;  background:linear-gradient(to right,var(--bg-marquee-fade),transparent); }
+  .gsm-marquee-wrap::after  { right:0; background:linear-gradient(to left, var(--bg-marquee-fade),transparent); }
   @media (prefers-reduced-motion: reduce) {
     .gsm-float, .gsm-float-slow, .gsm-pulse-orb, .gsm-ring-pulse, .gsm-marquee-track { animation:none; }
   }
@@ -443,7 +443,7 @@ export function Home() {
   const isAndroidApp = navigator.userAgent.includes("GSMWorldApp");
 
   return (
-    <div className="flex flex-col min-h-screen" style={{ background: "#060b15", color: "#e2e8f0" }}>
+    <div className="flex flex-col min-h-screen" style={{ background: "var(--bg-page)", color: "var(--color-page)" }}>
 
       {/* ─── HERO ──────────────────────────────────────────────────────────────── */}
       <div className="relative overflow-hidden md:min-h-[500px]" style={{ minHeight: 310, background: "#07101f" }}>
@@ -621,7 +621,7 @@ export function Home() {
       </div>
 
       {/* ─── BRAND MARQUEE ─────────────────────────────────────────────────────── */}
-      <div className="gsm-marquee-wrap py-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+      <div className="gsm-marquee-wrap py-3" style={{ borderBottom: "1px solid var(--border-card)" }}>
         <div className="gsm-marquee-track gap-3 px-3">
           {[
             // First copy
@@ -709,8 +709,8 @@ export function Home() {
       <div className="px-4 pt-5 pb-2 md:max-w-5xl md:mx-auto md:w-full">
         <AnimSection>
           <div className="flex items-center justify-between mb-3">
-            <p className="font-black text-[15px]" style={{ color: "#f1f5f9" }}>Our Services</p>
-            <Link href="/products"><span className="text-[11px] font-bold flex items-center gap-1" style={{ color: "#60a5fa" }}>See all <ArrowRight size={11} /></span></Link>
+            <p className="font-black text-[15px]" style={{ color: "var(--text-heading)" }}>Our Services</p>
+            <Link href="/products"><span className="text-[11px] font-bold flex items-center gap-1" style={{ color: "var(--text-link)" }}>See all <ArrowRight size={11} /></span></Link>
           </div>
         </AnimSection>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
@@ -783,8 +783,8 @@ export function Home() {
       <div className="px-4 pb-5 md:max-w-5xl md:mx-auto md:w-full">
         <AnimSection>
           <div className="flex items-center justify-between mb-3">
-            <h3 className="font-black text-[15px]" style={{ color: "#f1f5f9" }}>Popular Categories</h3>
-            <Link href="/categories"><span className="flex items-center gap-1 text-[11px] font-bold" style={{ color: "#60a5fa" }}>View all <ArrowRight size={11} /></span></Link>
+            <h3 className="font-black text-[15px]" style={{ color: "var(--text-heading)" }}>Popular Categories</h3>
+            <Link href="/categories"><span className="flex items-center gap-1 text-[11px] font-bold" style={{ color: "var(--text-link)" }}>View all <ArrowRight size={11} /></span></Link>
           </div>
         </AnimSection>
         <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
@@ -794,7 +794,7 @@ export function Home() {
                 <div className="gsm-cat-pill rounded-2xl p-3 text-center cursor-pointer"
                   style={{ background: bg, border: `1px solid ${border}` }}>
                   <span className="text-[22px] block mb-1">{emoji}</span>
-                  <p className="font-bold text-[10px] leading-tight" style={{ color: "#94a3b8" }}>{label}</p>
+                  <p className="font-bold text-[10px] leading-tight" style={{ color: "var(--text-cat-label)" }}>{label}</p>
                 </div>
               </Link>
             </AnimSection>
@@ -804,10 +804,10 @@ export function Home() {
 
       {/* ─── HOW IT WORKS ──────────────────────────────────────────────────────── */}
       <AnimSection className="px-4 pb-6 md:max-w-5xl md:mx-auto md:w-full">
-        <div className="rounded-2xl overflow-hidden" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
-          <div className="px-4 py-3.5 flex items-center gap-2" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+        <div className="rounded-2xl overflow-hidden" style={{ background: "var(--bg-card-subtle)", border: "1px solid var(--border-card)" }}>
+          <div className="px-4 py-3.5 flex items-center gap-2" style={{ borderBottom: "1px solid var(--border-card)" }}>
             <div className="w-1.5 h-6 rounded-full" style={{ background: "linear-gradient(to bottom,#f59e0b,#ef4444)" }} />
-            <h3 className="font-black text-[14px]" style={{ color: "#f1f5f9" }}>How It Works</h3>
+            <h3 className="font-black text-[14px]" style={{ color: "var(--text-heading)" }}>How It Works</h3>
           </div>
           <div className="px-4 py-4 space-y-3 relative">
             <div className="absolute left-[31px] top-7 bottom-7 w-px"
@@ -820,13 +820,13 @@ export function Home() {
             ].map(({ n, emoji, title, desc }) => (
               <div key={n} className="flex items-center gap-3.5">
                 <div className="relative z-10 shrink-0 w-9 h-9 rounded-full flex items-center justify-center font-black text-sm border"
-                  style={{ background: "#0c1a32", borderColor: "rgba(99,102,241,0.35)", color: "#818cf8", minWidth: 36 }}>{n}</div>
+                  style={{ background: "var(--bg-step-num)", borderColor: "var(--border-step-num)", color: "var(--color-step-num)", minWidth: 36 }}>{n}</div>
                 <div className="flex-1 flex items-center gap-2 rounded-xl px-3 py-2.5"
-                  style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.05)" }}>
+                  style={{ background: "var(--bg-step-row)", border: "1px solid var(--border-step-row)" }}>
                   <span className="text-base shrink-0">{emoji}</span>
                   <div>
-                    <p className="font-bold text-[12px] leading-tight" style={{ color: "#f1f5f9" }}>{title}</p>
-                    <p className="text-[10px] leading-relaxed" style={{ color: "#475569" }}>{desc}</p>
+                    <p className="font-bold text-[12px] leading-tight" style={{ color: "var(--text-step-title)" }}>{title}</p>
+                    <p className="text-[10px] leading-relaxed" style={{ color: "var(--text-step-desc)" }}>{desc}</p>
                   </div>
                 </div>
               </div>
@@ -837,10 +837,10 @@ export function Home() {
 
       {/* ─── SUPPORTED BRANDS ──────────────────────────────────────────────────── */}
       <AnimSection className="px-4 pb-6 md:max-w-5xl md:mx-auto md:w-full">
-        <div className="rounded-2xl overflow-hidden" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
-          <div className="px-4 py-3 flex items-center gap-2" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+        <div className="rounded-2xl overflow-hidden" style={{ background: "var(--bg-card-subtle)", border: "1px solid var(--border-card)" }}>
+          <div className="px-4 py-3 flex items-center gap-2" style={{ borderBottom: "1px solid var(--border-card)" }}>
             <div className="w-1.5 h-6 rounded-full" style={{ background: "linear-gradient(to bottom,#4ade80,#3b82f6)" }} />
-            <h3 className="font-black text-[14px]" style={{ color: "#f1f5f9" }}>Supported Brands</h3>
+            <h3 className="font-black text-[14px]" style={{ color: "var(--text-heading)" }}>Supported Brands</h3>
           </div>
           <div className="flex flex-wrap gap-2.5 p-4 justify-center">
             {brands.map(({ slug, name }) => (
