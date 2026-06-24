@@ -36,6 +36,22 @@ import { createPayment } from "../lib/nowpayments";
 import { logger } from "../lib/logger";
 
 const _BOT_JWT_SECRET = process.env.JWT_SECRET || "gsm-africa-jwt-secret-CHANGE-IN-PRODUCTION";
+
+// ── AI concurrency semaphore ──────────────────────────────────────────────────
+// Caps simultaneous in-flight AI calls per worker. Without this, 1000 users
+// hitting the bot at once would fire 1000 concurrent fetch() calls to OpenRouter,
+// saturating Node's connection pool and causing OOM / network timeouts for everyone.
+// At 150 concurrent slots: assuming avg 8 s per call → ~18 req/s throughput per worker.
+let _aiInFlight = 0;
+const _AI_MAX_CONCURRENT = 150;
+function _tryAcquireAi(): boolean {
+  if (_aiInFlight >= _AI_MAX_CONCURRENT) return false;
+  _aiInFlight++;
+  return true;
+}
+function _releaseAi(): void {
+  _aiInFlight = Math.max(0, _aiInFlight - 1);
+}
 const _USD_TO_KES = 130;
 
 // ─── OTP helpers (inline to avoid Vercel serverless localhost calls) ───────────
@@ -2847,9 +2863,16 @@ router.post("/chat/bot", async (req, res) => {
     const isOpenRouter = openaiBase.toLowerCase().includes("openrouter");
     const modelCascade = isOpenRouter ? _prefetchedCascade : ["gpt-4o-mini"];
 
+    // ── Concurrency gate ──────────────────────────────────────────────────────
+    if (!_tryAcquireAi()) {
+      sseDone({ message: "Our bot is handling a lot of requests right now. Please try again in a few seconds. 🙏" });
+      return;
+    }
+
     const baseMessages = [...openaiMessages]; // snapshot before any tool results
     let botResponded = false;
 
+    try {
     modelLoop:
     for (const modelName of modelCascade) {
       // Each model attempt starts from a clean snapshot (no leftover tool results)
@@ -3017,6 +3040,8 @@ router.post("/chat/bot", async (req, res) => {
     } else {
       res.json({ message: fallbackMsg, showHumanButton: true });
     }
+  } finally {
+    _releaseAi();
   }
 });
 
