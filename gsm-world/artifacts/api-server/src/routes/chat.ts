@@ -190,7 +190,7 @@ async function buildSystemPrompt(waContact?: string): Promise<string> {
       .from(productsTable)
       .where(eq(productsTable.featured, true))
       .orderBy(productsTable.categoryId, productsTable.name)
-      .limit(60),
+      .limit(25),
     getPaymentMethods(),
     db.execute(sql`SELECT category_id, COUNT(*)::int as cnt FROM products GROUP BY category_id`),
   ]);
@@ -229,7 +229,7 @@ async function buildSystemPrompt(waContact?: string): Promise<string> {
         ? ` (was $${parseFloat(item.origPrice).toFixed(2)})`
         : "";
       const reqFields = getRequiredOrderFields(item.name, item.desc, catName);
-      catalogSection += `  [ID:${item.id}] ${item.name} — $${parseFloat(item.price).toFixed(2)}${sale}${stock} [needs: ${reqFields.join(", ")}]\n`;
+      catalogSection += `  [ID:${item.id}] ${item.name} — $${parseFloat(item.price).toFixed(2)}${sale}${stock}\n`;
     }
   }
 
@@ -2849,7 +2849,7 @@ router.post("/chat/bot", async (req, res) => {
               tools: TOOLS,
               tool_choice: "auto",
               parallel_tool_calls: true,
-              max_tokens: 2500,
+              max_tokens: 700,
               temperature: 0.3,
               stream: wantsStream,
             }),
