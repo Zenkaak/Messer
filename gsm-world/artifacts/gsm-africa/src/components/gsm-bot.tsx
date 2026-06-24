@@ -1931,7 +1931,7 @@ export function GsmBot() {
         />
       )}
       {open && (
-        <div className="fixed inset-0 md:inset-6 z-[300] bg-white md:rounded-3xl shadow-2xl flex flex-col overflow-hidden"
+        <div className="fixed inset-0 md:inset-6 z-[300] bg-white md:rounded-3xl shadow-2xl flex flex-col overflow-hidden text-gray-900"
           style={{}}>
 
 
@@ -2124,10 +2124,10 @@ export function GsmBot() {
                       onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendHumanMessage(); } }}
                       placeholder="Type your message…"
                       disabled={humanSending}
-                      className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 h-9"
+                      className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 h-9"
                     />
                     <button onClick={sendHumanMessage}
-                      disabled={humanSending || (!humanInput.trim() && !humanFile)}
+                      disabled={humanSending || (!humanInput.trim() && !humanFile) || !sessionId}
                       className="w-9 h-9 text-white rounded-xl flex items-center justify-center disabled:opacity-40 transition-colors shrink-0"
                       style={{ background: "linear-gradient(135deg,#1a2332 0%,#1e3a5f 100%)" }}>
                       {humanSending ? <RefreshCw size={14} className="animate-spin" /> : <Send size={14} />}
@@ -2430,7 +2430,7 @@ export function GsmBot() {
                         onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
                         placeholder="Ask about products, orders, payments…"
                         disabled={loading}
-                        className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
+                        className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
                       />
                       <button onClick={() => sendMessage()} disabled={loading || !input.trim()}
                         className="w-9 h-9 text-white rounded-xl flex items-center justify-center disabled:opacity-40 transition-colors shrink-0"

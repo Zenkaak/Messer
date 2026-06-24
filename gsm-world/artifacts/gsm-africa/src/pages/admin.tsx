@@ -215,7 +215,7 @@ function MaskedInput({ label, value, onChange, placeholder }: {
       <div className="flex gap-2">
         <input type={show ? "text" : "password"} value={value} onChange={e => onChange(e.target.value)}
           placeholder={placeholder}
-          className="flex-1 border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50" />
+          className="flex-1 border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50" />
         <button type="button" onClick={() => setShow(!show)}
           className="px-3 border border-slate-200 rounded-xl text-slate-400 hover:text-slate-700 bg-slate-50">
           {show ? <EyeOff size={15} /> : <Eye size={15} />}
@@ -1716,13 +1716,13 @@ function ProductsPanel({ pwd }: { pwd: string }) {
               <button onClick={() => setEditModal(null)} className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 text-sm">✕</button>
             </div>
             <div className="space-y-3">
-              <div><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Name</label><input value={editForm.name} onChange={e => setEditForm(f=>({...f,name:e.target.value}))} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+              <div><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Name</label><input value={editForm.name} onChange={e => setEditForm(f=>({...f,name:e.target.value}))} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
               <div className="grid grid-cols-2 gap-2">
-                <div><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Price ($)</label><input type="number" step="0.01" value={editForm.price} onChange={e => setEditForm(f=>({...f,price:e.target.value}))} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
-                <div><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Original Price</label><input type="number" step="0.01" value={editForm.originalPrice} onChange={e => setEditForm(f=>({...f,originalPrice:e.target.value}))} placeholder="Optional" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+                <div><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Price ($)</label><input type="number" step="0.01" value={editForm.price} onChange={e => setEditForm(f=>({...f,price:e.target.value}))} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+                <div><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Original Price</label><input type="number" step="0.01" value={editForm.originalPrice} onChange={e => setEditForm(f=>({...f,originalPrice:e.target.value}))} placeholder="Optional" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
               </div>
-              <div><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Image URL</label><input value={editForm.imageUrl} onChange={e => setEditForm(f=>({...f,imageUrl:e.target.value}))} placeholder="https://..." className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
-              <div><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Description</label><textarea value={editForm.description} onChange={e => setEditForm(f=>({...f,description:e.target.value}))} rows={3} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none" /></div>
+              <div><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Image URL</label><input value={editForm.imageUrl} onChange={e => setEditForm(f=>({...f,imageUrl:e.target.value}))} placeholder="https://..." className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+              <div><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Description</label><textarea value={editForm.description} onChange={e => setEditForm(f=>({...f,description:e.target.value}))} rows={3} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none" /></div>
               <div className="flex gap-4">
                 <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 cursor-pointer"><input type="checkbox" checked={editForm.inStock} onChange={e => setEditForm(f=>({...f,inStock:e.target.checked}))} className="w-4 h-4 rounded" /> In Stock</label>
                 <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 cursor-pointer"><input type="checkbox" checked={editForm.featured} onChange={e => setEditForm(f=>({...f,featured:e.target.checked}))} className="w-4 h-4 rounded" /> Featured</label>
@@ -2296,7 +2296,7 @@ function ResellersPanel({ pwd }: { pwd: string }) {
               <label className="text-xs font-bold text-slate-500 block mb-1.5">Admin note (optional)</label>
               <input value={wNotes} onChange={e => setWNotes(e.target.value)}
                 placeholder={wActionModal.action === "approve" ? "e.g. Sent via M-Pesa" : "Reason for rejection..."}
-                className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-400" />
             </div>
             <div className="flex gap-2">
               <button onClick={() => setWActionModal(null)} className="flex-1 py-3 border border-slate-200 text-slate-600 font-bold rounded-2xl text-sm">Cancel</button>
@@ -2774,10 +2774,10 @@ function UsersPanel({ pwd }: { pwd: string }) {
               <button onClick={() => setCreateModal(false)} className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200">✕</button>
             </div>
             <div className="space-y-3">
-              <div><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Email *</label><input type="email" value={createForm.email} onChange={e => setCreateForm(f=>({...f,email:e.target.value}))} placeholder="user@example.com" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
-              <div><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Password * (min 6 chars)</label><input type="password" value={createForm.password} onChange={e => setCreateForm(f=>({...f,password:e.target.value}))} placeholder="••••••" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
-              <div><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Name (optional)</label><input value={createForm.name} onChange={e => setCreateForm(f=>({...f,name:e.target.value}))} placeholder="John Doe" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
-              <div><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Starting Wallet Balance ($)</label><input type="number" step="0.01" min="0" value={createForm.walletBalance} onChange={e => setCreateForm(f=>({...f,walletBalance:e.target.value}))} placeholder="0.00" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+              <div><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Email *</label><input type="email" value={createForm.email} onChange={e => setCreateForm(f=>({...f,email:e.target.value}))} placeholder="user@example.com" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+              <div><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Password * (min 6 chars)</label><input type="password" value={createForm.password} onChange={e => setCreateForm(f=>({...f,password:e.target.value}))} placeholder="••••••" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+              <div><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Name (optional)</label><input value={createForm.name} onChange={e => setCreateForm(f=>({...f,name:e.target.value}))} placeholder="John Doe" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+              <div><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Starting Wallet Balance ($)</label><input type="number" step="0.01" min="0" value={createForm.walletBalance} onChange={e => setCreateForm(f=>({...f,walletBalance:e.target.value}))} placeholder="0.00" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
             </div>
             <div className="flex gap-2 pt-1">
               <button onClick={() => setCreateModal(false)} className="flex-1 py-3 border border-slate-200 text-slate-600 font-bold rounded-2xl text-sm">Cancel</button>
@@ -2866,7 +2866,7 @@ function PlainInput({ label, value, onChange, placeholder, hint }: {
     <div>
       <label className="text-xs font-semibold text-slate-500 block mb-1.5">{label}</label>
       <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
-        className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500" />
       {hint && <p className="text-[10px] text-slate-400 mt-1">{hint}</p>}
     </div>
   );
@@ -3327,7 +3327,7 @@ function PaymentsPanel({ pwd }: { pwd: string }) {
             onChange={e => setForm(f => ({ ...f, botSystemPrompt: e.target.value }))}
             rows={5}
             placeholder={"e.g. Always greet users in Swahili.\nAlways recommend the Express Order for urgent requests.\nOur newest service is XYZ — mention it proactively."}
-            className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-y font-mono text-slate-700 placeholder:text-slate-300 placeholder:font-sans"
+            className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-400 resize-y font-mono text-slate-700 placeholder:text-slate-300 placeholder:font-sans"
           />
           {settings?.botSystemPromptOverride && (
             <p className="text-[10px] text-emerald-600 font-semibold">Custom instructions saved ✓</p>
