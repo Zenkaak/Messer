@@ -156,3 +156,30 @@
 html, body {
   overscroll-behavior-x: none;
 }
+
+/* ── Global dark-mode input fix ──────────────────────────────────────────────
+   Inputs throughout the app use hardcoded Tailwind colours (bg-white, etc.)
+   that produce invisible text when the app renders in dark mode.
+   These rules win over every Tailwind utility so every input is readable.
+   --------------------------------------------------------------------------- */
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+textarea,
+select {
+  color: #f0f6ff !important;
+  background-color: #1a2a42 !important;
+  border-color: #2a3f5f !important;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #6b8aad !important;
+  opacity: 1;
+}
+
+/* Keep white-on-primary submit/button inputs readable */
+input[type="submit"],
+input[type="button"],
+input[type="reset"] {
+  color: inherit !important;
+  background-color: inherit !important;
+}
