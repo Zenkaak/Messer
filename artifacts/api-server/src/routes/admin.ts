@@ -855,7 +855,28 @@ router.patch("/admin/products/:id", async (req, res) => {
       .safeParse(req.body);
     if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
     const updateData: Record<string, unknown> = {};
-    if (parsed.data.price !== undefined) updateData.price = String(parsed.data.price);
+
+    // Minimum price enforcement: non-credit products must be priced ≥ $10 USD
+    if (parsed.data.price !== undefined) {
+      const newPrice = parseFloat(String(parsed.data.price));
+      const MIN_PRICE = 10;
+      if (newPrice < MIN_PRICE) {
+        const [existingProduct] = await db
+          .select({ name: productsTable.name, description: productsTable.description })
+          .from(productsTable)
+          .where(eq(productsTable.id, id))
+          .limit(1);
+        const nameToCheck = parsed.data.name ?? existingProduct?.name ?? "";
+        const descToCheck = existingProduct?.description ?? "";
+        const isCredit = /credit/i.test(nameToCheck + " " + descToCheck);
+        if (!isCredit) {
+          res.status(400).json({ error: `Minimum price is $${MIN_PRICE.toFixed(2)} USD. Only credit products are exempt from this minimum.` });
+          return;
+        }
+      }
+      updateData.price = String(parsed.data.price);
+    }
+
     if (parsed.data.inStock !== undefined) updateData.inStock = parsed.data.inStock;
     if (parsed.data.featured !== undefined) updateData.featured = parsed.data.featured;
     if (parsed.data.name !== undefined) updateData.name = parsed.data.name;
