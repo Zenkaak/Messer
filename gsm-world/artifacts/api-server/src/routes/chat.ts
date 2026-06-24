@@ -2873,10 +2873,11 @@ router.post("/chat/bot", async (req, res) => {
     let botResponded = false;
 
     try {
-    modelLoop:
+    let _modelDone = false;
     for (const modelName of modelCascade) {
       // Each model attempt starts from a clean snapshot (no leftover tool results)
       const msgs = [...baseMessages];
+      let _nextModel = false;
 
       for (let iter = 0; iter < 4; iter++) {
         const abortCtrl = new AbortController();
@@ -2911,7 +2912,7 @@ router.post("/chat/bot", async (req, res) => {
         } finally {
           clearTimeout(abortTimer);
         }
-        if (_fetchFailed) continue modelLoop;
+        if (_fetchFailed) { _nextModel = true; break; }
 
         if (!response.ok) {
           const errBody = await response.text().catch(() => "");
@@ -2922,7 +2923,7 @@ router.post("/chat/bot", async (req, res) => {
             continue;
           }
           // Any other failure: try next model in cascade
-          continue modelLoop;
+          _nextModel = true; break;
         }
 
         if (wantsStream && response.body) {
@@ -2938,7 +2939,7 @@ router.post("/chat/bot", async (req, res) => {
           if (!toolCalls.length) {
             if (!text) {
               req.log.warn({ model: modelName }, "Streaming model returned empty text — trying next model");
-              continue modelLoop;
+              _nextModel = true; break;
             }
             // Detect premature closer mid-flow and retry with correction
             if (bufferThisIter && isConversationCloser(text) && msgs.length > 2 && iter < 3) {
@@ -2957,7 +2958,7 @@ router.post("/chat/bot", async (req, res) => {
             const hasHumanBtn = text.includes("[SHOW_HUMAN_BUTTON]");
             sseDone({ action: actionType, actionData, showHumanButton: hasHumanBtn || undefined });
             botResponded = true;
-            break modelLoop;
+            _modelDone = true; break;
           }
 
           msgs.push({ role: "assistant", content: text || null, tool_calls: toolCalls });
@@ -2979,7 +2980,7 @@ router.post("/chat/bot", async (req, res) => {
           };
 
           const assistantMsg = data.choices?.[0]?.message;
-          if (!assistantMsg) continue modelLoop;
+          if (!assistantMsg) { _nextModel = true; break; }
 
           const entry: Record<string, unknown> = { role: "assistant", content: assistantMsg.content ?? null };
           if (assistantMsg.tool_calls?.length) entry.tool_calls = assistantMsg.tool_calls;
@@ -2987,7 +2988,7 @@ router.post("/chat/bot", async (req, res) => {
 
           if (!assistantMsg.tool_calls?.length) {
             const rawReply = assistantMsg.content?.trim() ?? "";
-            if (!rawReply) continue modelLoop; // empty response — try next model
+            if (!rawReply) { _nextModel = true; break; } // empty response — try next model
             // Detect premature closer mid-flow and retry with correction
             if (isConversationCloser(rawReply) && msgs.length > 2 && iter < 3) {
               req.log.warn({ model: modelName, snippet: rawReply.slice(0, 100) }, "Model gave closing phrase mid-flow — injecting correction and retrying");
@@ -3001,7 +3002,7 @@ router.post("/chat/bot", async (req, res) => {
             const reply = rawReply.replace(/\[SHOW_HUMAN_BUTTON\]/g, "").trim();
             res.json({ message: reply, action: actionType, actionData, showHumanButton: hasHumanBtn2 || undefined });
             botResponded = true;
-            break modelLoop;
+            _modelDone = true; break;
           }
 
           const tr = await runToolCalls(
@@ -3014,12 +3015,15 @@ router.post("/chat/bot", async (req, res) => {
         }
       }
 
+      if (_modelDone) break;
+      if (_nextModel) continue;
+
       if (!botResponded) {
         // Tool-call iterations exhausted for this model — try the next model in cascade
         req.log.warn({ model: modelName }, "Tool-call iterations exhausted — trying next model");
-        continue modelLoop;
+        continue;
       }
-      break modelLoop;
+      break;
     }
 
     if (!botResponded) {
