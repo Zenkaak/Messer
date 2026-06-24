@@ -2355,7 +2355,22 @@ function UserDetailView({ user: initUser, pwd, onBack, onUserUpdated, onUserDele
   const [msgSending, setMsgSending] = useState(false);
   const [chatHistory, setChatHistory] = useState<{ id: number; senderType: string; message: string; createdAt: string }[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
+  const [kbOffset, setKbOffset] = useState(0);
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (!msgOpen) { setKbOffset(0); return; }
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const update = () => {
+      const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      setKbOffset(kb);
+    };
+    vv.addEventListener("resize", update);
+    vv.addEventListener("scroll", update);
+    update();
+    return () => { vv.removeEventListener("resize", update); vv.removeEventListener("scroll", update); };
+  }, [msgOpen]);
 
   useEffect(() => {
     setOrdersLoading(true);
@@ -2499,7 +2514,7 @@ function UserDetailView({ user: initUser, pwd, onBack, onUserUpdated, onUserDele
       {/* Message drawer */}
       {msgOpen && (
         <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm" onClick={e => { if (e.target === e.currentTarget) { setMsgOpen(false); setMsgText(""); setChatHistory([]); } }}>
-          <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col mb-[4.5rem] sm:mb-0" style={{ maxHeight: "88vh" }}>
+          <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col sm:mb-0" style={{ maxHeight: "88dvh", marginBottom: kbOffset > 0 ? kbOffset : "4.5rem" }}>
             <div className="flex items-center gap-3 px-5 pt-5 pb-3.5 border-b border-slate-100">
               <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${avatarGrad} flex items-center justify-center text-white font-black text-sm shrink-0`}>
                 {(user.name || user.email).charAt(0).toUpperCase()}
