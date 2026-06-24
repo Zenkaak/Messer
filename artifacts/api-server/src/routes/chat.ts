@@ -2012,6 +2012,19 @@ async function toolPlaceOrder(args: {
       return { success: false, error: "Cart is empty" };
     }
 
+    // Minimum price enforcement: all non-credit items must be ≥ $10 USD
+    const MIN_ITEM_PRICE_USD = 10;
+    for (const r of cartRows) {
+      const itemPrice = parseFloat(r.cartItem.priceAtAdd);
+      const isCredit = /credit/i.test((r.product.name ?? "") + " " + (r.product.description ?? ""));
+      if (!isCredit && itemPrice < MIN_ITEM_PRICE_USD) {
+        return {
+          success: false,
+          error: `Minimum order price is $${MIN_ITEM_PRICE_USD.toFixed(2)} USD per item. "${r.product.name}" is priced at $${itemPrice.toFixed(2)}, which is below the minimum. Please contact support for assistance.`,
+        };
+      }
+    }
+
     const total = cartRows.reduce((acc, r) => acc + parseFloat(r.cartItem.priceAtAdd) * r.cartItem.quantity, 0);
     const orderCode = generateBotOrderCode();
     const customerEmail = args.customerEmail.toLowerCase();
@@ -2548,7 +2561,7 @@ router.post("/chat/bot", async (req, res) => {
     const openaiBase = await getOpenAiBaseUrl();
 
     const safeMessages = Array.isArray(messages)
-      ? messages.slice(-14).filter(
+      ? messages.slice(-10).filter(
           (m: unknown) =>
             m != null &&
             typeof m === "object" &&
@@ -2601,9 +2614,8 @@ router.post("/chat/bot", async (req, res) => {
     const isOpenRouter = openaiBase.toLowerCase().includes("openrouter");
     const modelCascade = isOpenRouter
       ? [
-          "meta-llama/llama-3.3-70b-instruct:free",     // primary FREE — fast 70B, great tool-calling
-          "mistralai/mistral-7b-instruct:free",          // fast fallback — 7B, very low latency
-          "openai/gpt-oss-120b:free",                    // large fallback — 120B, tool-calling
+          "mistralai/mistral-7b-instruct:free",          // primary FREE — 7B, fastest response time
+          "meta-llama/llama-3.3-70b-instruct:free",     // fallback FREE — 70B, strong tool-calling
           "openai/gpt-4o-mini",                          // paid fallback (if credits available)
         ]
       : ["gpt-4o-mini"];
@@ -2618,7 +2630,7 @@ router.post("/chat/bot", async (req, res) => {
 
       for (let iter = 0; iter < 4; iter++) {
         const abortCtrl = new AbortController();
-        const abortTimer = setTimeout(() => abortCtrl.abort(), 28000);
+        const abortTimer = setTimeout(() => abortCtrl.abort(), 18000);
 
         let response: Response;
         try {
@@ -2642,6 +2654,14 @@ router.post("/chat/bot", async (req, res) => {
               stream: wantsStream,
             }),
           });
+        } catch (fetchErr) {
+          clearTimeout(abortTimer);
+          const isTimeout = (fetchErr as Error).name === "AbortError" || (fetchErr as Error).name === "TimeoutError";
+          if (isTimeout) {
+            req.log.warn({ model: modelName }, "AI model timed out — trying next in cascade");
+            continue modelLoop;
+          }
+          throw fetchErr;
         } finally {
           clearTimeout(abortTimer);
         }
