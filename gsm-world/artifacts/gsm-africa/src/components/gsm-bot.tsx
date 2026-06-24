@@ -1449,6 +1449,8 @@ export function GsmBot() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const emailCaptureRef = useRef<HTMLInputElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const inactivityWarnRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inactivityCloseRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const visitorId = useRef(getVisitorId());
   const base = apiBase();
 
@@ -1514,15 +1516,51 @@ export function GsmBot() {
     setSavedConversations(getSavedConversations());
   }
 
+  // ── 30-minute inactivity auto-close ──────────────────────────────────────────
+  const WARN_MS  = 25 * 60 * 1000;  // 25 min → show warning
+  const CLOSE_MS = 30 * 60 * 1000;  // 30 min → close chat
+
+  const clearInactivityTimers = useCallback(() => {
+    if (inactivityWarnRef.current)  { clearTimeout(inactivityWarnRef.current);  inactivityWarnRef.current  = null; }
+    if (inactivityCloseRef.current) { clearTimeout(inactivityCloseRef.current); inactivityCloseRef.current = null; }
+  }, []);
+
+  const resetInactivityTimer = useCallback(() => {
+    clearInactivityTimers();
+    inactivityWarnRef.current = setTimeout(() => {
+      setMessages(prev => [
+        ...prev,
+        {
+          role: "assistant" as const,
+          content: "⏳ Just checking in — your chat session will **automatically close in 5 minutes** due to inactivity. Send a message to stay connected!",
+        },
+      ]);
+    }, WARN_MS);
+    inactivityCloseRef.current = setTimeout(() => {
+      setMessages(prev => [
+        ...prev,
+        {
+          role: "assistant" as const,
+          content: "👋 Your session has been closed due to 30 minutes of inactivity. Feel free to open the chat anytime — we're here to help!",
+        },
+      ]);
+      setOpen(false);
+    }, CLOSE_MS);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clearInactivityTimers]);
+
   useEffect(() => {
     if (open) {
       setTooltipVisible(false);
+      resetInactivityTimer();
       setTimeout(() => {
         bottomRef.current?.scrollIntoView({ behavior: "smooth" });
         (humanMode ? humanInputRef : inputRef).current?.focus();
       }, 120);
+    } else {
+      clearInactivityTimers();
     }
-  }, [open, humanMode]);
+  }, [open, humanMode, resetInactivityTimer, clearInactivityTimers]);
 
   // Auto-hide tooltip after 8 seconds
   useEffect(() => {
@@ -1582,6 +1620,9 @@ export function GsmBot() {
   // ── Bot send (SSE streaming) ──────────────────────────────────────────────
   async function sendMessage(text: string = input.trim()) {
     if (!text || loading) return;
+
+    // Reset the 30-min inactivity timer on every user message
+    resetInactivityTimer();
 
     // Handle numeric product selection
     const numMatch = text.match(/^(\d+)$/);
