@@ -6,19 +6,24 @@ import { requireAdmin } from "../middlewares/auth";
 
 const router: IRouter = Router();
 
+const USER_SELECT = {
+  id: usersTable.id,
+  email: usersTable.email,
+  name: usersTable.name,
+  username: usersTable.username,
+  createdAt: usersTable.createdAt,
+  walletBalance: usersTable.walletBalance,
+  status: usersTable.status,
+  registrationIp: usersTable.registrationIp,
+  country: usersTable.country,
+} as const;
+
 // All /users routes are admin-only — protect every endpoint with requireAdmin.
 
 router.get("/users", requireAdmin, async (req, res) => {
   try {
     const users = await db
-      .select({
-        id: usersTable.id,
-        email: usersTable.email,
-        name: usersTable.name,
-        createdAt: usersTable.createdAt,
-        walletBalance: usersTable.walletBalance,
-        status: usersTable.status,
-      })
+      .select(USER_SELECT)
       .from(usersTable);
     res.json(users);
   } catch (err) {
@@ -37,14 +42,7 @@ router.post("/users", requireAdmin, async (req, res) => {
     const [user] = await db
       .insert(usersTable)
       .values(parsed.data)
-      .returning({
-        id: usersTable.id,
-        email: usersTable.email,
-        name: usersTable.name,
-        createdAt: usersTable.createdAt,
-        walletBalance: usersTable.walletBalance,
-        status: usersTable.status,
-      });
+      .returning(USER_SELECT);
     res.status(201).json(user);
   } catch (err) {
     req.log.error({ err }, "Failed to create user");
@@ -56,14 +54,7 @@ router.get("/users/:id", requireAdmin, async (req, res) => {
   try {
     const id = Number(req.params.id);
     const [user] = await db
-      .select({
-        id: usersTable.id,
-        email: usersTable.email,
-        name: usersTable.name,
-        createdAt: usersTable.createdAt,
-        walletBalance: usersTable.walletBalance,
-        status: usersTable.status,
-      })
+      .select(USER_SELECT)
       .from(usersTable)
       .where(eq(usersTable.id, id));
     if (!user) {
@@ -95,14 +86,7 @@ router.patch("/users/:id", requireAdmin, async (req, res) => {
       .update(usersTable)
       .set(parsed.data)
       .where(eq(usersTable.id, id))
-      .returning({
-        id: usersTable.id,
-        email: usersTable.email,
-        name: usersTable.name,
-        createdAt: usersTable.createdAt,
-        walletBalance: usersTable.walletBalance,
-        status: usersTable.status,
-      });
+      .returning(USER_SELECT);
     if (!user) {
       res.status(404).json({ error: "User not found" });
       return;

@@ -90,7 +90,7 @@ interface ToolActivation {
 }
 interface AdminUser {
   id: number; email: string; name: string | null; username: string | null;
-  walletBalance: string; status: string; createdAt: string; registrationIp: string | null;
+  walletBalance: string; status: string; createdAt: string; registrationIp: string | null; country: string | null;
 }
 interface AdminProduct {
   id: number; name: string; price: string;
@@ -2499,7 +2499,7 @@ function UserDetailView({ user: initUser, pwd, onBack, onUserUpdated, onUserDele
       {/* Message drawer */}
       {msgOpen && (
         <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm" onClick={e => { if (e.target === e.currentTarget) { setMsgOpen(false); setMsgText(""); setChatHistory([]); } }}>
-          <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col" style={{ maxHeight: "88vh" }}>
+          <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col mb-[4.5rem] sm:mb-0" style={{ maxHeight: "88vh" }}>
             <div className="flex items-center gap-3 px-5 pt-5 pb-3.5 border-b border-slate-100">
               <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${avatarGrad} flex items-center justify-center text-white font-black text-sm shrink-0`}>
                 {(user.name || user.email).charAt(0).toUpperCase()}
@@ -2594,6 +2594,7 @@ function UserDetailView({ user: initUser, pwd, onBack, onUserUpdated, onUserDele
               ...(user.username ? [{ label: "Username", value: `@${user.username}`, mono: false }] : []),
               { label: "Status",    value: user.status,          mono: false },
               { label: "Joined",    value: new Date(user.createdAt).toLocaleDateString(), mono: false },
+              ...(user.country ? [{ label: "Country", value: user.country, mono: false }] : []),
               ...(user.registrationIp ? [{ label: "Reg. IP", value: user.registrationIp, mono: true }] : []),
             ].map(row => (
               <div key={row.label} className="flex items-center justify-between px-4 py-2.5">

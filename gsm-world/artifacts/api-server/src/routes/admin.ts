@@ -272,6 +272,7 @@ router.get("/admin/users", async (req, res) => {
       status: usersTable.status,
       createdAt: usersTable.createdAt,
       registrationIp: usersTable.registrationIp,
+      country: usersTable.country,
     };
 
     let users;

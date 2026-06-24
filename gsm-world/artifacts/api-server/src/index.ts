@@ -5,6 +5,7 @@ import app from "./app";
 import { attachWss } from "./lib/ws";
 import { logger } from "./lib/logger";
 import { shouldRunDailyMarketing, runDailyMarketingEmail } from "./lib/daily-marketing";
+import { getOpenAiKey, getOpenAiBaseUrl, getWhatsappContact, getWorkingCascade } from "./lib/admin-settings";
 
 const rawPort = process.env["PORT"];
 
@@ -57,6 +58,11 @@ if (cluster.isPrimary && WORKERS > 1) {
       process.exit(1);
     }
     logger.info({ port, pid: process.pid, worker: cluster.worker?.id ?? "primary" }, "Server listening");
+
+    // Pre-warm bot caches so the first user message is fast
+    Promise.all([getOpenAiKey(), getOpenAiBaseUrl(), getWhatsappContact(), getWorkingCascade()])
+      .then(() => logger.info("Bot cache pre-warmed"))
+      .catch((e) => logger.warn({ e }, "Bot cache pre-warm failed (non-fatal)"));
 
     // Keep-alive self-ping every 4 minutes to prevent server from sleeping
     const selfPingUrl = `http://localhost:${port}/api/healthz`;
