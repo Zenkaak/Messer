@@ -99,14 +99,14 @@ function layout(preheader: string, accentColor: string, headerContent: string, b
                       <span style="color:#e2e8f0;">&nbsp;|&nbsp;</span>
                       <a href="${storeUrl}/account" style="color:#64748b;text-decoration:none;font-weight:600;">My Account</a>
                       <span style="color:#e2e8f0;">&nbsp;|&nbsp;</span>
-                      <a href="https://wa.me/254700000000" style="color:#22c55e;text-decoration:none;font-weight:600;">WhatsApp Support</a>
+                      <a href="${storeUrl}/account/orders" style="color:#0ea5e9;text-decoration:none;font-weight:600;">Live Support</a>
                       <span style="color:#e2e8f0;">&nbsp;|&nbsp;</span>
                       <a href="{{UNSUB_URL}}" style="color:#94a3b8;text-decoration:underline;font-weight:500;">Unsubscribe</a>
                     </p>
                 </td></tr>
                 <tr><td style="text-align:center;padding-top:16px;">
                     <p style="margin:0 0 4px;font-size:11px;color:#94a3b8;line-height:1.6;">&copy; ${year} GSM World &mdash; Professional GSM Tools &amp; Services</p>
-                    <p style="margin:0;font-size:10.5px;color:#cbd5e1;line-height:1.5;">Nairobi, Kenya &nbsp;&middot;&nbsp; <a href="mailto:support@dasnett.site" style="color:#cbd5e1;text-decoration:none;">support@dasnett.site</a></p>
+                    <p style="margin:0;font-size:10.5px;color:#cbd5e1;line-height:1.5;">United States &nbsp;&middot;&nbsp; <a href="mailto:support@dasnett.site" style="color:#cbd5e1;text-decoration:none;">support@dasnett.site</a></p>
                 </td></tr>
               </table>
             </td>
@@ -403,7 +403,7 @@ export function loginNotificationEmail(name: string | null, meta?: { ip?: string
     <p style="margin:0 0 24px;font-size:14px;color:#475569;"><strong style="color:#dc2626;">This was not you?</strong> Your account may be compromised. We strongly recommend you change your password immediately.</p>
     ${btn("Secure My Account", securityUrl, "#dc2626")}
     <div style="margin-top:32px;padding-top:20px;border-top:1px solid #f1f5f9;">
-      <p style="margin:0;font-size:14px;color:#475569;">If you need assistance, contact our support team via WhatsApp or the live chat on our website.</p>
+      <p style="margin:0;font-size:14px;color:#475569;">If you need assistance, contact our support team via our live chat on the website.</p>
       <p style="margin:12px 0 0;font-size:14px;color:#475569;">Regards,<br><strong style="color:#0f172a;">GSM World Security Team</strong></p>
     </div>
   `;
@@ -681,7 +681,7 @@ export function orderStatusUpdateEmail(params: {
     ${params.notes ? alertBox("Message from Our Team", params.notes, st.accent, "#f8fafc") : ""}
     ${btn("View Order Details", orderUrl, st.accent)}
     <div style="margin-top:32px;padding-top:20px;border-top:1px solid #f1f5f9;">
-      <p style="margin:0;font-size:14px;color:#475569;">For any questions or concerns, please reply to this email or contact us via WhatsApp.</p>
+      <p style="margin:0;font-size:14px;color:#475569;">For any questions or concerns, please reply to this email or use our live support chat.</p>
       <p style="margin:12px 0 0;font-size:14px;color:#475569;">Regards,<br><strong style="color:#0f172a;">GSM World Team</strong></p>
     </div>
   `;
@@ -722,7 +722,7 @@ export function moreInfoNeededEmail(params: {
     </ol>
     ${btn("Open Order & Respond", orderUrl, "#d97706")}
     <div style="margin-top:32px;padding-top:20px;border-top:1px solid #f1f5f9;">
-      <p style="margin:0;font-size:13px;color:#94a3b8;">Accepted formats: images, PDFs, screenshots. For assistance, contact us via WhatsApp.</p>
+      <p style="margin:0;font-size:13px;color:#94a3b8;">Accepted formats: images, PDFs, screenshots. For assistance, contact us via our live support chat.</p>
       <p style="margin:12px 0 0;font-size:14px;color:#475569;">Regards,<br><strong style="color:#0f172a;">GSM World Team</strong></p>
     </div>
   `;
@@ -905,7 +905,7 @@ export function pendingManualPaymentEmail(params: {
     <p style="margin:0 0 16px;font-size:14px;color:#475569;">After sending payment, please <strong>upload a screenshot</strong> of your transaction via the order page below so our team can verify it promptly.</p>
     ${btn("Open Order & Upload Screenshot", orderUrl, "#4338ca")}
     <div style="margin-top:32px;padding-top:20px;border-top:1px solid #f1f5f9;">
-      <p style="margin:0;font-size:13px;color:#94a3b8;">Payment verification typically takes 1–3 hours during business hours.${params.whatsappContact ? ` For assistance, message us on WhatsApp: <a href="https://wa.me/${params.whatsappContact}" style="color:#4338ca;">${params.whatsappContact}</a>` : " For urgent assistance, contact our support team."}</p>
+      <p style="margin:0;font-size:13px;color:#94a3b8;">Payment verification typically takes 1–3 hours during business hours. For urgent assistance, contact our live support chat.</p>
       <p style="margin:12px 0 0;font-size:14px;color:#475569;">Regards,<br><strong style="color:#0f172a;">GSM World Team</strong></p>
     </div>
   `;
@@ -944,6 +944,42 @@ export function adminDirectMessageEmail(params: {
     subject: "New Message from GSM World Support",
     text: `Dear ${name},\n\nYou have a new message from GSM World Support:\n\n${params.message}\n\nView your account: ${accountUrl}\n\n— GSM World Team`,
     html: layout("You have a new message from the GSM World support team.", "#0ea5e9", h, body),
+  };
+}
+
+// ── Admin: user sent a support message on an order ────────────────────────────
+
+export function adminOrderMessageEmail(params: {
+  orderId: number;
+  customerEmail: string;
+  customerName?: string | null;
+  message: string;
+}) {
+  const name = params.customerName || params.customerEmail;
+  const adminUrl = appUrl(`/admin?tab=orders&orderId=${params.orderId}`);
+  const orderUrl = appUrl(`/orders/${params.orderId}`);
+  const h = header(
+    "linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%)",
+    "New Support Message",
+    `Customer message on Order #${params.orderId}`
+  );
+  const body = `
+    <p style="margin:0 0 20px;font-size:15px;color:#475569;">A customer has sent a new message on <strong style="color:#0f172a;">Order #${params.orderId}</strong>.</p>
+    ${infoTable([
+      ["Customer", name],
+      ["Email", params.customerEmail],
+      ["Order", `#${params.orderId}`],
+    ])}
+    ${alertBox("Customer Message", params.message, "#0ea5e9", "#f0f9ff")}
+    ${btn("View in Admin Dashboard", adminUrl, "#1e3a5f")}
+    <div style="margin-top:32px;padding-top:20px;border-top:1px solid #f1f5f9;">
+      <p style="margin:0;font-size:14px;color:#475569;">Please respond promptly so the customer can be assisted.</p>
+    </div>
+  `;
+  return {
+    subject: `New Support Message — Order #${params.orderId} (${params.customerEmail})`,
+    text: `New support message on Order #${params.orderId}\n\nCustomer: ${name}\nEmail: ${params.customerEmail}\n\nMessage:\n${params.message}\n\nAdmin dashboard: ${adminUrl}\nOrder page: ${orderUrl}`,
+    html: layout(`New support message from ${params.customerEmail} on Order #${params.orderId}.`, "#0ea5e9", h, body),
   };
 }
 

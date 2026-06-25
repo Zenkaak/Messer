@@ -355,16 +355,16 @@ function HomeImeiChecker() {
 }
 
 const HERO_UNLOCKS = [
-  { model: "iPhone 15 Pro", country: "Nairobi, KE" },
-  { model: "Samsung S24 Ultra", country: "Lagos, NG" },
-  { model: "iPhone 14 Plus", country: "Accra, GH" },
-  { model: "Pixel 8 Pro", country: "Cairo, EG" },
-  { model: "iPhone 13 Pro", country: "Kampala, UG" },
-  { model: "OnePlus 12", country: "Johannesburg, ZA" },
-  { model: "Xiaomi 14 Pro", country: "Kigali, RW" },
-  { model: "Samsung A55", country: "Dar es Salaam, TZ" },
-  { model: "iPhone 15", country: "Lusaka, ZM" },
-  { model: "Tecno Phantom X2", country: "Addis Ababa, ET" },
+  { model: "iPhone 15 Pro", country: "New York, NY" },
+  { model: "Samsung S24 Ultra", country: "Los Angeles, CA" },
+  { model: "iPhone 14 Plus", country: "Chicago, IL" },
+  { model: "Pixel 8 Pro", country: "Houston, TX" },
+  { model: "iPhone 13 Pro", country: "Phoenix, AZ" },
+  { model: "OnePlus 12", country: "Miami, FL" },
+  { model: "Xiaomi 14 Pro", country: "Seattle, WA" },
+  { model: "Samsung A55", country: "Atlanta, GA" },
+  { model: "iPhone 15", country: "Denver, CO" },
+  { model: "Samsung S23", country: "Boston, MA" },
 ];
 
 export function Home() {

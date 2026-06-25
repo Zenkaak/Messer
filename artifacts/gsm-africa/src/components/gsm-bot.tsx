@@ -183,14 +183,14 @@ const SUGGESTIONS = [
   "Show me iPhone unlock services",
   "Check my order status",
   "Show featured deals",
-  "How to pay with M-Pesa",
+  "How to pay with crypto",
   "Android FRP bypass",
   "Cancel my order",
 ];
 
 const WELCOME: ChatMessage = {
   role: "assistant",
-  content: "Hi! I'm GSMBot 👋\n\nI can help you with:\n• 📱 iPhone & Android unlock services\n• 🔍 Look up or cancel your orders\n• 💳 Step-by-step payment help (M-Pesa, USDT, Binance)\n• 🎁 Gift cards & server credits\n• 🔧 IMEI checks, FRP bypass, tool activation\n\nWhat can I help you with today?",
+  content: "Hi! I'm GSMBot 👋\n\nI can help you with:\n• 📱 iPhone & Android unlock services\n• 🔍 Look up or cancel your orders\n• 💳 Step-by-step payment help (USDT, Binance, Crypto)\n• 🎁 Gift cards & server credits\n• 🔧 IMEI checks, FRP bypass, tool activation\n\nWhat can I help you with today?",
 };
 
 // ─── Status helpers ───────────────────────────────────────────────────────────
@@ -1766,7 +1766,7 @@ export function GsmBot() {
       }
     } catch {
       // API unreachable — still enter human mode with a clear message
-      setMessages(prev => [...prev, { role: "assistant", content: "🔗 You're now connected to our support queue!\n\nWhile you wait for a human agent to join, **please describe your issue in detail** — include your device model, IMEI (if applicable), what you've already tried, and any error messages you saw. The more you share now, the faster we can help you! ✍️\n\nYou can also reach us directly:\n• **WhatsApp:** [+254112628799](https://wa.me/254112628799)\n• **Telegram:** [t.me/markjsbb](https://t.me/markjsbb)" }]);
+      setMessages(prev => [...prev, { role: "assistant", content: "🔗 You're now connected to our support queue!\n\nWhile you wait for a human agent to join, **please describe your issue in detail** — include your device model, IMEI (if applicable), what you've already tried, and any error messages you saw. The more you share now, the faster we can help you! ✍️\n\nYour message has been received and a member of our team will respond shortly. You'll receive an email notification as soon as we reply." }]);
       setHumanMode(true);
       setSessionStatus("waiting");
       setHumanEmailStep(false);

@@ -12,9 +12,10 @@ import {
   moreInfoNeededEmail,
   orderSubmittedEmail,
   giftCardDeliveryEmail,
+  adminOrderMessageEmail,
   appUrl,
 } from "../lib/email";
-import { checkAdminPassword, getBinancePayId, getUsdtManualAddress, getUsdtManualNetwork } from "../lib/admin-settings";
+import { checkAdminPassword, getBinancePayId, getUsdtManualAddress, getUsdtManualNetwork, getSmtpConfig } from "../lib/admin-settings";
 import { initiateSTKPush } from "../lib/mpesa";
 import { notifyOrderUpdate } from "../lib/ws";
 import { randomBytes } from "node:crypto";
@@ -237,6 +238,24 @@ router.post("/orders/:id/messages", async (req, res) => {
         orderId,
         read: false,
       }).catch((err) => req.log.error({ err }, "Failed to insert notification"));
+    }
+
+    // When user sends a message → email notification for admin
+    if (!isAdmin && order.customerEmail) {
+      getSmtpConfig().then((smtpCfg) => {
+        const adminEmail = smtpCfg?.emailFrom;
+        if (adminEmail) {
+          sendEmail({
+            to: adminEmail,
+            ...adminOrderMessageEmail({
+              orderId,
+              customerEmail: order.customerEmail!,
+              customerName: order.customerName,
+              message: messageText,
+            }),
+          }).catch((err) => req.log.error({ err }, "Failed to send admin order message notification"));
+        }
+      }).catch((err) => req.log.error({ err }, "Failed to get SMTP config for admin notification"));
     }
 
     // Push new message live to the order's WS subscribers
