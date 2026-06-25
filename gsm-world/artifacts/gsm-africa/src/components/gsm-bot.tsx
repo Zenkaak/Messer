@@ -1939,8 +1939,8 @@ export function GsmBot() {
         />
       )}
       {open && (
-        <div className="fixed inset-0 md:inset-6 z-[300] bg-white md:rounded-3xl shadow-2xl flex flex-col overflow-hidden text-gray-900"
-          style={{}}>
+        <div className="fixed inset-0 md:inset-6 z-[300] md:rounded-3xl shadow-2xl flex flex-col overflow-hidden text-gray-900"
+          style={{ background: "linear-gradient(160deg,#eef2ff 0%,#f5f0ff 50%,#edfcf4 100%)" }}>
 
 
           {/* ── HEADER ── */}
@@ -2021,7 +2021,7 @@ export function GsmBot() {
               </div>
 
               {/* Human messages */}
-              <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2.5">
+              <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2.5" style={{ background: "linear-gradient(180deg,#edfcf4 0%,#f0f4ff 100%)" }}>
                 <div className="flex gap-2 justify-start">
                   <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center shrink-0 mt-0.5">
                     <Headphones size={11} className="text-emerald-600" />
@@ -2211,7 +2211,7 @@ export function GsmBot() {
           ) : (
             <>
               {/* ── BOT CHAT BODY ── */}
-              <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2.5">
+              <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2.5" style={{ background: "linear-gradient(180deg,#eef2ff 0%,#f5f0ff 100%)" }}>
                 {messages.map((m, i) => (
                   <div key={i} className={`flex gap-2 ${m.role === "user" ? "justify-end" : "justify-start"}`}>
                     {m.role === "assistant" && (

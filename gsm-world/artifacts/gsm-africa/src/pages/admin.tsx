@@ -2081,7 +2081,7 @@ function ResellersPanel({ pwd }: { pwd: string }) {
 
       {/* Reseller full-page detail */}
       {selectedReseller && (
-        <div className="fixed inset-0 z-50 bg-slate-50 overflow-y-auto" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 5rem)" }}>
+        <div className="fixed inset-0 z-50 overflow-y-auto" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 5rem)", background: "linear-gradient(160deg,#eef2ff 0%,#f5f0ff 50%,#f0f8ff 100%)" }}>
           {/* Sticky header */}
           <div className="sticky top-0 z-10 bg-slate-900 flex items-center gap-3 px-4 py-3">
             <button onClick={() => setSelectedReseller(null)}
@@ -2476,7 +2476,7 @@ function UserDetailView({ user: initUser, pwd, onBack, onUserUpdated, onUserDele
   const avatarGrad = COLORS[user.id % COLORS.length];
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-50 overflow-y-auto" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 5rem)" }}>
+    <div className="fixed inset-0 z-50 overflow-y-auto" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 5rem)", background: "linear-gradient(160deg,#eef2ff 0%,#f5f0ff 50%,#f0f8ff 100%)" }}>
       {/* Wallet modal */}
       {walletModal && (
         <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 backdrop-blur-sm" onClick={() => { setWalletModal(null); setWalletAmount(""); }}>
@@ -4003,7 +4003,7 @@ function LiveChatsPanel({ pwd }: { pwd: string }) {
 
         {/* Selected session */}
         {selected ? (
-          <div className={`bg-white rounded-2xl border border-slate-100 flex flex-col ${mobileView === "list" ? "hidden md:flex" : "flex"}`} style={{ maxHeight: "500px" }}>
+          <div className={`rounded-2xl border border-slate-100 flex flex-col ${mobileView === "list" ? "hidden md:flex" : "flex"}`} style={{ maxHeight: "500px", background: "linear-gradient(160deg,#eef2ff 0%,#f5f0ff 50%,#edfcf4 100%)" }}>
             {/* Chat header */}
             <div className="flex items-center justify-between px-3 py-2.5 border-b border-slate-100 shrink-0">
               <div className="flex items-center gap-2">
@@ -4029,7 +4029,7 @@ function LiveChatsPanel({ pwd }: { pwd: string }) {
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2">
+            <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2" style={{ background: "linear-gradient(180deg,#eef2ff 0%,#edfcf4 100%)" }}>
               {msgs.length === 0 && (
                 <p className="text-center text-xs text-slate-300 py-4">No messages yet</p>
               )}
@@ -4106,7 +4106,7 @@ function LiveChatsPanel({ pwd }: { pwd: string }) {
             )}
           </div>
         ) : (
-          <div className="hidden md:flex bg-white rounded-2xl border border-slate-100 items-center justify-center p-8 text-center">
+          <div className="hidden md:flex rounded-2xl border border-slate-100 items-center justify-center p-8 text-center" style={{ background: "linear-gradient(160deg,#eef2ff 0%,#f5f0ff 100%)" }}>
             <div>
               <Headphones size={28} className="mx-auto text-slate-200 mb-2" />
               <p className="text-xs text-slate-400 font-semibold">Select a session</p>
