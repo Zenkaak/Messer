@@ -1215,7 +1215,7 @@ function OrderDetailView({ order: initialOrder, pwd, onBack }: { order: Order; p
               <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 ${msg.senderType === "admin" ? "bg-blue-600 text-white" : "bg-slate-200 text-slate-600"}`}>
                 {msg.senderType === "admin" ? "A" : "U"}
               </div>
-              <div className={`max-w-[75%] px-3 py-2 rounded-2xl text-xs ${msg.senderType === "admin" ? "bg-blue-600 text-white rounded-tr-sm" : "bg-slate-100 text-slate-800 rounded-tl-sm"}`}>
+              <div className={`max-w-[75%] px-3 py-2 rounded-2xl text-xs ${msg.senderType === "admin" ? "bg-blue-600 text-white rounded-tr-sm" : "bg-violet-100 text-violet-900 rounded-tl-sm"}`}>
                 {msg.message.startsWith("__FILE__:") ? (() => {
                   const rest = msg.message.slice(9);
                   const sep = rest.indexOf("|");
@@ -2356,6 +2356,8 @@ function UserDetailView({ user: initUser, pwd, onBack, onUserUpdated, onUserDele
   const [chatHistory, setChatHistory] = useState<{ id: number; senderType: string; message: string; createdAt: string }[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
   const [kbOffset, setKbOffset] = useState(0);
+  const [deleteMenu, setDeleteMenu] = useState<{ id: number; x: number; y: number } | null>(null);
+  const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -2390,6 +2392,23 @@ function UserDetailView({ user: initUser, pwd, onBack, onUserUpdated, onUserDele
         setChatHistory(d.messages ?? []);
       }
     } finally { setChatLoading(false); }
+  }
+
+  function startPress(e: React.TouchEvent, id: number) {
+    const t = e.touches[0];
+    pressTimer.current = setTimeout(() => setDeleteMenu({ id, x: t.clientX, y: t.clientY }), 600);
+  }
+  function cancelPress() {
+    if (pressTimer.current) { clearTimeout(pressTimer.current); pressTimer.current = null; }
+  }
+  function deleteForMe(id: number) {
+    setChatHistory(prev => prev.filter(m => m.id !== id));
+    setDeleteMenu(null);
+  }
+  async function deleteForEveryone(id: number) {
+    setChatHistory(prev => prev.filter(m => m.id !== id));
+    setDeleteMenu(null);
+    try { await adminFetch(`/api/admin/users/${user.id}/messages/${id}`, pwd, { method: "DELETE" }); } catch { /* non-fatal */ }
   }
 
   async function setStatus(status: string) {
@@ -2511,10 +2530,30 @@ function UserDetailView({ user: initUser, pwd, onBack, onUserUpdated, onUserDele
         </div>
       )}
 
+      {/* Long-press delete popup */}
+      {deleteMenu && (
+        <div className="fixed inset-0 z-[90]" onClick={() => setDeleteMenu(null)}>
+          <div className="absolute bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden"
+            style={{ left: Math.min(deleteMenu.x - 80, (typeof window !== "undefined" ? window.innerWidth : 400) - 210), top: Math.max(deleteMenu.y - 120, 60), width: 200 }}>
+            <button className="w-full px-4 py-3.5 text-[13px] text-left text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 font-medium"
+              onClick={e => { e.stopPropagation(); deleteForMe(deleteMenu.id); }}>
+              🗑️ Delete for me
+            </button>
+            <div className="h-px bg-slate-100" />
+            <button className="w-full px-4 py-3.5 text-[13px] text-left text-red-500 hover:bg-red-50 flex items-center gap-2.5 font-medium"
+              onClick={e => { e.stopPropagation(); deleteForEveryone(deleteMenu.id); }}>
+              🔥 Delete for everyone
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Message drawer */}
       {msgOpen && (
-        <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm" onClick={e => { if (e.target === e.currentTarget) { setMsgOpen(false); setMsgText(""); setChatHistory([]); } }}>
-          <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col sm:mb-0" style={{ maxHeight: "88dvh", marginBottom: kbOffset > 0 ? kbOffset : "4.5rem" }}>
+        <div className="fixed inset-x-0 top-0 z-[60] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm"
+          style={{ bottom: kbOffset > 0 ? `${kbOffset}px` : 0 }}
+          onClick={e => { if (e.target === e.currentTarget) { setMsgOpen(false); setMsgText(""); setChatHistory([]); } }}>
+          <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col sm:mb-0" style={{ maxHeight: "90%", marginBottom: "4.5rem" }}>
             <div className="flex items-center gap-3 px-5 pt-5 pb-3.5 border-b border-slate-100">
               <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${avatarGrad} flex items-center justify-center text-white font-black text-sm shrink-0`}>
                 {(user.name || user.email).charAt(0).toUpperCase()}
@@ -2535,10 +2574,14 @@ function UserDetailView({ user: initUser, pwd, onBack, onUserUpdated, onUserDele
                   <p className="text-xs text-slate-400 font-medium">No messages yet</p>
                 </div>
               ) : chatHistory.map(m => (
-                <div key={m.id} className={`flex ${m.senderType === "admin" ? "justify-end" : "justify-start"}`}>
-                  <div className={`max-w-[78%] px-3 py-2 rounded-2xl text-sm leading-relaxed ${m.senderType === "admin" ? "bg-blue-600 text-white rounded-br-sm" : "bg-slate-100 text-slate-800 rounded-bl-sm"}`}>
+                <div key={m.id} className={`flex ${m.senderType === "admin" ? "justify-end" : "justify-start"}`}
+                  onTouchStart={e => startPress(e, m.id)}
+                  onTouchEnd={cancelPress}
+                  onTouchMove={cancelPress}
+                  onContextMenu={e => { e.preventDefault(); setDeleteMenu({ id: m.id, x: e.clientX, y: e.clientY }); }}>
+                  <div className={`max-w-[78%] px-3 py-2 rounded-2xl text-sm leading-relaxed select-none ${m.senderType === "admin" ? "bg-blue-600 text-white rounded-br-sm" : "bg-violet-100 text-violet-900 rounded-bl-sm"}`}>
                     <p className="whitespace-pre-wrap break-words">{m.message}</p>
-                    <p className={`text-[9px] mt-0.5 ${m.senderType === "admin" ? "text-blue-200" : "text-slate-400"}`}>{new Date(m.createdAt).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}</p>
+                    <p className={`text-[9px] mt-0.5 ${m.senderType === "admin" ? "text-blue-200" : "text-violet-400"}`}>{new Date(m.createdAt).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}</p>
                   </div>
                 </div>
               ))}
@@ -3996,7 +4039,7 @@ function LiveChatsPanel({ pwd }: { pwd: string }) {
                   <div key={m.id} className={`flex flex-col gap-0.5 ${isAdmin ? "items-end" : "items-start"}`}>
                     <div className={`flex gap-1.5 ${isAdmin ? "justify-end" : "justify-start"} w-full`}>
                       <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-xs ${
-                        isAdmin ? "bg-blue-600 text-white rounded-br-sm" : "bg-slate-100 text-slate-800 rounded-bl-sm"
+                        isAdmin ? "bg-blue-600 text-white rounded-br-sm" : "bg-violet-100 text-violet-900 rounded-bl-sm"
                       }`}>
                         <p className={`text-[9px] font-bold mb-0.5 ${isAdmin ? "text-blue-200" : "text-slate-400"}`}>
                           {isAdmin ? "You (Admin)" : (selected.visitorName || "Visitor")}
@@ -4688,6 +4731,7 @@ export function AdminPage() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [showFingerprintSetup, setShowFingerprintSetup] = useState(false);
   const [paymentUnread, setPaymentUnread] = useState(0);
+  const [liveUnread, setLiveUnread] = useState(0);
   const lastNotifTs = useRef(0);
   const mainRef = useRef<HTMLElement>(null);
   const { toast } = useToast();
@@ -4808,6 +4852,22 @@ export function AdminPage() {
     const id = setInterval(poll, 8000);
     return () => clearInterval(id);
   }, [authed, toast]);
+
+  // Poll live-chat sessions → Users tab unread badge
+  useEffect(() => {
+    if (!authed) return;
+    const poll = async () => {
+      try {
+        const r = await fetch("/api/admin/chat/sessions");
+        if (!r.ok) return;
+        const data = await r.json() as { id: number; unreadAdmin: number }[];
+        setLiveUnread(data.reduce((s, sess) => s + (sess.unreadAdmin ?? 0), 0));
+      } catch { /* non-fatal */ }
+    };
+    poll();
+    const id = setInterval(poll, 5000);
+    return () => clearInterval(id);
+  }, [authed]);
 
   function handleLogin(password: string, isDefault: boolean) {
     setPwd(password);
@@ -5040,12 +5100,20 @@ export function AdminPage() {
           >
             {BOTTOM_NAV.map(item => {
               const active = tab === item.id;
+              const navBadge = item.id === "users" && liveUnread > 0 ? liveUnread : null;
               return (
-                <button key={item.id} onClick={() => setTab(item.id)}
+                <button key={item.id} onClick={() => { setTab(item.id); if (item.id === "users") setLiveUnread(0); }}
                   className={`flex-1 flex flex-col items-center gap-1 py-3 px-1 transition-colors ${
                     active ? "text-blue-400" : "text-slate-600 hover:text-slate-400"
                   }`}>
-                  <item.icon size={17} strokeWidth={active ? 2.5 : 1.8} />
+                  <div className="relative">
+                    <item.icon size={17} strokeWidth={active ? 2.5 : 1.8} />
+                    {navBadge !== null && (
+                      <span className="absolute -top-1.5 -right-2 min-w-[14px] h-[14px] rounded-full bg-red-500 text-white text-[8px] font-bold flex items-center justify-center px-0.5 leading-none">
+                        {navBadge > 99 ? "99+" : navBadge}
+                      </span>
+                    )}
+                  </div>
                   <span className="text-[9px] font-bold leading-none truncate">{item.label}</span>
                 </button>
               );

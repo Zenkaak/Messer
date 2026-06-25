@@ -535,6 +535,19 @@ router.post("/admin/users/:id/message", async (req, res) => {
   }
 });
 
+// DELETE — remove a single DM message (delete for everyone)
+router.delete("/admin/users/:id/messages/:msgId", async (req, res) => {
+  try {
+    if (!(await checkAdminAuth(req, res))) return;
+    const msgId = Number(req.params.msgId);
+    await db.delete(liveChatMessagesTable).where(eq(liveChatMessagesTable.id, msgId));
+    res.json({ ok: true });
+  } catch (err) {
+    req.log.error({ err }, "Failed to delete message");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 router.post("/admin/users/:id/wallet", async (req, res) => {
   try {
     if (!(await checkAdminAuth(req, res))) return;

@@ -1859,7 +1859,15 @@ export function GsmBot() {
 
   // ── Send human message ────────────────────────────────────────────────────
   async function sendHumanMessage() {
-    if ((!humanInput.trim() && !humanFile) || humanSending || !sessionId) return;
+    if ((!humanInput.trim() && !humanFile) || humanSending) return;
+    if (!sessionId) {
+      setHumanMessages(prev => [...prev, {
+        id: Date.now(), sessionId: 0, senderType: "admin" as const,
+        message: "⏳ Still connecting to support — please try again in a moment.",
+        createdAt: new Date().toISOString(), fileUrl: null,
+      }]);
+      return;
+    }
     setHumanSending(true);
     try {
       let fileUrl: string | null = null;
@@ -2054,7 +2062,7 @@ export function GsmBot() {
                       )}
                       <div className="max-w-[85%]">
                         <div className={`px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
-                          isAdmin ? "bg-gray-100 text-gray-800 rounded-bl-sm" : "bg-[#1a2332] text-white rounded-br-sm"
+                          isAdmin ? "bg-emerald-100 text-emerald-900 rounded-bl-sm" : "bg-blue-600 text-white rounded-br-sm"
                         }`}>
                           {isAdmin && <p className="text-[10px] font-bold text-gray-500 mb-0.5">Support Team</p>}
                           {msg.message}
@@ -2127,7 +2135,7 @@ export function GsmBot() {
                       className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 h-9"
                     />
                     <button onClick={sendHumanMessage}
-                      disabled={humanSending || (!humanInput.trim() && !humanFile) || !sessionId}
+                      disabled={humanSending || (!humanInput.trim() && !humanFile)}
                       className="w-9 h-9 text-white rounded-xl flex items-center justify-center disabled:opacity-40 transition-colors shrink-0"
                       style={{ background: "linear-gradient(135deg,#1a2332 0%,#1e3a5f 100%)" }}>
                       {humanSending ? <RefreshCw size={14} className="animate-spin" /> : <Send size={14} />}
