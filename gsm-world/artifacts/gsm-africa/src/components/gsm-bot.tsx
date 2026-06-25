@@ -2026,8 +2026,8 @@ export function GsmBot() {
                   <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center shrink-0 mt-0.5">
                     <Headphones size={11} className="text-emerald-600" />
                   </div>
-                  <div className="max-w-[85%] bg-gray-100 text-gray-800 rounded-2xl rounded-bl-sm px-3.5 py-2.5 text-sm leading-relaxed">
-                    <p className="text-[10px] font-bold text-gray-500 mb-0.5">Support Team</p>
+                  <div className="max-w-[85%] bg-emerald-100 text-emerald-900 rounded-2xl rounded-bl-sm px-3.5 py-2.5 text-sm leading-relaxed">
+                    <p className="text-[10px] font-bold text-emerald-600 mb-0.5">Support Team</p>
                     You're now connected to our live support. Our team will respond shortly — usually within a few minutes.
                   </div>
                 </div>

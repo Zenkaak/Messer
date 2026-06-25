@@ -2619,15 +2619,17 @@ router.post("/chat/bot", async (req, res) => {
         req.log.warn({ err: smsErr }, "requestHuman: OTS SMS threw — skipping");
       }
 
-      // ── 2. Always send admin email notification as fallback ──────────────────
+      // ── 2. Build visitor info string (used in email + WhatsApp) ────────────
+      const visitorLine = [
+        visitorName ? `Name: ${String(visitorName)}` : null,
+        visitorEmail ? `Email: ${String(visitorEmail)}` : null,
+      ].filter(Boolean).join(", ") || "Anonymous visitor";
+
+      // ── 3. Always send admin email notification as fallback ──────────────────
       try {
         const smtpCfg = await getSmtpConfig();
         const adminEmail = smtpCfg.emailFrom;
         if (adminEmail) {
-          const visitorLine = [
-            visitorName ? `Name: ${String(visitorName)}` : null,
-            visitorEmail ? `Email: ${String(visitorEmail)}` : null,
-          ].filter(Boolean).join(", ") || "Anonymous visitor";
           await sendEmail({
             to: adminEmail,
             subject: "🔔 GSM World — Customer requesting human support",
@@ -2641,7 +2643,7 @@ router.post("/chat/bot", async (req, res) => {
         req.log.warn({ err: emailErr }, "requestHuman: admin email failed");
       }
 
-      // ── 3. WhatsApp notification via CallMeBot ───────────────────────────────
+      // ── 4. WhatsApp notification via CallMeBot ───────────────────────────────
       sendWhatsAppNotification(
         `🔔 GSM World Live Chat\nCustomer needs support!\n${visitorLine}\nOpen admin panel to respond.`
       ).then(r => {
@@ -2649,7 +2651,7 @@ router.post("/chat/bot", async (req, res) => {
         else req.log.warn({ reason: r.reason }, "requestHuman: WhatsApp notification failed");
       }).catch(() => {});
 
-      // ── 4. Create / reuse live chat session in DB ────────────────────────────
+      // ── 5. Create / reuse live chat session in DB ────────────────────────────
       let sessionId: number | null = null;
       if (visitorId) {
         try {
