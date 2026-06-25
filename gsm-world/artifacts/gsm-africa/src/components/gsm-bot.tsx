@@ -1399,6 +1399,11 @@ export function GsmBot() {
   const { user, isAuthenticated, login } = useAuth();
   const [open, setOpen] = useState(false);
   const [tooltipVisible, setTooltipVisible] = useState(true);
+  useEffect(() => {
+    const handler = () => setOpen(true);
+    window.addEventListener('gsm:open-chat', handler);
+    return () => window.removeEventListener('gsm:open-chat', handler);
+  }, []);
   // Bot chat state
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
     if (typeof window === "undefined") return [WELCOME];

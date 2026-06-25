@@ -33,7 +33,6 @@ type CheckoutResult = {
 };
 
 const ACTIVATION_FEE_USD = 5;
-const SUPPORT_WHATSAPP = "254756816951";
 
 export function CheckoutPage() {
   const [, navigate] = useLocation();
@@ -50,7 +49,7 @@ export function CheckoutPage() {
   const [editingEmail, setEditingEmail] = useState(!user?.email);
   const [phone, setPhone] = useState("");
   const [deviceIdentifier, setDeviceIdentifier] = useState("");
-  const [payMethod, setPayMethod] = useState<PayMethod>("mpesa");
+  const [payMethod, setPayMethod] = useState<PayMethod>("nowpayments");
   const [coupon, setCoupon] = useState("");
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [npCurrency, setNpCurrency] = useState("usdttrc20");
@@ -433,7 +432,6 @@ export function CheckoutPage() {
     );
   }
 
-  const cartKES = Math.ceil((cart?.items ?? []).reduce((sum, item) => sum + Number(item.price) * item.quantity, 0) * 130);
 
   // ── Main checkout form ─────────────────────────────────────────────────────
   return (
@@ -530,40 +528,6 @@ export function CheckoutPage() {
                 <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Payment Method</p>
               </div>
               <div className="p-3 space-y-2">
-
-                {/* M-Pesa */}
-                <PayMethodCard
-                  selected={payMethod === "mpesa"}
-                  onSelect={() => setPayMethod("mpesa")}
-                  left={
-                    <div className="w-11 h-10 bg-green-600 rounded-xl flex items-center justify-center shrink-0">
-                      <span className="text-white font-black text-[10px] leading-none text-center">M<br />PESA</span>
-                    </div>
-                  }
-                  title="M-Pesa"
-                  subtitle="STK Push · Kenya"
-                  badge={<span className="text-[9px] bg-green-100 text-green-700 font-bold px-1.5 py-0.5 rounded-full">POPULAR</span>}
-                />
-                {payMethod === "mpesa" && (
-                  <div className="px-3 pb-1 space-y-2">
-                    <div className="bg-green-50 border border-green-200 rounded-xl px-3 py-2 text-xs text-green-700">
-                      You'll be charged in KES via M-Pesa. Approximate: <strong>KES {cartKES.toLocaleString()}</strong>
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1.5">M-Pesa Phone Number</label>
-                      <div className="flex items-center border border-gray-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-green-400 focus-within:border-green-400 transition-all">
-                        <span className="px-3 py-2.5 bg-gray-50 text-sm text-gray-600 font-medium border-r border-gray-200">+254</span>
-                        <input
-                          type="tel"
-                          value={phone}
-                          onChange={(e) => setPhone(e.target.value)}
-                          placeholder="7XX XXX XXX"
-                          className="flex-1 px-3 py-2.5 text-sm focus:outline-none"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                )}
 
                 {/* GSM Wallet */}
                 <PayMethodCard
@@ -696,14 +660,12 @@ export function CheckoutPage() {
                 <div className="px-1 pt-1">
                   <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-200/70 bg-amber-50/70 px-3 py-2 text-xs shadow-sm">
                     <span className="font-bold text-amber-700">Need a different method?</span>
-                    <a
-                      href={`https://wa.me/${SUPPORT_WHATSAPP}?text=${encodeURIComponent("Hi, I need help with a payment method on GSM World.")}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="font-black text-green-700"
+                    <button
+                      onClick={() => window.dispatchEvent(new CustomEvent('gsm:open-chat'))}
+                      className="font-black text-blue-700"
                     >
-                      Contact support →
-                    </a>
+                      Chat with us →
+                    </button>
                   </div>
                 </div>
               </div>
@@ -773,17 +735,14 @@ export function CheckoutPage() {
               </div>
             </div>
 
-            {/* Pay Now card */}
-            <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+            {/* Pay Now card — hidden on mobile; fixed bottom bar handles mobile */}
+            <div className="hidden md:block bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
               <div className="px-5 py-5 space-y-4">
                 {/* Total display */}
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs text-gray-400 uppercase tracking-wider font-semibold">Amount Due</p>
                     <p className="text-3xl font-black text-gray-900 leading-none mt-0.5">${cart.total.toFixed(2)}</p>
-                    {payMethod === "mpesa" && (
-                      <p className="text-xs text-green-600 font-semibold mt-1">≈ KES {cartKES.toLocaleString()}</p>
-                    )}
                   </div>
                   <div className="w-14 h-14 rounded-2xl bg-[#1a2332] flex items-center justify-center shadow-lg shadow-slate-900/20">
                     <Zap size={24} className="text-blue-400" />
