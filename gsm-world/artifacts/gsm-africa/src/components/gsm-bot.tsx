@@ -1401,8 +1401,13 @@ export function GsmBot() {
   const [tooltipVisible, setTooltipVisible] = useState(true);
   useEffect(() => {
     const handler = () => setOpen(true);
+    const liveHandler = () => { openLiveChatRef.current = true; setOpen(true); };
     window.addEventListener('gsm:open-chat', handler);
-    return () => window.removeEventListener('gsm:open-chat', handler);
+    window.addEventListener('gsm:open-live-chat', liveHandler);
+    return () => {
+      window.removeEventListener('gsm:open-chat', handler);
+      window.removeEventListener('gsm:open-live-chat', liveHandler);
+    };
   }, []);
   // Bot chat state
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
@@ -1457,6 +1462,7 @@ export function GsmBot() {
   const inactivityWarnRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inactivityCloseRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const visitorId = useRef(getVisitorId());
+  const openLiveChatRef = useRef(false);
   const base = apiBase();
 
   // IMEI auto-lookup states
@@ -1848,6 +1854,15 @@ export function GsmBot() {
     }
     void requestHuman();
   }
+
+  // ── Auto-trigger live chat when opened via gsm:open-live-chat ───────────
+  useEffect(() => {
+    if (open && openLiveChatRef.current && !humanMode && !loading) {
+      openLiveChatRef.current = false;
+      startHumanRequest();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   // ── Submit captured email + phone then connect ────────────────────────────
   function submitEmailAndConnect() {
