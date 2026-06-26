@@ -113,26 +113,6 @@ function getVisitorId(): string {
   }
 }
 
-function luhnCheck(imei: string): boolean {
-  const digits = imei.replace(/\D/g, "");
-  if (digits.length !== 15) return false;
-  let sum = 0;
-  for (let i = 0; i < digits.length; i++) {
-    let d = parseInt(digits[digits.length - 1 - i], 10);
-    if (i % 2 === 1) {
-      d *= 2;
-      if (d > 9) d -= 9;
-    }
-    sum += d;
-  }
-  return sum % 10 === 0;
-}
-
-function extractImei(text: string): string | null {
-  const m = text.match(/\b(\d{15})\b/);
-  return m ? m[1] : null;
-}
-
 // ─── Chat history helpers ─────────────────────────────────────────────────────
 interface SavedConversation {
   id: string;
@@ -183,14 +163,14 @@ const SUGGESTIONS = [
   "Show me iPhone unlock services",
   "Check my order status",
   "Show featured deals",
-  "How to pay with crypto",
+  "How to pay with M-Pesa",
   "Android FRP bypass",
   "Cancel my order",
 ];
 
 const WELCOME: ChatMessage = {
   role: "assistant",
-  content: "Hi! I'm GSMBot 👋\n\nI can help you with:\n• 📱 iPhone & Android unlock services\n• 🔍 Look up or cancel your orders\n• 💳 Step-by-step payment help (USDT, Binance, Crypto)\n• 🎁 Gift cards & server credits\n• 🔧 IMEI checks, FRP bypass, tool activation\n\nWhat can I help you with today?",
+  content: "Hi! I'm GSMBot 👋\n\nI can help you with:\n• 📱 iPhone & Android unlock services\n• 🔍 Look up or cancel your orders\n• 💳 Step-by-step payment help (M-Pesa, USDT, Binance)\n• 🎁 Gift cards & server credits\n• 🔧 IMEI checks, FRP bypass, tool activation\n\nWhat can I help you with today?",
 };
 
 // ─── Status helpers ───────────────────────────────────────────────────────────
@@ -1419,6 +1399,11 @@ export function GsmBot() {
   const { user, isAuthenticated, login } = useAuth();
   const [open, setOpen] = useState(false);
   const [tooltipVisible, setTooltipVisible] = useState(true);
+  useEffect(() => {
+    const handler = () => setOpen(true);
+    window.addEventListener('gsm:open-chat', handler);
+    return () => window.removeEventListener('gsm:open-chat', handler);
+  }, []);
   // Bot chat state
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
     if (typeof window === "undefined") return [WELCOME];
@@ -1426,7 +1411,14 @@ export function GsmBot() {
       const saved = localStorage.getItem("gsm_chat_history");
       if (saved) {
         const parsed = JSON.parse(saved) as ChatMessage[];
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // Strip any "while you wait" messages — those belong only in the Live Support panel
+          const cleaned = parsed.filter(
+            m => !m.content.toLowerCase().includes("while you wait") &&
+                 !m.content.toLowerCase().includes("describe your issue in detail")
+          );
+          if (cleaned.length > 0) return cleaned;
+        }
       }
     } catch { /* ignore */ }
     return [WELCOME];
@@ -1445,16 +1437,10 @@ export function GsmBot() {
   const [sessionId, setSessionId] = useState<number | null>(null);
   const [sessionStatus, setSessionStatus] = useState<"waiting" | "active" | "closed">("waiting");
   const [humanMessages, setHumanMessages] = useState<HumanMessage[]>([]);
+  const [showDescribePrompt, setShowDescribePrompt] = useState(false);
   const [humanInput, setHumanInput] = useState("");
   const [humanSending, setHumanSending] = useState(false);
   const [humanFile, setHumanFile] = useState<File | null>(null);
-  const [imeiWarning, setImeiWarning] = useState<string | null>(null);
-  const [tacInfo, setTacInfo] = useState<{ brand: string | null; model: string | null; os: string | null } | null>(null);
-  const [tacLoading, setTacLoading] = useState(false);
-  // IMEI detection for the main bot input
-  const [botImei, setBotImei] = useState<string | null>(null);
-  const [botImeiInfo, setBotImeiInfo] = useState<{ brand: string | null; model: string | null; os: string | null } | null>(null);
-  const [botTacLoading, setBotTacLoading] = useState(false);
   const [lastPollTime, setLastPollTime] = useState<Date | null>(null);
   // Email + phone capture step for guest users
   const [humanEmailStep, setHumanEmailStep] = useState(false);
@@ -1468,8 +1454,40 @@ export function GsmBot() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const emailCaptureRef = useRef<HTMLInputElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const inactivityWarnRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inactivityCloseRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const visitorId = useRef(getVisitorId());
   const base = apiBase();
+
+  // IMEI auto-lookup states
+  const [imeiDetected, setImeiDetected] = useState<string | null>(null);
+  const [imeiLookupResult, setImeiLookupResult] = useState<{ brand: string | null; model: string | null; simLock: string | null } | null>(null);
+  const [imeiLookupLoading, setImeiLookupLoading] = useState(false);
+
+  // Detect 15-digit IMEI in bot input and auto-lookup device info
+  useEffect(() => {
+    const digits = input.replace(/[\s\-]/g, "");
+    if (!/^\d{15}$/.test(digits) || !luhnValid(digits)) {
+      if (imeiDetected) { setImeiDetected(null); setImeiLookupResult(null); }
+      return;
+    }
+    if (digits === imeiDetected) return;
+    setImeiDetected(digits);
+    setImeiLookupResult(null);
+    setImeiLookupLoading(true);
+    fetch(`${base}/api/imei/lookup?imei=${digits}`)
+      .then(r => r.json())
+      .then((d: { brand?: string | null; model?: string | null; marketingName?: string | null; manufacturer?: string | null; simLock?: string | null }) => {
+        setImeiLookupResult({
+          brand: d.brand ?? d.manufacturer ?? null,
+          model: d.marketingName ?? d.model ?? null,
+          simLock: d.simLock ?? null,
+        });
+      })
+      .catch(() => setImeiLookupResult({ brand: null, model: null, simLock: null }))
+      .finally(() => setImeiLookupLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [input]);
 
   useEffect(() => {
     try {
@@ -1503,15 +1521,56 @@ export function GsmBot() {
     setSavedConversations(getSavedConversations());
   }
 
+  // ── 30-minute inactivity auto-close ──────────────────────────────────────────
+  const WARN_MS  = 25 * 60 * 1000;  // 25 min → show warning
+  const CLOSE_MS = 30 * 60 * 1000;  // 30 min → close chat
+
+  const clearInactivityTimers = useCallback(() => {
+    if (inactivityWarnRef.current)  { clearTimeout(inactivityWarnRef.current);  inactivityWarnRef.current  = null; }
+    if (inactivityCloseRef.current) { clearTimeout(inactivityCloseRef.current); inactivityCloseRef.current = null; }
+  }, []);
+
+  const resetInactivityTimer = useCallback(() => {
+    clearInactivityTimers();
+    inactivityWarnRef.current = setTimeout(() => {
+      setMessages(prev => [
+        ...prev,
+        {
+          role: "assistant" as const,
+          content: "⏳ Just checking in — your chat session will **automatically close in 5 minutes** due to inactivity. Send a message to stay connected!",
+        },
+      ]);
+    }, WARN_MS);
+    inactivityCloseRef.current = setTimeout(() => {
+      // Save current conversation to history so the user can resume it
+      setMessages(prev => {
+        const hasUser = prev.some(m => m.role === "user");
+        if (hasUser) persistConversation(prev);
+        return [
+          {
+            role: "assistant" as const,
+            content: "👋 Your session was saved due to 30 minutes of inactivity. Tap the **history icon** (top-left) to pick up where you left off!",
+          },
+        ];
+      });
+      setSavedConversations(getSavedConversations());
+      setOpen(false);
+    }, CLOSE_MS);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clearInactivityTimers]);
+
   useEffect(() => {
     if (open) {
       setTooltipVisible(false);
+      resetInactivityTimer();
       setTimeout(() => {
         bottomRef.current?.scrollIntoView({ behavior: "smooth" });
         (humanMode ? humanInputRef : inputRef).current?.focus();
       }, 120);
+    } else {
+      clearInactivityTimers();
     }
-  }, [open, humanMode]);
+  }, [open, humanMode, resetInactivityTimer, clearInactivityTimers]);
 
   // Auto-hide tooltip after 8 seconds
   useEffect(() => {
@@ -1520,6 +1579,12 @@ export function GsmBot() {
   }, []);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, humanMessages]);
+
+  // Show describe-issue prompt in Live Support chatbox immediately when human mode starts
+  useEffect(() => {
+    if (!humanMode) { setShowDescribePrompt(false); return; }
+    setShowDescribePrompt(true);
+  }, [humanMode]);
 
   // Poll for human chat messages
   const pollHumanMessages = useCallback(async (sid: number) => {
@@ -1565,6 +1630,9 @@ export function GsmBot() {
   // ── Bot send (SSE streaming) ──────────────────────────────────────────────
   async function sendMessage(text: string = input.trim()) {
     if (!text || loading) return;
+
+    // Reset the 30-min inactivity timer on every user message
+    resetInactivityTimer();
 
     // Handle numeric product selection
     const numMatch = text.match(/^(\d+)$/);
@@ -1743,15 +1811,8 @@ export function GsmBot() {
         }),
       });
       const data = (await res.json()) as BotResponse;
-      setMessages(prev => [...prev, { role: "assistant", content: data.message }]);
-
-      // Follow-up: prompt user to describe their issue while waiting
-      setTimeout(() => {
-        setMessages(prev => [...prev, {
-          role: "assistant",
-          content: "✍️ **While you wait, please describe your issue in detail:**\n\nInclude:\n• Your device model & IMEI (if applicable)\n• What you\'ve already tried\n• Any error messages you saw\n\nThe more detail you share now, the faster our agent can help you! 🚀",
-        }]);
-      }, 800);
+      // Note: data.message is the server confirmation — shown in Live Support chatbox,
+      // not here. showDescribePrompt (useEffect) handles the follow-up in humanMode.
 
       const sid = data.sessionId ?? null;
       setSessionId(sid);
@@ -1765,8 +1826,7 @@ export function GsmBot() {
         await pollHumanMessages(sid);
       }
     } catch {
-      // API unreachable — still enter human mode with a clear message
-      setMessages(prev => [...prev, { role: "assistant", content: "🔗 You're now connected to our support queue!\n\nWhile you wait for a human agent to join, **please describe your issue in detail** — include your device model, IMEI (if applicable), what you've already tried, and any error messages you saw. The more you share now, the faster we can help you! ✍️\n\nYour message has been received and a member of our team will respond shortly. You'll receive an email notification as soon as we reply." }]);
+      // API unreachable — enter human mode; showDescribePrompt will handle the follow-up
       setHumanMode(true);
       setSessionStatus("waiting");
       setHumanEmailStep(false);
@@ -1782,9 +1842,7 @@ export function GsmBot() {
       // Guest: collect contact details first
       setHumanEmailStep(true);
       setCapturedEmail("");
-      setCapturedPhone("");
       setEmailError("");
-      setPhoneError("");
       setTimeout(() => emailCaptureRef.current?.focus(), 100);
       return;
     }
@@ -1806,7 +1864,15 @@ export function GsmBot() {
 
   // ── Send human message ────────────────────────────────────────────────────
   async function sendHumanMessage() {
-    if ((!humanInput.trim() && !humanFile) || humanSending || !sessionId) return;
+    if ((!humanInput.trim() && !humanFile) || humanSending) return;
+    if (!sessionId) {
+      setHumanMessages(prev => [...prev, {
+        id: Date.now(), sessionId: 0, senderType: "admin" as const,
+        message: "⏳ Still connecting to support — please try again in a moment.",
+        createdAt: new Date().toISOString(), fileUrl: null,
+      }]);
+      return;
+    }
     setHumanSending(true);
     try {
       let fileUrl: string | null = null;
@@ -1878,8 +1944,8 @@ export function GsmBot() {
         />
       )}
       {open && (
-        <div className="fixed inset-0 md:inset-6 z-[300] bg-white md:rounded-3xl shadow-2xl flex flex-col overflow-hidden"
-          style={{}}>
+        <div className="fixed inset-0 md:inset-6 z-[300] md:rounded-3xl shadow-2xl flex flex-col overflow-hidden text-gray-900"
+          style={{ background: "linear-gradient(160deg,#eef2ff 0%,#f5f0ff 50%,#edfcf4 100%)" }}>
 
 
           {/* ── HEADER ── */}
@@ -1960,33 +2026,35 @@ export function GsmBot() {
               </div>
 
               {/* Human messages */}
-              <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2.5">
+              <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2.5" style={{ background: "linear-gradient(180deg,#edfcf4 0%,#f0f4ff 100%)" }}>
                 <div className="flex gap-2 justify-start">
                   <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center shrink-0 mt-0.5">
                     <Headphones size={11} className="text-emerald-600" />
                   </div>
-                  <div className="max-w-[85%] bg-gray-100 text-gray-800 rounded-2xl rounded-bl-sm px-3.5 py-2.5 text-sm leading-relaxed">
-                    <p className="text-[10px] font-bold text-gray-500 mb-0.5">Support Team</p>
+                  <div className="max-w-[85%] bg-emerald-100 text-emerald-900 rounded-2xl rounded-bl-sm px-3.5 py-2.5 text-sm leading-relaxed">
+                    <p className="text-[10px] font-bold text-emerald-600 mb-0.5">Support Team</p>
                     You're now connected to our live support. Our team will respond shortly — usually within a few minutes.
                   </div>
                 </div>
 
-                <div className="flex gap-2 justify-start">
+                <div className="flex gap-2 justify-start" style={{ animation: "fadeSlideIn 0.45s ease both", animationDelay: "1.2s" }}>
                   <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center shrink-0 mt-0.5">
                     <Headphones size={11} className="text-emerald-600" />
                   </div>
-                  <div className="max-w-[85%] bg-gray-100 text-gray-800 rounded-2xl rounded-bl-sm px-3.5 py-2.5 text-sm leading-relaxed">
-                    <p className="text-[10px] font-bold text-gray-500 mb-1">Support Team</p>
-                    <p className="font-semibold mb-1.5">While you wait, please describe your issue in detail:</p>
-                    <p className="text-[12px] mb-1">Include:</p>
-                    <ul className="space-y-0.5 mb-1.5 text-[12px]">
+                  <div className="max-w-[90%] rounded-2xl rounded-bl-sm px-3.5 py-3 text-sm leading-relaxed"
+                    style={{ background: "linear-gradient(135deg,#f0fdf4,#ecfdf5)", border: "1px solid rgba(34,197,94,0.2)" }}>
+                    <p className="text-[10px] font-bold text-gray-500 mb-1.5">Support Team</p>
+                    <p className="font-bold text-[12px] text-gray-800 mb-2">✍️ While you wait, please describe your issue in detail:</p>
+                    <p className="text-[11px] text-gray-500 mb-1.5 font-semibold">Include:</p>
+                    <ul className="text-[11px] text-gray-600 space-y-1 mb-2.5">
                       <li>• Your device model &amp; IMEI (if applicable)</li>
                       <li>• What you've already tried</li>
                       <li>• Any error messages you saw</li>
                     </ul>
-                    <p className="text-[12px]">The more detail you share now, the faster our agent can help you! 🚀</p>
+                    <p className="text-[11px] text-emerald-700 font-semibold">The more detail you share now, the faster our agent can help you! 🚀</p>
                   </div>
                 </div>
+                <style>{`@keyframes fadeSlideIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }`}</style>
 
                 {humanMessages.map(msg => {
                   const isAdmin = msg.senderType === "admin";
@@ -1999,7 +2067,7 @@ export function GsmBot() {
                       )}
                       <div className="max-w-[85%]">
                         <div className={`px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
-                          isAdmin ? "bg-gray-100 text-gray-800 rounded-bl-sm" : "bg-[#1a2332] text-white rounded-br-sm"
+                          isAdmin ? "bg-emerald-100 text-emerald-900 rounded-bl-sm" : "bg-blue-600 text-white rounded-br-sm"
                         }`}>
                           {isAdmin && <p className="text-[10px] font-bold text-gray-500 mb-0.5">Support Team</p>}
                           {msg.message}
@@ -2042,40 +2110,6 @@ export function GsmBot() {
               {/* Human input area */}
               {sessionStatus !== "closed" && (
                 <div className="px-3 pb-3 pt-2 border-t border-gray-100 shrink-0 space-y-2">
-                  {imeiWarning && (
-                    <div className="flex items-center gap-1.5 bg-red-50 border border-red-200 rounded-lg px-3 py-1.5">
-                      <AlertCircle size={12} className="text-red-500 shrink-0" />
-                      <span className="text-[11px] font-semibold text-red-600">{imeiWarning}</span>
-                    </div>
-                  )}
-                  {tacLoading && !imeiWarning && (
-                    <div className="flex items-center gap-1.5 bg-blue-50 border border-blue-100 rounded-lg px-3 py-1.5">
-                      <RefreshCw size={11} className="text-blue-400 animate-spin shrink-0" />
-                      <span className="text-[11px] text-blue-500">Looking up device…</span>
-                    </div>
-                  )}
-                  {tacInfo && (tacInfo.brand || tacInfo.model) && !imeiWarning && !tacLoading && (
-                    <div className="bg-green-50 border border-green-200 rounded-xl px-3 py-2 space-y-1.5">
-                      <div className="flex items-center gap-1.5">
-                        <Smartphone size={12} className="text-green-600 shrink-0" />
-                        <span className="text-[11px] font-bold text-green-800">
-                          {[tacInfo.brand, tacInfo.model].filter(Boolean).join(" ")}
-                        </span>
-                        {tacInfo.os && <span className="text-[10px] text-green-600 bg-green-100 rounded-full px-1.5 py-0.5">{tacInfo.os}</span>}
-                      </div>
-                      <button
-                        onClick={() => {
-                          const deviceStr = [tacInfo.brand, tacInfo.model].filter(Boolean).join(" ");
-                          const detectedImei = extractImei(humanInput);
-                          const addition = `\nDevice: ${deviceStr}${detectedImei ? ` (IMEI: ${detectedImei})` : ""}`;
-                          setHumanInput(prev => prev.includes("Device:") ? prev : prev + addition);
-                          humanInputRef.current?.focus();
-                        }}
-                        className="text-[10px] font-bold text-green-700 bg-green-100 hover:bg-green-200 border border-green-300 rounded-lg px-2.5 py-1 transition-colors w-full text-center">
-                        + Add device info to my message
-                      </button>
-                    </div>
-                  )}
                   <div className="flex gap-2 items-end">
                     <input
                       ref={fileInputRef}
@@ -2099,37 +2133,11 @@ export function GsmBot() {
                     <input
                       ref={humanInputRef}
                       value={humanInput}
-                      onChange={e => {
-                        const val = e.target.value;
-                        setHumanInput(val);
-                        const imei = extractImei(val);
-                        if (imei) {
-                          const valid = luhnCheck(imei);
-                          setImeiWarning(valid ? null : "Invalid IMEI — please double-check this number.");
-                          if (valid) {
-                            setTacInfo(null);
-                            setTacLoading(true);
-                            fetch(`${import.meta.env.BASE_URL}api/imei/lookup/${imei}`)
-                              .then(r => r.json())
-                              .then((d: { brand?: string | null; model?: string | null; os?: string | null }) => {
-                                setTacInfo({ brand: d.brand ?? null, model: d.model ?? null, os: d.os ?? null });
-                              })
-                              .catch(() => setTacInfo({ brand: null, model: null, os: null }))
-                              .finally(() => setTacLoading(false));
-                          } else {
-                            setTacInfo(null);
-                            setTacLoading(false);
-                          }
-                        } else {
-                          setImeiWarning(null);
-                          setTacInfo(null);
-                          setTacLoading(false);
-                        }
-                      }}
+                      onChange={e => setHumanInput(e.target.value)}
                       onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendHumanMessage(); } }}
                       placeholder="Type your message…"
                       disabled={humanSending}
-                      className={`flex-1 bg-gray-50 border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-1 h-9 ${imeiWarning ? "border-red-400 focus:border-red-400 focus:ring-red-200" : "border-gray-200 focus:border-blue-400 focus:ring-blue-400"}`}
+                      className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 h-9"
                     />
                     <button onClick={sendHumanMessage}
                       disabled={humanSending || (!humanInput.trim() && !humanFile)}
@@ -2208,7 +2216,7 @@ export function GsmBot() {
           ) : (
             <>
               {/* ── BOT CHAT BODY ── */}
-              <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2.5">
+              <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2.5" style={{ background: "linear-gradient(180deg,#eef2ff 0%,#f5f0ff 100%)" }}>
                 {messages.map((m, i) => (
                   <div key={i} className={`flex gap-2 ${m.role === "user" ? "justify-end" : "justify-start"}`}>
                     {m.role === "assistant" && (
@@ -2326,13 +2334,13 @@ export function GsmBot() {
               {/* Bot input area */}
               <div className="px-3 pb-3 pt-2 border-t border-gray-100 shrink-0 space-y-2">
                 {humanEmailStep ? (
-                  /* ── Email capture step for guests ── */
+                  /* ── Email-only capture for guests ── */
                   <div className="space-y-2">
                     <div className="flex items-start gap-2 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2.5">
                       <Headphones size={13} className="text-blue-600 shrink-0 mt-0.5" />
                       <div>
                         <p className="text-[11px] font-bold text-blue-800">Enter your email to connect</p>
-                        <p className="text-[10px] text-blue-600 leading-relaxed mt-0.5">We'll email you when an agent joins your chat so you don't have to wait at the screen.</p>
+                        <p className="text-[10px] text-blue-600 leading-relaxed mt-0.5">We'll email you when an agent joins so you don't have to stay on screen.</p>
                       </div>
                     </div>
                     <div>
@@ -2370,103 +2378,72 @@ export function GsmBot() {
                       className="w-full flex items-center justify-center gap-1.5 text-[11px] font-semibold text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-xl py-1.5 transition-colors border border-slate-200 disabled:opacity-40">
                       <Phone size={11} /> Talk to a human agent
                     </button>
-
-                    {/* ── IMEI device info card for main bot input ── */}
-                    {(botTacLoading || botImeiInfo) && (
-                      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
-                        <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 border-b border-slate-100">
-                          <Smartphone size={12} className="text-blue-500 shrink-0" />
-                          <span className="font-bold text-slate-700 text-[11px]">Device Detected</span>
-                          <span className="ml-auto font-mono text-[10px] text-slate-400 truncate max-w-[120px]">{botImei}</span>
-                        </div>
-                        {botTacLoading ? (
-                          <div className="flex items-center gap-2 px-3 py-2.5">
-                            <RefreshCw size={11} className="text-blue-400 animate-spin" />
-                            <span className="text-[11px] text-slate-500">Looking up device info…</span>
-                          </div>
-                        ) : botImeiInfo && (
-                          <div className="px-3 py-2.5 space-y-2.5">
-                            {(botImeiInfo.brand || botImeiInfo.model) ? (
-                              <div className="flex items-start gap-2">
-                                <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
-                                  <Smartphone size={15} className="text-blue-500" />
-                                </div>
-                                <div>
-                                  <p className="font-bold text-slate-800 text-[13px] leading-tight">
-                                    {[botImeiInfo.brand, botImeiInfo.model].filter(Boolean).join(" ")}
-                                  </p>
-                                  {botImeiInfo.os && (
-                                    <span className="text-[10px] text-slate-500 bg-slate-100 rounded-full px-1.5 py-0.5 inline-block mt-0.5">
-                                      {botImeiInfo.os}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            ) : (
-                              <p className="text-[11px] text-slate-500">IMEI is valid — device details not in database</p>
-                            )}
-                            <div className="flex gap-1.5 flex-wrap">
-                              <button
-                                onClick={() => {
-                                  const label = [botImeiInfo.brand, botImeiInfo.model].filter(Boolean).join(" ") || "device";
-                                  void sendMessage(`I want to unlock my ${label}, IMEI: ${botImei}. Show me available unlock services.`);
-                                  setInput("");
-                                  setBotImei(null);
-                                  setBotImeiInfo(null);
-                                }}
-                                className="flex items-center gap-1 text-[11px] font-bold text-white rounded-lg px-2.5 py-1.5 transition-colors"
-                                style={{ background: "linear-gradient(135deg,#1a2332 0%,#1e3a5f 100%)" }}>
-                                🔓 Unlock this device
-                              </button>
-                              <button
-                                onClick={() => {
-                                  const label = [botImeiInfo.brand, botImeiInfo.model].filter(Boolean).join(" ");
-                                  const msg = label
-                                    ? `My ${label} IMEI is: ${botImei}`
-                                    : `My device IMEI is: ${botImei}`;
-                                  void sendMessage(msg);
-                                  setInput("");
-                                  setBotImei(null);
-                                  setBotImeiInfo(null);
-                                }}
-                                className="flex items-center gap-1 text-[11px] font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg px-2.5 py-1.5 transition-colors">
-                                💬 Send to bot
-                              </button>
-                            </div>
-                          </div>
-                        )}
+                    {/* IMEI auto-lookup banner */}
+                    {imeiLookupLoading && imeiDetected && (
+                      <div className="flex items-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2">
+                        <RefreshCw size={11} className="text-blue-500 animate-spin shrink-0" />
+                        <p className="text-[11px] text-blue-700 font-semibold">Looking up device info for {imeiDetected}…</p>
                       </div>
                     )}
-
+                    {!imeiLookupLoading && imeiDetected && imeiLookupResult && (
+                      <div className="rounded-xl border border-emerald-200 bg-emerald-50 overflow-hidden">
+                        <div className="flex items-center gap-2 px-3 py-2">
+                          <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center shrink-0">
+                            <Smartphone size={14} className="text-emerald-600" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            {(imeiLookupResult.brand || imeiLookupResult.model) ? (
+                              <p className="text-[12px] font-bold text-emerald-900 truncate">
+                                {[imeiLookupResult.brand, imeiLookupResult.model].filter(Boolean).join(" · ")}
+                              </p>
+                            ) : (
+                              <p className="text-[12px] font-bold text-emerald-900">IMEI verified ✓</p>
+                            )}
+                            <p className="text-[10px] text-emerald-600 font-medium">IMEI {imeiDetected}</p>
+                          </div>
+                        </div>
+                        <div className="flex border-t border-emerald-100">
+                          <button
+                            onClick={() => {
+                              const device = [imeiLookupResult.brand, imeiLookupResult.model].filter(Boolean).join(" ");
+                              const msg = device
+                                ? `I want to unlock my ${device} — IMEI: ${imeiDetected}`
+                                : `I want to unlock my device — IMEI: ${imeiDetected}`;
+                              setInput("");
+                              setImeiDetected(null);
+                              setImeiLookupResult(null);
+                              void sendMessage(msg);
+                            }}
+                            className="flex-1 text-[11px] font-bold text-white py-1.5 transition-colors"
+                            style={{ background: "linear-gradient(135deg,#1a2332 0%,#1e3a5f 100%)" }}>
+                            🔓 Unlock this device
+                          </button>
+                          <button
+                            onClick={() => {
+                              const device = [imeiLookupResult.brand, imeiLookupResult.model].filter(Boolean).join(" ");
+                              const msg = device
+                                ? `My device is ${device} (IMEI: ${imeiDetected}). `
+                                : `My device IMEI is ${imeiDetected}. `;
+                              setInput(msg);
+                              setImeiDetected(null);
+                              setImeiLookupResult(null);
+                              inputRef.current?.focus();
+                            }}
+                            className="flex-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border-l border-emerald-100 py-1.5 hover:bg-emerald-100 transition-colors">
+                            💬 Add to message
+                          </button>
+                        </div>
+                      </div>
+                    )}
                     <div className="flex gap-2">
                       <input
                         ref={inputRef}
                         value={input}
-                        onChange={e => {
-                          const val = e.target.value;
-                          setInput(val);
-                          const imei = extractImei(val);
-                          if (imei && luhnCheck(imei)) {
-                            setBotImei(imei);
-                            setBotImeiInfo(null);
-                            setBotTacLoading(true);
-                            fetch(`${import.meta.env.BASE_URL}api/imei/lookup/${imei}`)
-                              .then(r => r.json())
-                              .then((d: { brand?: string | null; model?: string | null; os?: string | null }) => {
-                                setBotImeiInfo({ brand: d.brand ?? null, model: d.model ?? null, os: d.os ?? null });
-                              })
-                              .catch(() => setBotImeiInfo({ brand: null, model: null, os: null }))
-                              .finally(() => setBotTacLoading(false));
-                          } else {
-                            setBotImei(null);
-                            setBotImeiInfo(null);
-                            setBotTacLoading(false);
-                          }
-                        }}
+                        onChange={e => setInput(e.target.value)}
                         onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
-                        placeholder="Ask about products, orders, payments… or paste an IMEI"
+                        placeholder="Ask about products, orders, payments…"
                         disabled={loading}
-                        className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
+                        className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
                       />
                       <button onClick={() => sendMessage()} disabled={loading || !input.trim()}
                         className="w-9 h-9 text-white rounded-xl flex items-center justify-center disabled:opacity-40 transition-colors shrink-0"

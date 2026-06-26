@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
-import { Home, Grid, ShoppingCart, User, Search, Menu, Tag, X, Phone, Cpu, Lock, Server, Zap, Wallet, ChevronRight, Wrench, ChevronDown, Store, Download, Shield, Sun, Moon } from "lucide-react";
+import { Home, Grid, ShoppingCart, User, Search, Menu, Tag, X, Phone, Cpu, Lock, Server, Zap, Wallet, ChevronRight, Wrench, ChevronDown, Store, Download, Shield } from "lucide-react";
 import { useGetCart, getGetCartQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
@@ -8,7 +8,6 @@ import { useToast } from "@/hooks/use-toast";
 import { NotificationBell } from "@/components/notification-bell";
 import { GsmBot } from "@/components/gsm-bot";
 import { LiveNotifications } from "@/components/live-notifications";
-import { useTheme } from "@/context/theme-context";
 
 const GALLERY_IMAGES = [
   { url: "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=400&h=400&fit=crop&q=70", label: "iPhone 15 Pro Max" },
@@ -72,7 +71,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
   const { data: cart } = useGetCart();
   const { isAuthenticated } = useAuth();
-  const { theme, toggle: toggleTheme } = useTheme();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [toolsExpanded, setToolsExpanded] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
@@ -173,11 +171,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
         >
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
           <div
-            className="relative z-10 w-72 max-w-[85vw] h-full flex flex-col shadow-2xl overflow-y-auto bg-white dark:bg-[#0a0f1a] border-r border-gray-200 dark:border-white/7"
+            className="relative z-10 w-72 max-w-[85vw] h-full flex flex-col shadow-2xl overflow-y-auto"
+            style={{ background: "#0a0f1a", borderRight: "1px solid rgba(255,255,255,0.07)" }}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Sidebar header */}
-            <div className="bg-gray-100 dark:bg-[#1a2332] text-gray-900 dark:text-white px-5 py-4 flex items-center justify-between shrink-0 border-b border-gray-200 dark:border-transparent">
+            <div className="bg-[#1a2332] text-white px-5 py-4 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-xl bg-teal-500 flex items-center justify-center shadow-lg">
                   <span className="text-white font-black text-sm">G</span>
@@ -189,7 +188,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               </div>
               <button
                 onClick={() => setSidebarOpen(false)}
-                className="p-1.5 hover:bg-gray-200 dark:hover:bg-white/10 rounded-full transition-colors"
+                className="p-1.5 hover:bg-white/10 rounded-full transition-colors"
               >
                 <X size={18} />
               </button>
@@ -592,18 +591,18 @@ export function Layout({ children }: { children: React.ReactNode }) {
       )}
 
       {/* ── Header ── */}
-      <header className="sticky top-0 z-50 bg-white text-gray-900 border-b border-gray-200 dark:bg-[#1a2332] dark:text-white dark:border-transparent shadow-md">
+      <header className="sticky top-0 z-50 bg-[#1a2332] text-white shadow-md">
         <div className="max-w-7xl mx-auto px-4 flex items-center justify-between h-14">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setSidebarOpen(true)}
-              className="p-1 hover:bg-gray-100 dark:hover:bg-white/10 rounded-md transition-colors md:hidden"
+              className="p-1 hover:bg-white/10 rounded-md transition-colors md:hidden"
               aria-label="Open menu"
             >
               <Menu size={24} />
             </button>
             <Link href={`${basePath}/`} className="flex flex-col">
-              <span className="font-black text-lg leading-tight tracking-tight text-gray-900 dark:text-white hover:text-teal-600 dark:hover:text-teal-400 transition-colors">
+              <span className="font-black text-lg leading-tight tracking-tight text-white hover:text-teal-400 transition-colors">
                 GSM WORLD
               </span>
               <span className="text-[9px] text-gray-400 uppercase tracking-widest font-semibold hidden sm:block">
@@ -628,23 +627,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </nav>
 
           <div className="flex items-center gap-2">
-            <button className="p-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded-full transition-colors" aria-label="Search">
+            <button className="p-2 hover:bg-white/10 rounded-full transition-colors" aria-label="Search">
               <Search size={18} />
-            </button>
-            <button
-              onClick={toggleTheme}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded-full transition-colors"
-              aria-label="Toggle theme"
-              title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-            >
-              {theme === "dark" ? <Sun size={18} className="text-gray-700 dark:text-white" /> : <Moon size={18} className="text-gray-700 dark:text-white" />}
             </button>
             <NotificationBell />
 
-            <Link href={`${basePath}/cart`} className="relative p-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded-full transition-colors" aria-label="Cart">
+            <Link href={`${basePath}/cart`} className="relative p-2 hover:bg-white/10 rounded-full transition-colors" aria-label="Cart">
               <ShoppingCart size={18} />
               {cartItemCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full border border-white dark:border-[#1a2332]">
+                <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full border border-[#1a2332]">
                   {cartItemCount > 9 ? "9+" : cartItemCount}
                 </span>
               )}
@@ -667,7 +658,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </main>
 
       {/* ── Desktop Footer ── */}
-      <footer className="hidden md:block bg-gray-100 dark:bg-[#1a2332] text-gray-900 dark:text-white border-t border-gray-200 dark:border-transparent mt-auto">
+      <footer className="hidden md:block bg-[#1a2332] text-white mt-auto">
         <div className="max-w-7xl mx-auto px-6 py-10">
           <div className="grid grid-cols-4 gap-8 mb-8">
             <div className="col-span-1">
@@ -681,21 +672,21 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 Worldwide source for unlock tools, server credits &amp; GSM services. Trusted since 2016.
               </p>
               <div className="flex gap-3">
-                <a href="mailto:support@dasnett.site"
-                  className="flex items-center gap-1.5 bg-teal-600 hover:bg-teal-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-                  Email Support
+                <a href="https://wa.me/254756816951" target="_blank" rel="noreferrer"
+                  className="flex items-center gap-1.5 bg-green-600 hover:bg-green-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                  WhatsApp
                 </a>
-                <a href="/account/orders"
+                <a href="https://t.me/markjsbb" target="_blank" rel="noreferrer"
                   className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                  Live Chat
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+                  Telegram
                 </a>
               </div>
             </div>
 
             <div>
-              <p className="font-bold text-sm mb-4 text-gray-700 dark:text-gray-200 uppercase tracking-wider">Shop</p>
+              <p className="font-bold text-sm mb-4 text-gray-200 uppercase tracking-wider">Shop</p>
               <ul className="space-y-2.5">
                 {[
                   { label: "All Products", href: `${basePath}/products` },
@@ -704,14 +695,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   { label: "Tool Activation", href: `${basePath}/activate` },
                 ].map(({ label, href }) => (
                   <li key={label}>
-                    <Link href={href} className="text-gray-500 dark:text-gray-400 hover:text-teal-600 dark:hover:text-teal-400 text-sm transition-colors">{label}</Link>
+                    <Link href={href} className="text-gray-400 hover:text-teal-400 text-sm transition-colors">{label}</Link>
                   </li>
                 ))}
               </ul>
             </div>
 
             <div>
-              <p className="font-bold text-sm mb-4 text-gray-700 dark:text-gray-200 uppercase tracking-wider">Services</p>
+              <p className="font-bold text-sm mb-4 text-gray-200 uppercase tracking-wider">Services</p>
               <ul className="space-y-2.5">
                 {[
                   { label: "iPhone / iCloud Unlock", href: `${basePath}/iphone-unlock` },
@@ -727,7 +718,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             </div>
 
             <div>
-              <p className="font-bold text-sm mb-4 text-gray-700 dark:text-gray-200 uppercase tracking-wider">Account</p>
+              <p className="font-bold text-sm mb-4 text-gray-200 uppercase tracking-wider">Account</p>
               <ul className="space-y-2.5">
                 {[
                   { label: "Sign In", href: `${basePath}/login` },
@@ -737,14 +728,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   { label: "My Cart", href: `${basePath}/cart` },
                 ].map(({ label, href }) => (
                   <li key={label}>
-                    <Link href={href} className="text-gray-500 dark:text-gray-400 hover:text-teal-600 dark:hover:text-teal-400 text-sm transition-colors">{label}</Link>
+                    <Link href={href} className="text-gray-400 hover:text-teal-400 text-sm transition-colors">{label}</Link>
                   </li>
                 ))}
               </ul>
-              <p className="font-bold text-sm mt-6 mb-3 text-gray-700 dark:text-gray-200 uppercase tracking-wider">Legal</p>
+              <p className="font-bold text-sm mt-6 mb-3 text-gray-200 uppercase tracking-wider">Legal</p>
               <ul className="space-y-2.5">
-                <li><Link href={`${basePath}/terms`} className="text-gray-500 dark:text-gray-400 hover:text-teal-600 dark:hover:text-teal-400 text-sm transition-colors">Terms &amp; Conditions</Link></li>
-                <li><Link href={`${basePath}/privacy`} className="text-gray-500 dark:text-gray-400 hover:text-teal-600 dark:hover:text-teal-400 text-sm transition-colors">Privacy Policy</Link></li>
+                <li><Link href={`${basePath}/terms`} className="text-gray-400 hover:text-teal-400 text-sm transition-colors">Terms &amp; Conditions</Link></li>
+                <li><Link href={`${basePath}/privacy`} className="text-gray-400 hover:text-teal-400 text-sm transition-colors">Privacy Policy</Link></li>
               </ul>
             </div>
           </div>
@@ -772,7 +763,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       {/* ── Mobile Bottom Nav ── */}
       <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
-        <div className="mx-3 mb-2 bg-white dark:bg-[#1a2332] rounded-2xl shadow-2xl border border-gray-200 dark:border-transparent flex items-center justify-between px-1 py-1">
+        <div className="mx-3 mb-2 bg-[#1a2332] rounded-2xl shadow-2xl flex items-center justify-between px-1 py-1">
           <NavItem href={`${basePath}/`} icon={<Home size={20} />} label="Home" active={location === "/"} />
           <NavItem href={`${basePath}/categories`} icon={<Grid size={20} />} label="Browse" active={location === "/categories"} />
           <NavItem href={`${basePath}/products`} icon={<Tag size={20} />} label="Store" active={location.startsWith("/products")} />
@@ -794,9 +785,7 @@ function DesktopNavLink({ href, label, active }: { href: string; label: string; 
     <Link
       href={href}
       className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-        active
-          ? "bg-gray-900/10 text-gray-900 dark:bg-white/15 dark:text-white"
-          : "text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white"
+        active ? "bg-white/15 text-white" : "text-gray-300 hover:bg-white/10 hover:text-white"
       }`}
     >
       {label}
@@ -816,23 +805,23 @@ function SideLink({
       onClick={onClick}
       className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all group ${
         active
-          ? "text-gray-900 dark:text-white shadow-sm"
-          : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/6"
+          ? "text-white shadow-sm"
+          : "text-gray-400 hover:bg-white/6"
       }`}
-      style={active ? { background: "linear-gradient(90deg,rgba(20,184,166,0.15),rgba(20,184,166,0.05))", borderLeft: "2px solid rgba(20,184,166,0.6)" } : {}}
+      style={active ? { background: "linear-gradient(90deg,rgba(20,184,166,0.25),rgba(20,184,166,0.08))", borderLeft: "2px solid rgba(20,184,166,0.6)" } : {}}
     >
-      <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-colors ${active ? "bg-teal-100 dark:bg-white/15" : iconBg}`}>
+      <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-colors ${active ? "bg-white/15" : iconBg}`}>
         {icon}
       </div>
-      <span className={`font-semibold text-sm flex-1 leading-none ${active ? "text-gray-900 dark:text-white" : "text-gray-700 dark:text-gray-300"}`}>{label}</span>
+      <span className={`font-semibold text-sm flex-1 leading-none ${active ? "text-white" : "text-gray-300"}`}>{label}</span>
       {badge && (
         <span className={`text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full ${
-          badge === "HOT" ? "bg-red-600 text-white" : active ? "bg-teal-500/30 text-teal-700 dark:text-teal-300" : "bg-teal-100 dark:bg-teal-900/60 text-teal-600 dark:text-teal-400"
+          badge === "HOT" ? "bg-red-600 text-white" : active ? "bg-teal-500/30 text-teal-300" : "bg-teal-900/60 text-teal-400"
         }`}>
           {badge}
         </span>
       )}
-      {!badge && <ChevronRight size={12} className={active ? "text-teal-500/60" : "text-gray-400 dark:text-gray-600 group-hover:text-gray-500"} />}
+      {!badge && <ChevronRight size={12} className={active ? "text-white/40" : "text-gray-600 group-hover:text-gray-500"} />}
     </Link>
   );
 }
@@ -841,21 +830,19 @@ function NavItem({ href, icon, label, active, badge }: { href: string; icon: Rea
   return (
     <Link href={href}
       className={`flex flex-col items-center justify-center flex-1 py-2 px-1 gap-1 rounded-xl relative transition-all ${
-        active
-          ? "bg-teal-50 dark:bg-white/15 text-teal-700 dark:text-white"
-          : "text-gray-400 dark:text-white/50 hover:text-gray-700 dark:hover:text-white/80 hover:bg-gray-100 dark:hover:bg-white/8"
+        active ? "bg-white/15 text-white" : "text-white/50 hover:text-white/80 hover:bg-white/8"
       }`}>
       <div className="relative">
         <div className={`transition-transform ${active ? "scale-110" : ""}`}>
           {icon}
         </div>
         {badge !== undefined && badge > 0 && (
-          <span className="absolute -top-1.5 -right-2 bg-red-500 text-white text-[9px] font-bold w-4 h-4 flex items-center justify-center rounded-full border border-white dark:border-[#1a2332]">
+          <span className="absolute -top-1.5 -right-2 bg-red-500 text-white text-[9px] font-bold w-4 h-4 flex items-center justify-center rounded-full border border-[#1a2332]">
             {badge > 9 ? '9+' : badge}
           </span>
         )}
       </div>
-      <span className={`text-[9px] font-bold tracking-wide ${active ? "text-teal-700 dark:text-white" : "text-gray-400 dark:text-white/50"}`}>{label}</span>
+      <span className={`text-[9px] font-bold tracking-wide ${active ? "text-white" : "text-white/50"}`}>{label}</span>
       {active && <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-teal-400" />}
     </Link>
   );

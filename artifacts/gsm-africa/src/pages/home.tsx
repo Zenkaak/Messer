@@ -107,8 +107,8 @@ const GSM_STYLES = `
   .gsm-marquee-wrap::after {
     content:""; position:absolute; top:0; bottom:0; width:40px; z-index:2; pointer-events:none;
   }
-  .gsm-marquee-wrap::before { left:0;  background:linear-gradient(to right,var(--bg-marquee-fade),transparent); }
-  .gsm-marquee-wrap::after  { right:0; background:linear-gradient(to left, var(--bg-marquee-fade),transparent); }
+  .gsm-marquee-wrap::before { left:0;  background:linear-gradient(to right,#060b15,transparent); }
+  .gsm-marquee-wrap::after  { right:0; background:linear-gradient(to left, #060b15,transparent); }
   @media (prefers-reduced-motion: reduce) {
     .gsm-float, .gsm-float-slow, .gsm-pulse-orb, .gsm-ring-pulse, .gsm-marquee-track { animation:none; }
   }
@@ -355,16 +355,16 @@ function HomeImeiChecker() {
 }
 
 const HERO_UNLOCKS = [
-  { model: "iPhone 15 Pro", country: "New York, NY" },
-  { model: "Samsung S24 Ultra", country: "Los Angeles, CA" },
-  { model: "iPhone 14 Plus", country: "Chicago, IL" },
-  { model: "Pixel 8 Pro", country: "Houston, TX" },
-  { model: "iPhone 13 Pro", country: "Phoenix, AZ" },
-  { model: "OnePlus 12", country: "Miami, FL" },
-  { model: "Xiaomi 14 Pro", country: "Seattle, WA" },
-  { model: "Samsung A55", country: "Atlanta, GA" },
-  { model: "iPhone 15", country: "Denver, CO" },
-  { model: "Samsung S23", country: "Boston, MA" },
+  { model: "iPhone 15 Pro", country: "Nairobi, KE" },
+  { model: "Samsung S24 Ultra", country: "Lagos, NG" },
+  { model: "iPhone 14 Plus", country: "Accra, GH" },
+  { model: "Pixel 8 Pro", country: "Cairo, EG" },
+  { model: "iPhone 13 Pro", country: "Kampala, UG" },
+  { model: "OnePlus 12", country: "Johannesburg, ZA" },
+  { model: "Xiaomi 14 Pro", country: "Kigali, RW" },
+  { model: "Samsung A55", country: "Dar es Salaam, TZ" },
+  { model: "iPhone 15", country: "Lusaka, ZM" },
+  { model: "Tecno Phantom X2", country: "Addis Ababa, ET" },
 ];
 
 export function Home() {
@@ -443,10 +443,10 @@ export function Home() {
   const isAndroidApp = navigator.userAgent.includes("GSMWorldApp");
 
   return (
-    <div className="flex flex-col min-h-screen" style={{ background: "var(--bg-page)", color: "var(--color-page)" }}>
+    <div className="flex flex-col min-h-screen" style={{ background: "#060b15", color: "#e2e8f0" }}>
 
       {/* ─── HERO ──────────────────────────────────────────────────────────────── */}
-      <div className="relative overflow-hidden md:min-h-[500px]" style={{ minHeight: 310, background: "#07101f" }}>
+      <div className="relative overflow-hidden" style={{ minHeight: 310, background: "#07101f" }}>
         {/* Hero background image */}
         <div className="absolute inset-0 pointer-events-none" style={{
           backgroundImage: "url('https://images.unsplash.com/photo-1581092580497-e0d23cbdf1dc?w=800&q=70')",
@@ -466,8 +466,8 @@ export function Home() {
           backgroundSize: "36px 36px",
         }} />
 
-        {/* Floating unlock success card — top right (mobile only) */}
-        <div className="absolute z-20 pointer-events-none gsm-float md:hidden" style={{ top: 22, right: 14 }}>
+        {/* Floating unlock success card — top right */}
+        <div className="absolute z-20 pointer-events-none gsm-float" style={{ top: 22, right: 14 }}>
           <div className="rounded-2xl px-3 py-2.5 flex flex-col items-center" style={{ background: "rgba(4,14,32,0.88)", border: "1px solid rgba(99,102,241,0.35)", backdropFilter: "blur(16px)", boxShadow: "0 8px 32px rgba(59,130,246,0.18), inset 0 1px 0 rgba(255,255,255,0.06)" }}>
             <div className="w-9 h-9 rounded-xl flex items-center justify-center mb-1.5" style={{ background: "linear-gradient(135deg,rgba(59,130,246,0.22),rgba(99,102,241,0.22))", border: "1px solid rgba(99,102,241,0.45)" }}>
               <Unlock size={16} className="text-blue-300" />
@@ -481,8 +481,8 @@ export function Home() {
           </div>
         </div>
 
-        {/* Floating rating badge (mobile only) */}
-        <div className="absolute z-20 pointer-events-none gsm-float-slow md:hidden" style={{ top: 155, right: 14 }}>
+        {/* Floating rating badge */}
+        <div className="absolute z-20 pointer-events-none gsm-float-slow" style={{ top: 155, right: 14 }}>
           <div className="rounded-xl px-2.5 py-1.5 flex items-center gap-1.5" style={{ background: "rgba(4,14,32,0.85)", border: "1px solid rgba(245,158,11,0.3)", backdropFilter: "blur(12px)" }}>
             <span className="text-amber-400 text-sm leading-none">⭐</span>
             <div>
@@ -492,136 +492,75 @@ export function Home() {
           </div>
         </div>
 
-        <div className="relative z-10 max-w-7xl mx-auto">
-          <div className="md:grid md:grid-cols-[1fr_360px] md:gap-12 md:items-center">
-            {/* Left column — text content */}
-            <div className="px-5 pt-9 pb-6 md:py-14 md:pl-10 md:pr-0">
-              {/* Trust badge */}
-              <div className="gsm-badge-pop inline-flex items-center gap-2 mb-4 px-3 py-1.5 rounded-full text-[11px] font-bold"
-                style={{ background: "rgba(59,130,246,0.1)", border: "1px solid rgba(59,130,246,0.28)", color: "#93c5fd" }}>
-                <Star size={10} fill="#93c5fd" /> Trusted by 10,000+ · Since 2016
-              </div>
-
-              <h1 className="font-black leading-[1.1] tracking-tight mb-2 gsm-hero-in"
-                style={{ fontSize: "clamp(28px,5vw,52px)", color: "#f8fafc", animationDelay: "0.1s" }}>
-                #1 Phone Unlock<br /><span className="gsm-shimmer">Worldwide</span>
-              </h1>
-
-              <p className="text-[13px] md:text-[15px] leading-relaxed mb-5 gsm-hero-in"
-                style={{ color: "#64748b", animationDelay: "0.2s", maxWidth: 420 }}>
-                Carrier unlocks · iCloud removal · Server credits · Gift cards — delivered globally.
-              </p>
-
-              {/* CTA row */}
-              <div className="flex gap-2.5 mb-5 gsm-hero-in" style={{ animationDelay: "0.3s" }}>
-                <Link href="/direct-unlock">
-                  <button className="gsm-btn-primary flex items-center gap-2 font-black text-[13px] md:text-sm px-5 py-3 rounded-2xl text-white"
-                    style={{ background: "linear-gradient(135deg,#3b82f6,#6366f1)", boxShadow: "0 4px 20px rgba(99,102,241,0.4)" }}>
-                    <Unlock size={14} /> Unlock Device
-                  </button>
-                </Link>
-                <Link href="/products">
-                  <button className="gsm-btn-primary flex items-center gap-2 font-black text-[13px] md:text-sm px-5 py-3 rounded-2xl"
-                    style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", color: "#e2e8f0" }}>
-                    Browse Store <ArrowRight size={13} />
-                  </button>
-                </Link>
-              </div>
-
-              {/* Search */}
-              <form onSubmit={handleSearch} className="w-full gsm-hero-in" style={{ animationDelay: "0.4s" }}>
-                <div className="relative flex items-center">
-                  <Search size={14} className="absolute left-3.5 pointer-events-none" style={{ color: "#334155" }} />
-                  <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-                    placeholder="Search iPhone, Samsung, Steam…"
-                    className="w-full pl-10 pr-[80px] py-3.5 rounded-2xl text-sm outline-none"
-                    style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "#f1f5f9", caretColor: "#60a5fa" }} />
-                  <button type="submit" className="absolute right-1.5 text-[11px] font-black px-3 py-2 rounded-xl text-white"
-                    style={{ background: "linear-gradient(135deg,#3b82f6,#6366f1)" }}>Search</button>
-                </div>
-              </form>
-            </div>
-
-            {/* Right column — desktop visual panel */}
-            <div className="hidden md:flex flex-col items-center justify-center gap-5 py-14 pr-10">
-              {/* Success card */}
-              <div className="gsm-float rounded-2xl px-5 py-4 flex flex-col items-center w-52"
-                style={{ background: "rgba(4,14,32,0.92)", border: "1px solid rgba(99,102,241,0.4)", backdropFilter: "blur(16px)", boxShadow: "0 12px 40px rgba(59,130,246,0.22), inset 0 1px 0 rgba(255,255,255,0.06)" }}>
-                <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-2"
-                  style={{ background: "linear-gradient(135deg,rgba(59,130,246,0.25),rgba(99,102,241,0.25))", border: "1px solid rgba(99,102,241,0.5)" }}>
-                  <Unlock size={20} className="text-blue-300" />
-                </div>
-                <p className="text-[13px] font-black text-white leading-tight text-center">{HERO_UNLOCKS[heroIdx].model}</p>
-                <p className="text-[11px] mt-0.5 text-center" style={{ color: "rgba(255,255,255,0.4)" }}>{HERO_UNLOCKS[heroIdx].country}</p>
-                <div className="flex items-center gap-1.5 mt-2.5 px-3 py-1.5 rounded-full"
-                  style={{ background: "rgba(34,197,94,0.12)", border: "1px solid rgba(34,197,94,0.3)" }}>
-                  <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-                  <p className="text-[10px] font-black text-green-400">UNLOCKED ✓</p>
-                </div>
-              </div>
-
-              {/* Rating + stats row */}
-              <div className="flex items-center gap-3 w-full justify-center">
-                <div className="gsm-float-slow rounded-xl px-3.5 py-2.5 flex items-center gap-2"
-                  style={{ background: "rgba(4,14,32,0.88)", border: "1px solid rgba(245,158,11,0.35)", backdropFilter: "blur(12px)" }}>
-                  <span className="text-amber-400 text-lg leading-none">⭐</span>
-                  <div>
-                    <p className="text-[13px] font-black text-white leading-none">4.9/5</p>
-                    <p className="text-[10px] leading-none mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }}>15K+ Reviews</p>
-                  </div>
-                </div>
-                <div className="rounded-xl px-3.5 py-2.5 flex items-center gap-2"
-                  style={{ background: "rgba(4,14,32,0.88)", border: "1px solid rgba(59,130,246,0.3)", backdropFilter: "blur(12px)" }}>
-                  <Globe size={16} className="text-blue-400 shrink-0" />
-                  <div>
-                    <p className="text-[13px] font-black text-white leading-none">50+</p>
-                    <p className="text-[10px] leading-none mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }}>Countries</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Service quick links */}
-              <div className="grid grid-cols-3 gap-2 w-full">
-                {[
-                  { icon: "📱", label: "iPhone Unlock", color: "#3b82f6" },
-                  { icon: "☁️", label: "iCloud Removal", color: "#38bdf8" },
-                  { icon: "⚡", label: "Server Credits", color: "#a78bfa" },
-                ].map(({ icon, label, color }) => (
-                  <div key={label} className="rounded-xl p-2.5 text-center"
-                    style={{ background: `${color}12`, border: `1px solid ${color}28` }}>
-                    <span className="text-xl block mb-1">{icon}</span>
-                    <p className="text-[9px] font-bold leading-tight" style={{ color }}>{label}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
+        <div className="relative z-10 px-5 pt-9 pb-6">
+          {/* Trust badge */}
+          <div className="gsm-badge-pop inline-flex items-center gap-2 mb-4 px-3 py-1.5 rounded-full text-[11px] font-bold"
+            style={{ background: "rgba(59,130,246,0.1)", border: "1px solid rgba(59,130,246,0.28)", color: "#93c5fd" }}>
+            <Star size={10} fill="#93c5fd" /> Trusted by 10,000+ · Since 2016
           </div>
+
+          <h1 className="font-black leading-[1.1] tracking-tight mb-2 gsm-hero-in"
+            style={{ fontSize: "clamp(28px,8vw,44px)", color: "#f8fafc", animationDelay: "0.1s" }}>
+            #1 Phone Unlock<br /><span className="gsm-shimmer">Worldwide</span>
+          </h1>
+
+          <p className="text-[13px] leading-relaxed mb-5 gsm-hero-in max-w-[300px]"
+            style={{ color: "#64748b", animationDelay: "0.2s" }}>
+            Carrier unlocks · iCloud removal · Server credits · Gift cards — delivered globally.
+          </p>
+
+          {/* CTA row */}
+          <div className="flex gap-2.5 mb-5 gsm-hero-in" style={{ animationDelay: "0.3s" }}>
+            <Link href="/direct-unlock">
+              <button className="gsm-btn-primary flex items-center gap-2 font-black text-[13px] px-5 py-3 rounded-2xl text-white"
+                style={{ background: "linear-gradient(135deg,#3b82f6,#6366f1)", boxShadow: "0 4px 20px rgba(99,102,241,0.4)" }}>
+                <Unlock size={14} /> Unlock Device
+              </button>
+            </Link>
+            <Link href="/products">
+              <button className="gsm-btn-primary flex items-center gap-2 font-black text-[13px] px-5 py-3 rounded-2xl"
+                style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", color: "#e2e8f0" }}>
+                Browse Store <ArrowRight size={13} />
+              </button>
+            </Link>
+          </div>
+
+          {/* Search */}
+          <form onSubmit={handleSearch} className="w-full gsm-hero-in" style={{ animationDelay: "0.4s" }}>
+            <div className="relative flex items-center">
+              <Search size={14} className="absolute left-3.5 pointer-events-none" style={{ color: "#334155" }} />
+              <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Search iPhone, Samsung, Steam…"
+                className="w-full pl-10 pr-[80px] py-3.5 rounded-2xl text-sm outline-none"
+                style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "#f1f5f9", caretColor: "#60a5fa" }} />
+              <button type="submit" className="absolute right-1.5 text-[11px] font-black px-3 py-2 rounded-xl text-white"
+                style={{ background: "linear-gradient(135deg,#3b82f6,#6366f1)" }}>Search</button>
+            </div>
+          </form>
         </div>
 
         {/* Stats strip */}
-        <div className="relative z-10"
+        <div className="relative z-10 grid grid-cols-4"
           style={{ borderTop: "1px solid rgba(255,255,255,0.06)", background: "rgba(0,0,0,0.25)", backdropFilter: "blur(10px)" }}>
-          <div className="grid grid-cols-4 max-w-7xl mx-auto">
-            {[
-              { value: totalProducts ?? 1500, suffix: "+", label: "Products" },
-              { value: totalCategories ?? 50,  suffix: "+", label: "Categories" },
-              { value: 10000, suffix: "+", label: "Customers" },
-              { value: "24/7", label: "Support" },
-            ].map(({ value, suffix, label }, i) => (
-              <div key={label} className="flex flex-col items-center py-3"
-                style={{ borderRight: i < 3 ? "1px solid rgba(255,255,255,0.06)" : undefined }}>
-                <span className="font-black text-[15px] leading-none" style={{ color: "#f8fafc" }}>
-                  {typeof value === "number" ? <AnimCount target={value} suffix={suffix ?? ""} /> : <>{value}</>}
-                </span>
-                <span className="text-[9px] font-bold mt-0.5 uppercase tracking-widest" style={{ color: "#3b82f6" }}>{label}</span>
-              </div>
-            ))}
-          </div>
+          {[
+            { value: totalProducts ?? 1500, suffix: "+", label: "Products" },
+            { value: totalCategories ?? 50,  suffix: "+", label: "Categories" },
+            { value: 10000, suffix: "+", label: "Customers" },
+            { value: "24/7", label: "Support" },
+          ].map(({ value, suffix, label }, i) => (
+            <div key={label} className="flex flex-col items-center py-3"
+              style={{ borderRight: i < 3 ? "1px solid rgba(255,255,255,0.06)" : undefined }}>
+              <span className="font-black text-[15px] leading-none" style={{ color: "#f8fafc" }}>
+                {typeof value === "number" ? <AnimCount target={value} suffix={suffix ?? ""} /> : <>{value}</>}
+              </span>
+              <span className="text-[9px] font-bold mt-0.5 uppercase tracking-widest" style={{ color: "#3b82f6" }}>{label}</span>
+            </div>
+          ))}
         </div>
       </div>
 
       {/* ─── BRAND MARQUEE ─────────────────────────────────────────────────────── */}
-      <div className="gsm-marquee-wrap py-3" style={{ borderBottom: "1px solid var(--border-card)" }}>
+      <div className="gsm-marquee-wrap py-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
         <div className="gsm-marquee-track gap-3 px-3">
           {[
             // First copy
@@ -661,8 +600,8 @@ export function Home() {
       </div>
 
       {/* ─── QUICK ACCESS ──────────────────────────────────────────────────────── */}
-      <div className="pt-5 pb-3 md:max-w-5xl md:mx-auto md:w-full">
-        <div className="flex gap-2.5 overflow-x-auto px-4 pb-1 scrollbar-hide md:overflow-x-visible md:grid md:grid-cols-7 md:gap-3" style={{ scrollSnapType: "x mandatory" }}>
+      <div className="pt-5 pb-3">
+        <div className="flex gap-2.5 overflow-x-auto px-4 pb-1 scrollbar-hide" style={{ scrollSnapType: "x mandatory" }}>
           {[
             { icon: "🔓", label: "Phone Unlock",   href: "/direct-unlock",  color: "#3b82f6" },
             { icon: "☁️", label: "iCloud Remove",  href: "/iphone-unlock",  color: "#38bdf8" },
@@ -686,7 +625,7 @@ export function Home() {
       </div>
 
       {/* ─── APP BANNER ────────────────────────────────────────────────────────── */}
-      <div className="px-4 pt-2 pb-1 md:max-w-5xl md:mx-auto md:w-full">
+      <div className="px-4 pt-2 pb-1">
         {isAndroidApp ? (
           <button className="w-full flex items-center gap-3.5 rounded-2xl px-4 py-3.5 active:scale-[0.98] transition-transform"
             style={{ background: "linear-gradient(135deg,#14532d,#166534)", border: "1px solid rgba(74,222,128,0.2)", boxShadow: "0 4px 20px rgba(22,101,52,0.35)" }}
@@ -706,14 +645,14 @@ export function Home() {
       <HomeImeiChecker />
 
       {/* ─── SERVICES GRID ─────────────────────────────────────────────────────── */}
-      <div className="px-4 pt-5 pb-2 md:max-w-5xl md:mx-auto md:w-full">
+      <div className="px-4 pt-5 pb-2">
         <AnimSection>
           <div className="flex items-center justify-between mb-3">
-            <p className="font-black text-[15px]" style={{ color: "var(--text-heading)" }}>Our Services</p>
-            <Link href="/products"><span className="text-[11px] font-bold flex items-center gap-1" style={{ color: "var(--text-link)" }}>See all <ArrowRight size={11} /></span></Link>
+            <p className="font-black text-[15px]" style={{ color: "#f1f5f9" }}>Our Services</p>
+            <Link href="/products"><span className="text-[11px] font-bold flex items-center gap-1" style={{ color: "#60a5fa" }}>See all <ArrowRight size={11} /></span></Link>
           </div>
         </AnimSection>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 gap-3">
           {services.map(({ icon, iconColor, label, desc, href, grad, border, glow }, i) => (
             <AnimSection key={label} delay={i * 60}>
               <Link href={href}>
@@ -736,7 +675,7 @@ export function Home() {
       </div>
 
       {/* ─── TRUST PANEL ───────────────────────────────────────────────────────── */}
-      <AnimSection className="px-4 py-5 md:max-w-5xl md:mx-auto md:w-full">
+      <AnimSection className="px-4 py-5">
         <div className="rounded-2xl overflow-hidden"
           style={{ background: "linear-gradient(135deg,#0c1a32,#0e1e3a)", border: "1px solid rgba(99,102,241,0.15)", boxShadow: "0 8px 32px rgba(0,0,0,0.4)" }}>
           <div className="px-4 pt-4 pb-2 flex items-center gap-2">
@@ -764,7 +703,7 @@ export function Home() {
               { icon: <Zap size={12} className="text-yellow-400" />,       label: "Instant Delivery",  desc: "After payment confirmation" },
               { icon: <ShieldCheck size={12} className="text-green-400" />, label: "Secure Payments",   desc: "M-Pesa, USDT & crypto" },
               { icon: <Globe size={12} className="text-blue-400" />,        label: "50+ Countries",     desc: "Worldwide coverage" },
-              { icon: <Headphones size={12} className="text-violet-400" />, label: "24/7 Support",      desc: "WhatsApp & Telegram" },
+              { icon: <Headphones size={12} className="text-violet-400" />, label: "24/7 Support",      desc: "Telegram" },
             ].map(({ icon, label, desc }) => (
               <div key={label} className="flex items-start gap-2 rounded-xl p-2.5"
                 style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }}>
@@ -780,21 +719,21 @@ export function Home() {
       </AnimSection>
 
       {/* ─── CATEGORIES ────────────────────────────────────────────────────────── */}
-      <div className="px-4 pb-5 md:max-w-5xl md:mx-auto md:w-full">
+      <div className="px-4 pb-5">
         <AnimSection>
           <div className="flex items-center justify-between mb-3">
-            <h3 className="font-black text-[15px]" style={{ color: "var(--text-heading)" }}>Popular Categories</h3>
-            <Link href="/categories"><span className="flex items-center gap-1 text-[11px] font-bold" style={{ color: "var(--text-link)" }}>View all <ArrowRight size={11} /></span></Link>
+            <h3 className="font-black text-[15px]" style={{ color: "#f1f5f9" }}>Popular Categories</h3>
+            <Link href="/categories"><span className="flex items-center gap-1 text-[11px] font-bold" style={{ color: "#60a5fa" }}>View all <ArrowRight size={11} /></span></Link>
           </div>
         </AnimSection>
-        <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+        <div className="grid grid-cols-3 gap-2">
           {categories.map(({ label, emoji, href, bg, border }, i) => (
             <AnimSection key={label} delay={i * 40}>
               <Link href={href}>
                 <div className="gsm-cat-pill rounded-2xl p-3 text-center cursor-pointer"
                   style={{ background: bg, border: `1px solid ${border}` }}>
                   <span className="text-[22px] block mb-1">{emoji}</span>
-                  <p className="font-bold text-[10px] leading-tight" style={{ color: "var(--text-cat-label)" }}>{label}</p>
+                  <p className="font-bold text-[10px] leading-tight" style={{ color: "#94a3b8" }}>{label}</p>
                 </div>
               </Link>
             </AnimSection>
@@ -803,11 +742,11 @@ export function Home() {
       </div>
 
       {/* ─── HOW IT WORKS ──────────────────────────────────────────────────────── */}
-      <AnimSection className="px-4 pb-6 md:max-w-5xl md:mx-auto md:w-full">
-        <div className="rounded-2xl overflow-hidden" style={{ background: "var(--bg-card-subtle)", border: "1px solid var(--border-card)" }}>
-          <div className="px-4 py-3.5 flex items-center gap-2" style={{ borderBottom: "1px solid var(--border-card)" }}>
+      <AnimSection className="px-4 pb-6">
+        <div className="rounded-2xl overflow-hidden" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
+          <div className="px-4 py-3.5 flex items-center gap-2" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
             <div className="w-1.5 h-6 rounded-full" style={{ background: "linear-gradient(to bottom,#f59e0b,#ef4444)" }} />
-            <h3 className="font-black text-[14px]" style={{ color: "var(--text-heading)" }}>How It Works</h3>
+            <h3 className="font-black text-[14px]" style={{ color: "#f1f5f9" }}>How It Works</h3>
           </div>
           <div className="px-4 py-4 space-y-3 relative">
             <div className="absolute left-[31px] top-7 bottom-7 w-px"
@@ -820,13 +759,13 @@ export function Home() {
             ].map(({ n, emoji, title, desc }) => (
               <div key={n} className="flex items-center gap-3.5">
                 <div className="relative z-10 shrink-0 w-9 h-9 rounded-full flex items-center justify-center font-black text-sm border"
-                  style={{ background: "var(--bg-step-num)", borderColor: "var(--border-step-num)", color: "var(--color-step-num)", minWidth: 36 }}>{n}</div>
+                  style={{ background: "#0c1a32", borderColor: "rgba(99,102,241,0.35)", color: "#818cf8", minWidth: 36 }}>{n}</div>
                 <div className="flex-1 flex items-center gap-2 rounded-xl px-3 py-2.5"
-                  style={{ background: "var(--bg-step-row)", border: "1px solid var(--border-step-row)" }}>
+                  style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.05)" }}>
                   <span className="text-base shrink-0">{emoji}</span>
                   <div>
-                    <p className="font-bold text-[12px] leading-tight" style={{ color: "var(--text-step-title)" }}>{title}</p>
-                    <p className="text-[10px] leading-relaxed" style={{ color: "var(--text-step-desc)" }}>{desc}</p>
+                    <p className="font-bold text-[12px] leading-tight" style={{ color: "#f1f5f9" }}>{title}</p>
+                    <p className="text-[10px] leading-relaxed" style={{ color: "#475569" }}>{desc}</p>
                   </div>
                 </div>
               </div>
@@ -836,11 +775,11 @@ export function Home() {
       </AnimSection>
 
       {/* ─── SUPPORTED BRANDS ──────────────────────────────────────────────────── */}
-      <AnimSection className="px-4 pb-6 md:max-w-5xl md:mx-auto md:w-full">
-        <div className="rounded-2xl overflow-hidden" style={{ background: "var(--bg-card-subtle)", border: "1px solid var(--border-card)" }}>
-          <div className="px-4 py-3 flex items-center gap-2" style={{ borderBottom: "1px solid var(--border-card)" }}>
+      <AnimSection className="px-4 pb-6">
+        <div className="rounded-2xl overflow-hidden" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
+          <div className="px-4 py-3 flex items-center gap-2" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
             <div className="w-1.5 h-6 rounded-full" style={{ background: "linear-gradient(to bottom,#4ade80,#3b82f6)" }} />
-            <h3 className="font-black text-[14px]" style={{ color: "var(--text-heading)" }}>Supported Brands</h3>
+            <h3 className="font-black text-[14px]" style={{ color: "#f1f5f9" }}>Supported Brands</h3>
           </div>
           <div className="flex flex-wrap gap-2.5 p-4 justify-center">
             {brands.map(({ slug, name }) => (
@@ -855,7 +794,7 @@ export function Home() {
       </AnimSection>
 
       {/* ─── RESELLER CTA ──────────────────────────────────────────────────────── */}
-      <AnimSection className="px-4 pb-5 md:max-w-5xl md:mx-auto md:w-full">
+      <AnimSection className="px-4 pb-5">
         <div className="rounded-2xl p-4 overflow-hidden relative"
           style={{ background: "linear-gradient(135deg,#064e3b,#065f46)", border: "1px solid rgba(52,211,153,0.2)", boxShadow: "0 8px 32px rgba(6,78,59,0.4)" }}>
           <div className="absolute top-0 right-0 w-32 h-32 pointer-events-none opacity-10"
@@ -893,7 +832,7 @@ export function Home() {
       </AnimSection>
 
       {/* ─── CONTACT CTA ───────────────────────────────────────────────────────── */}
-      <AnimSection className="px-4 pb-10 md:max-w-5xl md:mx-auto md:w-full">
+      <AnimSection className="px-4 pb-10">
         <div className="rounded-2xl p-4 text-center"
           style={{ background: "linear-gradient(135deg,#0c1828,#111e32)", border: "1px solid rgba(255,255,255,0.07)" }}>
           <div className="inline-flex items-center gap-2 mb-3 px-3 py-1.5 rounded-full text-[11px] font-bold"
@@ -901,18 +840,12 @@ export function Home() {
             <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" /> Online Now
           </div>
           <p className="font-black text-[14px] mb-4 leading-tight" style={{ color: "#f8fafc" }}>
-            Questions? We&apos;re on WhatsApp &amp; Telegram
+            Questions? We&apos;re on Telegram
           </p>
-          <div className="flex gap-2.5 justify-center">
-            <a href="https://wa.me/254756816951" target="_blank" rel="noreferrer"
-              className="gsm-btn-primary flex-1 flex items-center justify-center gap-1.5 font-bold text-[13px] text-white rounded-2xl py-3"
-              style={{ background: "linear-gradient(135deg,#25D366,#128C7E)", maxWidth: 150 }}>
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-              WhatsApp
-            </a>
+          <div className="flex justify-center">
             <a href="https://t.me/markjsbb" target="_blank" rel="noreferrer"
-              className="gsm-btn-primary flex-1 flex items-center justify-center gap-1.5 font-bold text-[13px] text-white rounded-2xl py-3"
-              style={{ background: "linear-gradient(135deg,#229ED9,#1a7fbf)", maxWidth: 150 }}>
+              className="gsm-btn-primary flex items-center justify-center gap-1.5 font-bold text-[13px] text-white rounded-2xl py-3 px-8"
+              style={{ background: "linear-gradient(135deg,#229ED9,#1a7fbf)" }}>
               <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
               Telegram
             </a>
