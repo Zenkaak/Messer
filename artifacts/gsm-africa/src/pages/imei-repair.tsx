@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import {
   Smartphone, ChevronRight, Shield, ArrowLeft, CheckCircle2,
-  Loader2, AlertTriangle, Copy, Check, Search, Clock, RefreshCw,
+  Loader2, AlertTriangle, Copy, Check, Search, Clock, Share2,
+  Upload, ImageIcon, X, LogIn,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
@@ -410,6 +411,24 @@ function apiBase(): string {
   return (import.meta.env.BASE_URL as string).replace(/\/$/, "");
 }
 
+const SELECT_STYLE: React.CSSProperties = {
+  background: "rgba(255,255,255,0.06)",
+  border: "1px solid rgba(255,255,255,0.12)",
+  color: "#e2e8f0",
+  borderRadius: "12px",
+  padding: "12px 16px",
+  width: "100%",
+  fontSize: "14px",
+  outline: "none",
+  appearance: "none" as const,
+  WebkitAppearance: "none" as const,
+  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
+  backgroundRepeat: "no-repeat",
+  backgroundPosition: "right 14px center",
+  paddingRight: "40px",
+  cursor: "pointer",
+};
+
 type PayMethod = "usdt_manual" | "mpesa" | "binance_pay" | "wallet";
 
 type OrderResult = {
@@ -434,6 +453,9 @@ type TrackResult = {
   orderId: number;
   orderCode: string;
   paymentStatus: string;
+  status?: string;
+  brand?: string;
+  model?: string;
   imei: string | null;
   device: string | null;
   total: string;
@@ -442,34 +464,49 @@ type TrackResult = {
   notes: string | null;
   createdAt: string;
   updatedAt: string;
+  completedAt?: string;
 };
 
 export function ImeiRepairPage() {
   const [, navigate] = useLocation();
-  const { user, token } = useAuth();
+  const { user, token, isAuthenticated } = useAuth();
   const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Top-level view: register flow vs. track order
   const [view, setView] = useState<"register" | "track">("register");
-
-  // Step 1 state
   const [step, setStep] = useState<Step>("select");
-  const [brand, setBrand] = useState<Brand | null>(null);
-  const [model, setModel] = useState<DeviceModel | null>(null);
+
+  // Device selection
+  const [brandLabel, setBrandLabel] = useState("");
+  const [modelName, setModelName] = useState("");
+
+  const brand = DEVICE_CATALOG.find(b => b.label === brandLabel) ?? null;
+  const model = brand?.models.find(m => m.name === modelName) ?? null;
+
   const [imei, setImei] = useState("");
   const [imeiError, setImeiError] = useState("");
 
-  // Step 2 state
+  // Payment step
   const [email, setEmail] = useState(user?.email ?? "");
   const [phone, setPhone] = useState("");
   const [payMethod, setPayMethod] = useState<PayMethod>("usdt_manual");
   const [submitting, setSubmitting] = useState(false);
 
-  // Step 3 state
+  // Done step
   const [orderResult, setOrderResult] = useState<OrderResult | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
 
-  // Track order state
+  // Screenshot upload
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadPreview, setUploadPreview] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadDone, setUploadDone] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  // Share
+  const [shareSuccess, setShareSuccess] = useState(false);
+
+  // Track order
   const [trackCode, setTrackCode] = useState("");
   const [trackEmail, setTrackEmail] = useState(user?.email ?? "");
   const [trackLoading, setTrackLoading] = useState(false);
@@ -482,6 +519,21 @@ export function ImeiRepairPage() {
       if (!trackEmail) setTrackEmail(user.email);
     }
   }, [user]);
+
+  // Reset model when brand changes
+  useEffect(() => { setModelName(""); }, [brandLabel]);
+
+  function handleShare() {
+    const url = window.location.href;
+    if (navigator.share) {
+      navigator.share({ title: "IMEI Repair & Registration", url }).catch(() => {});
+    } else {
+      navigator.clipboard.writeText(url).then(() => {
+        setShareSuccess(true);
+        setTimeout(() => setShareSuccess(false), 2000);
+      });
+    }
+  }
 
   async function handleTrackOrder() {
     const code = trackCode.trim().toUpperCase();
@@ -503,24 +555,29 @@ export function ImeiRepairPage() {
     }
   }
 
-  function handleBrandSelect(b: Brand) {
-    setBrand(b);
-    setModel(null);
-    setImei("");
-    setImeiError("");
-  }
-
   function handleRegister() {
     const val = imei.replace(/[\s\-]/g, "");
     if (!model) { toast({ title: "Select a model first", variant: "destructive" }); return; }
     if (!val) { setImeiError("Please enter your IMEI number"); return; }
     if (!luhnValid(val)) { setImeiError("Invalid IMEI — the check digit doesn't match. Dial *#06# to get your IMEI."); return; }
     setImeiError("");
+
+    if (!isAuthenticated) {
+      toast({ title: "Sign in required", description: "Please log in to place an order.", variant: "destructive" });
+      navigate("/login");
+      return;
+    }
+
     setStep("payment");
     window.scrollTo(0, 0);
   }
 
   async function handlePay() {
+    if (!isAuthenticated) {
+      toast({ title: "Sign in required", description: "Please log in to place an order.", variant: "destructive" });
+      navigate("/login");
+      return;
+    }
     if (!email.trim() || !email.includes("@")) { toast({ title: "Enter a valid email address", variant: "destructive" }); return; }
     if (!model || !brand) return;
 
@@ -562,26 +619,81 @@ export function ImeiRepairPage() {
     });
   }
 
+  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setUploadError("Please select an image file (JPG, PNG, etc.)");
+      return;
+    }
+    setUploadFile(file);
+    setUploadError(null);
+    const reader = new FileReader();
+    reader.onload = () => setUploadPreview(reader.result as string);
+    reader.readAsDataURL(file);
+  }
+
+  async function handleUploadScreenshot() {
+    if (!uploadFile || !orderResult) return;
+    setUploading(true);
+    setUploadError(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", uploadFile);
+      formData.append("orderCode", orderResult.orderCode);
+      formData.append("type", "payment_proof");
+
+      const res = await fetch(`${apiBase()}/api/imei-repair/upload-proof`, {
+        method: "POST",
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: formData,
+      });
+      if (res.ok) {
+        setUploadDone(true);
+        toast({ title: "Screenshot uploaded!", description: "We'll verify your payment shortly." });
+      } else {
+        const d = await res.json().catch(() => ({})) as { error?: string };
+        setUploadError(d.error ?? "Upload failed — please try WhatsApp instead.");
+      }
+    } catch {
+      setUploadError("Network error — please try again.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  // ── Shared header ──────────────────────────────────────────────────────────
+  const Header = ({ title, sub, onBack }: { title: string; sub: string; onBack: () => void }) => (
+    <div className="sticky top-0 z-20 px-4 py-3 flex items-center gap-3"
+      style={{ background: "rgba(6,11,21,0.95)", borderBottom: "1px solid rgba(59,130,246,0.12)", backdropFilter: "blur(12px)" }}>
+      <button onClick={onBack}
+        className="w-8 h-8 rounded-lg flex items-center justify-center"
+        style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}>
+        <ArrowLeft size={16} className="text-slate-400" />
+      </button>
+      <div className="flex-1">
+        <p className="font-black text-sm text-white">{title}</p>
+        <p className="text-[10px]" style={{ color: "#475569" }}>{sub}</p>
+      </div>
+      <button
+        onClick={handleShare}
+        className="w-8 h-8 rounded-lg flex items-center justify-center transition-all"
+        title="Share this page"
+        style={{ background: shareSuccess ? "rgba(34,197,94,0.15)" : "rgba(255,255,255,0.06)", border: shareSuccess ? "1px solid rgba(34,197,94,0.3)" : "1px solid rgba(255,255,255,0.1)" }}>
+        {shareSuccess ? <Check size={15} className="text-green-400" /> : <Share2 size={15} className="text-slate-400" />}
+      </button>
+      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-black tracking-wider"
+        style={{ background: "rgba(59,130,246,0.15)", color: "#93c5fd", border: "1px solid rgba(59,130,246,0.25)" }}>
+        <Shield size={10} /> SECURE
+      </div>
+    </div>
+  );
+
   // ── Step 1: Select Device ──────────────────────────────────────────────────
   if (step === "select") {
     return (
       <div className="min-h-screen pb-20" style={{ background: "#060b15", color: "#e2e8f0" }}>
-        <div className="sticky top-0 z-20 px-4 py-3 flex items-center gap-3"
-          style={{ background: "rgba(6,11,21,0.95)", borderBottom: "1px solid rgba(59,130,246,0.12)", backdropFilter: "blur(12px)" }}>
-          <button onClick={() => navigate("/imei")}
-            className="w-8 h-8 rounded-lg flex items-center justify-center"
-            style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}>
-            <ArrowLeft size={16} className="text-slate-400" />
-          </button>
-          <div>
-            <p className="font-black text-sm text-white">IMEI Repair</p>
-            <p className="text-[10px]" style={{ color: "#475569" }}>Select your device to register</p>
-          </div>
-          <div className="ml-auto flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-black tracking-wider"
-            style={{ background: "rgba(59,130,246,0.15)", color: "#93c5fd", border: "1px solid rgba(59,130,246,0.25)" }}>
-            <Shield size={10} /> SECURE
-          </div>
-        </div>
+        <Header title="IMEI Repair" sub="Select your device to register" onBack={() => navigate("/imei")} />
 
         <div className="px-4 pt-5">
           {/* Tab switcher */}
@@ -639,8 +751,8 @@ export function ImeiRepairPage() {
                     <div className="flex justify-between"><span style={{ color: "#475569" }}>Device</span><span className="font-bold text-white">{trackResult.brand} {trackResult.model}</span></div>
                     <div className="flex justify-between"><span style={{ color: "#475569" }}>IMEI</span><span className="font-mono text-white">{trackResult.imei}</span></div>
                     <div className="flex justify-between"><span style={{ color: "#475569" }}>Status</span>
-                      <span className="font-black" style={{ color: trackResult.status === "completed" ? "#4ade80" : trackResult.status === "processing" ? "#fbbf24" : "#93c5fd" }}>
-                        {trackResult.status.toUpperCase()}
+                      <span className="font-black" style={{ color: (trackResult.status ?? trackResult.paymentStatus) === "completed" ? "#4ade80" : (trackResult.status ?? trackResult.paymentStatus) === "processing" ? "#fbbf24" : "#93c5fd" }}>
+                        {(trackResult.status ?? trackResult.paymentStatus ?? "").toUpperCase()}
                       </span>
                     </div>
                     {trackResult.completedAt && (
@@ -659,132 +771,135 @@ export function ImeiRepairPage() {
           )}
 
           {/* Register view */}
-          {view === "register" && <>
-
-          {/* Progress indicator */}
-          <div className="flex items-center gap-2 mb-5">
-            {["Device", "Payment", "Done"].map((label, i) => (
-              <div key={label} className="flex items-center gap-1.5 flex-1">
-                <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black shrink-0"
-                  style={{ background: i === 0 ? "linear-gradient(135deg,#3b82f6,#6366f1)" : "rgba(255,255,255,0.06)", color: i === 0 ? "#fff" : "#475569", border: i === 0 ? "none" : "1px solid rgba(255,255,255,0.1)" }}>
-                  {i + 1}
-                </div>
-                <span className="text-[10px] font-bold" style={{ color: i === 0 ? "#93c5fd" : "#334155" }}>{label}</span>
-                {i < 2 && <div className="flex-1 h-px" style={{ background: "rgba(255,255,255,0.06)" }} />}
-              </div>
-            ))}
-          </div>
-
-          {/* Brand selection */}
-          <p className="text-[11px] font-black uppercase tracking-wider mb-3" style={{ color: "#475569" }}>1. Select Brand</p>
-          <div className="grid grid-cols-2 gap-2 mb-5">
-            {DEVICE_CATALOG.map((b) => (
-              <button key={b.label} onClick={() => handleBrandSelect(b)}
-                className="rounded-xl px-3 py-2.5 text-left transition-all"
-                style={{
-                  background: brand?.label === b.label ? "rgba(59,130,246,0.18)" : "rgba(255,255,255,0.04)",
-                  border: brand?.label === b.label ? "1px solid rgba(59,130,246,0.5)" : "1px solid rgba(255,255,255,0.08)",
-                }}>
-                <p className="font-bold text-[11px] leading-tight"
-                  style={{ color: brand?.label === b.label ? "#93c5fd" : "#e2e8f0" }}>
-                  {b.label}
-                </p>
-                <p className="text-[9px] mt-0.5" style={{ color: "#475569" }}>{b.models.length} models</p>
-              </button>
-            ))}
-          </div>
-
-          {/* Model selection */}
-          {brand && (
+          {view === "register" && (
             <>
-              <p className="text-[11px] font-black uppercase tracking-wider mb-3" style={{ color: "#475569" }}>2. Select Model</p>
-              <div className="space-y-1.5 mb-5">
-                {brand.models.map((m) => (
-                  <button key={m.name} onClick={() => setModel(m)}
-                    className="w-full rounded-xl px-3 py-2.5 flex items-center justify-between transition-all"
-                    style={{
-                      background: model?.name === m.name ? "rgba(59,130,246,0.18)" : "rgba(255,255,255,0.04)",
-                      border: model?.name === m.name ? "1px solid rgba(59,130,246,0.5)" : "1px solid rgba(255,255,255,0.08)",
-                    }}>
-                    <div className="flex items-center gap-2">
-                      <Smartphone size={13} style={{ color: model?.name === m.name ? "#60a5fa" : "#475569" }} />
-                      <span className="font-semibold text-[12px]"
-                        style={{ color: model?.name === m.name ? "#93c5fd" : "#e2e8f0" }}>{m.name}</span>
+              {/* Progress indicator */}
+              <div className="flex items-center gap-2 mb-5">
+                {["Device", "Payment", "Done"].map((label, i) => (
+                  <div key={label} className="flex items-center gap-1.5 flex-1">
+                    <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black shrink-0"
+                      style={{ background: i === 0 ? "linear-gradient(135deg,#3b82f6,#6366f1)" : "rgba(255,255,255,0.06)", color: i === 0 ? "#fff" : "#475569", border: i === 0 ? "none" : "1px solid rgba(255,255,255,0.1)" }}>
+                      {i + 1}
                     </div>
-                    <span className="font-black text-[12px]"
-                      style={{ color: model?.name === m.name ? "#4ade80" : "#64748b" }}>${m.price}</span>
-                  </button>
+                    <span className="text-[10px] font-bold" style={{ color: i === 0 ? "#93c5fd" : "#334155" }}>{label}</span>
+                    {i < 2 && <div className="flex-1 h-px" style={{ background: "rgba(255,255,255,0.06)" }} />}
+                  </div>
                 ))}
               </div>
-            </>
-          )}
 
-          {/* IMEI input */}
-          {model && (
-            <>
-              <p className="text-[11px] font-black uppercase tracking-wider mb-3" style={{ color: "#475569" }}>3. Enter IMEI Number</p>
-              <div className="rounded-2xl p-4 mb-2"
-                style={{ background: "rgba(10,22,48,0.98)", border: "1px solid rgba(59,130,246,0.22)" }}>
-                <p className="text-[11px] mb-2" style={{ color: "#64748b" }}>
-                  Dial <span className="font-mono font-bold" style={{ color: "#60a5fa" }}>*#06#</span> to get your 15-digit IMEI
-                </p>
-                <input
-                  type="tel"
-                  value={imei}
-                  onChange={e => { const v = e.target.value.replace(/\D/g, "").slice(0, 15); setImei(v); setImeiError(""); }}
-                  onKeyDown={e => { if (e.key === "Enter") handleRegister(); }}
-                  placeholder="Enter 15-digit IMEI…"
-                  maxLength={15}
-                  className="w-full px-3.5 py-3 rounded-xl text-sm focus:outline-none focus:ring-2"
-                  style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "#f1f5f9", caretColor: "#60a5fa", fontFamily: "monospace", letterSpacing: "0.1em" }}
-                />
-                <div className="flex items-center justify-between mt-1.5">
-                  <span className="text-[10px] font-mono" style={{ color: imei.length === 15 ? "#4ade80" : imei.length > 0 ? "#f59e0b" : "#334155" }}>
-                    {imei.length}/15
-                  </span>
-                  {imei.length === 15 && luhnValid(imei) && (
-                    <span className="text-[10px] font-bold text-green-400 flex items-center gap-1">
-                      <CheckCircle2 size={10} /> Valid IMEI
-                    </span>
-                  )}
-                </div>
-                {imeiError && (
-                  <div className="mt-2 flex items-start gap-2 rounded-xl p-2.5"
-                    style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)" }}>
-                    <AlertTriangle size={12} className="text-red-400 shrink-0 mt-0.5" />
-                    <p className="text-[11px] text-red-300">{imeiError}</p>
+              {/* Login notice */}
+              {!isAuthenticated && (
+                <div className="rounded-xl px-4 py-3 flex items-center gap-3 mb-5"
+                  style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.25)" }}>
+                  <LogIn size={15} style={{ color: "#fbbf24" }} className="shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-[12px] font-bold" style={{ color: "#fbbf24" }}>Sign in to place an order</p>
+                    <p className="text-[11px]" style={{ color: "#78716c" }}>You can browse devices below, but login is required to submit.</p>
                   </div>
-                )}
+                  <button onClick={() => navigate("/login")}
+                    className="text-[11px] font-black px-3 py-1.5 rounded-lg shrink-0"
+                    style={{ background: "rgba(245,158,11,0.2)", color: "#fbbf24" }}>
+                    Log In
+                  </button>
+                </div>
+              )}
+
+              {/* Brand dropdown */}
+              <p className="text-[11px] font-black uppercase tracking-wider mb-2" style={{ color: "#475569" }}>1. Select Brand</p>
+              <div className="relative mb-4">
+                <select
+                  value={brandLabel}
+                  onChange={e => setBrandLabel(e.target.value)}
+                  style={SELECT_STYLE}>
+                  <option value="" style={{ background: "#0f172a" }}>— Choose a brand —</option>
+                  {DEVICE_CATALOG.map(b => (
+                    <option key={b.label} value={b.label} style={{ background: "#0f172a" }}>{b.label}</option>
+                  ))}
+                </select>
               </div>
 
-              {/* Summary card */}
-              <div className="rounded-2xl p-4 mb-4"
-                style={{ background: "rgba(59,130,246,0.06)", border: "1px solid rgba(59,130,246,0.18)" }}>
-                <p className="text-[10px] font-black uppercase tracking-wider mb-2" style={{ color: "#475569" }}>Order Summary</p>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-[11px]" style={{ color: "#94a3b8" }}>Device</span>
-                  <span className="text-[11px] font-bold text-white">{model.name}</span>
-                </div>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-[11px]" style={{ color: "#94a3b8" }}>Brand</span>
-                  <span className="text-[11px] font-bold text-white">{brand?.label}</span>
-                </div>
-                <div className="flex items-center justify-between pt-2" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-                  <span className="text-[12px] font-black" style={{ color: "#94a3b8" }}>IMEI Repair Price</span>
-                  <span className="text-[16px] font-black" style={{ color: "#4ade80" }}>${model.price} USD</span>
-                </div>
-              </div>
+              {/* Model dropdown */}
+              {brand && (
+                <>
+                  <p className="text-[11px] font-black uppercase tracking-wider mb-2" style={{ color: "#475569" }}>2. Select Model</p>
+                  <div className="relative mb-4">
+                    <select
+                      value={modelName}
+                      onChange={e => setModelName(e.target.value)}
+                      style={SELECT_STYLE}>
+                      <option value="" style={{ background: "#0f172a" }}>— Choose a model —</option>
+                      {brand.models.map(m => (
+                        <option key={m.name} value={m.name} style={{ background: "#0f172a" }}>
+                          {m.name} — ${m.price}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </>
+              )}
 
-              <button
-                onClick={handleRegister}
-                className="w-full py-4 rounded-xl font-black text-sm text-white flex items-center justify-center gap-2"
-                style={{ background: "linear-gradient(135deg,#3b82f6,#6366f1)", boxShadow: "0 4px 20px rgba(99,102,241,0.35)" }}>
-                Register &amp; Proceed to Payment
-                <ChevronRight size={16} />
-              </button>
+              {/* IMEI input */}
+              {model && (
+                <>
+                  {/* Price badge */}
+                  <div className="rounded-xl px-4 py-3 flex items-center justify-between mb-4"
+                    style={{ background: "rgba(59,130,246,0.08)", border: "1px solid rgba(59,130,246,0.2)" }}>
+                    <div className="flex items-center gap-2">
+                      <Smartphone size={14} style={{ color: "#60a5fa" }} />
+                      <span className="text-[12px] font-semibold text-white">{model.name}</span>
+                    </div>
+                    <span className="font-black text-[16px]" style={{ color: "#4ade80" }}>${model.price} USD</span>
+                  </div>
+
+                  <p className="text-[11px] font-black uppercase tracking-wider mb-2" style={{ color: "#475569" }}>3. Enter IMEI Number</p>
+                  <div className="rounded-2xl p-4 mb-2"
+                    style={{ background: "rgba(10,22,48,0.98)", border: "1px solid rgba(59,130,246,0.22)" }}>
+                    <p className="text-[11px] mb-2" style={{ color: "#64748b" }}>
+                      Dial <span className="font-mono font-bold" style={{ color: "#60a5fa" }}>*#06#</span> to get your 15-digit IMEI
+                    </p>
+                    <input
+                      type="tel"
+                      value={imei}
+                      onChange={e => { const v = e.target.value.replace(/\D/g, "").slice(0, 15); setImei(v); setImeiError(""); }}
+                      onKeyDown={e => { if (e.key === "Enter") handleRegister(); }}
+                      placeholder="Enter 15-digit IMEI…"
+                      maxLength={15}
+                      className="w-full px-3.5 py-3 rounded-xl text-sm focus:outline-none"
+                      style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "#f1f5f9", caretColor: "#60a5fa", fontFamily: "monospace", letterSpacing: "0.1em" }}
+                    />
+                    <div className="flex items-center justify-between mt-1.5">
+                      <span className="text-[10px] font-mono" style={{ color: imei.length === 15 ? "#4ade80" : imei.length > 0 ? "#f59e0b" : "#334155" }}>
+                        {imei.length}/15
+                      </span>
+                      {imei.length === 15 && luhnValid(imei) && (
+                        <span className="text-[10px] font-bold text-green-400 flex items-center gap-1">
+                          <CheckCircle2 size={10} /> Valid IMEI
+                        </span>
+                      )}
+                    </div>
+                    {imeiError && (
+                      <div className="mt-2 flex items-start gap-2 rounded-xl p-2.5"
+                        style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)" }}>
+                        <AlertTriangle size={12} className="text-red-400 shrink-0 mt-0.5" />
+                        <p className="text-[11px] text-red-300">{imeiError}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  <button
+                    onClick={handleRegister}
+                    className="w-full py-4 rounded-xl font-black text-sm text-white flex items-center justify-center gap-2 mt-3"
+                    style={{ background: "linear-gradient(135deg,#3b82f6,#6366f1)", boxShadow: "0 4px 20px rgba(99,102,241,0.35)" }}>
+                    {isAuthenticated ? (
+                      <>Register &amp; Proceed to Payment <ChevronRight size={16} /></>
+                    ) : (
+                      <><LogIn size={16} /> Log In to Continue</>
+                    )}
+                  </button>
+                </>
+              )}
             </>
           )}
-          </>}
         </div>
       </div>
     );
@@ -794,18 +909,7 @@ export function ImeiRepairPage() {
   if (step === "payment") {
     return (
       <div className="min-h-screen pb-20" style={{ background: "#060b15", color: "#e2e8f0" }}>
-        <div className="sticky top-0 z-20 px-4 py-3 flex items-center gap-3"
-          style={{ background: "rgba(6,11,21,0.95)", borderBottom: "1px solid rgba(59,130,246,0.12)", backdropFilter: "blur(12px)" }}>
-          <button onClick={() => setStep("select")}
-            className="w-8 h-8 rounded-lg flex items-center justify-center"
-            style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}>
-            <ArrowLeft size={16} className="text-slate-400" />
-          </button>
-          <div>
-            <p className="font-black text-sm text-white">Checkout</p>
-            <p className="text-[10px]" style={{ color: "#475569" }}>{model?.name} — IMEI Repair</p>
-          </div>
-        </div>
+        <Header title="Checkout" sub={`${model?.name} — IMEI Repair`} onBack={() => setStep("select")} />
 
         <div className="px-4 pt-5">
           {/* Progress */}
@@ -850,16 +954,16 @@ export function ImeiRepairPage() {
             value={email}
             onChange={e => setEmail(e.target.value)}
             placeholder="your@email.com"
-            className="w-full px-3.5 py-3 rounded-xl text-sm mb-3 focus:outline-none focus:ring-2"
-            style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "#f1f5f9", caretColor: "#60a5fa" }}
+            className="w-full px-3.5 py-3 rounded-xl text-sm mb-3 focus:outline-none"
+            style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "#f1f5f9" }}
           />
           <input
             type="tel"
             value={phone}
             onChange={e => setPhone(e.target.value)}
             placeholder="Phone number (optional)"
-            className="w-full px-3.5 py-3 rounded-xl text-sm mb-4 focus:outline-none focus:ring-2"
-            style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "#f1f5f9", caretColor: "#60a5fa" }}
+            className="w-full px-3.5 py-3 rounded-xl text-sm mb-4 focus:outline-none"
+            style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "#f1f5f9" }}
           />
 
           {/* Payment method */}
@@ -905,7 +1009,9 @@ export function ImeiRepairPage() {
   // ── Step 3: Confirmation ───────────────────────────────────────────────────
   return (
     <div className="min-h-screen pb-20" style={{ background: "#060b15", color: "#e2e8f0" }}>
-      <div className="px-4 pt-8">
+      <Header title="Order Confirmed" sub={`Order ${orderResult?.orderCode ?? ""}`} onBack={() => { setStep("select"); setBrandLabel(""); setModelName(""); setImei(""); setOrderResult(null); }} />
+
+      <div className="px-4 pt-5">
         {/* Success banner */}
         <div className="rounded-2xl p-5 mb-5 text-center"
           style={{ background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.25)" }}>
@@ -969,19 +1075,101 @@ export function ImeiRepairPage() {
 
           <div className="rounded-xl p-3" style={{ background: "rgba(59,130,246,0.06)", border: "1px solid rgba(59,130,246,0.15)" }}>
             <p className="text-[11px] leading-relaxed" style={{ color: "#64748b" }}>
-              After sending payment, your order will be processed within <span className="font-bold text-white">24–48 hours</span>. 
-              Check your email <span className="font-bold text-white">{email}</span> for confirmation and updates.
+              After sending payment, your order will be processed within <span className="font-bold text-white">24–48 hours</span>.
+              Check your email <span className="font-bold text-white">{email}</span> for confirmation.
             </p>
           </div>
         </div>
 
+        {/* ── Payment Screenshot Upload ─────────────────────────────────── */}
+        <div className="rounded-2xl p-4 mb-4"
+          style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
+          <p className="text-[11px] font-black uppercase tracking-wider mb-1" style={{ color: "#475569" }}>
+            Upload Payment Screenshot
+          </p>
+          <p className="text-[11px] mb-4" style={{ color: "#334155" }}>
+            Attach proof of payment to speed up verification.
+          </p>
+
+          {uploadDone ? (
+            <div className="rounded-xl px-4 py-3 flex items-center gap-3"
+              style={{ background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.25)" }}>
+              <CheckCircle2 size={16} className="text-green-400 shrink-0" />
+              <div>
+                <p className="text-[12px] font-bold text-green-400">Screenshot uploaded!</p>
+                <p className="text-[11px]" style={{ color: "#4b5563" }}>We'll verify your payment shortly.</p>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Drop / tap zone */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleFileSelect}
+              />
+
+              {uploadPreview ? (
+                <div className="relative mb-3">
+                  <img src={uploadPreview} alt="Payment proof" className="w-full rounded-xl object-cover max-h-48" />
+                  <button
+                    onClick={() => { setUploadFile(null); setUploadPreview(null); setUploadError(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
+                    className="absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center"
+                    style={{ background: "rgba(0,0,0,0.6)", border: "1px solid rgba(255,255,255,0.15)" }}>
+                    <X size={13} className="text-white" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full py-8 rounded-xl flex flex-col items-center gap-2 transition-all mb-3"
+                  style={{ background: "rgba(59,130,246,0.05)", border: "2px dashed rgba(59,130,246,0.25)" }}>
+                  <ImageIcon size={24} style={{ color: "#3b82f6" }} />
+                  <p className="text-[12px] font-bold" style={{ color: "#60a5fa" }}>Tap to choose screenshot</p>
+                  <p className="text-[10px]" style={{ color: "#334155" }}>JPG, PNG, WEBP accepted</p>
+                </button>
+              )}
+
+              {uploadError && (
+                <div className="rounded-xl px-3 py-2 flex items-center gap-2 mb-3"
+                  style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)" }}>
+                  <AlertTriangle size={12} className="text-red-400 shrink-0" />
+                  <p className="text-[11px] text-red-400">{uploadError}</p>
+                </div>
+              )}
+
+              {uploadFile && (
+                <button
+                  onClick={handleUploadScreenshot}
+                  disabled={uploading}
+                  className="w-full py-3.5 rounded-xl font-black text-sm text-white flex items-center justify-center gap-2 disabled:opacity-60"
+                  style={{ background: "linear-gradient(135deg,#10b981,#059669)" }}>
+                  {uploading ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
+                  {uploading ? "Uploading…" : "Send Screenshot"}
+                </button>
+              )}
+
+              {!uploadFile && (
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full py-3 rounded-xl font-bold text-[12px] flex items-center justify-center gap-2"
+                  style={{ color: "#60a5fa", border: "1px solid rgba(59,130,246,0.2)", background: "transparent" }}>
+                  <Upload size={13} /> Choose File
+                </button>
+              )}
+            </>
+          )}
+        </div>
+
         <div className="space-y-2">
-          <button onClick={() => navigate(`/orders/lookup`)}
+          <button onClick={() => setView("track")}
             className="w-full py-3.5 rounded-xl font-bold text-sm text-white flex items-center justify-center gap-2"
             style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)" }}>
-            Track Order
+            Track This Order
           </button>
-          <button onClick={() => { setStep("select"); setBrand(null); setModel(null); setImei(""); setOrderResult(null); }}
+          <button onClick={() => { setStep("select"); setBrandLabel(""); setModelName(""); setImei(""); setOrderResult(null); setUploadFile(null); setUploadPreview(null); setUploadDone(false); }}
             className="w-full py-3.5 rounded-xl font-bold text-sm flex items-center justify-center"
             style={{ color: "#64748b" }}>
             Register Another Device
