@@ -3,6 +3,7 @@ import { db, ordersTable, orderItemsTable } from "@workspace/db";
 import { z } from "zod";
 import jwt from "jsonwebtoken";
 import { randomBytes } from "node:crypto";
+import { eq, and, sql } from "drizzle-orm";
 import {
   sendEmail,
   orderSubmittedEmail,
@@ -168,11 +169,9 @@ router.post("/imei-repair/register", async (req, res) => {
         orderCode,
         customerName: null,
         customerEmail,
-        items: [{ name: productName, price: verifiedPrice, quantity: 1 }],
-        total: verifiedPrice,
-        currency: "USD",
+        items: [{ productName, price: String(verifiedPrice), quantity: 1 }],
+        total: String(verifiedPrice),
         paymentMethod,
-        orderUrl: appUrl(`/orders/${order.id}`),
       }),
       to: customerEmail,
     }).catch(() => {/* non-critical */});
@@ -192,6 +191,76 @@ router.post("/imei-repair/register", async (req, res) => {
   } catch (err) {
     req.log.error({ err }, "imei-repair register error");
     res.status(500).json({ error: "Internal server error — please try again" });
+  }
+});
+
+// ── GET /api/imei-repair/status/:orderCode ────────────────────────────────────
+// Look up an IMEI repair order by its IR-XXXX code + email (privacy guard).
+router.get("/imei-repair/status/:orderCode", async (req, res) => {
+  try {
+    const orderCode = (req.params.orderCode ?? "").trim().toUpperCase();
+    const email = ((req.query.email as string) ?? "").trim().toLowerCase();
+
+    if (!orderCode || !email) {
+      res.status(400).json({ error: "orderCode and email are required" });
+      return;
+    }
+
+    const [order] = await db
+      .select({
+        id: ordersTable.id,
+        orderCode: ordersTable.orderCode,
+        paymentStatus: ordersTable.paymentStatus,
+        orderType: ordersTable.orderType,
+        notes: ordersTable.notes,
+        deviceIdentifier: ordersTable.deviceIdentifier,
+        total: ordersTable.total,
+        currency: ordersTable.currency,
+        paymentMethod: ordersTable.paymentMethod,
+        createdAt: ordersTable.createdAt,
+        updatedAt: ordersTable.updatedAt,
+        correctionNote: ordersTable.correctionNote,
+      })
+      .from(ordersTable)
+      .where(
+        and(
+          eq(sql`upper(${ordersTable.orderCode})`, orderCode),
+          eq(sql`lower(${ordersTable.customerEmail})`, email),
+          eq(ordersTable.orderType, "imei_repair"),
+        )
+      )
+      .limit(1);
+
+    if (!order) {
+      res.status(404).json({ error: "Order not found. Check your order code and email." });
+      return;
+    }
+
+    // Fetch order items for device name
+    const items = await db
+      .select({ productName: orderItemsTable.productName })
+      .from(orderItemsTable)
+      .where(eq(orderItemsTable.orderId, order.id))
+      .limit(1);
+
+    const deviceName = items[0]?.productName?.replace("IMEI Repair — ", "") ?? null;
+
+    res.json({
+      orderId: order.id,
+      orderCode: order.orderCode,
+      paymentStatus: order.paymentStatus,
+      imei: order.deviceIdentifier,
+      device: deviceName,
+      total: order.total,
+      currency: order.currency,
+      paymentMethod: order.paymentMethod,
+      notes: order.correctionNote ?? null,
+      createdAt: order.createdAt,
+      updatedAt: order.updatedAt,
+    });
+  } catch (err) {
+    req.log.error({ err }, "imei-repair status lookup error");
+    res.status(500).json({ error: "Lookup failed — please try again" });
   }
 });
 

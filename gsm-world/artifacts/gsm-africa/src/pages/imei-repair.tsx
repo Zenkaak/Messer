@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import {
   Smartphone, ChevronRight, Shield, ArrowLeft, CheckCircle2,
-  Loader2, AlertTriangle, Copy, Check,
+  Loader2, AlertTriangle, Copy, Check, Search, Clock, RefreshCw,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
@@ -430,10 +430,27 @@ type OrderResult = {
 
 type Step = "select" | "payment" | "done";
 
+type TrackResult = {
+  orderId: number;
+  orderCode: string;
+  paymentStatus: string;
+  imei: string | null;
+  device: string | null;
+  total: string;
+  currency: string;
+  paymentMethod: string;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export function ImeiRepairPage() {
   const [, navigate] = useLocation();
   const { user, token } = useAuth();
   const { toast } = useToast();
+
+  // Top-level view: register flow vs. track order
+  const [view, setView] = useState<"register" | "track">("register");
 
   // Step 1 state
   const [step, setStep] = useState<Step>("select");
@@ -452,7 +469,39 @@ export function ImeiRepairPage() {
   const [orderResult, setOrderResult] = useState<OrderResult | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
 
-  useEffect(() => { if (user?.email && !email) setEmail(user.email); }, [user]);
+  // Track order state
+  const [trackCode, setTrackCode] = useState("");
+  const [trackEmail, setTrackEmail] = useState(user?.email ?? "");
+  const [trackLoading, setTrackLoading] = useState(false);
+  const [trackResult, setTrackResult] = useState<TrackResult | null>(null);
+  const [trackError, setTrackError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (user?.email) {
+      if (!email) setEmail(user.email);
+      if (!trackEmail) setTrackEmail(user.email);
+    }
+  }, [user]);
+
+  async function handleTrackOrder() {
+    const code = trackCode.trim().toUpperCase();
+    const em = trackEmail.trim().toLowerCase();
+    if (!code) { setTrackError("Enter your order code (e.g. IR-AB12CD34)"); return; }
+    if (!em || !em.includes("@")) { setTrackError("Enter the email used when registering"); return; }
+    setTrackLoading(true);
+    setTrackResult(null);
+    setTrackError(null);
+    try {
+      const res = await fetch(`${apiBase()}/api/imei-repair/status/${encodeURIComponent(code)}?email=${encodeURIComponent(em)}`);
+      const data = await res.json() as TrackResult & { error?: string };
+      if (!res.ok) { setTrackError(data.error ?? "Order not found"); setTrackLoading(false); return; }
+      setTrackResult(data);
+    } catch {
+      setTrackError("Network error — please try again");
+    } finally {
+      setTrackLoading(false);
+    }
+  }
 
   function handleBrandSelect(b: Brand) {
     setBrand(b);
@@ -535,6 +584,83 @@ export function ImeiRepairPage() {
         </div>
 
         <div className="px-4 pt-5">
+          {/* Tab switcher */}
+          <div className="flex rounded-xl overflow-hidden mb-5" style={{ border: "1px solid rgba(255,255,255,0.08)" }}>
+            {([["register", "Register Device"], ["track", "Track Order"]] as const).map(([v, label]) => (
+              <button key={v} onClick={() => setView(v)}
+                className="flex-1 py-2.5 text-[11px] font-black transition-all"
+                style={{
+                  background: view === v ? "linear-gradient(135deg,#3b82f6,#6366f1)" : "rgba(255,255,255,0.03)",
+                  color: view === v ? "#fff" : "#475569",
+                }}>
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {/* Track Order view */}
+          {view === "track" && (
+            <div className="space-y-4">
+              <div className="rounded-2xl p-4" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                <p className="text-[11px] font-black uppercase tracking-wider mb-3" style={{ color: "#475569" }}>Order Code</p>
+                <input
+                  value={trackCode}
+                  onChange={e => setTrackCode(e.target.value)}
+                  placeholder="IR-XXXX"
+                  className="w-full rounded-xl px-4 py-3 text-sm font-mono outline-none"
+                  style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "#e2e8f0" }}
+                />
+              </div>
+              <div className="rounded-2xl p-4" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                <p className="text-[11px] font-black uppercase tracking-wider mb-3" style={{ color: "#475569" }}>Email Used at Registration</p>
+                <input
+                  value={trackEmail}
+                  onChange={e => setTrackEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  type="email"
+                  className="w-full rounded-xl px-4 py-3 text-sm outline-none"
+                  style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "#e2e8f0" }}
+                />
+              </div>
+              {trackError && (
+                <div className="rounded-xl px-4 py-3 flex items-center gap-2" style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.25)" }}>
+                  <AlertTriangle size={14} className="text-red-400 shrink-0" />
+                  <p className="text-[12px] text-red-400">{trackError}</p>
+                </div>
+              )}
+              {trackResult && (
+                <div className="rounded-2xl p-4 space-y-3" style={{ background: "rgba(59,130,246,0.07)", border: "1px solid rgba(59,130,246,0.2)" }}>
+                  <div className="flex items-center gap-2">
+                    <Clock size={14} style={{ color: "#93c5fd" }} />
+                    <p className="text-[11px] font-black uppercase tracking-wider" style={{ color: "#93c5fd" }}>Order Status</p>
+                  </div>
+                  <div className="space-y-2 text-[12px]">
+                    <div className="flex justify-between"><span style={{ color: "#475569" }}>Order Code</span><span className="font-bold text-white">{trackResult.orderCode}</span></div>
+                    <div className="flex justify-between"><span style={{ color: "#475569" }}>Device</span><span className="font-bold text-white">{trackResult.brand} {trackResult.model}</span></div>
+                    <div className="flex justify-between"><span style={{ color: "#475569" }}>IMEI</span><span className="font-mono text-white">{trackResult.imei}</span></div>
+                    <div className="flex justify-between"><span style={{ color: "#475569" }}>Status</span>
+                      <span className="font-black" style={{ color: trackResult.status === "completed" ? "#4ade80" : trackResult.status === "processing" ? "#fbbf24" : "#93c5fd" }}>
+                        {trackResult.status.toUpperCase()}
+                      </span>
+                    </div>
+                    {trackResult.completedAt && (
+                      <div className="flex justify-between"><span style={{ color: "#475569" }}>Completed</span><span className="text-white">{new Date(trackResult.completedAt).toLocaleDateString()}</span></div>
+                    )}
+                  </div>
+                </div>
+              )}
+              <button onClick={handleTrackOrder} disabled={trackLoading}
+                className="w-full py-3.5 rounded-xl font-black text-sm flex items-center justify-center gap-2"
+                style={{ background: "linear-gradient(135deg,#3b82f6,#6366f1)", color: "#fff", opacity: trackLoading ? 0.7 : 1 }}>
+                {trackLoading ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}
+                {trackLoading ? "Checking…" : "Check Status"}
+              </button>
+            </div>
+          )}
+
+          {/* Register view */}
+          {view === "register" && <>
+
           {/* Progress indicator */}
           <div className="flex items-center gap-2 mb-5">
             {["Device", "Payment", "Done"].map((label, i) => (
@@ -658,6 +784,7 @@ export function ImeiRepairPage() {
               </button>
             </>
           )}
+          </>}
         </div>
       </div>
     );

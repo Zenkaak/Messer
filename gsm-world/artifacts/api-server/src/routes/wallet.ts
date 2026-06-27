@@ -520,22 +520,27 @@ router.post("/wallet/transfer", async (req, res) => {
 
     logger.info({ from: payload.userId, to: recipient.id, amount: amountNum, fee }, "Wallet transfer");
 
-    // Fetch updated balances so emails can show the new balance to each party.
+    // Fetch updated balances + sender username so emails can show accurate info.
+    // NOTE: sender?.username was previously out-of-scope here (only declared inside
+    // the early-return block above), causing a ReferenceError that silently killed
+    // emails and returned "Transfer failed" even when money moved. Fixed by fetching
+    // username here alongside the balance.
     const [senderRow, recipientRow] = await Promise.all([
-      db.select({ walletBalance: usersTable.walletBalance, name: usersTable.name })
+      db.select({ walletBalance: usersTable.walletBalance, name: usersTable.name, username: usersTable.username })
         .from(usersTable).where(eq(usersTable.id, payload.userId)).limit(1),
       db.select({ walletBalance: usersTable.walletBalance, name: usersTable.name })
         .from(usersTable).where(eq(usersTable.id, recipient.id)).limit(1),
     ]);
     const senderNewBalance = parseFloat(senderRow[0]?.walletBalance ?? "0");
     const recipientNewBalance = parseFloat(recipientRow[0]?.walletBalance ?? "0");
-    const senderName = senderRow[0]?.name ?? sender?.username ?? null;
+    const senderUsername = senderRow[0]?.username ?? null;
+    const senderName = senderRow[0]?.name ?? senderUsername ?? null;
     const recipientName = recipientRow[0]?.name ?? null;
 
     // Log both sides of the transfer
     void Promise.all([
       logWalletTxn(payload.userId, "transfer_sent", amountNum, fee, toUsername.trim(), `Sent to @${toUsername.trim()}`),
-      logWalletTxn(recipient.id, "transfer_received", amountNum, 0, sender?.username ?? null, `Received from @${sender?.username ?? "someone"}`),
+      logWalletTxn(recipient.id, "transfer_received", amountNum, 0, senderUsername, `Received from @${senderUsername ?? "someone"}`),
     ]);
 
     // Await all notifications + emails before res.json() —
@@ -551,7 +556,7 @@ router.post("/wallet/transfer", async (req, res) => {
     });
     const recipientEmailContent = walletTransferReceivedEmail({
       recipientName,
-      senderUsername: sender?.username ?? "someone",
+      senderUsername: senderUsername ?? "someone",
       amount: amountNum,
       newBalance: recipientNewBalance,
     });
@@ -562,7 +567,7 @@ router.post("/wallet/transfer", async (req, res) => {
       db.insert(notificationsTable).values({
         userEmail: recipient.email,
         title: "Wallet Transfer Received",
-        message: `You received $${amountNum.toFixed(2)} from @${sender?.username ?? "someone"}.`,
+        message: `You received $${amountNum.toFixed(2)} from @${senderUsername ?? "someone"}.`,
         type: "success",
         read: false,
       }).catch(() => {}),
