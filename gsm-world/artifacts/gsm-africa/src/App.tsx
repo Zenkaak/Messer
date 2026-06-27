@@ -44,6 +44,7 @@ import { ActivatePage } from "@/pages/activate";
 import { FrpPage } from "@/pages/frp";
 import { IphoneUnlockPage } from "@/pages/iphone-unlock";
 import { ImeiPage } from "@/pages/imei";
+import { ImeiRepairPage } from "@/pages/imei-repair";
 import { AndroidUnlockPage } from "@/pages/android-unlock";
 import { DirectUnlockPage } from "@/pages/direct-unlock";
 import { GoogleCallbackPage } from "@/pages/google-callback";
@@ -86,6 +87,7 @@ function Router() {
             <Route path="/iphone-unlock" component={IphoneUnlockPage} />
             <Route path="/android-unlock" component={AndroidUnlockPage} />
             <Route path="/imei" component={ImeiPage} />
+            <Route path="/imei-repair" component={ImeiRepairPage} />
             <Route path="/direct-unlock" component={DirectUnlockPage} />
             <Route path="/unlock-tools" component={UnlockToolsPage} />
             <Route path="/unsubscribe" component={UnsubscribePage} />
