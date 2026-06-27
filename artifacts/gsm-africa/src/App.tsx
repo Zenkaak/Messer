@@ -26,7 +26,6 @@ import { Toaster as SonnerToaster } from "sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/context/auth-context";
 import { NotificationProvider } from "@/context/notification-context";
-import { ThemeProvider } from "@/context/theme-context";
 import { Home } from "@/pages/home";
 import { StorePage } from "@/pages/store";
 import { ProductPage } from "@/pages/product";
@@ -45,6 +44,7 @@ import { ActivatePage } from "@/pages/activate";
 import { FrpPage } from "@/pages/frp";
 import { IphoneUnlockPage } from "@/pages/iphone-unlock";
 import { ImeiPage } from "@/pages/imei";
+import { ImeiRepairPage } from "@/pages/imei-repair";
 import { AndroidUnlockPage } from "@/pages/android-unlock";
 import { DirectUnlockPage } from "@/pages/direct-unlock";
 import { GoogleCallbackPage } from "@/pages/google-callback";
@@ -87,6 +87,7 @@ function Router() {
             <Route path="/iphone-unlock" component={IphoneUnlockPage} />
             <Route path="/android-unlock" component={AndroidUnlockPage} />
             <Route path="/imei" component={ImeiPage} />
+            <Route path="/imei-repair" component={ImeiRepairPage} />
             <Route path="/direct-unlock" component={DirectUnlockPage} />
             <Route path="/unlock-tools" component={UnlockToolsPage} />
             <Route path="/unsubscribe" component={UnsubscribePage} />
@@ -115,22 +116,20 @@ function AppVersionChecker() {
 export default function App() {
   return (
     <ErrorBoundary>
-      <ThemeProvider>
-        <QueryClientProvider client={queryClient}>
-          <NotificationProvider>
-            <AuthProvider>
-              <TooltipProvider>
-                <AppVersionChecker />
-                <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-                  <Router />
-                </WouterRouter>
-                <Toaster />
-                <SonnerToaster position="top-right" richColors closeButton duration={6000} />
-              </TooltipProvider>
-            </AuthProvider>
-          </NotificationProvider>
-        </QueryClientProvider>
-      </ThemeProvider>
+      <QueryClientProvider client={queryClient}>
+        <NotificationProvider>
+          <AuthProvider>
+            <TooltipProvider>
+              <AppVersionChecker />
+              <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+                <Router />
+              </WouterRouter>
+              <Toaster />
+              <SonnerToaster position="top-right" richColors closeButton duration={6000} />
+            </TooltipProvider>
+          </AuthProvider>
+        </NotificationProvider>
+      </QueryClientProvider>
     </ErrorBoundary>
   );
 }
