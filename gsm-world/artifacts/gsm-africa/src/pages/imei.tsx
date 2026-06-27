@@ -4,7 +4,7 @@ import { useListProducts } from "@workspace/api-client-react";
 import {
   Search, ShoppingCart, Cpu, X, Smartphone,
   AlertCircle, Loader2, CheckCircle2, Shield, Unlock,
-  ChevronRight, AlertTriangle,
+  ChevronRight, AlertTriangle, Wrench,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -449,6 +449,29 @@ export function ImeiPage() {
                 <p className="text-[11px] font-black" style={{ color: "#e2e8f0" }}>{cat}</p>
                 <span className="text-[10px]" style={{ color: "#475569" }}>{products.length} services</span>
               </div>
+
+              {/* IMEI Repair registration CTA — shown at the top of the IMEI Repair section */}
+              {cat === "IMEI Repair" && (
+                <Link href="/imei-repair">
+                  <div className="mb-3 rounded-2xl overflow-hidden active:scale-95 transition-all"
+                    style={{ background: "linear-gradient(135deg,rgba(234,88,12,0.15),rgba(249,115,22,0.08))", border: "1px solid rgba(234,88,12,0.35)" }}>
+                    <div className="px-4 py-3 flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                        style={{ background: "linear-gradient(135deg,#ea580c,#f97316)" }}>
+                        <Wrench size={18} className="text-white" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[13px] font-black text-white leading-snug">IMEI Repair &amp; Registration</p>
+                        <p className="text-[11px] mt-0.5" style={{ color: "#fdba74" }}>
+                          Select your device, enter IMEI &amp; register — from $9
+                        </p>
+                      </div>
+                      <ChevronRight size={16} style={{ color: "#f97316" }} className="shrink-0" />
+                    </div>
+                  </div>
+                </Link>
+              )}
+
               <div className="space-y-2">
                 {products.map(p => (
                   <Link href={`/products/${p.id}`} key={p.id}>
