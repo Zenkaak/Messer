@@ -1,402 +1,113 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef } from "react";
 import { useLocation } from "wouter";
 import {
-  Smartphone, ChevronRight, Shield, ArrowLeft, CheckCircle2,
-  Loader2, AlertTriangle, Copy, Check, Search, Clock, Share2,
-  Upload, ImageIcon, X, LogIn,
+  ArrowLeft, Share2, Smartphone, ShieldCheck, Zap, BadgeCheck,
+  Copy, Check, Upload, ImageIcon, MessageCircle, ChevronRight,
+  AlertTriangle, LogIn, Loader2, X,
 } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
+import { useToast } from "@/hooks/use-toast";
 
-// ─── Device Catalog with Prices ──────────────────────────────────────────────
+// ── Types ─────────────────────────────────────────────────────────────────────
+interface PaymentDetails {
+  usdtAddress: string | null;
+  usdtNetwork: string | null;
+  binancePayId: string | null;
+  whatsapp: string | null;
+}
+interface OrderResult {
+  orderId: number;
+  orderCode: string;
+  paymentMethod: string;
+  total: number;
+  paymentDetails: PaymentDetails;
+  customerEmail: string;
+}
 
+// ── Device catalog ────────────────────────────────────────────────────────────
 type DeviceModel = { name: string; price: number };
-type Brand = { label: string; models: DeviceModel[] };
+type BrandEntry = { label: string; models: DeviceModel[] };
 
-const DEVICE_CATALOG: Brand[] = [
+const DEVICE_CATALOG: BrandEntry[] = [
   {
     label: "Apple iPhone",
     models: [
-      { name: "iPhone 4", price: 8 },
-      { name: "iPhone 4S", price: 8 },
-      { name: "iPhone 5", price: 8 },
-      { name: "iPhone 5C", price: 8 },
-      { name: "iPhone 5S", price: 9 },
-      { name: "iPhone 6", price: 9 },
-      { name: "iPhone 6 Plus", price: 9 },
-      { name: "iPhone 6S", price: 10 },
-      { name: "iPhone 6S Plus", price: 10 },
-      { name: "iPhone SE (1st Gen)", price: 10 },
-      { name: "iPhone 7", price: 11 },
-      { name: "iPhone 7 Plus", price: 12 },
-      { name: "iPhone 8", price: 12 },
-      { name: "iPhone 8 Plus", price: 13 },
-      { name: "iPhone X", price: 14 },
-      { name: "iPhone XR", price: 14 },
-      { name: "iPhone XS", price: 15 },
-      { name: "iPhone XS Max", price: 15 },
-      { name: "iPhone SE (2nd Gen)", price: 14 },
-      { name: "iPhone 11", price: 15 },
-      { name: "iPhone 11 Pro", price: 16 },
-      { name: "iPhone 11 Pro Max", price: 16 },
-      { name: "iPhone 12 Mini", price: 16 },
-      { name: "iPhone 12", price: 17 },
-      { name: "iPhone 12 Pro", price: 17 },
-      { name: "iPhone 12 Pro Max", price: 18 },
-      { name: "iPhone SE (3rd Gen)", price: 17 },
-      { name: "iPhone 13 Mini", price: 18 },
-      { name: "iPhone 13", price: 18 },
-      { name: "iPhone 13 Pro", price: 19 },
-      { name: "iPhone 13 Pro Max", price: 19 },
-      { name: "iPhone 14", price: 20 },
-      { name: "iPhone 14 Plus", price: 21 },
-      { name: "iPhone 14 Pro", price: 22 },
-      { name: "iPhone 14 Pro Max", price: 23 },
-      { name: "iPhone 15", price: 24 },
-      { name: "iPhone 15 Plus", price: 25 },
-      { name: "iPhone 15 Pro", price: 26 },
-      { name: "iPhone 15 Pro Max", price: 27 },
-      { name: "iPhone 16", price: 28 },
-      { name: "iPhone 16 Plus", price: 29 },
-      { name: "iPhone 16 Pro", price: 30 },
+      { name: "iPhone 4", price: 8 }, { name: "iPhone 4S", price: 8 }, { name: "iPhone 5", price: 8 },
+      { name: "iPhone 5C", price: 8 }, { name: "iPhone 5S", price: 9 }, { name: "iPhone 6", price: 9 },
+      { name: "iPhone 6 Plus", price: 9 }, { name: "iPhone 6S", price: 10 }, { name: "iPhone 6S Plus", price: 10 },
+      { name: "iPhone SE (1st Gen)", price: 10 }, { name: "iPhone 7", price: 11 }, { name: "iPhone 7 Plus", price: 12 },
+      { name: "iPhone 8", price: 12 }, { name: "iPhone 8 Plus", price: 13 }, { name: "iPhone X", price: 14 },
+      { name: "iPhone XR", price: 14 }, { name: "iPhone XS", price: 15 }, { name: "iPhone XS Max", price: 15 },
+      { name: "iPhone SE (2nd Gen)", price: 14 }, { name: "iPhone 11", price: 15 }, { name: "iPhone 11 Pro", price: 16 },
+      { name: "iPhone 11 Pro Max", price: 16 }, { name: "iPhone 12 Mini", price: 16 }, { name: "iPhone 12", price: 17 },
+      { name: "iPhone 12 Pro", price: 17 }, { name: "iPhone 12 Pro Max", price: 18 }, { name: "iPhone SE (3rd Gen)", price: 17 },
+      { name: "iPhone 13 Mini", price: 18 }, { name: "iPhone 13", price: 18 }, { name: "iPhone 13 Pro", price: 19 },
+      { name: "iPhone 13 Pro Max", price: 19 }, { name: "iPhone 14", price: 20 }, { name: "iPhone 14 Plus", price: 21 },
+      { name: "iPhone 14 Pro", price: 22 }, { name: "iPhone 14 Pro Max", price: 23 }, { name: "iPhone 15", price: 24 },
+      { name: "iPhone 15 Plus", price: 25 }, { name: "iPhone 15 Pro", price: 26 }, { name: "iPhone 15 Pro Max", price: 27 },
+      { name: "iPhone 16", price: 28 }, { name: "iPhone 16 Plus", price: 29 }, { name: "iPhone 16 Pro", price: 30 },
       { name: "iPhone 16 Pro Max", price: 32 },
     ],
   },
   {
     label: "Samsung Galaxy S",
     models: [
-      { name: "Galaxy S7", price: 10 },
-      { name: "Galaxy S7 Edge", price: 10 },
-      { name: "Galaxy S8", price: 12 },
-      { name: "Galaxy S8+", price: 12 },
-      { name: "Galaxy S9", price: 13 },
-      { name: "Galaxy S9+", price: 13 },
-      { name: "Galaxy S10e", price: 14 },
-      { name: "Galaxy S10", price: 14 },
-      { name: "Galaxy S10+", price: 15 },
-      { name: "Galaxy S10 5G", price: 15 },
-      { name: "Galaxy S20", price: 16 },
-      { name: "Galaxy S20+", price: 17 },
-      { name: "Galaxy S20 Ultra", price: 17 },
-      { name: "Galaxy S20 FE", price: 15 },
-      { name: "Galaxy S21", price: 17 },
-      { name: "Galaxy S21+", price: 18 },
-      { name: "Galaxy S21 Ultra", price: 19 },
-      { name: "Galaxy S21 FE", price: 16 },
-      { name: "Galaxy S22", price: 19 },
-      { name: "Galaxy S22+", price: 20 },
-      { name: "Galaxy S22 Ultra", price: 22 },
-      { name: "Galaxy S23", price: 21 },
-      { name: "Galaxy S23+", price: 22 },
-      { name: "Galaxy S23 Ultra", price: 24 },
-      { name: "Galaxy S23 FE", price: 19 },
-      { name: "Galaxy S24", price: 23 },
-      { name: "Galaxy S24+", price: 25 },
-      { name: "Galaxy S24 Ultra", price: 27 },
-      { name: "Galaxy S24 FE", price: 21 },
-      { name: "Galaxy S25", price: 26 },
-      { name: "Galaxy S25+", price: 28 },
-      { name: "Galaxy S25 Ultra", price: 30 },
+      { name: "Galaxy S7", price: 10 }, { name: "Galaxy S7 Edge", price: 10 }, { name: "Galaxy S8", price: 12 },
+      { name: "Galaxy S8+", price: 12 }, { name: "Galaxy S9", price: 13 }, { name: "Galaxy S9+", price: 13 },
+      { name: "Galaxy S10e", price: 14 }, { name: "Galaxy S10", price: 14 }, { name: "Galaxy S10+", price: 15 },
+      { name: "Galaxy S10 5G", price: 15 }, { name: "Galaxy S20", price: 16 }, { name: "Galaxy S20+", price: 17 },
+      { name: "Galaxy S20 Ultra", price: 17 }, { name: "Galaxy S20 FE", price: 15 }, { name: "Galaxy S21", price: 17 },
+      { name: "Galaxy S21+", price: 18 }, { name: "Galaxy S21 Ultra", price: 19 }, { name: "Galaxy S21 FE", price: 16 },
+      { name: "Galaxy S22", price: 19 }, { name: "Galaxy S22+", price: 20 }, { name: "Galaxy S22 Ultra", price: 22 },
+      { name: "Galaxy S23", price: 21 }, { name: "Galaxy S23+", price: 22 }, { name: "Galaxy S23 Ultra", price: 24 },
+      { name: "Galaxy S23 FE", price: 19 }, { name: "Galaxy S24", price: 23 }, { name: "Galaxy S24+", price: 25 },
+      { name: "Galaxy S24 Ultra", price: 27 }, { name: "Galaxy S24 FE", price: 21 }, { name: "Galaxy S25", price: 26 },
+      { name: "Galaxy S25+", price: 28 }, { name: "Galaxy S25 Ultra", price: 30 },
     ],
   },
   {
     label: "Samsung Galaxy A",
     models: [
-      { name: "Galaxy A03", price: 10 },
-      { name: "Galaxy A03s", price: 10 },
-      { name: "Galaxy A04", price: 10 },
-      { name: "Galaxy A04s", price: 10 },
-      { name: "Galaxy A05", price: 10 },
-      { name: "Galaxy A05s", price: 10 },
-      { name: "Galaxy A13", price: 11 },
-      { name: "Galaxy A14", price: 11 },
-      { name: "Galaxy A15", price: 12 },
-      { name: "Galaxy A23", price: 12 },
-      { name: "Galaxy A24", price: 12 },
-      { name: "Galaxy A25", price: 13 },
-      { name: "Galaxy A33 5G", price: 13 },
-      { name: "Galaxy A34 5G", price: 14 },
-      { name: "Galaxy A35 5G", price: 15 },
-      { name: "Galaxy A50", price: 12 },
-      { name: "Galaxy A51", price: 13 },
-      { name: "Galaxy A52", price: 14 },
-      { name: "Galaxy A53 5G", price: 15 },
-      { name: "Galaxy A54 5G", price: 16 },
-      { name: "Galaxy A55 5G", price: 17 },
-      { name: "Galaxy A70", price: 13 },
-      { name: "Galaxy A71", price: 14 },
-      { name: "Galaxy A72", price: 15 },
+      { name: "Galaxy A03", price: 10 }, { name: "Galaxy A03s", price: 10 }, { name: "Galaxy A04", price: 10 },
+      { name: "Galaxy A04s", price: 10 }, { name: "Galaxy A05", price: 10 }, { name: "Galaxy A05s", price: 10 },
+      { name: "Galaxy A13", price: 11 }, { name: "Galaxy A14", price: 11 }, { name: "Galaxy A15", price: 12 },
+      { name: "Galaxy A23", price: 12 }, { name: "Galaxy A24", price: 12 }, { name: "Galaxy A25", price: 13 },
+      { name: "Galaxy A33 5G", price: 13 }, { name: "Galaxy A34 5G", price: 14 }, { name: "Galaxy A35 5G", price: 15 },
+      { name: "Galaxy A50", price: 12 }, { name: "Galaxy A51", price: 13 }, { name: "Galaxy A52", price: 14 },
+      { name: "Galaxy A53 5G", price: 15 }, { name: "Galaxy A54 5G", price: 16 }, { name: "Galaxy A55 5G", price: 17 },
+      { name: "Galaxy A70", price: 13 }, { name: "Galaxy A71", price: 14 }, { name: "Galaxy A72", price: 15 },
       { name: "Galaxy A73 5G", price: 16 },
     ],
   },
   {
     label: "Samsung Galaxy Note",
     models: [
-      { name: "Galaxy Note 8", price: 13 },
-      { name: "Galaxy Note 9", price: 14 },
-      { name: "Galaxy Note 10", price: 16 },
-      { name: "Galaxy Note 10+", price: 17 },
-      { name: "Galaxy Note 10 Lite", price: 14 },
-      { name: "Galaxy Note 20", price: 18 },
-      { name: "Galaxy Note 20 Ultra", price: 20 },
+      { name: "Galaxy Note 8", price: 13 }, { name: "Galaxy Note 9", price: 14 }, { name: "Galaxy Note 10", price: 16 },
+      { name: "Galaxy Note 10+", price: 17 }, { name: "Galaxy Note 10 Lite", price: 14 },
+      { name: "Galaxy Note 20", price: 18 }, { name: "Galaxy Note 20 Ultra", price: 20 },
     ],
   },
   {
     label: "Samsung Galaxy Z",
     models: [
-      { name: "Galaxy Z Flip", price: 20 },
-      { name: "Galaxy Z Flip 3", price: 22 },
-      { name: "Galaxy Z Flip 4", price: 24 },
-      { name: "Galaxy Z Flip 5", price: 26 },
-      { name: "Galaxy Z Flip 6", price: 28 },
-      { name: "Galaxy Z Fold 2", price: 25 },
-      { name: "Galaxy Z Fold 3", price: 27 },
-      { name: "Galaxy Z Fold 4", price: 30 },
-      { name: "Galaxy Z Fold 5", price: 33 },
+      { name: "Galaxy Z Flip", price: 20 }, { name: "Galaxy Z Flip 3", price: 22 }, { name: "Galaxy Z Flip 4", price: 24 },
+      { name: "Galaxy Z Flip 5", price: 26 }, { name: "Galaxy Z Flip 6", price: 28 }, { name: "Galaxy Z Fold 2", price: 25 },
+      { name: "Galaxy Z Fold 3", price: 27 }, { name: "Galaxy Z Fold 4", price: 30 }, { name: "Galaxy Z Fold 5", price: 33 },
       { name: "Galaxy Z Fold 6", price: 35 },
     ],
   },
   {
     label: "Samsung Galaxy M",
     models: [
-      { name: "Galaxy M12", price: 10 },
-      { name: "Galaxy M13", price: 10 },
-      { name: "Galaxy M14", price: 11 },
-      { name: "Galaxy M23", price: 11 },
-      { name: "Galaxy M33 5G", price: 12 },
-      { name: "Galaxy M34 5G", price: 13 },
-      { name: "Galaxy M52 5G", price: 13 },
-      { name: "Galaxy M53 5G", price: 14 },
-      { name: "Galaxy M54 5G", price: 15 },
-    ],
-  },
-  {
-    label: "Huawei",
-    models: [
-      { name: "Huawei P30", price: 12 },
-      { name: "Huawei P30 Pro", price: 14 },
-      { name: "Huawei P40", price: 13 },
-      { name: "Huawei P40 Pro", price: 15 },
-      { name: "Huawei P50", price: 14 },
-      { name: "Huawei P50 Pro", price: 16 },
-      { name: "Huawei Mate 20", price: 12 },
-      { name: "Huawei Mate 20 Pro", price: 14 },
-      { name: "Huawei Mate 30 Pro", price: 15 },
-      { name: "Huawei Mate 40 Pro", price: 16 },
-      { name: "Huawei Nova 7i", price: 11 },
-      { name: "Huawei Nova 8", price: 12 },
-      { name: "Huawei Nova 9", price: 12 },
-      { name: "Huawei Y9s", price: 10 },
-      { name: "Huawei Y9 Prime 2019", price: 10 },
-    ],
-  },
-  {
-    label: "Xiaomi / Redmi / POCO",
-    models: [
-      { name: "Redmi Note 10", price: 10 },
-      { name: "Redmi Note 10 Pro", price: 11 },
-      { name: "Redmi Note 11", price: 10 },
-      { name: "Redmi Note 11 Pro", price: 11 },
-      { name: "Redmi Note 12", price: 10 },
-      { name: "Redmi Note 12 Pro", price: 11 },
-      { name: "Redmi Note 13", price: 11 },
-      { name: "Redmi Note 13 Pro", price: 12 },
-      { name: "Redmi 10", price: 10 },
-      { name: "Redmi 12", price: 10 },
-      { name: "Xiaomi 12", price: 14 },
-      { name: "Xiaomi 12 Pro", price: 15 },
-      { name: "Xiaomi 13", price: 15 },
-      { name: "Xiaomi 13 Pro", price: 16 },
-      { name: "Xiaomi 14", price: 17 },
-      { name: "Xiaomi 14 Pro", price: 18 },
-      { name: "POCO X3", price: 11 },
-      { name: "POCO X4 Pro", price: 12 },
-      { name: "POCO X5 Pro", price: 12 },
-      { name: "POCO F5", price: 13 },
-      { name: "POCO F5 Pro", price: 14 },
-    ],
-  },
-  {
-    label: "OnePlus",
-    models: [
-      { name: "OnePlus 8", price: 12 },
-      { name: "OnePlus 8 Pro", price: 13 },
-      { name: "OnePlus 8T", price: 12 },
-      { name: "OnePlus 9", price: 13 },
-      { name: "OnePlus 9 Pro", price: 14 },
-      { name: "OnePlus 9R", price: 12 },
-      { name: "OnePlus 10 Pro", price: 15 },
-      { name: "OnePlus 10T", price: 14 },
-      { name: "OnePlus 11", price: 16 },
-      { name: "OnePlus 12", price: 18 },
-      { name: "OnePlus Nord", price: 11 },
-      { name: "OnePlus Nord 2", price: 12 },
-      { name: "OnePlus Nord 3", price: 13 },
-      { name: "OnePlus Nord CE 3", price: 12 },
-    ],
-  },
-  {
-    label: "Oppo / Realme",
-    models: [
-      { name: "Oppo A54", price: 10 },
-      { name: "Oppo A74", price: 11 },
-      { name: "Oppo A78", price: 11 },
-      { name: "Oppo A96", price: 11 },
-      { name: "Oppo Reno 6", price: 12 },
-      { name: "Oppo Reno 7", price: 13 },
-      { name: "Oppo Reno 8", price: 13 },
-      { name: "Oppo Reno 10", price: 14 },
-      { name: "Oppo Find X5", price: 15 },
-      { name: "Oppo Find X6 Pro", price: 17 },
-      { name: "Realme 9", price: 10 },
-      { name: "Realme 10", price: 10 },
-      { name: "Realme 11", price: 11 },
-      { name: "Realme GT 2", price: 13 },
-      { name: "Realme GT Neo 3", price: 12 },
-      { name: "Realme GT 3", price: 13 },
-    ],
-  },
-  {
-    label: "Google Pixel",
-    models: [
-      { name: "Pixel 5", price: 12 },
-      { name: "Pixel 5a", price: 12 },
-      { name: "Pixel 6", price: 14 },
-      { name: "Pixel 6 Pro", price: 15 },
-      { name: "Pixel 6a", price: 13 },
-      { name: "Pixel 7", price: 15 },
-      { name: "Pixel 7 Pro", price: 16 },
-      { name: "Pixel 7a", price: 14 },
-      { name: "Pixel 8", price: 17 },
-      { name: "Pixel 8 Pro", price: 18 },
-      { name: "Pixel 8a", price: 15 },
-      { name: "Pixel 9", price: 19 },
-      { name: "Pixel 9 Pro", price: 21 },
-      { name: "Pixel 9 Pro XL", price: 22 },
-      { name: "Pixel 9 Pro Fold", price: 28 },
-    ],
-  },
-  {
-    label: "Nokia",
-    models: [
-      { name: "Nokia G21", price: 9 },
-      { name: "Nokia G22", price: 9 },
-      { name: "Nokia G50", price: 10 },
-      { name: "Nokia G60", price: 10 },
-      { name: "Nokia X20", price: 10 },
-      { name: "Nokia X30", price: 11 },
-      { name: "Nokia 5.4", price: 9 },
-      { name: "Nokia 6.3", price: 9 },
-      { name: "Nokia 7.2", price: 10 },
-      { name: "Nokia 8.3 5G", price: 11 },
-    ],
-  },
-  {
-    label: "Motorola",
-    models: [
-      { name: "Moto G32", price: 10 },
-      { name: "Moto G42", price: 10 },
-      { name: "Moto G52", price: 10 },
-      { name: "Moto G62 5G", price: 11 },
-      { name: "Moto G72", price: 11 },
-      { name: "Moto G82 5G", price: 12 },
-      { name: "Moto G84 5G", price: 12 },
-      { name: "Moto G200 5G", price: 13 },
-      { name: "Moto Edge 20", price: 12 },
-      { name: "Moto Edge 30", price: 13 },
-      { name: "Moto Edge 40", price: 14 },
-      { name: "Moto Edge 50 Pro", price: 15 },
-      { name: "Moto Razr 40", price: 18 },
-      { name: "Moto Razr 40 Ultra", price: 22 },
-    ],
-  },
-  {
-    label: "Sony",
-    models: [
-      { name: "Xperia 1 III", price: 15 },
-      { name: "Xperia 1 IV", price: 17 },
-      { name: "Xperia 1 V", price: 19 },
-      { name: "Xperia 5 III", price: 14 },
-      { name: "Xperia 5 IV", price: 15 },
-      { name: "Xperia 5 V", price: 16 },
-      { name: "Xperia 10 IV", price: 12 },
-      { name: "Xperia 10 V", price: 13 },
-    ],
-  },
-  {
-    label: "Vivo",
-    models: [
-      { name: "Vivo Y72 5G", price: 10 },
-      { name: "Vivo Y76 5G", price: 11 },
-      { name: "Vivo Y33s", price: 10 },
-      { name: "Vivo V21", price: 11 },
-      { name: "Vivo V23", price: 12 },
-      { name: "Vivo V25 Pro", price: 13 },
-      { name: "Vivo X80", price: 15 },
-      { name: "Vivo X90 Pro", price: 17 },
-    ],
-  },
-  {
-    label: "LG",
-    models: [
-      { name: "LG G8 ThinQ", price: 10 },
-      { name: "LG G8X ThinQ", price: 11 },
-      { name: "LG V50 ThinQ", price: 11 },
-      { name: "LG V60 ThinQ", price: 12 },
-      { name: "LG Wing", price: 13 },
-      { name: "LG Velvet", price: 11 },
-      { name: "LG Stylo 6", price: 10 },
-      { name: "LG K52", price: 9 },
-      { name: "LG K61", price: 10 },
-    ],
-  },
-  {
-    label: "Tecno",
-    models: [
-      { name: "Tecno Camon 19", price: 10 },
-      { name: "Tecno Camon 20", price: 11 },
-      { name: "Tecno Camon 30", price: 12 },
-      { name: "Tecno Phantom X2", price: 14 },
-      { name: "Tecno Phantom V Fold", price: 20 },
-      { name: "Tecno Pova 5", price: 10 },
-      { name: "Tecno Spark 10", price: 9 },
-      { name: "Tecno Spark 20", price: 9 },
-    ],
-  },
-  {
-    label: "Infinix",
-    models: [
-      { name: "Infinix Note 12", price: 10 },
-      { name: "Infinix Note 30", price: 11 },
-      { name: "Infinix Note 40", price: 12 },
-      { name: "Infinix Hot 20", price: 9 },
-      { name: "Infinix Hot 30", price: 9 },
-      { name: "Infinix Hot 40", price: 10 },
-      { name: "Infinix Zero 20", price: 11 },
-      { name: "Infinix Zero 30 5G", price: 13 },
-    ],
-  },
-  {
-    label: "Itel",
-    models: [
-      { name: "Itel S23", price: 8 },
-      { name: "Itel S23+", price: 8 },
-      { name: "Itel P40", price: 8 },
-      { name: "Itel A60", price: 8 },
-      { name: "Itel A70", price: 8 },
-    ],
-  },
-  {
-    label: "Other Brand",
-    models: [
-      { name: "Other / Not Listed", price: 12 },
+      { name: "Galaxy M12", price: 10 }, { name: "Galaxy M13", price: 10 }, { name: "Galaxy M14", price: 11 },
+      { name: "Galaxy M23", price: 11 }, { name: "Galaxy M33 5G", price: 12 }, { name: "Galaxy M34 5G", price: 13 },
+      { name: "Galaxy M52 5G", price: 13 }, { name: "Galaxy M53 5G", price: 14 }, { name: "Galaxy M54 5G", price: 15 },
     ],
   },
 ];
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function luhnValid(imei: string): boolean {
+// ── Luhn IMEI validator ───────────────────────────────────────────────────────
+function isValidImei(imei: string): boolean {
   if (!/^\d{15}$/.test(imei)) return false;
   let sum = 0;
   for (let i = 0; i < 15; i++) {
@@ -407,775 +118,642 @@ function luhnValid(imei: string): boolean {
   return sum % 10 === 0;
 }
 
-function apiBase(): string {
-  return (import.meta.env.BASE_URL as string).replace(/\/$/, "");
-}
+// ── Shared UI helpers ─────────────────────────────────────────────────────────
+const card: React.CSSProperties = {
+  background: "rgba(255,255,255,0.04)",
+  border: "1px solid rgba(255,255,255,0.08)",
+  borderRadius: 20,
+  overflow: "hidden",
+  marginBottom: 14,
+};
 
-const SELECT_STYLE: React.CSSProperties = {
-  background: "rgba(255,255,255,0.06)",
-  border: "1px solid rgba(255,255,255,0.12)",
-  color: "#e2e8f0",
-  borderRadius: "12px",
-  padding: "12px 16px",
+const cardHeader = (dotColor: string): React.CSSProperties => ({
+  padding: "13px 18px",
+  borderBottom: "1px solid rgba(255,255,255,0.06)",
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+});
+
+const dot = (color: string): React.CSSProperties => ({
+  width: 7,
+  height: 7,
+  background: color,
+  borderRadius: "50%",
+});
+
+const sectionLabel: React.CSSProperties = {
+  fontSize: 11,
+  fontWeight: 700,
+  color: "#94a3b8",
+  textTransform: "uppercase",
+  letterSpacing: "1px",
+};
+
+const inputStyle = (active = false, error = false): React.CSSProperties => ({
   width: "100%",
-  fontSize: "14px",
+  padding: "12px 14px",
+  background: "rgba(255,255,255,0.05)",
+  border: `1px solid ${error ? "rgba(239,68,68,0.5)" : active ? "rgba(14,165,233,0.45)" : "rgba(255,255,255,0.1)"}`,
+  borderRadius: 12,
+  color: "#e2e8f0",
+  fontSize: 14,
+  boxSizing: "border-box" as const,
   outline: "none",
-  appearance: "none" as const,
-  WebkitAppearance: "none" as const,
-  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
-  backgroundRepeat: "no-repeat",
-  backgroundPosition: "right 14px center",
-  paddingRight: "40px",
-  cursor: "pointer",
+  fontFamily: "inherit",
+});
+
+const fieldLabel: React.CSSProperties = {
+  display: "block",
+  fontSize: 11,
+  fontWeight: 700,
+  color: "#64748b",
+  textTransform: "uppercase",
+  letterSpacing: "0.5px",
+  marginBottom: 6,
 };
 
-type PayMethod = "usdt_manual" | "mpesa" | "binance_pay" | "wallet";
-
-type OrderResult = {
-  orderId: number;
-  orderCode: string;
-  paymentMethod: string;
-  total: number;
-  paymentDetails?: {
-    usdtAddress?: string;
-    usdtNetwork?: string;
-    binancePayId?: string;
-    mpesaPhone?: string;
-    whatsapp?: string;
-  };
-};
-
-// ─── Main Component ───────────────────────────────────────────────────────────
-
-type Step = "select" | "payment" | "done";
-
-type TrackResult = {
-  orderId: number;
-  orderCode: string;
-  paymentStatus: string;
-  status?: string;
-  brand?: string;
-  model?: string;
-  imei: string | null;
-  device: string | null;
-  total: string;
-  currency: string;
-  paymentMethod: string;
-  notes: string | null;
-  createdAt: string;
-  updatedAt: string;
-  completedAt?: string;
-};
-
-export function ImeiRepairPage() {
+// ── Main component ────────────────────────────────────────────────────────────
+export default function ImeiRepairPage() {
   const [, navigate] = useLocation();
   const { user, token, isAuthenticated } = useAuth();
   const { toast } = useToast();
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [view, setView] = useState<"register" | "track">("register");
-  const [step, setStep] = useState<Step>("select");
-
-  // Device selection
+  // form
   const [brandLabel, setBrandLabel] = useState("");
   const [modelName, setModelName] = useState("");
-
-  const brand = DEVICE_CATALOG.find(b => b.label === brandLabel) ?? null;
-  const model = brand?.models.find(m => m.name === modelName) ?? null;
-
   const [imei, setImei] = useState("");
-  const [imeiError, setImeiError] = useState("");
-
-  // Payment step
   const [email, setEmail] = useState(user?.email ?? "");
   const [phone, setPhone] = useState("");
-  const [payMethod, setPayMethod] = useState<PayMethod>("usdt_manual");
-  const [submitting, setSubmitting] = useState(false);
+  const [payMethod, setPayMethod] = useState<"binance_pay" | "usdt_manual">("binance_pay");
 
-  // Done step
-  const [orderResult, setOrderResult] = useState<OrderResult | null>(null);
+  // ui
+  const [loading, setLoading] = useState(false);
+  const [formError, setFormError] = useState("");
+  const [order, setOrder] = useState<OrderResult | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  const [shared, setShared] = useState(false);
 
-  // Screenshot upload
+  // upload
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploadPreview, setUploadPreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadDone, setUploadDone] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
-  // Share
-  const [shareSuccess, setShareSuccess] = useState(false);
+  // derived
+  const brandEntry = DEVICE_CATALOG.find(b => b.label === brandLabel);
+  const models = brandEntry?.models ?? [];
+  const selectedModel = models.find(m => m.name === modelName);
+  const price = selectedModel?.price ?? null;
+  const imeiTouched = imei.length > 0;
+  const imeiValid = isValidImei(imei);
 
-  // Track order
-  const [trackCode, setTrackCode] = useState("");
-  const [trackEmail, setTrackEmail] = useState(user?.email ?? "");
-  const [trackLoading, setTrackLoading] = useState(false);
-  const [trackResult, setTrackResult] = useState<TrackResult | null>(null);
-  const [trackError, setTrackError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (user?.email) {
-      if (!email) setEmail(user.email);
-      if (!trackEmail) setTrackEmail(user.email);
-    }
-  }, [user]);
-
-  // Reset model when brand changes
-  useEffect(() => { setModelName(""); }, [brandLabel]);
+  function copyText(text: string, key: string) {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(key);
+      setTimeout(() => setCopied(null), 2000);
+      toast({ title: "Copied!", description: text.slice(0, 30) + (text.length > 30 ? "…" : "") });
+    });
+  }
 
   function handleShare() {
     const url = window.location.href;
     if (navigator.share) {
-      navigator.share({ title: "IMEI Repair & Registration", url }).catch(() => {});
+      navigator.share({ title: "IMEI Repair & Registration — GSM World", url }).catch(() => {});
     } else {
       navigator.clipboard.writeText(url).then(() => {
-        setShareSuccess(true);
-        setTimeout(() => setShareSuccess(false), 2000);
+        setShared(true);
+        setTimeout(() => setShared(false), 2500);
+        toast({ title: "Link copied!" });
       });
     }
   }
 
-  async function handleTrackOrder() {
-    const code = trackCode.trim().toUpperCase();
-    const em = trackEmail.trim().toLowerCase();
-    if (!code) { setTrackError("Enter your order code (e.g. IR-AB12CD34)"); return; }
-    if (!em || !em.includes("@")) { setTrackError("Enter the email used when registering"); return; }
-    setTrackLoading(true);
-    setTrackResult(null);
-    setTrackError(null);
-    try {
-      const res = await fetch(`${apiBase()}/api/imei-repair/status/${encodeURIComponent(code)}?email=${encodeURIComponent(em)}`);
-      const data = await res.json() as TrackResult & { error?: string };
-      if (!res.ok) { setTrackError(data.error ?? "Order not found"); setTrackLoading(false); return; }
-      setTrackResult(data);
-    } catch {
-      setTrackError("Network error — please try again");
-    } finally {
-      setTrackLoading(false);
-    }
+  function handleFile(file: File | null) {
+    if (!file) return;
+    setUploadFile(file);
+    const reader = new FileReader();
+    reader.onload = e => setUploadPreview(e.target?.result as string);
+    reader.readAsDataURL(file);
   }
 
-  function handleRegister() {
-    const val = imei.replace(/[\s\-]/g, "");
-    if (!model) { toast({ title: "Select a model first", variant: "destructive" }); return; }
-    if (!val) { setImeiError("Please enter your IMEI number"); return; }
-    if (!luhnValid(val)) { setImeiError("Invalid IMEI — the check digit doesn't match. Dial *#06# to get your IMEI."); return; }
-    setImeiError("");
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!isAuthenticated) { navigate("/login"); return; }
+    if (!brandLabel || !modelName || !imeiValid || !email) return;
 
-    if (!isAuthenticated) {
-      toast({ title: "Sign in required", description: "Please log in to place an order.", variant: "destructive" });
-      navigate("/login");
-      return;
-    }
-
-    setStep("payment");
-    window.scrollTo(0, 0);
-  }
-
-  async function handlePay() {
-    if (!isAuthenticated) {
-      toast({ title: "Sign in required", description: "Please log in to place an order.", variant: "destructive" });
-      navigate("/login");
-      return;
-    }
-    if (!email.trim() || !email.includes("@")) { toast({ title: "Enter a valid email address", variant: "destructive" }); return; }
-    if (!model || !brand) return;
-
-    setSubmitting(true);
+    setLoading(true);
+    setFormError("");
     try {
-      const res = await fetch(`${apiBase()}/api/imei-repair/register`, {
+      const res = await fetch("/api/imei-repair/register", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
-          brand: brand.label,
-          model: model.name,
-          imei: imei.replace(/[\s\-]/g, ""),
-          price: model.price,
-          customerEmail: email.trim().toLowerCase(),
-          customerPhone: phone.trim() || undefined,
+          brand: brandLabel,
+          model: modelName,
+          imei,
+          customerEmail: email,
+          customerPhone: phone || undefined,
           paymentMethod: payMethod,
         }),
       });
-
-      const data = await res.json() as OrderResult & { error?: string };
-      if (!res.ok) { toast({ title: data.error ?? "Registration failed. Please try again.", variant: "destructive" }); setSubmitting(false); return; }
-
-      setOrderResult(data);
-      setStep("done");
-      window.scrollTo(0, 0);
+      const data = await res.json();
+      if (!res.ok) { setFormError(data.error ?? "Something went wrong. Please try again."); return; }
+      setOrder({ ...data, customerEmail: email });
     } catch {
-      toast({ title: "Network error — please check your connection.", variant: "destructive" });
-      setSubmitting(false);
+      setFormError("Network error — check your connection and try again.");
+    } finally {
+      setLoading(false);
     }
   }
 
-  function copyToClipboard(text: string, key: string) {
-    navigator.clipboard.writeText(text).then(() => {
-      setCopied(key);
-      setTimeout(() => setCopied(null), 2000);
-    });
-  }
-
-  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      setUploadError("Please select an image file (JPG, PNG, etc.)");
-      return;
-    }
-    setUploadFile(file);
-    setUploadError(null);
-    const reader = new FileReader();
-    reader.onload = () => setUploadPreview(reader.result as string);
-    reader.readAsDataURL(file);
-  }
-
-  async function handleUploadScreenshot() {
-    if (!uploadFile || !orderResult) return;
+  async function handleUpload() {
+    if (!uploadFile || !order) return;
     setUploading(true);
-    setUploadError(null);
     try {
-      const formData = new FormData();
-      formData.append("file", uploadFile);
-      formData.append("orderCode", orderResult.orderCode);
-      formData.append("type", "payment_proof");
-
-      const res = await fetch(`${apiBase()}/api/imei-repair/upload-proof`, {
+      const fd = new FormData();
+      fd.append("file", uploadFile);
+      fd.append("orderId", String(order.orderId));
+      fd.append("orderCode", order.orderCode);
+      const res = await fetch("/api/uploads/payment-proof", {
         method: "POST",
-        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: formData,
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: fd,
       });
       if (res.ok) {
         setUploadDone(true);
-        toast({ title: "Screenshot uploaded!", description: "We'll verify your payment shortly." });
+        toast({ title: "Screenshot sent!", description: "We'll verify your payment shortly." });
       } else {
-        const d = await res.json().catch(() => ({})) as { error?: string };
-        setUploadError(d.error ?? "Upload failed — please try WhatsApp instead.");
+        toast({ title: "Upload failed", description: "Please try again.", variant: "destructive" });
       }
     } catch {
-      setUploadError("Network error — please try again.");
+      toast({ title: "Upload failed", description: "Network error.", variant: "destructive" });
     } finally {
       setUploading(false);
     }
   }
 
-  // ── Shared header ──────────────────────────────────────────────────────────
-  const Header = ({ title, sub, onBack }: { title: string; sub: string; onBack: () => void }) => (
-    <div className="sticky top-0 z-20 px-4 py-3 flex items-center gap-3"
-      style={{ background: "rgba(6,11,21,0.95)", borderBottom: "1px solid rgba(59,130,246,0.12)", backdropFilter: "blur(12px)" }}>
-      <button onClick={onBack}
-        className="w-8 h-8 rounded-lg flex items-center justify-center"
-        style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}>
-        <ArrowLeft size={16} className="text-slate-400" />
-      </button>
-      <div className="flex-1">
-        <p className="font-black text-sm text-white">{title}</p>
-        <p className="text-[10px]" style={{ color: "#475569" }}>{sub}</p>
-      </div>
-      <button
-        onClick={handleShare}
-        className="w-8 h-8 rounded-lg flex items-center justify-center transition-all"
-        title="Share this page"
-        style={{ background: shareSuccess ? "rgba(34,197,94,0.15)" : "rgba(255,255,255,0.06)", border: shareSuccess ? "1px solid rgba(34,197,94,0.3)" : "1px solid rgba(255,255,255,0.1)" }}>
-        {shareSuccess ? <Check size={15} className="text-green-400" /> : <Share2 size={15} className="text-slate-400" />}
-      </button>
-      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-black tracking-wider"
-        style={{ background: "rgba(59,130,246,0.15)", color: "#93c5fd", border: "1px solid rgba(59,130,246,0.25)" }}>
-        <Shield size={10} /> SECURE
-      </div>
-    </div>
-  );
+  // ── ORDER CONFIRMATION VIEW ───────────────────────────────────────────────
+  if (order) {
+    const pd = order.paymentDetails;
+    const showBinance = order.paymentMethod === "binance_pay" && pd.binancePayId;
+    const showUsdt = order.paymentMethod === "usdt_manual" && pd.usdtAddress;
+    const waUrl = pd.whatsapp
+      ? `https://wa.me/${pd.whatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(`Hi, I placed IMEI Repair Order ${order.orderCode} for ${modelName}. Please assist.`)}`
+      : null;
 
-  // ── Step 1: Select Device ──────────────────────────────────────────────────
-  if (step === "select") {
     return (
-      <div className="min-h-screen pb-20" style={{ background: "#060b15", color: "#e2e8f0" }}>
-        <Header title="IMEI Repair" sub="Select your device to register" onBack={() => navigate("/imei")} />
+      <div style={{ minHeight: "100vh", background: "linear-gradient(180deg,#06101e 0%,#0d1f3c 60%,#101827 100%)", paddingBottom: 48, color: "#e2e8f0", fontFamily: "system-ui, -apple-system, sans-serif" }}>
 
-        <div className="px-4 pt-5">
-          {/* Tab switcher */}
-          <div className="flex rounded-xl overflow-hidden mb-5" style={{ border: "1px solid rgba(255,255,255,0.08)" }}>
-            {([["register", "Register Device"], ["track", "Track Order"]] as const).map(([v, label]) => (
-              <button key={v} onClick={() => setView(v)}
-                className="flex-1 py-2.5 text-[11px] font-black transition-all"
-                style={{
-                  background: view === v ? "linear-gradient(135deg,#3b82f6,#6366f1)" : "rgba(255,255,255,0.03)",
-                  color: view === v ? "#fff" : "#475569",
-                }}>
-                {label}
-              </button>
-            ))}
-          </div>
+        {/* Nav */}
+        <div style={{ background: "rgba(6,16,30,0.8)", backdropFilter: "blur(12px)", borderBottom: "1px solid rgba(255,255,255,0.07)", padding: "14px 18px", display: "flex", alignItems: "center", gap: 12, position: "sticky", top: 0, zIndex: 10 }}>
+          <button onClick={() => navigate("/")} style={{ background: "rgba(255,255,255,0.07)", border: "none", borderRadius: 10, padding: 8, color: "#94a3b8", cursor: "pointer", display: "flex", alignItems: "center" }}>
+            <ArrowLeft size={18} />
+          </button>
+          <span style={{ fontWeight: 700, fontSize: 16, color: "#f1f5f9" }}>Order Confirmed</span>
+        </div>
 
-          {/* Track Order view */}
-          {view === "track" && (
-            <div className="space-y-4">
-              <div className="rounded-2xl p-4" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                <p className="text-[11px] font-black uppercase tracking-wider mb-3" style={{ color: "#475569" }}>Order Code</p>
-                <input
-                  value={trackCode}
-                  onChange={e => setTrackCode(e.target.value)}
-                  placeholder="IR-XXXX"
-                  className="w-full rounded-xl px-4 py-3 text-sm font-mono outline-none"
-                  style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "#e2e8f0" }}
-                />
-              </div>
-              <div className="rounded-2xl p-4" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                <p className="text-[11px] font-black uppercase tracking-wider mb-3" style={{ color: "#475569" }}>Email Used at Registration</p>
-                <input
-                  value={trackEmail}
-                  onChange={e => setTrackEmail(e.target.value)}
-                  placeholder="you@example.com"
-                  type="email"
-                  className="w-full rounded-xl px-4 py-3 text-sm outline-none"
-                  style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "#e2e8f0" }}
-                />
-              </div>
-              {trackError && (
-                <div className="rounded-xl px-4 py-3 flex items-center gap-2" style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.25)" }}>
-                  <AlertTriangle size={14} className="text-red-400 shrink-0" />
-                  <p className="text-[12px] text-red-400">{trackError}</p>
-                </div>
-              )}
-              {trackResult && (
-                <div className="rounded-2xl p-4 space-y-3" style={{ background: "rgba(59,130,246,0.07)", border: "1px solid rgba(59,130,246,0.2)" }}>
-                  <div className="flex items-center gap-2">
-                    <Clock size={14} style={{ color: "#93c5fd" }} />
-                    <p className="text-[11px] font-black uppercase tracking-wider" style={{ color: "#93c5fd" }}>Order Status</p>
-                  </div>
-                  <div className="space-y-2 text-[12px]">
-                    <div className="flex justify-between"><span style={{ color: "#475569" }}>Order Code</span><span className="font-bold text-white">{trackResult.orderCode}</span></div>
-                    <div className="flex justify-between"><span style={{ color: "#475569" }}>Device</span><span className="font-bold text-white">{trackResult.brand} {trackResult.model}</span></div>
-                    <div className="flex justify-between"><span style={{ color: "#475569" }}>IMEI</span><span className="font-mono text-white">{trackResult.imei}</span></div>
-                    <div className="flex justify-between"><span style={{ color: "#475569" }}>Status</span>
-                      <span className="font-black" style={{ color: (trackResult.status ?? trackResult.paymentStatus) === "completed" ? "#4ade80" : (trackResult.status ?? trackResult.paymentStatus) === "processing" ? "#fbbf24" : "#93c5fd" }}>
-                        {(trackResult.status ?? trackResult.paymentStatus ?? "").toUpperCase()}
-                      </span>
-                    </div>
-                    {trackResult.completedAt && (
-                      <div className="flex justify-between"><span style={{ color: "#475569" }}>Completed</span><span className="text-white">{new Date(trackResult.completedAt).toLocaleDateString()}</span></div>
-                    )}
-                  </div>
-                </div>
-              )}
-              <button onClick={handleTrackOrder} disabled={trackLoading}
-                className="w-full py-3.5 rounded-xl font-black text-sm flex items-center justify-center gap-2"
-                style={{ background: "linear-gradient(135deg,#3b82f6,#6366f1)", color: "#fff", opacity: trackLoading ? 0.7 : 1 }}>
-                {trackLoading ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}
-                {trackLoading ? "Checking…" : "Check Status"}
+        <div style={{ padding: "20px 16px 0" }}>
+
+          {/* Success hero */}
+          <div style={{ background: "linear-gradient(135deg,rgba(5,150,105,0.18) 0%,rgba(16,185,129,0.08) 100%)", border: "1px solid rgba(16,185,129,0.22)", borderRadius: 22, padding: "28px 20px 24px", textAlign: "center", marginBottom: 14, position: "relative", overflow: "hidden" }}>
+            <div style={{ position: "absolute", top: -30, right: -30, width: 120, height: 120, background: "rgba(16,185,129,0.06)", borderRadius: "50%" }} />
+            <div style={{ width: 64, height: 64, background: "linear-gradient(135deg,#059669,#10b981)", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", boxShadow: "0 8px 24px rgba(16,185,129,0.35)" }}>
+              <BadgeCheck size={32} color="white" />
+            </div>
+            <div style={{ fontSize: 22, fontWeight: 800, color: "#f0fdf4", marginBottom: 4 }}>Order Registered!</div>
+            <div style={{ fontSize: 13, color: "#6ee7b7", marginBottom: 16 }}>
+              #{order.orderId} · {modelName} IMEI Repair
+            </div>
+            {/* Order code pill */}
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 10, background: "rgba(0,0,0,0.35)", borderRadius: 14, padding: "10px 18px", border: "1px solid rgba(255,255,255,0.08)" }}>
+              <span style={{ fontSize: 11, color: "#64748b", fontWeight: 600, letterSpacing: 1 }}>CODE</span>
+              <span style={{ fontSize: 20, fontWeight: 900, color: "#38bdf8", fontFamily: "monospace", letterSpacing: 3 }}>{order.orderCode}</span>
+              <button
+                onClick={() => copyText(order.orderCode, "code")}
+                style={{ background: "none", border: "none", color: copied === "code" ? "#10b981" : "#64748b", cursor: "pointer", padding: 2, display: "flex", alignItems: "center" }}
+                title="Copy order code"
+              >
+                {copied === "code" ? <Check size={15} /> : <Copy size={15} />}
               </button>
             </div>
+          </div>
+
+          {/* Payment card */}
+          <div style={card}>
+            <div style={cardHeader("#f59e0b")}>
+              <div style={dot("#f59e0b")} />
+              <span style={sectionLabel}>Payment Instructions</span>
+            </div>
+            <div style={{ padding: "18px 18px 4px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
+                <span style={{ fontSize: 13, color: "#94a3b8" }}>Amount Due</span>
+                <span style={{ fontSize: 30, fontWeight: 900, color: "#10b981", fontFamily: "monospace" }}>${order.total}<span style={{ fontSize: 15, fontWeight: 600, color: "#6ee7b7" }}> USD</span></span>
+              </div>
+
+              {showBinance && pd.binancePayId && (
+                <div style={{ background: "rgba(245,158,11,0.07)", border: "1px solid rgba(245,158,11,0.2)", borderRadius: 16, padding: "15px 16px", marginBottom: 14 }}>
+                  <div style={{ fontSize: 11, color: "#f59e0b", fontWeight: 700, marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.8 }}>
+                    🟡 Binance Pay ID
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                    <span style={{ fontSize: 24, fontWeight: 900, color: "#fcd34d", fontFamily: "monospace", letterSpacing: 1 }}>{pd.binancePayId}</span>
+                    <button
+                      onClick={() => copyText(pd.binancePayId!, "binance")}
+                      style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(245,158,11,0.18)", border: "1px solid rgba(245,158,11,0.35)", borderRadius: 10, padding: "8px 14px", color: copied === "binance" ? "#10b981" : "#f59e0b", cursor: "pointer", fontSize: 12, fontWeight: 700 }}
+                    >
+                      {copied === "binance" ? <><Check size={13} /> Copied</> : <><Copy size={13} /> Copy</>}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {showUsdt && pd.usdtAddress && (
+                <div style={{ background: "rgba(14,165,233,0.07)", border: "1px solid rgba(14,165,233,0.2)", borderRadius: 16, padding: "15px 16px", marginBottom: 14 }}>
+                  <div style={{ fontSize: 11, color: "#38bdf8", fontWeight: 700, marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.8 }}>
+                    💠 USDT · {pd.usdtNetwork}
+                  </div>
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                    <span style={{ fontSize: 12, color: "#7dd3fc", fontFamily: "monospace", wordBreak: "break-all", lineHeight: 1.6, flex: 1 }}>{pd.usdtAddress}</span>
+                    <button
+                      onClick={() => copyText(pd.usdtAddress!, "usdt")}
+                      style={{ background: "rgba(14,165,233,0.15)", border: "1px solid rgba(14,165,233,0.3)", borderRadius: 10, padding: "8px 12px", color: copied === "usdt" ? "#10b981" : "#38bdf8", cursor: "pointer", flexShrink: 0, display: "flex", alignItems: "center" }}
+                    >
+                      {copied === "usdt" ? <Check size={14} /> : <Copy size={14} />}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, padding: "13px 15px", marginBottom: 18, fontSize: 13, color: "#64748b", lineHeight: 1.7 }}>
+                After sending payment, your order will be processed within{" "}
+                <strong style={{ color: "#e2e8f0" }}>24–48 hours</strong>.{" "}
+                Check <strong style={{ color: "#38bdf8" }}>{order.customerEmail}</strong> for confirmation.
+              </div>
+            </div>
+          </div>
+
+          {/* WhatsApp */}
+          {waUrl && (
+            <a
+              href={waUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, background: "rgba(37,211,102,0.1)", border: "1px solid rgba(37,211,102,0.25)", borderRadius: 16, padding: "14px 20px", textDecoration: "none", color: "#4ade80", fontWeight: 700, fontSize: 14, marginBottom: 14 }}
+            >
+              <MessageCircle size={18} />
+              Chat on WhatsApp for Support
+            </a>
           )}
 
-          {/* Register view */}
-          {view === "register" && (
-            <>
-              {/* Progress indicator */}
-              <div className="flex items-center gap-2 mb-5">
-                {["Device", "Payment", "Done"].map((label, i) => (
-                  <div key={label} className="flex items-center gap-1.5 flex-1">
-                    <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black shrink-0"
-                      style={{ background: i === 0 ? "linear-gradient(135deg,#3b82f6,#6366f1)" : "rgba(255,255,255,0.06)", color: i === 0 ? "#fff" : "#475569", border: i === 0 ? "none" : "1px solid rgba(255,255,255,0.1)" }}>
-                      {i + 1}
+          {/* Upload proof */}
+          <div style={card}>
+            <div style={cardHeader("#6366f1")}>
+              <div style={dot("#6366f1")} />
+              <span style={sectionLabel}>Upload Payment Screenshot</span>
+            </div>
+            <div style={{ padding: "16px 18px 20px" }}>
+              {uploadDone ? (
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "24px 0" }}>
+                  <div style={{ width: 56, height: 56, background: "linear-gradient(135deg,#059669,#10b981)", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 6px 20px rgba(16,185,129,0.3)" }}>
+                    <BadgeCheck size={28} color="white" />
+                  </div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: "#10b981" }}>Screenshot received!</div>
+                  <div style={{ fontSize: 13, color: "#64748b", textAlign: "center" }}>We'll verify your payment and process your order shortly.</div>
+                </div>
+              ) : (
+                <>
+                  <p style={{ fontSize: 13, color: "#64748b", margin: "0 0 14px" }}>Attach proof of payment to speed up verification.</p>
+                  {uploadPreview ? (
+                    <div style={{ marginBottom: 14 }}>
+                      <div style={{ position: "relative", borderRadius: 14, overflow: "hidden", background: "rgba(0,0,0,0.3)" }}>
+                        <img src={uploadPreview} alt="Payment proof" style={{ width: "100%", maxHeight: 200, objectFit: "contain", display: "block" }} />
+                        <button
+                          onClick={() => { setUploadFile(null); setUploadPreview(null); }}
+                          style={{ position: "absolute", top: 8, right: 8, background: "rgba(0,0,0,0.6)", border: "none", borderRadius: "50%", width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#fff" }}
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
                     </div>
-                    <span className="text-[10px] font-bold" style={{ color: i === 0 ? "#93c5fd" : "#334155" }}>{label}</span>
-                    {i < 2 && <div className="flex-1 h-px" style={{ background: "rgba(255,255,255,0.06)" }} />}
+                  ) : (
+                    <div
+                      onDrop={e => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files[0]); }}
+                      onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+                      onDragLeave={() => setDragOver(false)}
+                      onClick={() => fileRef.current?.click()}
+                      style={{ border: `2px dashed ${dragOver ? "#6366f1" : "rgba(99,102,241,0.3)"}`, borderRadius: 16, padding: "30px 20px", display: "flex", flexDirection: "column", alignItems: "center", gap: 10, cursor: "pointer", background: dragOver ? "rgba(99,102,241,0.08)" : "rgba(99,102,241,0.04)", marginBottom: 14, transition: "all 0.2s" }}
+                    >
+                      <ImageIcon size={40} color="#6366f1" strokeWidth={1.5} />
+                      <span style={{ fontSize: 14, fontWeight: 600, color: "#818cf8" }}>Tap to choose screenshot</span>
+                      <span style={{ fontSize: 12, color: "#64748b" }}>JPG, PNG, WEBP accepted</span>
+                      <input
+                        ref={fileRef}
+                        type="file"
+                        accept="image/*"
+                        style={{ display: "none" }}
+                        onChange={e => handleFile(e.target.files?.[0] ?? null)}
+                      />
+                    </div>
+                  )}
+                  <button
+                    onClick={uploadFile ? handleUpload : () => fileRef.current?.click()}
+                    disabled={uploading}
+                    style={{ width: "100%", padding: "13px 0", background: uploadFile ? "linear-gradient(135deg,#6366f1,#4f46e5)" : "rgba(255,255,255,0.05)", border: `1px solid ${uploadFile ? "transparent" : "rgba(255,255,255,0.1)"}`, borderRadius: 13, color: uploadFile ? "#fff" : "#64748b", fontWeight: 700, fontSize: 14, cursor: uploading ? "wait" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, boxShadow: uploadFile ? "0 4px 16px rgba(99,102,241,0.35)" : "none", transition: "all 0.2s" }}
+                  >
+                    {uploading ? <><Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} /> Uploading…</> : uploadFile ? <><Upload size={16} /> Send Screenshot</> : <><Upload size={16} /> Choose File</>}
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+
+        </div>
+      </div>
+    );
+  }
+
+  // ── FORM VIEW ──────────────────────────────────────────────────────────────
+  const canSubmit = isAuthenticated && !!brandLabel && !!modelName && imeiValid && !!email;
+
+  return (
+    <div style={{ minHeight: "100vh", background: "linear-gradient(180deg,#06101e 0%,#0d1f3c 60%,#101827 100%)", paddingBottom: 48, color: "#e2e8f0", fontFamily: "system-ui, -apple-system, sans-serif" }}>
+
+      {/* Nav */}
+      <div style={{ background: "rgba(6,16,30,0.8)", backdropFilter: "blur(12px)", borderBottom: "1px solid rgba(255,255,255,0.07)", padding: "14px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <button onClick={() => navigate(-1 as unknown as string)} style={{ background: "rgba(255,255,255,0.07)", border: "none", borderRadius: 10, padding: 8, color: "#94a3b8", cursor: "pointer", display: "flex", alignItems: "center" }}>
+            <ArrowLeft size={18} />
+          </button>
+          <span style={{ fontWeight: 700, fontSize: 16, color: "#f1f5f9" }}>IMEI Repair & Registration</span>
+        </div>
+        <button
+          onClick={handleShare}
+          title="Share page"
+          style={{ background: "rgba(255,255,255,0.07)", border: "none", borderRadius: 10, padding: "8px 12px", color: shared ? "#10b981" : "#94a3b8", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 600, transition: "color 0.2s" }}
+        >
+          {shared ? <><Check size={14} /> Copied</> : <Share2 size={16} />}
+        </button>
+      </div>
+
+      <div style={{ padding: "18px 16px 0" }}>
+
+        {/* Hero banner */}
+        <div style={{ background: "linear-gradient(135deg,#0f2744 0%,#1a2d5a 50%,#142040 100%)", borderRadius: 22, padding: "22px 20px", marginBottom: 14, border: "1px solid rgba(56,189,248,0.12)", position: "relative", overflow: "hidden" }}>
+          <div style={{ position: "absolute", top: -40, right: -40, width: 140, height: 140, background: "rgba(56,189,248,0.05)", borderRadius: "50%" }} />
+          <div style={{ position: "absolute", bottom: -50, left: -20, width: 180, height: 180, background: "rgba(99,102,241,0.04)", borderRadius: "50%" }} />
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 16, position: "relative" }}>
+            <div style={{ width: 54, height: 54, background: "linear-gradient(135deg,#0ea5e9,#0369a1)", borderRadius: 16, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: "0 6px 20px rgba(14,165,233,0.3)" }}>
+              <Smartphone size={26} color="white" />
+            </div>
+            <div>
+              <div style={{ fontSize: 17, fontWeight: 800, color: "#f0f9ff", marginBottom: 5 }}>IMEI Repair & Registration</div>
+              <div style={{ fontSize: 13, color: "#7dd3fc", lineHeight: 1.6, marginBottom: 12 }}>
+                Fix blacklisted, lost, or invalid IMEI numbers with our certified service.
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+                {[
+                  { Icon: Zap, label: "24–48h Turnaround" },
+                  { Icon: ShieldCheck, label: "Secure & Verified" },
+                  { Icon: BadgeCheck, label: "Money-back Guarantee" },
+                ].map(({ Icon, label }) => (
+                  <div key={label} style={{ display: "flex", alignItems: "center", gap: 5, background: "rgba(255,255,255,0.08)", borderRadius: 20, padding: "4px 11px" }}>
+                    <Icon size={11} color="#94a3b8" />
+                    <span style={{ fontSize: 11, color: "#94a3b8", fontWeight: 600 }}>{label}</span>
                   </div>
                 ))}
               </div>
+            </div>
+          </div>
+        </div>
 
-              {/* Login notice */}
-              {!isAuthenticated && (
-                <div className="rounded-xl px-4 py-3 flex items-center gap-3 mb-5"
-                  style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.25)" }}>
-                  <LogIn size={15} style={{ color: "#fbbf24" }} className="shrink-0" />
-                  <div className="flex-1">
-                    <p className="text-[12px] font-bold" style={{ color: "#fbbf24" }}>Sign in to place an order</p>
-                    <p className="text-[11px]" style={{ color: "#78716c" }}>You can browse devices below, but login is required to submit.</p>
-                  </div>
-                  <button onClick={() => navigate("/login")}
-                    className="text-[11px] font-black px-3 py-1.5 rounded-lg shrink-0"
-                    style={{ background: "rgba(245,158,11,0.2)", color: "#fbbf24" }}>
-                    Log In
-                  </button>
-                </div>
-              )}
+        {/* Login gate */}
+        {!isAuthenticated && (
+          <div style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.22)", borderRadius: 14, padding: "12px 16px", display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
+            <AlertTriangle size={16} color="#f59e0b" />
+            <span style={{ flex: 1, fontSize: 13, color: "#fcd34d", fontWeight: 500 }}>Sign in to place an order</span>
+            <button
+              onClick={() => navigate("/login")}
+              style={{ display: "flex", alignItems: "center", gap: 5, background: "rgba(245,158,11,0.2)", border: "1px solid rgba(245,158,11,0.4)", borderRadius: 8, padding: "7px 13px", color: "#f59e0b", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+            >
+              <LogIn size={13} /> Log In
+            </button>
+          </div>
+        )}
 
-              {/* Brand dropdown */}
-              <p className="text-[11px] font-black uppercase tracking-wider mb-2" style={{ color: "#475569" }}>1. Select Brand</p>
-              <div className="relative mb-4">
+        <form onSubmit={handleSubmit} noValidate>
+
+          {/* Device */}
+          <div style={card}>
+            <div style={cardHeader("#0ea5e9")}>
+              <div style={dot("#0ea5e9")} />
+              <span style={sectionLabel}>Select Device</span>
+            </div>
+            <div style={{ padding: "16px 18px" }}>
+              <div style={{ marginBottom: 14 }}>
+                <label style={fieldLabel}>Brand</label>
                 <select
                   value={brandLabel}
-                  onChange={e => setBrandLabel(e.target.value)}
-                  style={SELECT_STYLE}>
-                  <option value="" style={{ background: "#0f172a" }}>— Choose a brand —</option>
+                  onChange={e => { setBrandLabel(e.target.value); setModelName(""); }}
+                  style={{ ...inputStyle(!!brandLabel), cursor: "pointer" }}
+                  required
+                >
+                  <option value="" style={{ background: "#1e293b" }}>Select brand…</option>
                   {DEVICE_CATALOG.map(b => (
-                    <option key={b.label} value={b.label} style={{ background: "#0f172a" }}>{b.label}</option>
+                    <option key={b.label} value={b.label} style={{ background: "#1e293b" }}>{b.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label style={fieldLabel}>Model</label>
+                <select
+                  value={modelName}
+                  onChange={e => setModelName(e.target.value)}
+                  disabled={!brandLabel}
+                  style={{ ...inputStyle(!!modelName), cursor: brandLabel ? "pointer" : "not-allowed", opacity: brandLabel ? 1 : 0.5 }}
+                  required
+                >
+                  <option value="" style={{ background: "#1e293b" }}>{brandLabel ? "Select model…" : "Select brand first"}</option>
+                  {models.map(m => (
+                    <option key={m.name} value={m.name} style={{ background: "#1e293b" }}>{m.name} — ${m.price}</option>
                   ))}
                 </select>
               </div>
 
-              {/* Model dropdown */}
-              {brand && (
-                <>
-                  <p className="text-[11px] font-black uppercase tracking-wider mb-2" style={{ color: "#475569" }}>2. Select Model</p>
-                  <div className="relative mb-4">
-                    <select
-                      value={modelName}
-                      onChange={e => setModelName(e.target.value)}
-                      style={SELECT_STYLE}>
-                      <option value="" style={{ background: "#0f172a" }}>— Choose a model —</option>
-                      {brand.models.map(m => (
-                        <option key={m.name} value={m.name} style={{ background: "#0f172a" }}>
-                          {m.name} — ${m.price}
-                        </option>
-                      ))}
-                    </select>
+              {price !== null && (
+                <div style={{ marginTop: 14, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "13px 16px", background: "rgba(16,185,129,0.07)", border: "1px solid rgba(16,185,129,0.2)", borderRadius: 14 }}>
+                  <div>
+                    <div style={{ fontSize: 10, color: "#6ee7b7", fontWeight: 700, letterSpacing: 1, textTransform: "uppercase" as const, marginBottom: 2 }}>Service Price</div>
+                    <div style={{ fontSize: 12, color: "#64748b" }}>{brandLabel} · {modelName}</div>
                   </div>
-                </>
-              )}
-
-              {/* IMEI input */}
-              {model && (
-                <>
-                  {/* Price badge */}
-                  <div className="rounded-xl px-4 py-3 flex items-center justify-between mb-4"
-                    style={{ background: "rgba(59,130,246,0.08)", border: "1px solid rgba(59,130,246,0.2)" }}>
-                    <div className="flex items-center gap-2">
-                      <Smartphone size={14} style={{ color: "#60a5fa" }} />
-                      <span className="text-[12px] font-semibold text-white">{model.name}</span>
-                    </div>
-                    <span className="font-black text-[16px]" style={{ color: "#4ade80" }}>${model.price} USD</span>
-                  </div>
-
-                  <p className="text-[11px] font-black uppercase tracking-wider mb-2" style={{ color: "#475569" }}>3. Enter IMEI Number</p>
-                  <div className="rounded-2xl p-4 mb-2"
-                    style={{ background: "rgba(10,22,48,0.98)", border: "1px solid rgba(59,130,246,0.22)" }}>
-                    <p className="text-[11px] mb-2" style={{ color: "#64748b" }}>
-                      Dial <span className="font-mono font-bold" style={{ color: "#60a5fa" }}>*#06#</span> to get your 15-digit IMEI
-                    </p>
-                    <input
-                      type="tel"
-                      value={imei}
-                      onChange={e => { const v = e.target.value.replace(/\D/g, "").slice(0, 15); setImei(v); setImeiError(""); }}
-                      onKeyDown={e => { if (e.key === "Enter") handleRegister(); }}
-                      placeholder="Enter 15-digit IMEI…"
-                      maxLength={15}
-                      className="w-full px-3.5 py-3 rounded-xl text-sm focus:outline-none"
-                      style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "#f1f5f9", caretColor: "#60a5fa", fontFamily: "monospace", letterSpacing: "0.1em" }}
-                    />
-                    <div className="flex items-center justify-between mt-1.5">
-                      <span className="text-[10px] font-mono" style={{ color: imei.length === 15 ? "#4ade80" : imei.length > 0 ? "#f59e0b" : "#334155" }}>
-                        {imei.length}/15
-                      </span>
-                      {imei.length === 15 && luhnValid(imei) && (
-                        <span className="text-[10px] font-bold text-green-400 flex items-center gap-1">
-                          <CheckCircle2 size={10} /> Valid IMEI
-                        </span>
-                      )}
-                    </div>
-                    {imeiError && (
-                      <div className="mt-2 flex items-start gap-2 rounded-xl p-2.5"
-                        style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)" }}>
-                        <AlertTriangle size={12} className="text-red-400 shrink-0 mt-0.5" />
-                        <p className="text-[11px] text-red-300">{imeiError}</p>
-                      </div>
-                    )}
-                  </div>
-
-                  <button
-                    onClick={handleRegister}
-                    className="w-full py-4 rounded-xl font-black text-sm text-white flex items-center justify-center gap-2 mt-3"
-                    style={{ background: "linear-gradient(135deg,#3b82f6,#6366f1)", boxShadow: "0 4px 20px rgba(99,102,241,0.35)" }}>
-                    {isAuthenticated ? (
-                      <>Register &amp; Proceed to Payment <ChevronRight size={16} /></>
-                    ) : (
-                      <><LogIn size={16} /> Log In to Continue</>
-                    )}
-                  </button>
-                </>
-              )}
-            </>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // ── Step 2: Payment ────────────────────────────────────────────────────────
-  if (step === "payment") {
-    return (
-      <div className="min-h-screen pb-20" style={{ background: "#060b15", color: "#e2e8f0" }}>
-        <Header title="Checkout" sub={`${model?.name} — IMEI Repair`} onBack={() => setStep("select")} />
-
-        <div className="px-4 pt-5">
-          {/* Progress */}
-          <div className="flex items-center gap-2 mb-5">
-            {["Device", "Payment", "Done"].map((label, i) => (
-              <div key={label} className="flex items-center gap-1.5 flex-1">
-                <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black shrink-0"
-                  style={{ background: i === 1 ? "linear-gradient(135deg,#3b82f6,#6366f1)" : i < 1 ? "rgba(34,197,94,0.2)" : "rgba(255,255,255,0.06)", color: i === 1 ? "#fff" : i < 1 ? "#4ade80" : "#475569", border: i === 1 || i < 1 ? "none" : "1px solid rgba(255,255,255,0.1)" }}>
-                  {i < 1 ? <Check size={10} /> : i + 1}
+                  <div style={{ fontSize: 32, fontWeight: 900, color: "#10b981", fontFamily: "monospace" }}>${price}</div>
                 </div>
-                <span className="text-[10px] font-bold" style={{ color: i === 1 ? "#93c5fd" : i < 1 ? "#4ade80" : "#334155" }}>{label}</span>
-                {i < 2 && <div className="flex-1 h-px" style={{ background: "rgba(255,255,255,0.06)" }} />}
-              </div>
-            ))}
-          </div>
-
-          {/* Order summary */}
-          <div className="rounded-2xl p-4 mb-4"
-            style={{ background: "rgba(10,22,48,0.98)", border: "1px solid rgba(59,130,246,0.22)" }}>
-            <p className="text-[10px] font-black uppercase tracking-wider mb-3" style={{ color: "#475569" }}>Order Summary</p>
-            {[
-              { label: "Service", value: "IMEI Repair" },
-              { label: "Device", value: model?.name ?? "" },
-              { label: "Brand", value: brand?.label ?? "" },
-              { label: "IMEI", value: imei },
-            ].map(({ label, value }) => (
-              <div key={label} className="flex justify-between mb-1.5">
-                <span className="text-[11px]" style={{ color: "#475569" }}>{label}</span>
-                <span className="text-[11px] font-semibold text-white font-mono">{value}</span>
-              </div>
-            ))}
-            <div className="flex justify-between pt-2.5 mt-1" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-              <span className="font-black text-[12px]" style={{ color: "#94a3b8" }}>Total</span>
-              <span className="font-black text-[18px]" style={{ color: "#4ade80" }}>${model?.price} USD</span>
+              )}
             </div>
           </div>
 
-          {/* Contact info */}
-          <p className="text-[11px] font-black uppercase tracking-wider mb-2" style={{ color: "#475569" }}>Your Email</p>
-          <input
-            type="email"
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-            placeholder="your@email.com"
-            className="w-full px-3.5 py-3 rounded-xl text-sm mb-3 focus:outline-none"
-            style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "#f1f5f9" }}
-          />
-          <input
-            type="tel"
-            value={phone}
-            onChange={e => setPhone(e.target.value)}
-            placeholder="Phone number (optional)"
-            className="w-full px-3.5 py-3 rounded-xl text-sm mb-4 focus:outline-none"
-            style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "#f1f5f9" }}
-          />
+          {/* IMEI */}
+          <div style={card}>
+            <div style={cardHeader("#6366f1")}>
+              <div style={dot("#6366f1")} />
+              <span style={sectionLabel}>Device IMEI</span>
+            </div>
+            <div style={{ padding: "16px 18px" }}>
+              <div style={{ position: "relative" }}>
+                <input
+                  type="tel"
+                  inputMode="numeric"
+                  maxLength={15}
+                  value={imei}
+                  onChange={e => setImei(e.target.value.replace(/\D/g, "").slice(0, 15))}
+                  placeholder="Enter 15-digit IMEI"
+                  style={{ ...inputStyle(imeiTouched && imeiValid, imeiTouched && !imeiValid), paddingRight: 44, fontSize: 18, fontFamily: "monospace", letterSpacing: 2 }}
+                  required
+                />
+                {imeiTouched && (
+                  <div style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)", color: imeiValid ? "#10b981" : "#ef4444", display: "flex", alignItems: "center" }}>
+                    {imeiValid ? <BadgeCheck size={18} /> : <X size={18} />}
+                  </div>
+                )}
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}>
+                <span style={{ fontSize: 11, color: imeiTouched ? (imeiValid ? "#10b981" : "#ef4444") : "#475569" }}>
+                  {!imeiTouched
+                    ? "Dial *#06# to find your IMEI"
+                    : imeiValid
+                      ? "Valid IMEI"
+                      : imei.length < 15
+                        ? `${15 - imei.length} more digit${15 - imei.length === 1 ? "" : "s"} needed`
+                        : "Invalid IMEI — check digit mismatch"}
+                </span>
+                <span style={{ fontSize: 11, color: "#334155" }}>{imei.length}/15</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Contact */}
+          <div style={card}>
+            <div style={cardHeader("#f59e0b")}>
+              <div style={dot("#f59e0b")} />
+              <span style={sectionLabel}>Contact Details</span>
+            </div>
+            <div style={{ padding: "16px 18px" }}>
+              <div style={{ marginBottom: 14 }}>
+                <label style={fieldLabel}>Email address <span style={{ color: "#ef4444" }}>*</span></label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  placeholder="your@email.com"
+                  style={inputStyle(!!email)}
+                  required
+                />
+                <div style={{ fontSize: 11, color: "#475569", marginTop: 5 }}>Order confirmation will be sent here</div>
+              </div>
+              <div>
+                <label style={fieldLabel}>Phone number <span style={{ color: "#334155" }}>(optional)</span></label>
+                <input
+                  type="tel"
+                  value={phone}
+                  onChange={e => setPhone(e.target.value)}
+                  placeholder="+1 234 567 8900"
+                  style={inputStyle(!!phone)}
+                />
+              </div>
+            </div>
+          </div>
 
           {/* Payment method */}
-          <p className="text-[11px] font-black uppercase tracking-wider mb-2" style={{ color: "#475569" }}>Payment Method</p>
-          <div className="space-y-2 mb-5">
-            {([
-              { key: "usdt_manual", label: "USDT (TRC-20 / ERC-20)", sub: "Fastest, lowest fee" },
-              { key: "binance_pay", label: "Binance Pay", sub: "Scan QR in Binance app" },
-              { key: "mpesa", label: "M-Pesa", sub: "Kenya Safaricom STK Push" },
-              { key: "wallet", label: "Wallet Balance", sub: "Use your account balance" },
-            ] as { key: PayMethod; label: string; sub: string }[]).map(({ key, label, sub }) => (
-              <button key={key} onClick={() => setPayMethod(key)}
-                className="w-full rounded-xl px-3.5 py-3 flex items-center gap-3 text-left transition-all"
-                style={{
-                  background: payMethod === key ? "rgba(59,130,246,0.18)" : "rgba(255,255,255,0.04)",
-                  border: payMethod === key ? "1px solid rgba(59,130,246,0.5)" : "1px solid rgba(255,255,255,0.08)",
-                }}>
-                <div className="w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0"
-                  style={{ borderColor: payMethod === key ? "#60a5fa" : "#334155" }}>
-                  {payMethod === key && <div className="w-2.5 h-2.5 rounded-full" style={{ background: "#60a5fa" }} />}
-                </div>
-                <div>
-                  <p className="font-bold text-[12px]" style={{ color: payMethod === key ? "#93c5fd" : "#e2e8f0" }}>{label}</p>
-                  <p className="text-[10px]" style={{ color: "#475569" }}>{sub}</p>
-                </div>
-              </button>
-            ))}
+          <div style={card}>
+            <div style={cardHeader("#10b981")}>
+              <div style={dot("#10b981")} />
+              <span style={sectionLabel}>Payment Method</span>
+            </div>
+            <div style={{ padding: "14px 18px 18px", display: "flex", gap: 10 }}>
+              {([
+                { value: "binance_pay" as const, label: "Binance Pay", sub: "Fast & secure", emoji: "🟡" },
+                { value: "usdt_manual" as const, label: "USDT Transfer", sub: "TRC-20 / ERC-20", emoji: "💠" },
+              ]).map(opt => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setPayMethod(opt.value)}
+                  style={{ flex: 1, padding: "13px 10px", background: payMethod === opt.value ? "rgba(14,165,233,0.13)" : "rgba(255,255,255,0.04)", border: `1.5px solid ${payMethod === opt.value ? "rgba(14,165,233,0.5)" : "rgba(255,255,255,0.1)"}`, borderRadius: 14, cursor: "pointer", transition: "all 0.2s", textAlign: "center" as const }}
+                >
+                  <div style={{ fontSize: 18, marginBottom: 4 }}>{opt.emoji}</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: payMethod === opt.value ? "#38bdf8" : "#94a3b8", marginBottom: 2 }}>{opt.label}</div>
+                  <div style={{ fontSize: 11, color: "#475569" }}>{opt.sub}</div>
+                </button>
+              ))}
+            </div>
           </div>
 
+          {/* Error */}
+          {formError && (
+            <div style={{ padding: "12px 16px", background: "rgba(239,68,68,0.09)", border: "1px solid rgba(239,68,68,0.25)", borderRadius: 12, color: "#fca5a5", fontSize: 13, marginBottom: 14, display: "flex", alignItems: "center", gap: 10 }}>
+              <AlertTriangle size={15} color="#ef4444" />
+              {formError}
+            </div>
+          )}
+
+          {/* Submit */}
           <button
-            onClick={handlePay}
-            disabled={submitting || !email.trim()}
-            className="w-full py-4 rounded-xl font-black text-sm text-white flex items-center justify-center gap-2 disabled:opacity-50"
-            style={{ background: "linear-gradient(135deg,#3b82f6,#6366f1)", boxShadow: "0 4px 20px rgba(99,102,241,0.35)" }}>
-            {submitting ? <Loader2 size={16} className="animate-spin" /> : <Shield size={16} />}
-            {submitting ? "Submitting…" : "Submit Order"}
+            type={isAuthenticated ? "submit" : "button"}
+            onClick={!isAuthenticated ? () => navigate("/login") : undefined}
+            disabled={loading || (isAuthenticated && !canSubmit)}
+            style={{
+              width: "100%",
+              padding: "16px 0",
+              background: loading
+                ? "rgba(14,165,233,0.4)"
+                : !isAuthenticated
+                  ? "linear-gradient(135deg,#d97706,#b45309)"
+                  : canSubmit
+                    ? "linear-gradient(135deg,#0ea5e9,#0369a1)"
+                    : "rgba(255,255,255,0.06)",
+              border: "none",
+              borderRadius: 16,
+              color: canSubmit || !isAuthenticated ? "#fff" : "#475569",
+              fontWeight: 800,
+              fontSize: 16,
+              cursor: loading || (isAuthenticated && !canSubmit) ? "not-allowed" : "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 10,
+              boxShadow: canSubmit ? "0 4px 24px rgba(14,165,233,0.3)" : "none",
+              transition: "all 0.25s",
+              letterSpacing: 0.3,
+            }}
+          >
+            {loading ? (
+              <><Loader2 size={18} style={{ animation: "spin 1s linear infinite" }} /> Registering Order…</>
+            ) : !isAuthenticated ? (
+              <><LogIn size={18} /> Log In to Continue</>
+            ) : price !== null ? (
+              <><ChevronRight size={18} /> Place Order · ${price} USD</>
+            ) : (
+              "Place Order"
+            )}
           </button>
-        </div>
+
+          <p style={{ textAlign: "center", fontSize: 11, color: "#334155", marginTop: 12, lineHeight: 1.5 }}>
+            By placing an order you agree to our terms of service. Payments are non-refundable after processing begins.
+          </p>
+
+        </form>
       </div>
-    );
-  }
 
-  // ── Step 3: Confirmation ───────────────────────────────────────────────────
-  return (
-    <div className="min-h-screen pb-20" style={{ background: "#060b15", color: "#e2e8f0" }}>
-      <Header title="Order Confirmed" sub={`Order ${orderResult?.orderCode ?? ""}`} onBack={() => { setStep("select"); setBrandLabel(""); setModelName(""); setImei(""); setOrderResult(null); }} />
-
-      <div className="px-4 pt-5">
-        {/* Success banner */}
-        <div className="rounded-2xl p-5 mb-5 text-center"
-          style={{ background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.25)" }}>
-          <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-3"
-            style={{ background: "rgba(34,197,94,0.15)", border: "2px solid rgba(34,197,94,0.4)" }}>
-            <CheckCircle2 size={28} className="text-green-400" />
-          </div>
-          <p className="font-black text-lg text-white mb-1">Order Registered!</p>
-          <p className="text-[12px]" style={{ color: "#64748b" }}>
-            Order #{orderResult?.orderId} · {model?.name} IMEI Repair
-          </p>
-          {orderResult?.orderCode && (
-            <p className="mt-1.5 font-mono font-bold text-sm" style={{ color: "#93c5fd" }}>
-              Code: {orderResult.orderCode}
-            </p>
-          )}
-        </div>
-
-        {/* Payment instructions */}
-        <div className="rounded-2xl p-4 mb-4"
-          style={{ background: "rgba(10,22,48,0.98)", border: "1px solid rgba(59,130,246,0.22)" }}>
-          <p className="text-[11px] font-black uppercase tracking-wider mb-3" style={{ color: "#475569" }}>
-            Payment Instructions
-          </p>
-          <div className="flex justify-between items-center mb-3">
-            <span className="text-[12px]" style={{ color: "#94a3b8" }}>Amount Due</span>
-            <span className="font-black text-[18px]" style={{ color: "#4ade80" }}>${model?.price} USD</span>
-          </div>
-
-          {(payMethod === "usdt_manual") && orderResult?.paymentDetails?.usdtAddress && (
-            <div className="rounded-xl p-3 mb-3" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
-              <p className="text-[10px] font-bold mb-1.5" style={{ color: "#475569" }}>USDT Wallet Address ({orderResult.paymentDetails.usdtNetwork ?? "TRC-20"})</p>
-              <div className="flex items-center gap-2">
-                <code className="flex-1 text-[11px] break-all font-mono" style={{ color: "#93c5fd" }}>
-                  {orderResult.paymentDetails.usdtAddress}
-                </code>
-                <button onClick={() => copyToClipboard(orderResult!.paymentDetails!.usdtAddress!, "usdt")}
-                  className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-                  style={{ background: "rgba(59,130,246,0.15)", border: "1px solid rgba(59,130,246,0.3)" }}>
-                  {copied === "usdt" ? <Check size={13} className="text-green-400" /> : <Copy size={13} className="text-blue-400" />}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {payMethod === "binance_pay" && orderResult?.paymentDetails?.binancePayId && (
-            <div className="rounded-xl p-3 mb-3" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
-              <p className="text-[10px] font-bold mb-1.5" style={{ color: "#475569" }}>Binance Pay ID</p>
-              <div className="flex items-center gap-2">
-                <code className="flex-1 text-[13px] font-black font-mono" style={{ color: "#f59e0b" }}>
-                  {orderResult.paymentDetails.binancePayId}
-                </code>
-                <button onClick={() => copyToClipboard(orderResult!.paymentDetails!.binancePayId!, "binance")}
-                  className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-                  style={{ background: "rgba(245,158,11,0.15)", border: "1px solid rgba(245,158,11,0.3)" }}>
-                  {copied === "binance" ? <Check size={13} className="text-green-400" /> : <Copy size={13} style={{ color: "#f59e0b" }} />}
-                </button>
-              </div>
-            </div>
-          )}
-
-          <div className="rounded-xl p-3" style={{ background: "rgba(59,130,246,0.06)", border: "1px solid rgba(59,130,246,0.15)" }}>
-            <p className="text-[11px] leading-relaxed" style={{ color: "#64748b" }}>
-              After sending payment, your order will be processed within <span className="font-bold text-white">24–48 hours</span>.
-              Check your email <span className="font-bold text-white">{email}</span> for confirmation.
-            </p>
-          </div>
-        </div>
-
-        {/* ── Payment Screenshot Upload ─────────────────────────────────── */}
-        <div className="rounded-2xl p-4 mb-4"
-          style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
-          <p className="text-[11px] font-black uppercase tracking-wider mb-1" style={{ color: "#475569" }}>
-            Upload Payment Screenshot
-          </p>
-          <p className="text-[11px] mb-4" style={{ color: "#334155" }}>
-            Attach proof of payment to speed up verification.
-          </p>
-
-          {uploadDone ? (
-            <div className="rounded-xl px-4 py-3 flex items-center gap-3"
-              style={{ background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.25)" }}>
-              <CheckCircle2 size={16} className="text-green-400 shrink-0" />
-              <div>
-                <p className="text-[12px] font-bold text-green-400">Screenshot uploaded!</p>
-                <p className="text-[11px]" style={{ color: "#4b5563" }}>We'll verify your payment shortly.</p>
-              </div>
-            </div>
-          ) : (
-            <>
-              {/* Drop / tap zone */}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handleFileSelect}
-              />
-
-              {uploadPreview ? (
-                <div className="relative mb-3">
-                  <img src={uploadPreview} alt="Payment proof" className="w-full rounded-xl object-cover max-h-48" />
-                  <button
-                    onClick={() => { setUploadFile(null); setUploadPreview(null); setUploadError(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
-                    className="absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center"
-                    style={{ background: "rgba(0,0,0,0.6)", border: "1px solid rgba(255,255,255,0.15)" }}>
-                    <X size={13} className="text-white" />
-                  </button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="w-full py-8 rounded-xl flex flex-col items-center gap-2 transition-all mb-3"
-                  style={{ background: "rgba(59,130,246,0.05)", border: "2px dashed rgba(59,130,246,0.25)" }}>
-                  <ImageIcon size={24} style={{ color: "#3b82f6" }} />
-                  <p className="text-[12px] font-bold" style={{ color: "#60a5fa" }}>Tap to choose screenshot</p>
-                  <p className="text-[10px]" style={{ color: "#334155" }}>JPG, PNG, WEBP accepted</p>
-                </button>
-              )}
-
-              {uploadError && (
-                <div className="rounded-xl px-3 py-2 flex items-center gap-2 mb-3"
-                  style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)" }}>
-                  <AlertTriangle size={12} className="text-red-400 shrink-0" />
-                  <p className="text-[11px] text-red-400">{uploadError}</p>
-                </div>
-              )}
-
-              {uploadFile && (
-                <button
-                  onClick={handleUploadScreenshot}
-                  disabled={uploading}
-                  className="w-full py-3.5 rounded-xl font-black text-sm text-white flex items-center justify-center gap-2 disabled:opacity-60"
-                  style={{ background: "linear-gradient(135deg,#10b981,#059669)" }}>
-                  {uploading ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
-                  {uploading ? "Uploading…" : "Send Screenshot"}
-                </button>
-              )}
-
-              {!uploadFile && (
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="w-full py-3 rounded-xl font-bold text-[12px] flex items-center justify-center gap-2"
-                  style={{ color: "#60a5fa", border: "1px solid rgba(59,130,246,0.2)", background: "transparent" }}>
-                  <Upload size={13} /> Choose File
-                </button>
-              )}
-            </>
-          )}
-        </div>
-
-        <div className="space-y-2">
-          <button onClick={() => setView("track")}
-            className="w-full py-3.5 rounded-xl font-bold text-sm text-white flex items-center justify-center gap-2"
-            style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)" }}>
-            Track This Order
-          </button>
-          <button onClick={() => { setStep("select"); setBrandLabel(""); setModelName(""); setImei(""); setOrderResult(null); setUploadFile(null); setUploadPreview(null); setUploadDone(false); }}
-            className="w-full py-3.5 rounded-xl font-bold text-sm flex items-center justify-center"
-            style={{ color: "#64748b" }}>
-            Register Another Device
-          </button>
-        </div>
-      </div>
+      <style>{`
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        select option { background: #1e293b; color: #e2e8f0; }
+        input::placeholder { color: #475569; }
+      `}</style>
     </div>
   );
 }
