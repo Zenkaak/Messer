@@ -39,21 +39,22 @@ function ProductCard({ product, onClick }: { product: Product; onClick: () => vo
   return (
     <div
       onClick={onClick}
-      className={`group relative bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 cursor-pointer overflow-hidden flex flex-col ${outOfStock ? "opacity-60" : ""}`}
+      className={`group relative rounded-2xl cursor-pointer overflow-hidden flex flex-col hover:-translate-y-0.5 transition-all duration-200 ${outOfStock ? "opacity-50" : ""}`}
+      style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", boxShadow: "0 2px 12px rgba(0,0,0,0.3)" }}
     >
-      <div className="relative w-full aspect-square overflow-hidden bg-gray-50">
+      <div className="relative w-full aspect-square overflow-hidden" style={{ background: "linear-gradient(135deg,#0f1c2e 0%,#1a2d45 100%)" }}>
         <ProductThumb src={product.imageUrl} alt={product.name} />
 
         {outOfStock && (
-          <div className="absolute inset-0 bg-white/60 flex items-center justify-center">
-            <span className="text-[10px] font-bold text-red-500 bg-white/95 px-2 py-0.5 rounded-full border border-red-200">
+          <div className="absolute inset-0 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.55)" }}>
+            <span className="text-[10px] font-bold text-red-400 bg-black/80 px-2 py-0.5 rounded-full" style={{ border: "1px solid rgba(239,68,68,0.4)" }}>
               Out of Stock
             </span>
           </div>
         )}
         {product.featured && !outOfStock && (
           <div className="absolute top-2 left-2">
-            <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">
+            <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-amber-300 px-1.5 py-0.5 rounded-full" style={{ background: "rgba(217,119,6,0.25)", border: "1px solid rgba(217,119,6,0.4)" }}>
               <Star size={7} fill="currentColor" /> Featured
             </span>
           </div>
@@ -62,14 +63,14 @@ function ProductCard({ product, onClick }: { product: Product; onClick: () => vo
 
       <div className="p-2.5 flex flex-col flex-1 gap-1">
         {product.categoryName && (
-          <span className="text-[9px] font-bold uppercase tracking-widest text-indigo-400 truncate">
+          <span className="text-[9px] font-bold uppercase tracking-widest text-teal-400/80 truncate">
             {product.categoryName}
           </span>
         )}
-        <p className="text-[11px] font-semibold text-gray-800 leading-snug line-clamp-2 flex-1">{product.name}</p>
-        <div className="flex items-center justify-between pt-1.5 border-t border-gray-50 mt-auto">
-          <p className="text-[14px] font-black text-gray-900">${priceStr}</p>
-          <span className="text-[9px] font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full border border-emerald-100">
+        <p className="text-[11px] font-semibold text-white/90 leading-snug line-clamp-2 flex-1">{product.name}</p>
+        <div className="flex items-center justify-between pt-1.5 mt-auto" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+          <p className="text-[14px] font-black text-white">${priceStr}</p>
+          <span className="text-[9px] font-semibold text-emerald-400 px-1.5 py-0.5 rounded-full" style={{ background: "rgba(16,185,129,0.15)", border: "1px solid rgba(16,185,129,0.25)" }}>
             Buy
           </span>
         </div>
@@ -80,15 +81,15 @@ function ProductCard({ product, onClick }: { product: Product; onClick: () => vo
 
 function CardSkeleton() {
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-      <Skeleton className="w-full aspect-square" />
+    <div className="rounded-2xl overflow-hidden" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
+      <Skeleton className="w-full aspect-square" style={{ background: "rgba(255,255,255,0.06)" }} />
       <div className="p-2.5 space-y-1.5">
-        <Skeleton className="h-2 w-14" />
-        <Skeleton className="h-3 w-full" />
-        <Skeleton className="h-3 w-3/4" />
+        <Skeleton className="h-2 w-14" style={{ background: "rgba(255,255,255,0.06)" }} />
+        <Skeleton className="h-3 w-full" style={{ background: "rgba(255,255,255,0.06)" }} />
+        <Skeleton className="h-3 w-3/4" style={{ background: "rgba(255,255,255,0.06)" }} />
         <div className="flex items-center justify-between pt-1">
-          <Skeleton className="h-4 w-10" />
-          <Skeleton className="h-4 w-8" />
+          <Skeleton className="h-4 w-10" style={{ background: "rgba(255,255,255,0.06)" }} />
+          <Skeleton className="h-4 w-8" style={{ background: "rgba(255,255,255,0.06)" }} />
         </div>
       </div>
     </div>
@@ -133,11 +134,11 @@ function SectionLabel({
   return (
     <div className="flex items-center justify-between mb-3">
       <div className="flex items-center gap-2">
-        <span className={`w-6 h-6 rounded-lg flex items-center justify-center ${accent}`}>{icon}</span>
-        <h2 className="text-[14px] font-bold text-gray-800">{title}</h2>
+        <span className={`w-6 h-6 rounded-lg flex items-center justify-center opacity-80 ${accent}`}>{icon}</span>
+        <h2 className="text-[14px] font-bold text-white/90">{title}</h2>
       </div>
       {count !== undefined && (
-        <span className="text-[11px] text-gray-400 font-medium">{count} items</span>
+        <span className="text-[11px] text-white/30 font-medium">{count} items</span>
       )}
     </div>
   );
@@ -145,9 +146,9 @@ function SectionLabel({
 
 function Chip({ label, onClear }: { label: string; onClear: () => void }) {
   return (
-    <span className="inline-flex items-center gap-1 bg-white text-indigo-700 text-[11px] font-semibold px-2 py-0.5 rounded-full border border-indigo-200">
+    <span className="inline-flex items-center gap-1 text-blue-300 text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: "rgba(59,130,246,0.15)", border: "1px solid rgba(59,130,246,0.3)" }}>
       {label}
-      <button onClick={onClear} className="text-indigo-400 hover:text-indigo-700 ml-0.5">
+      <button onClick={onClear} className="text-blue-400 hover:text-blue-200 ml-0.5">
         <X size={10} />
       </button>
     </span>
@@ -169,17 +170,19 @@ function Pagination({
       <button
         disabled={page <= 1}
         onClick={() => onPage(Math.max(1, page - 1))}
-        className="px-4 py-2 text-sm font-semibold border border-gray-200 rounded-xl disabled:opacity-40 hover:bg-gray-50 bg-white"
+        className="px-4 py-2 text-sm font-semibold rounded-xl disabled:opacity-30 transition-colors text-white/80 hover:text-white"
+        style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}
       >
         Previous
       </button>
-      <span className="text-[13px] text-gray-500 font-medium">
+      <span className="text-[13px] text-white/40 font-medium">
         {page} / {totalPages}
       </span>
       <button
         disabled={page >= totalPages}
         onClick={() => onPage(Math.min(totalPages, page + 1))}
-        className="px-4 py-2 text-sm font-semibold border border-gray-200 rounded-xl disabled:opacity-40 hover:bg-gray-50 bg-white"
+        className="px-4 py-2 text-sm font-semibold rounded-xl disabled:opacity-30 transition-colors text-white/80 hover:text-white"
+        style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}
       >
         Next
       </button>
@@ -360,7 +363,7 @@ export function StorePage() {
   const browseProducts = (browseData?.products ?? []).filter((p) => !isGift(p));
 
   return (
-    <div className="min-h-screen bg-[#f5f6fa]">
+    <div className="min-h-screen" style={{ background: "linear-gradient(180deg,#06101e 0%,#0b1a35 100%)" }}>
       {/* ── Hero header ─────────────────────────────────────────── */}
       <div
         className="relative overflow-hidden px-4 pt-8 pb-6"
@@ -397,7 +400,7 @@ export function StorePage() {
       </div>
 
       {/* ── Category pills ───────────────────────────────────────── */}
-      <div className="bg-white border-b border-gray-100 sticky top-0 z-20 shadow-sm">
+      <div className="sticky top-0 z-20" style={{ background: "rgba(6,16,30,0.95)", backdropFilter: "blur(16px)", borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
         <div
           className="flex items-center gap-1.5 px-3 py-2 overflow-x-auto"
           style={{ scrollbarWidth: "none" }}
@@ -406,9 +409,10 @@ export function StorePage() {
             onClick={() => setCategory("")}
             className={`shrink-0 px-3 py-1.5 rounded-full text-[11px] font-bold transition-all whitespace-nowrap ${
               !selectedCategory
-                ? "bg-[#0d3349] text-white shadow-sm"
-                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                ? "bg-teal-500/20 text-teal-300"
+                : "text-white/50 hover:text-white/80"
             }`}
+            style={!selectedCategory ? { border: "1px solid rgba(20,184,166,0.4)" } : { border: "1px solid rgba(255,255,255,0.08)" }}
           >
             All
           </button>
@@ -418,12 +422,13 @@ export function StorePage() {
               onClick={() => setCategory(cat.slug)}
               className={`shrink-0 px-3 py-1.5 rounded-full text-[11px] font-bold transition-all whitespace-nowrap ${
                 selectedCategory === cat.slug
-                  ? "bg-[#0d3349] text-white shadow-sm"
-                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                  ? "bg-teal-500/20 text-teal-300"
+                  : "text-white/50 hover:text-white/80"
               }`}
+              style={selectedCategory === cat.slug ? { border: "1px solid rgba(20,184,166,0.4)" } : { border: "1px solid rgba(255,255,255,0.08)" }}
             >
               {cat.name}
-              <span className={`ml-1 text-[9px] ${selectedCategory === cat.slug ? "opacity-60" : "text-gray-400"}`}>
+              <span className={`ml-1 text-[9px] ${selectedCategory === cat.slug ? "opacity-60" : "opacity-30"}`}>
                 {cat.productCount}
               </span>
             </button>
@@ -437,36 +442,39 @@ export function StorePage() {
               <button
                 key={opt.value}
                 onClick={() => { setSort(opt.value); setPage(1); }}
-                className={`px-2.5 py-1 rounded-full text-[11px] font-bold border transition-all whitespace-nowrap ${
+                className={`px-2.5 py-1 rounded-full text-[11px] font-bold transition-all whitespace-nowrap ${
                   sort === opt.value
-                    ? "bg-slate-800 text-white border-slate-800"
-                    : "bg-white text-gray-500 border-gray-200 hover:border-gray-400"
+                    ? "text-white"
+                    : "text-white/40 hover:text-white/70"
                 }`}
+                style={sort === opt.value
+                  ? { background: "rgba(59,130,246,0.25)", border: "1px solid rgba(59,130,246,0.5)" }
+                  : { border: "1px solid rgba(255,255,255,0.08)" }}
               >
                 {opt.label}
               </button>
             ))}
           </div>
-          <div className="h-3 w-px bg-gray-200 shrink-0 mx-1" />
+          <div className="h-3 w-px shrink-0 mx-1" style={{ background: "rgba(255,255,255,0.1)" }} />
           <button
             onClick={() => { setInStockOnly((v) => !v); setPage(1); }}
-            className={`shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold border transition-all ${
-              inStockOnly
-                ? "bg-emerald-600 text-white border-emerald-600"
-                : "bg-white text-gray-500 border-gray-200 hover:border-emerald-300"
+            className={`shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold transition-all ${
+              inStockOnly ? "text-emerald-300" : "text-white/40 hover:text-white/70"
             }`}
+            style={inStockOnly
+              ? { background: "rgba(16,185,129,0.2)", border: "1px solid rgba(16,185,129,0.4)" }
+              : { border: "1px solid rgba(255,255,255,0.08)" }}
           >
             <CheckCircle2 size={10} /> In Stock
           </button>
           <button
             onClick={() => setShowFilters((v) => !v)}
-            className={`shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold border transition-all ${
-              activePriceLabel
-                ? "bg-indigo-600 text-white border-indigo-600"
-                : showFilters
-                ? "bg-indigo-50 text-indigo-700 border-indigo-300"
-                : "bg-white text-gray-500 border-gray-200 hover:border-indigo-300"
+            className={`shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold transition-all ${
+              activePriceLabel || showFilters ? "text-indigo-300" : "text-white/40 hover:text-white/70"
             }`}
+            style={activePriceLabel || showFilters
+              ? { background: "rgba(99,102,241,0.2)", border: "1px solid rgba(99,102,241,0.4)" }
+              : { border: "1px solid rgba(255,255,255,0.08)" }}
           >
             <SlidersHorizontal size={10} />
             {activePriceLabel ?? "Price"}
@@ -476,7 +484,7 @@ export function StorePage() {
 
         {/* Price filter dropdown */}
         {showFilters && (
-          <div className="px-3 pb-3 pt-1 border-t border-gray-100 bg-indigo-50/40 space-y-2">
+          <div className="px-3 pb-3 pt-2 space-y-2" style={{ borderTop: "1px solid rgba(255,255,255,0.06)", background: "rgba(99,102,241,0.06)" }}>
             <div className="flex gap-1.5 flex-wrap">
               {PRICE_PRESETS.map((preset) => {
                 const active = preset.min === minPrice && preset.max === maxPrice;
@@ -484,11 +492,12 @@ export function StorePage() {
                   <button
                     key={preset.label}
                     onClick={() => applyPricePreset(preset.min, preset.max)}
-                    className={`px-3 py-1 rounded-full text-[11px] font-bold border transition-all ${
-                      active
-                        ? "bg-indigo-600 text-white border-indigo-600"
-                        : "bg-white text-gray-600 border-indigo-200 hover:border-indigo-400"
+                    className={`px-3 py-1 rounded-full text-[11px] font-bold transition-all ${
+                      active ? "text-indigo-200" : "text-white/50 hover:text-white/80"
                     }`}
+                    style={active
+                      ? { background: "rgba(99,102,241,0.3)", border: "1px solid rgba(99,102,241,0.5)" }
+                      : { border: "1px solid rgba(255,255,255,0.1)" }}
                   >
                     {preset.label}
                   </button>
@@ -503,10 +512,11 @@ export function StorePage() {
                 onChange={(e) => setMinPriceInput(e.target.value)}
                 onBlur={applyCustomPrice}
                 onKeyDown={(e) => e.key === "Enter" && applyCustomPrice()}
-                className="flex-1 px-2.5 py-1.5 text-[12px] border border-indigo-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
+                className="flex-1 px-2.5 py-1.5 text-[12px] rounded-lg focus:outline-none text-white placeholder-white/20"
+                style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)" }}
                 min={0}
               />
-              <span className="text-gray-400">—</span>
+              <span className="text-white/20">—</span>
               <input
                 type="number"
                 placeholder="Max $"
@@ -514,12 +524,14 @@ export function StorePage() {
                 onChange={(e) => setMaxPriceInput(e.target.value)}
                 onBlur={applyCustomPrice}
                 onKeyDown={(e) => e.key === "Enter" && applyCustomPrice()}
-                className="flex-1 px-2.5 py-1.5 text-[12px] border border-indigo-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
+                className="flex-1 px-2.5 py-1.5 text-[12px] rounded-lg focus:outline-none text-white placeholder-white/20"
+                style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)" }}
                 min={0}
               />
               <button
                 onClick={() => { applyCustomPrice(); setShowFilters(false); }}
-                className="px-3 py-1.5 text-[11px] font-bold bg-indigo-700 text-white rounded-lg whitespace-nowrap"
+                className="px-3 py-1.5 text-[11px] font-bold text-white rounded-lg whitespace-nowrap"
+                style={{ background: "linear-gradient(135deg,#6366f1,#4f46e5)" }}
               >
                 Apply
               </button>
@@ -529,7 +541,7 @@ export function StorePage() {
 
         {/* Active filter chips */}
         {isFiltering && (
-          <div className="flex items-center gap-1.5 px-3 py-1.5 border-t border-gray-100 bg-blue-50/60 flex-wrap">
+          <div className="flex items-center gap-1.5 px-3 py-1.5 flex-wrap" style={{ borderTop: "1px solid rgba(255,255,255,0.06)", background: "rgba(59,130,246,0.05)" }}>
             {activeCategoryName && <Chip label={activeCategoryName} onClear={() => setCategory("")} />}
             {inStockOnly && <Chip label="In Stock" onClear={() => { setInStockOnly(false); setPage(1); }} />}
             {activePriceLabel && <Chip label={activePriceLabel} onClear={() => applyPricePreset(undefined, undefined)} />}
@@ -543,10 +555,10 @@ export function StorePage() {
               />
             )}
             <div className="flex-1" />
-            <span className="text-[11px] text-blue-600 font-medium">
+            <span className="text-[11px] text-blue-300/70 font-medium">
               {loadingFiltered ? "…" : `${totalResults.toLocaleString()} results`}
             </span>
-            <button onClick={clearFilters} className="text-[11px] text-blue-700 font-bold hover:underline ml-1">
+            <button onClick={clearFilters} className="text-[11px] text-blue-300 font-bold hover:text-blue-200 ml-1">
               Clear all
             </button>
           </div>
@@ -560,12 +572,13 @@ export function StorePage() {
             <SectionSkeleton cards={8} />
           ) : filteredProducts.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-24 text-center">
-              <Package size={44} className="text-gray-200 mb-4" />
-              <p className="font-bold text-gray-600 mb-1">No products found</p>
-              <p className="text-gray-400 text-sm mb-5">Try adjusting your search or filters.</p>
+              <Package size={44} className="text-white/15 mb-4" />
+              <p className="font-bold text-white/70 mb-1">No products found</p>
+              <p className="text-white/35 text-sm mb-5">Try adjusting your search or filters.</p>
               <button
                 onClick={clearFilters}
-                className="text-blue-600 font-bold text-sm bg-blue-50 px-5 py-2.5 rounded-xl border border-blue-200"
+                className="text-blue-300 font-bold text-sm px-5 py-2.5 rounded-xl transition-colors"
+                style={{ background: "rgba(59,130,246,0.12)", border: "1px solid rgba(59,130,246,0.3)" }}
               >
                 Clear all filters
               </button>
@@ -641,7 +654,7 @@ export function StorePage() {
                   {Array.from({ length: 10 }).map((_, i) => <CardSkeleton key={i} />)}
                 </div>
               ) : browseProducts.length === 0 ? (
-                <div className="py-16 text-center text-gray-400 text-sm">No products available.</div>
+                <div className="py-16 text-center text-white/30 text-sm">No products available.</div>
               ) : (
                 <ProductGrid products={browseProducts} onProductClick={handleProductClick} />
               )}

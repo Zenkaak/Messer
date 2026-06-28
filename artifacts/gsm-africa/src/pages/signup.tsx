@@ -99,7 +99,7 @@ export function SignupPage() {
   }
 
   return (
-    <div className="flex flex-col min-h-full bg-white md:items-center md:justify-center md:py-12">
+    <div className="flex flex-col min-h-full md:items-center md:justify-center md:py-12" style={{ background: "linear-gradient(180deg,#06101e 0%,#0b1a35 100%)" }}>
       <div className="w-full md:max-w-md md:shadow-xl md:rounded-3xl md:overflow-hidden">
 
       {/* Dark hero */}
@@ -124,33 +124,34 @@ export function SignupPage() {
       </div>
 
       {/* Form */}
-      <div className="px-5 pt-6 pb-8 space-y-4">
+      <div className="px-5 pt-6 pb-8 space-y-4" style={{ background: "rgba(255,255,255,0.03)", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
 
         {step === "register" ? (
           <form onSubmit={handleRegister} className="space-y-3">
             {/* Full name */}
             <div>
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1.5">
-                Full Name <span className="normal-case text-gray-300">(optional)</span>
+              <label className="text-[10px] font-bold text-white/40 uppercase tracking-widest block mb-1.5">
+                Full Name <span className="normal-case text-white/25">(optional)</span>
               </label>
               <div className="relative">
-                <User size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                <User size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30" />
                 <input
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="John Doe"
                   autoComplete="name"
-                  className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400"
+                  className="w-full pl-10 pr-4 py-3 rounded-xl text-sm text-white placeholder-white/20 focus:outline-none transition-colors"
+                  style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}
                 />
               </div>
             </div>
 
             {/* Email */}
             <div>
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1.5">Email Address</label>
+              <label className="text-[10px] font-bold text-white/40 uppercase tracking-widest block mb-1.5">Email Address</label>
               <div className="relative">
-                <Mail size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                <Mail size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30" />
                 <input
                   type="email"
                   value={email}
@@ -158,16 +159,17 @@ export function SignupPage() {
                   placeholder="you@example.com"
                   required
                   autoComplete="email"
-                  className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400"
+                  className="w-full pl-10 pr-4 py-3 rounded-xl text-sm text-white placeholder-white/20 focus:outline-none transition-colors"
+                  style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}
                 />
               </div>
             </div>
 
             {/* Password */}
             <div>
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1.5">Password</label>
+              <label className="text-[10px] font-bold text-white/40 uppercase tracking-widest block mb-1.5">Password</label>
               <div className="relative">
-                <Lock size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                <Lock size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30" />
                 <input
                   type={showPassword ? "text" : "password"}
                   value={password}
@@ -176,17 +178,18 @@ export function SignupPage() {
                   required
                   minLength={6}
                   autoComplete="new-password"
-                  className="w-full pl-10 pr-11 py-3 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400"
+                  className="w-full pl-10 pr-11 py-3 rounded-xl text-sm text-white placeholder-white/20 focus:outline-none transition-colors"
+                  style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60"
                 >
                   {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
-              <p className="text-[11px] text-gray-400 mt-1">Minimum 6 characters</p>
+              <p className="text-[11px] text-white/30 mt-1">Minimum 6 characters</p>
             </div>
 
             <button
@@ -202,16 +205,16 @@ export function SignupPage() {
         ) : (
           /* ── OTP Verification Step ── */
           <form onSubmit={handleVerify} className="space-y-4">
-            <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 text-center">
-              <p className="text-sm text-blue-700 font-medium">
+            <div className="rounded-2xl p-4 text-center" style={{ background: "rgba(59,130,246,0.1)", border: "1px solid rgba(59,130,246,0.25)" }}>
+              <p className="text-sm text-blue-300/80 font-medium">
                 A 6-digit verification code was sent to
               </p>
-              <p className="text-sm font-black text-blue-900 mt-0.5">{email}</p>
-              <p className="text-xs text-blue-500 mt-1">The code expires in 10 minutes.</p>
+              <p className="text-sm font-black text-blue-200 mt-0.5">{email}</p>
+              <p className="text-xs text-blue-400/60 mt-1">The code expires in 10 minutes.</p>
             </div>
 
             <div>
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1.5">Verification Code</label>
+              <label className="text-[10px] font-bold text-white/40 uppercase tracking-widest block mb-1.5">Verification Code</label>
               <input
                 type="text"
                 inputMode="numeric"
@@ -221,7 +224,8 @@ export function SignupPage() {
                 onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
                 placeholder="000000"
                 autoFocus
-                className="w-full py-4 text-center text-3xl font-black tracking-[0.5em] border-2 border-gray-200 rounded-2xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 text-gray-900"
+                className="w-full py-4 text-center text-3xl font-black tracking-[0.5em] rounded-2xl focus:outline-none text-white placeholder-white/15"
+                style={{ background: "rgba(255,255,255,0.06)", border: "2px solid rgba(59,130,246,0.35)" }}
               />
             </div>
 
@@ -259,9 +263,9 @@ export function SignupPage() {
           <>
             {/* Google sign-in divider */}
             <div className="relative">
-              <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200" /></div>
+              <div className="absolute inset-0 flex items-center"><div className="w-full" style={{ borderTop: "1px solid rgba(255,255,255,0.1)" }} /></div>
               <div className="relative flex justify-center text-xs">
-                <span className="bg-white px-3 text-gray-400 font-medium">or sign up with</span>
+                <span className="px-3 text-white/30 font-medium" style={{ background: "rgba(11,26,53,0.95)" }}>or sign up with</span>
               </div>
             </div>
             <button
@@ -270,10 +274,10 @@ export function SignupPage() {
                 const base = (import.meta.env.BASE_URL as string).replace(/\/$/, "");
                 window.location.href = `${base}/api/auth/google/redirect`;
               }}
-              className="w-full group relative flex items-center gap-0 rounded-xl overflow-hidden border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 bg-white"
-              style={{ minHeight: "48px" }}
+              className="w-full group relative flex items-center gap-0 rounded-xl overflow-hidden transition-all duration-200"
+              style={{ minHeight: "48px", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)" }}
             >
-              <span className="flex items-center justify-center bg-white w-12 h-12 shrink-0 border-r border-gray-100">
+              <span className="flex items-center justify-center w-12 h-12 shrink-0" style={{ borderRight: "1px solid rgba(255,255,255,0.08)" }}>
                 <svg width="20" height="20" viewBox="0 0 18 18" fill="none">
                   <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z" fill="#4285F4"/>
                   <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z" fill="#34A853"/>
@@ -281,31 +285,31 @@ export function SignupPage() {
                   <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 6.29C4.672 4.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
                 </svg>
               </span>
-              <span className="flex-1 text-center text-sm font-semibold text-gray-700 group-hover:text-gray-900 transition-colors pr-3">
+              <span className="flex-1 text-center text-sm font-semibold text-white/80 group-hover:text-white transition-colors pr-3">
                 Continue with Google
               </span>
             </button>
 
-            <p className="text-center text-sm text-gray-500">
+            <p className="text-center text-sm text-white/40">
               Already have an account?{" "}
-              <Link href="/login" className="text-blue-600 font-bold hover:underline">Sign in</Link>
+              <Link href="/login" className="text-blue-400 font-bold hover:underline">Sign in</Link>
             </p>
 
             {/* Trust features */}
             <div className="pt-2 grid grid-cols-3 gap-2">
               {[
-                { icon: <ShieldCheck size={15} className="text-green-600" />, label: "Secure" },
-                { icon: <Zap size={15} className="text-yellow-500" />, label: "Instant" },
-                { icon: <Globe size={15} className="text-blue-600" />, label: "Worldwide" },
+                { icon: <ShieldCheck size={15} className="text-green-400" />, label: "Secure" },
+                { icon: <Zap size={15} className="text-yellow-400" />, label: "Instant" },
+                { icon: <Globe size={15} className="text-blue-400" />, label: "Worldwide" },
               ].map(({ icon, label }) => (
-                <div key={label} className="flex flex-col items-center gap-1 bg-gray-50 border border-gray-100 rounded-xl py-3">
+                <div key={label} className="flex flex-col items-center gap-1 rounded-xl py-3" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
                   {icon}
-                  <span className="text-[10px] font-semibold text-gray-500">{label}</span>
+                  <span className="text-[10px] font-semibold text-white/40">{label}</span>
                 </div>
               ))}
             </div>
 
-            <p className="text-center text-[11px] text-gray-400">
+            <p className="text-center text-[11px] text-white/25">
               By creating an account you agree to our terms of service.
             </p>
           </>
