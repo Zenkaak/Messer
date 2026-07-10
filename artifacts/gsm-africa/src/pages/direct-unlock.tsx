@@ -948,7 +948,7 @@ export function DirectUnlockPage() {
                       .map(brand => (
                         <button
                           key={brand.brand}
-                          onClick={() => { setSelectedBrand(brand); setSelectedModel(null); setStep("model"); setBrandSearch(""); }}
+                          onClick={() => { setSelectedBrand(brand); setSelectedModel(null); setImei(""); setImeiInfo(null); setImeiLuhnError(false); setStep("model"); setBrandSearch(""); }}
                           className="group flex items-center gap-3 bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-300 rounded-xl p-3 text-left transition-all hover:shadow-md"
                         >
                           <div className="w-10 h-10 rounded-xl bg-white border border-slate-100 shadow-sm flex items-center justify-center shrink-0 overflow-hidden">
@@ -990,7 +990,7 @@ export function DirectUnlockPage() {
                     const tierLabel: Record<string, string> = { premium: "Premium", high: "High-end", mid: "Mid-range", budget: "Budget" };
                     return (
                       <button key={model.name}
-                        onClick={() => { setSelectedModel(model); setStep("imei"); }}
+                        onClick={() => { setSelectedModel(model); setImei(""); setImeiInfo(null); setImeiLuhnError(false); setStep("imei"); }}
                         className="w-full flex items-center gap-3 bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-300 rounded-xl px-4 py-3 text-left transition-all group hover:shadow-sm">
                         <div className="w-8 h-8 rounded-lg bg-white border border-slate-100 flex items-center justify-center shrink-0">
                           <Smartphone size={14} className="text-slate-400 group-hover:text-blue-500 transition-colors" />
@@ -1450,7 +1450,7 @@ export function DirectUnlockPage() {
                   </div>
                 </div>
 
-                <OrderSummaryCard brand={selectedBrand} model={selectedModel} imei={imei} />
+                <OrderSummaryCard brand={selectedBrand} model={selectedModel} imei={imei} isIPad={isIPad} />
 
                 {/* Payment method selector */}
                 {!mpCheckoutId && !npPayment && (
