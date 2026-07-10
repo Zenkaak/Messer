@@ -55,6 +55,12 @@ const DEVICE_CATALOG: Array<{ brand: string; icon: string; models: Array<{ name:
     { name: "iCloud Activation Lock Removal (A12–A15)", price: 180 },
     { name: "iCloud FMI Off / Clean IMEI", price: 150 },
   ]},
+  { brand: "iPad", icon: "🟦", models: [
+    { name: "iPad Pro (Any Model) — Direct Unlock", price: 120 },
+    { name: "iPad Air (Any Model) — Direct Unlock", price: 120 },
+    { name: "iPad mini (Any Model) — Direct Unlock", price: 120 },
+    { name: "iPad (Standard, Any Model) — Direct Unlock", price: 120 },
+  ]},
   { brand: "Huawei", icon: "🔴", models: [
     { name: "Huawei P60 / P60 Pro", price: 32 },
     { name: "Huawei P50 / P50 Pro", price: 30 },
@@ -428,7 +434,7 @@ function BrandLogo({ brand }: { brand: typeof DEVICE_CATALOG[0] }) {
 }
 
 // ── Order summary card ───────────────────────────────────────────────────────
-function OrderSummaryCard({ brand, model, imei }: { brand: typeof DEVICE_CATALOG[0]; model: { name: string; price: number }; imei: string }) {
+function OrderSummaryCard({ brand, model, imei, isIPad }: { brand: typeof DEVICE_CATALOG[0]; model: { name: string; price: number }; imei: string; isIPad?: boolean }) {
   return (
     <div className="rounded-2xl overflow-hidden border border-slate-200 shadow-sm bg-white">
       <div className="px-4 py-3 flex items-center gap-3" style={{ background: "linear-gradient(135deg,#1e3a5f,#243b55)" }}>
@@ -446,7 +452,7 @@ function OrderSummaryCard({ brand, model, imei }: { brand: typeof DEVICE_CATALOG
       </div>
       {imei && imei !== "—" && (
         <div className="px-4 py-2.5 flex items-center gap-2 bg-slate-50 border-t border-slate-100">
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0">IMEI</span>
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0">{isIPad ? "SERIAL" : "IMEI"}</span>
           <span className="font-mono text-[11px] text-slate-600 truncate">{imei}</span>
           <CheckCircle2 size={12} className="text-emerald-500 shrink-0" />
         </div>
@@ -467,6 +473,7 @@ export function DirectUnlockPage() {
   const [done, setDone] = useState(false);
   const [selectedBrand, setSelectedBrand] = useState<typeof DEVICE_CATALOG[0] | null>(null);
   const [selectedModel, setSelectedModel] = useState<{ name: string; price: number } | null>(null);
+  const isIPad = selectedBrand?.brand === "iPad";
   const [imei, setImei] = useState("");
   const [notes, setNotes] = useState("");
   const [payMethod, setPayMethod] = useState<PayMethod | "">("");
@@ -528,6 +535,13 @@ export function DirectUnlockPage() {
   // TAC lookup when IMEI reaches 15 valid digits
   useEffect(() => {
     if (step !== "imei") return;
+    // iPad uses serial number — skip IMEI lookup entirely
+    if (isIPad) {
+      setImeiInfo(null);
+      setImeiTacLoading(false);
+      setImeiLuhnError(false);
+      return;
+    }
     if (imei.length !== 15) {
       setImeiInfo(null);
       setImeiTacLoading(false);
@@ -552,16 +566,22 @@ export function DirectUnlockPage() {
       })
       .catch(() => setImeiInfo({ brand: null, model: null, os: null }))
       .finally(() => setImeiTacLoading(false));
-  }, [imei, step]);
+  }, [imei, step, isIPad]);
 
-  // Auto-proceed to processing once lookup completes on valid IMEI
+  // Auto-proceed to processing once lookup completes on valid IMEI (or serial for iPad)
   useEffect(() => {
     if (step !== "imei") return;
+    if (isIPad) {
+      // For iPad, auto-proceed once serial number has at least 8 characters
+      if (imei.length < 8) return;
+      const timer = setTimeout(() => setStep("processing"), 800);
+      return () => clearTimeout(timer);
+    }
     if (imei.length !== 15 || imeiLuhnError || imeiTacLoading) return;
     if (imeiInfo === null) return;
     const timer = setTimeout(() => setStep("processing"), 1200);
     return () => clearTimeout(timer);
-  }, [imei, step, imeiInfo, imeiTacLoading, imeiLuhnError]);
+  }, [imei, step, imeiInfo, imeiTacLoading, imeiLuhnError, isIPad]);
 
   // Processing 70s timer
   useEffect(() => {
@@ -999,23 +1019,26 @@ export function DirectUnlockPage() {
                     </button>
                     <div>
                       <h2 className="font-black text-slate-900 text-base leading-none">Device Information</h2>
-                      <p className="text-slate-500 text-[12px] mt-0.5">Enter your IMEI number to continue</p>
+                      <p className="text-slate-500 text-[12px] mt-0.5">{isIPad ? "Enter your Serial Number to continue" : "Enter your IMEI number to continue"}</p>
                     </div>
                   </div>
                   <div className="p-5 space-y-5">
-                    <OrderSummaryCard brand={selectedBrand} model={selectedModel} imei={imei || "—"} />
+                    <OrderSummaryCard brand={selectedBrand} model={selectedModel} imei={imei || "—"} isIPad={isIPad} />
                     <div className="space-y-1.5">
-                      <label className="block text-[11px] font-black text-slate-500 uppercase tracking-wider">IMEI or Serial Number <span className="text-red-500">*</span></label>
+                      <label className="block text-[11px] font-black text-slate-500 uppercase tracking-wider">{isIPad ? "Serial Number" : "IMEI or Serial Number"} <span className="text-red-500">*</span></label>
                       <div className="relative">
                         <input
                           type="text"
                           value={imei}
-                          onChange={e => setImei(e.target.value.replace(/\D/g, "").slice(0, 15))}
-                          placeholder="Enter 15-digit IMEI (e.g. 123456789012345)"
-                          maxLength={15}
+                          onChange={e => isIPad
+                             ? setImei(e.target.value.replace(/[^A-Za-z0-9]/g, "").toUpperCase().slice(0, 20))
+                             : setImei(e.target.value.replace(/\D/g, "").slice(0, 15))
+                           }
+                          placeholder={isIPad ? "Enter iPad Serial Number (e.g. DMPFW3J7DKQR)" : "Enter 15-digit IMEI (e.g. 123456789012345)"}
+                          maxLength={isIPad ? 20 : 15}
                           className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 bg-slate-50 pr-10"
                         />
-                        {imei.length === 15 && (
+                        {(isIPad ? imei.length >= 8 : imei.length === 15) && (
                           <button onClick={() => { setImeiCopied(true); navigator.clipboard.writeText(imei); setTimeout(() => setImeiCopied(false), 1500); }}
                             className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700">
                             {imeiCopied ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} />}
@@ -1024,7 +1047,10 @@ export function DirectUnlockPage() {
                       </div>
                       <div className="flex items-start gap-2 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2.5">
                         <Info size={12} className="text-blue-500 mt-0.5 shrink-0" />
-                        <p className="text-[11px] text-blue-700">Dial <strong className="font-mono">*#06#</strong> to get your IMEI, or go to Settings → About Phone → IMEI Information.</p>
+                        {isIPad
+                           ? <p className="text-[11px] text-blue-700">Find your Serial Number in <strong>Settings → General → About</strong>, or on the back of the iPad / original box.</p>
+                           : <p className="text-[11px] text-blue-700">Dial <strong className="font-mono">*#06#</strong> to get your IMEI, or go to Settings → About Phone → IMEI Information.</p>
+                         }
                       </div>
                     </div>
                     <div className="space-y-1.5">
@@ -1037,12 +1063,12 @@ export function DirectUnlockPage() {
                         className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 bg-slate-50 resize-none"
                       />
                     </div>
-                    {imei.length > 0 && imei.length !== 15 && (
+                    {!isIPad && imei.length > 0 && imei.length !== 15 && (
                       <p className="text-[11px] text-amber-600 font-semibold text-center -mt-2">
                         {imei.length}/15 digits entered
                       </p>
                     )}
-                    {imeiLuhnError && (
+                    {!isIPad && imeiLuhnError && (
                       <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2.5">
                         <AlertCircle size={13} className="text-red-500 shrink-0" />
                         <p className="text-[11px] text-red-600 font-semibold">Invalid IMEI — please double-check this number.</p>
@@ -1091,11 +1117,10 @@ export function DirectUnlockPage() {
                     )}
                     <button
                       onClick={() => {
-                        if (imei.length !== 15) { toast({ title: "IMEI must be exactly 15 digits", description: `You entered ${imei.length} digit${imei.length !== 1 ? "s" : ""}`, variant: "destructive" }); return; }
-                        if (imeiLuhnError) { toast({ title: "Invalid IMEI", description: "Please double-check your IMEI number.", variant: "destructive" }); return; }
+                        if (isIPad) { if (imei.length < 8) { toast({ title: "Serial number too short", description: "Please enter your iPad serial number (at least 8 characters).", variant: "destructive" }); return; } } else { if (imei.length !== 15) { toast({ title: "IMEI must be exactly 15 digits", description: `You entered ${imei.length} digit${imei.length !== 1 ? "s" : ""}`, variant: "destructive" }); return; } if (imeiLuhnError) { toast({ title: "Invalid IMEI", description: "Please double-check your IMEI number.", variant: "destructive" }); return; } }
                         setStep("processing");
                       }}
-                      disabled={imei.length !== 15 || imeiLuhnError}
+                      disabled={isIPad ? imei.length < 8 : (imei.length !== 15 || imeiLuhnError)}
                       className="w-full py-4 text-white font-black rounded-xl text-sm flex items-center justify-center gap-2 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
                       style={{ background: "linear-gradient(135deg,#2563eb,#1d4ed8)" }}>
                       <Shield size={16} />
@@ -1172,7 +1197,7 @@ export function DirectUnlockPage() {
                     <div className="px-4 py-2.5 flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
                         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#475569" strokeWidth="2"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
-                        <p className="text-[11px] font-mono" style={{ color: "#475569" }}>IMEI: <span style={{ color: "#94a3b8" }}>{imei}</span></p>
+                        <p className="text-[11px] font-mono" style={{ color: "#475569" }}>{isIPad ? "Serial" : "IMEI"}: <span style={{ color: "#94a3b8" }}>{imei}</span></p>
                       </div>
                       {imeiInfo?.brand && (
                         <span className="text-[9px] font-semibold" style={{ color: "#475569" }}>

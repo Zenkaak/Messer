@@ -50,6 +50,12 @@ const DEVICE_CATALOG: Array<{ brand: string; icon: string; models: Array<{ name:
     { name: "iCloud Activation Lock Removal (A12–A15)", price: 180 },
     { name: "iCloud FMI Off / Clean IMEI", price: 150 },
   ]},
+  { brand: "iPad", icon: "🟦", models: [
+    { name: "iPad Pro (Any Model) — Direct Unlock", price: 120 },
+    { name: "iPad Air (Any Model) — Direct Unlock", price: 120 },
+    { name: "iPad mini (Any Model) — Direct Unlock", price: 120 },
+    { name: "iPad (Standard, Any Model) — Direct Unlock", price: 120 },
+  ]},
   { brand: "Huawei", icon: "🔴", models: [
     { name: "Huawei P60 / P60 Pro", price: 32 },
     { name: "Huawei P50 / P50 Pro", price: 30 },
@@ -283,6 +289,7 @@ export function DirectUnlockPage() {
   const [done, setDone] = useState(false);
   const [selectedBrand, setSelectedBrand] = useState<typeof DEVICE_CATALOG[0] | null>(null);
   const [selectedModel, setSelectedModel] = useState<{ name: string; price: number } | null>(null);
+  const isIPad = selectedBrand?.brand === "iPad";
   const [imei, setImei] = useState("");
   const [notes, setNotes] = useState("");
   const [payMethod, setPayMethod] = useState<PayMethod | "">("");
