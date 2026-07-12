@@ -1,7 +1,11 @@
 {
-  "installCommand": "pnpm install --no-frozen-lockfile && cd artifacts/gsm-world && pnpm install --no-frozen-lockfile",
+  "installCommand": "pnpm install --no-frozen-lockfile",
   "buildCommand": "bash scripts/vercel-build.sh",
   "framework": null,
+  "env": {
+    "PORT": "24115",
+    "BASE_PATH": "/"
+  },
   "crons": [
     {
       "path": "/api/admin/cron/refresh-models",
