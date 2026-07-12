@@ -222,7 +222,7 @@ export function CheckoutPage() {
   // ── Login gate ───────────────────────────────────────────────────────────
   if (!user) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[80vh] bg-gray-50 p-6">
+      <div className="flex flex-col items-center justify-center min-h-[80vh] bg-white p-6">
         <div className="w-full max-w-md bg-white rounded-3xl shadow-xl overflow-hidden">
           <div style={{ background: "linear-gradient(160deg,#1a2332 0%,#1e3a5f 100%)" }} className="flex flex-col items-center justify-center pt-12 pb-8 px-6 text-center">
             <div className="w-16 h-16 rounded-full bg-white/10 border border-white/20 flex items-center justify-center mb-4">
@@ -267,7 +267,7 @@ export function CheckoutPage() {
   // ── Done ──────────────────────────────────────────────────────────────────
   if (step.type === "done") {
     return (
-      <div className="flex flex-col min-h-[80vh] items-center justify-center bg-gray-50 p-6">
+      <div className="flex flex-col min-h-[80vh] items-center justify-center bg-white p-6">
         <div className="w-full max-w-md bg-white rounded-3xl shadow-xl overflow-hidden">
           <div style={{ background: "linear-gradient(160deg,#1a2332 0%,#1e3a5f 100%)" }} className="flex flex-col items-center justify-center pt-14 pb-10 px-6 text-center">
             <div className="w-20 h-20 rounded-full bg-green-500 flex items-center justify-center mb-4 shadow-lg shadow-green-900/40">
@@ -293,7 +293,7 @@ export function CheckoutPage() {
   // ── NOWPayments pending ───────────────────────────────────────────────────
   if (step.type === "nowpayments_pending") {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[80vh] bg-gray-50 p-6">
+      <div className="flex flex-col items-center justify-center min-h-[80vh] bg-white p-6">
         <div className="w-full max-w-md bg-white rounded-3xl shadow-xl overflow-hidden">
           <div style={{ background: "linear-gradient(135deg,#1a1a2e 0%,#16213e 100%)" }} className="px-6 pt-6 pb-6">
             <p className="text-blue-200/70 text-xs font-semibold uppercase tracking-widest mb-1">Crypto Payment</p>
@@ -342,7 +342,7 @@ export function CheckoutPage() {
     const BINANCE_ID = "490759406";
     const USDT_ADDR = "TNgDQqmgQo5soUH8pGv6LgB69zCVCS7gq5";
     return (
-      <div className="flex flex-col items-center justify-center min-h-[80vh] bg-gray-50 p-6">
+      <div className="flex flex-col items-center justify-center min-h-[80vh] bg-white p-6">
         <div className="w-full max-w-md bg-white rounded-3xl shadow-xl overflow-hidden">
           <div style={{ background: "linear-gradient(160deg,#1a2332 0%,#1e3a5f 100%)" }} className="flex flex-col items-center justify-center pt-12 pb-8 px-6 text-center">
             <div className="w-20 h-20 rounded-full bg-yellow-400/20 border-2 border-yellow-400/40 flex items-center justify-center mb-4">
@@ -405,7 +405,7 @@ export function CheckoutPage() {
   // ── M-Pesa pending ─────────────────────────────────────────────────────────
   if (step.type === "mpesa_pending") {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[80vh] bg-gray-50 p-6">
+      <div className="flex flex-col items-center justify-center min-h-[80vh] bg-white p-6">
         <div className="w-full max-w-md bg-white rounded-3xl shadow-xl overflow-hidden">
           <div style={{ background: "linear-gradient(160deg,#14532d 0%,#166534 100%)" }} className="flex flex-col items-center justify-center pt-12 pb-10 px-6 text-center">
             <div className="w-20 h-20 rounded-full bg-green-600 flex items-center justify-center mb-4 border-4 border-green-400/30">
@@ -435,7 +435,7 @@ export function CheckoutPage() {
 
   // ── Main checkout form ─────────────────────────────────────────────────────
   return (
-    <div className="min-h-full bg-gray-50">
+    <div className="min-h-full bg-white">
 
       {/* Page header */}
       <div style={{ background: "linear-gradient(135deg,#1a2332 0%,#1e3a5f 100%)" }} className="px-5 md:px-10 pt-6 pb-8">
@@ -661,7 +661,7 @@ export function CheckoutPage() {
                   <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-200/70 bg-amber-50/70 px-3 py-2 text-xs shadow-sm">
                     <span className="font-bold text-amber-700">Need a different method?</span>
                     <button
-                      onClick={() => window.dispatchEvent(new CustomEvent('gsm:open-chat'))}
+                      onClick={() => window.dispatchEvent(new CustomEvent('gsm:open-live-chat'))}
                       className="font-black text-blue-700"
                     >
                       Chat with us →

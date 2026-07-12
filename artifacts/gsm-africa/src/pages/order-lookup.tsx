@@ -39,25 +39,6 @@ export function OrderLookupPage() {
     const emailParam = params.get("email");
     if (orderIdParam) setOrderId(orderIdParam);
     if (emailParam) setEmail(decodeURIComponent(emailParam));
-
-    // Auto-submit when both params are present (e.g. clicking "View Order" in email)
-    if (orderIdParam && emailParam) {
-      const decodedEmail = decodeURIComponent(emailParam).trim();
-      setLoading(true);
-      setError(null);
-      setOrder(null);
-      fetch(`/api/orders/lookup?email=${encodeURIComponent(decodedEmail)}&orderId=${encodeURIComponent(orderIdParam.trim())}`)
-        .then(res => res.json() as Promise<LookupOrder & { error?: string }>)
-        .then(data => {
-          if ("error" in data) {
-            setError(data.error ?? "Order not found.");
-          } else {
-            setOrder(data as LookupOrder);
-          }
-        })
-        .catch(() => setError("Network error. Please try again."))
-        .finally(() => setLoading(false));
-    }
   }, [rawSearch]);
 
   async function handleLookup(e: React.FormEvent) {

@@ -167,7 +167,7 @@ export function AccountPage() {
   const initials = displayName.slice(0, 2).toUpperCase();
 
   return (
-    <div className="flex flex-col min-h-full bg-[#060b15]">
+    <div className="flex flex-col min-h-full bg-[#f0f2f5]">
 
       {/* ── Hero ─────────────────────────────────────────────────────────── */}
       <div style={{ background: "linear-gradient(155deg,#0d1623 0%,#0f2744 60%,#0a3260 100%)" }} className="px-5 pt-8 pb-6">
@@ -252,28 +252,27 @@ export function AccountPage() {
 
         {/* Fingerprint Login */}
         <div>
-          <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest px-1 mb-2">Quick Access</p>
-          <div className="rounded-2xl overflow-hidden p-4" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-1 mb-2">Quick Access</p>
+          <div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100/80 p-4">
             <div className="flex items-center gap-3 mb-3">
               <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shrink-0 shadow-sm">
                 <Fingerprint size={16} className="text-white" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-white/90 text-[14px] font-semibold">Fingerprint Login</p>
-                <p className="text-white/40 text-[11px]">
+                <p className="text-gray-800 text-[14px] font-semibold">Fingerprint Login</p>
+                <p className="text-gray-400 text-[11px]">
                   {fpRegistered === null ? "Checking status…" : fpRegistered ? "Active — tap to remove" : "Not set up — sign in faster with fingerprint"}
                 </p>
               </div>
               {fpRegistered && (
-                <span className="text-[10px] font-bold text-green-400 px-2 py-0.5 rounded-full" style={{ background: "rgba(16,185,129,0.15)", border: "1px solid rgba(16,185,129,0.3)" }}>ON</span>
+                <span className="text-[10px] font-bold bg-green-100 text-green-700 px-2 py-0.5 rounded-full">ON</span>
               )}
             </div>
             {fpRegistered ? (
               <button
                 onClick={handleFingerprintRemove}
                 disabled={fpLoading}
-                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-red-400 transition-colors hover:bg-red-500/10"
-                style={{ border: "1px solid rgba(239,68,68,0.25)", background: "rgba(239,68,68,0.08)" }}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-red-500 border border-red-100 bg-red-50 hover:bg-red-100 active:bg-red-200 transition-colors"
               >
                 {fpLoading ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
                 Remove Fingerprint
@@ -283,7 +282,7 @@ export function AccountPage() {
                 onClick={handleFingerprintSetup}
                 disabled={fpLoading || fpRegistered === null}
                 className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-white transition-colors"
-                style={{ background: fpLoading || fpRegistered === null ? "rgba(99,102,241,0.4)" : "linear-gradient(135deg,#6366f1 0%,#7c3aed 100%)" }}
+                style={{ background: fpLoading || fpRegistered === null ? "#a5b4fc" : "linear-gradient(135deg,#6366f1 0%,#7c3aed 100%)" }}
               >
                 {fpLoading ? <Loader2 size={14} className="animate-spin" /> : <Fingerprint size={14} />}
                 {fpLoading ? "Setting up…" : "Set Up Fingerprint Login"}
@@ -300,7 +299,7 @@ export function AccountPage() {
 
         {/* Reseller banner */}
         <div>
-          <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest px-1 mb-2">Earn Money</p>
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-1 mb-2">Earn Money</p>
           <Link href="/reseller">
             <div className="relative overflow-hidden rounded-2xl p-4 flex items-center gap-3"
               style={{ background: "linear-gradient(135deg,#0d9488 0%,#0f766e 100%)" }}>
@@ -328,14 +327,13 @@ export function AccountPage() {
         {/* Sign out */}
         <button
           onClick={handleLogout}
-          className="w-full py-3.5 flex items-center justify-center gap-2 font-bold text-sm text-red-400 rounded-2xl transition-colors hover:bg-red-500/10"
-          style={{ border: "1px solid rgba(239,68,68,0.2)", background: "rgba(239,68,68,0.06)" }}
+          className="w-full py-3.5 flex items-center justify-center gap-2 font-bold text-sm text-red-500 border border-red-100 rounded-2xl bg-white hover:bg-red-50 active:bg-red-100 transition-colors shadow-sm"
         >
           <LogOut size={16} />
           Sign Out
         </button>
 
-        <p className="text-center text-[10px] text-white/20 pb-1">GSM World · Since 2016</p>
+        <p className="text-center text-[10px] text-gray-300 pb-1">GSM World · Since 2016</p>
       </div>
     </div>
   );
@@ -344,8 +342,8 @@ export function AccountPage() {
 function Section({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest px-1 mb-2">{label}</p>
-      <div className="rounded-2xl overflow-hidden" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-1 mb-2">{label}</p>
+      <div className="bg-white rounded-2xl overflow-hidden divide-y divide-gray-50 shadow-sm border border-gray-100/80">
         {children}
       </div>
     </div>
@@ -361,12 +359,12 @@ function MenuItem({
   href: string;
 }) {
   return (
-    <Link href={href} className="flex items-center gap-3.5 px-4 py-3.5 transition-colors hover:bg-white/5 active:bg-white/10" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+    <Link href={href} className="flex items-center gap-3.5 px-4 py-3.5 bg-white hover:bg-gray-50 active:bg-gray-100 transition-colors">
       <div className={`w-8 h-8 rounded-xl bg-gradient-to-br ${gradient} flex items-center justify-center shrink-0 shadow-sm`}>
         <span className="text-white">{icon}</span>
       </div>
-      <span className="text-white/90 text-[14px] font-semibold flex-1">{label}</span>
-      <ChevronRight size={14} className="text-white/20" />
+      <span className="text-gray-800 text-[14px] font-semibold flex-1">{label}</span>
+      <ChevronRight size={14} className="text-gray-300" />
     </Link>
   );
 }

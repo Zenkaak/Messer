@@ -49,6 +49,7 @@ interface AdminSettings {
   smtpSecure: boolean;
   smtpUser: string | null;
   smtpPass: string | null;
+  resendApiKey?: string | null;
   callmebotApiKey?: string | null;
   whatsappContact: string | null;
   supportPhone?: string | null;
@@ -89,7 +90,7 @@ interface ToolActivation {
 }
 interface AdminUser {
   id: number; email: string; name: string | null; username: string | null;
-  walletBalance: string; status: string; createdAt: string; registrationIp: string | null;
+  walletBalance: string; status: string; createdAt: string; registrationIp: string | null; country: string | null;
 }
 interface AdminProduct {
   id: number; name: string; price: string;
@@ -117,6 +118,7 @@ const NAV = [
   { id: "announcements",  label: "Announcements",  icon: Megaphone },
   { id: "live_chat",      label: "Live Chat",      icon: Headphones },
   { id: "imei_logs",      label: "IMEI Logs",      icon: Smartphone },
+  { id: "email_preview",  label: "Email Preview",  icon: MessageSquare },
 ] as const;
 type Tab = typeof NAV[number]["id"];
 
@@ -151,23 +153,6 @@ function getAdminBioBridge(): AdminBioBridge | null {
 function _setWaToken(t: string | null) {
   _waToken = t;
   try { if (t) sessionStorage.setItem("gsm_admin_webauthn_token", t); else sessionStorage.removeItem("gsm_admin_webauthn_token"); } catch {}
-}
-
-// ─── Quick-login credential (localStorage fallback when WebAuthn unavailable) ─
-const QL_KEY = "gsm_admin_ql_v1";
-function qlSave(pwd: string) {
-  try { localStorage.setItem(QL_KEY, btoa(unescape(encodeURIComponent(pwd)))); } catch {}
-}
-function qlLoad(): string | null {
-  try {
-    const v = localStorage.getItem(QL_KEY);
-    return v ? decodeURIComponent(escape(atob(v))) : null;
-  } catch { return null; }
-}
-function qlClear() { try { localStorage.removeItem(QL_KEY); } catch {} }
-function qlHas(): boolean { return qlLoad() !== null; }
-function waSupported(): boolean {
-  try { return typeof window !== "undefined" && !!window.PublicKeyCredential; } catch { return false; }
 }
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -230,7 +215,7 @@ function MaskedInput({ label, value, onChange, placeholder }: {
       <div className="flex gap-2">
         <input type={show ? "text" : "password"} value={value} onChange={e => onChange(e.target.value)}
           placeholder={placeholder}
-          className="flex-1 border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50" />
+          className="flex-1 border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50" />
         <button type="button" onClick={() => setShow(!show)}
           className="px-3 border border-slate-200 rounded-xl text-slate-400 hover:text-slate-700 bg-slate-50">
           {show ? <EyeOff size={15} /> : <Eye size={15} />}
@@ -951,172 +936,167 @@ function OrderDetailView({ order: initialOrder, pwd, onBack }: { order: Order; p
   }
 
   return (
-    <div style={{ background: "#f0f2f5", minHeight: "100vh" }}>
-      {/* Hero Header */}
-      <div style={{ background: "linear-gradient(145deg,#1a2f50 0%,#0f1e36 100%)" }} className="px-4 pt-5 pb-6">
-        <div className="flex items-center gap-3 mb-5">
-          <button onClick={onBack}
-            className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-white/80 hover:bg-white/20 transition-colors shrink-0">
-            <ChevronLeft size={18} />
-          </button>
-          <div className="flex-1 min-w-0">
-            <p className="text-blue-300/70 text-[10px] font-semibold uppercase tracking-widest">Order Detail</p>
-            <h2 className="text-white font-black text-lg leading-tight">#{order.id} · {(order.orderType || "product").charAt(0).toUpperCase() + (order.orderType || "product").slice(1)}</h2>
-          </div>
-          {updatingStatus && <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin shrink-0" />}
-        </div>
-        {/* Key stats row */}
-        <div className="grid grid-cols-3 gap-2">
-          <div className="bg-white/10 rounded-2xl px-3 py-3 text-center">
-            <p className="text-white font-black text-xl leading-none">${Number(order.total).toFixed(2)}</p>
-            <p className="text-blue-300/70 text-[9px] font-semibold uppercase tracking-wide mt-1">Total</p>
-          </div>
-          <div className="bg-white/10 rounded-2xl px-3 py-3 text-center">
-            <div className="flex justify-center"><StatusBadge status={order.paymentStatus} /></div>
-            <p className="text-blue-300/70 text-[9px] font-semibold uppercase tracking-wide mt-1.5">Status</p>
-          </div>
-          <div className="bg-white/10 rounded-2xl px-3 py-3 text-center">
-            <p className="text-white font-bold text-xs leading-snug">{new Date(order.createdAt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</p>
-            <p className="text-blue-300/70 text-[9px] font-semibold uppercase tracking-wide mt-1">Date</p>
-          </div>
+    <div className="p-4 pb-8 space-y-4">
+      {/* Back button + title */}
+      <div className="flex items-center gap-3">
+        <button onClick={onBack}
+          className="w-9 h-9 rounded-full border border-slate-200 flex items-center justify-center text-slate-500 hover:text-blue-600 hover:border-blue-300 transition-colors shrink-0">
+          <ChevronLeft size={18} />
+        </button>
+        <div>
+          <p className="text-xs text-slate-400 font-medium">Order #{order.id} · {order.orderType || "product"}</p>
+          <h2 className="text-lg font-black text-slate-900 leading-tight">Order Details</h2>
         </div>
       </div>
 
-      <div className="px-4 pt-4 pb-10 space-y-3">
-        {/* Correction note — permanent banner once set */}
-        {order.correctionNote && (
-          <div className="flex gap-3 border border-rose-300 bg-rose-50 rounded-2xl px-4 py-3 shadow-sm">
-            <AlertTriangle size={15} className="text-rose-500 shrink-0 mt-0.5" />
-            <div className="min-w-0">
-              <p className="text-[10px] font-black text-rose-400 uppercase tracking-widest mb-1">Correction Note</p>
-              <p className="text-sm text-rose-800 leading-snug break-words">{order.correctionNote}</p>
-            </div>
-          </div>
-        )}
+      {/* Status banner */}
+      <div className={`flex items-center gap-3 border rounded-2xl px-4 py-3 ${sc}`}>
+        <StatusBadge status={order.paymentStatus} />
+        <span className="text-sm font-semibold capitalize">{order.paymentStatus} payment</span>
+        <span className="ml-auto text-xs font-medium opacity-70">{new Date(order.createdAt).toLocaleString()}</span>
+      </div>
 
-        {/* Status update */}
-        <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
-          <div className="px-4 py-3 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
-            <p className="text-xs font-bold text-slate-700">Update Status</p>
-            <p className="text-[10px] text-slate-400">Current: <span className="font-bold text-slate-600 capitalize">{order.paymentStatus}</span></p>
-          </div>
-          <div className="p-3">
-            <div className="grid grid-cols-2 gap-1.5 mb-2">
-              {[
-                { status: "paid",        label: "✓ Mark Paid",    cls: "bg-emerald-600 hover:bg-emerald-700" },
-                { status: "processing",  label: "⟳ Processing",   cls: "bg-blue-600 hover:bg-blue-700" },
-                { status: "pending",     label: "⏳ Mark Pending", cls: "bg-amber-500 hover:bg-amber-600" },
-                { status: "completed",   label: "★ Completed",    cls: "bg-slate-800 hover:bg-slate-900" },
-                { status: "failed",      label: "✕ Mark Failed",  cls: "bg-red-500 hover:bg-red-600" },
-                { status: "cancelled",   label: "✕ Cancelled",    cls: "bg-red-700 hover:bg-red-800" },
-              ].map(({ status, label, cls }) => (
-                <button key={status} onClick={() => updateStatus(status)} disabled={updatingStatus || order.paymentStatus === status}
-                  className={`py-2.5 rounded-xl text-xs font-bold transition-colors disabled:opacity-40 text-white ${
-                    order.paymentStatus === status ? "ring-2 ring-offset-1 ring-blue-400 " + cls : cls
-                  }`}>
-                  {label}
-                </button>
-              ))}
-            </div>
-            <div className="grid grid-cols-3 gap-1.5 mb-3">
-              {[
-                { status: "active",   label: "Active",   cls: "bg-emerald-500 hover:bg-emerald-600" },
-                { status: "paused",   label: "Paused",   cls: "bg-purple-500 hover:bg-purple-600" },
-                { status: "refunded", label: "Refunded", cls: "bg-slate-500 hover:bg-slate-600" },
-                { status: "closed",   label: "Closed",   cls: "bg-slate-600 hover:bg-slate-700" },
-              ].map(({ status, label, cls }) => (
-                <button key={status} onClick={() => updateStatus(status)} disabled={updatingStatus || order.paymentStatus === status}
-                  className={`py-2 rounded-xl text-[11px] font-bold transition-colors disabled:opacity-40 text-white ${
-                    order.paymentStatus === status ? "ring-2 ring-offset-1 ring-blue-400 " + cls : cls
-                  }`}>
-                  {label}
-                </button>
-              ))}
-            </div>
-            <div className="flex gap-2 border-t border-slate-100 pt-2.5">
-              <input
-                placeholder="Custom status…"
-                id="custom-status-input"
-                className="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-400 bg-slate-50"
-              />
-              <button
-                disabled={updatingStatus}
-                onClick={() => {
-                  const inp = document.getElementById("custom-status-input") as HTMLInputElement;
-                  if (inp?.value?.trim()) updateStatus(inp.value.trim());
-                }}
-                className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-800 text-white hover:bg-slate-900 disabled:opacity-40 transition-colors shrink-0"
-              >
-                Set
-              </button>
-            </div>
+      {/* Correction note — permanent banner once set */}
+      {order.correctionNote && (
+        <div className="flex gap-3 border border-rose-300 bg-rose-50 rounded-2xl px-4 py-3">
+          <AlertTriangle size={15} className="text-rose-500 shrink-0 mt-0.5" />
+          <div className="min-w-0">
+            <p className="text-[10px] font-black text-rose-400 uppercase tracking-widest mb-1">Correction Note</p>
+            <p className="text-sm text-rose-800 leading-snug break-words">{order.correctionNote}</p>
           </div>
         </div>
+      )}
 
-        {/* Order Items */}
-        {orderItems.length > 0 && (
-          <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
-            <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2">
-              <Package size={13} className="text-slate-400" />
-              <p className="text-xs font-bold text-slate-700">Items Ordered</p>
-            </div>
-            <div className="divide-y divide-slate-50">
-              {orderItems.map(item => (
-                <div key={item.id} className="px-4 py-3 flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
-                    <Package size={12} className="text-slate-500" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-slate-800 truncate">{item.productName}</p>
-                    <p className="text-[11px] text-slate-400">Qty: {item.quantity}</p>
-                  </div>
-                  <p className="text-sm font-black text-slate-900 shrink-0">${(parseFloat(item.price) * item.quantity).toFixed(2)}</p>
-                </div>
-              ))}
-              <div className="px-4 py-3 flex items-center justify-between bg-slate-50">
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Total</span>
-                <span className="text-base font-black text-slate-900">${Number(order.total).toFixed(2)}</span>
-              </div>
-            </div>
-          </div>
-        )}
+      {/* Status update buttons */}
+      <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
+        <div className="px-4 py-3 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+          <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Update Status</p>
+          {updatingStatus && <div className="w-3.5 h-3.5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />}
+        </div>
+        <div className="p-3 flex gap-2 flex-wrap">
+          {[
+            { status: "paid",        label: "Mark Paid",    cls: "bg-emerald-600 text-white hover:bg-emerald-700" },
+            { status: "active",      label: "Active",       cls: "bg-emerald-500 text-white hover:bg-emerald-600" },
+            { status: "processing",  label: "Processing",   cls: "bg-blue-600 text-white hover:bg-blue-700" },
+            { status: "pending",     label: "Mark Pending", cls: "bg-amber-500 text-white hover:bg-amber-600" },
+            { status: "paused",      label: "Paused",       cls: "bg-purple-500 text-white hover:bg-purple-600" },
+            { status: "completed",   label: "Completed",    cls: "bg-slate-800 text-white hover:bg-slate-900" },
+            { status: "closed",      label: "Closed",       cls: "bg-slate-600 text-white hover:bg-slate-700" },
+            { status: "failed",      label: "Mark Failed",  cls: "bg-red-500 text-white hover:bg-red-600" },
+            { status: "refunded",    label: "Refunded",     cls: "bg-slate-500 text-white hover:bg-slate-600" },
+            { status: "cancelled",   label: "Cancelled",    cls: "bg-red-700 text-white hover:bg-red-800" },
+          ].map(({ status, label, cls }) => (
+            <button key={status} onClick={() => updateStatus(status)} disabled={updatingStatus || order.paymentStatus === status}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors disabled:opacity-40 ${
+                order.paymentStatus === status ? "ring-2 ring-offset-1 ring-blue-400 " + cls : cls
+              }`}>
+              {label}
+            </button>
+          ))}
+        </div>
+        {/* Custom status text */}
+        <div className="px-3 pb-3 pt-1 border-t border-slate-100 flex gap-2">
+          <input
+            placeholder="Custom status text…"
+            id="custom-status-input"
+            className="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-400"
+          />
+          <button
+            disabled={updatingStatus}
+            onClick={() => {
+              const inp = document.getElementById("custom-status-input") as HTMLInputElement;
+              if (inp?.value?.trim()) updateStatus(inp.value.trim());
+            }}
+            className="px-3 py-2 rounded-xl text-xs font-bold bg-slate-700 text-white hover:bg-slate-800 disabled:opacity-40 transition-colors shrink-0"
+          >
+            Set
+          </button>
+        </div>
+      </div>
 
-        {/* Customer + Payment combined */}
+      {/* Order Items */}
+      {orderItems.length > 0 && (
         <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
-          <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2">
-            <Users size={13} className="text-slate-400" />
-            <p className="text-xs font-bold text-slate-700">Customer & Payment</p>
+          <div className="px-4 py-3 border-b border-slate-100 bg-slate-50">
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1.5"><Package size={11} /> Order Items</p>
           </div>
           <div className="divide-y divide-slate-50">
-            {[
-              { label: "Name",     value: order.customerName || "—",    icon: "👤" },
-              { label: "Email",    value: order.customerEmail || "—",   icon: "✉️" },
-              { label: "Phone",    value: order.customerPhone || "—",   icon: "📱" },
-              { label: "Method",   value: order.paymentMethod || "—",   icon: "💳" },
-              { label: "Currency", value: order.currency || "USD",       icon: "💱" },
-              ...(order.notes ? [{ label: "Notes", value: order.notes, icon: "📝" }] : []),
-            ].map(row => (
-              <div key={row.label} className="px-4 py-3 flex items-start gap-3">
-                <span className="text-base shrink-0 mt-0.5">{row.icon}</span>
-                <span className="text-xs font-semibold text-slate-400 shrink-0 w-16 mt-0.5">{row.label}</span>
-                <span className="text-sm font-medium text-slate-800 break-all min-w-0">{row.value}</span>
+            {orderItems.map(item => (
+              <div key={item.id} className="px-4 py-3 flex items-center justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-slate-800 truncate">{item.productName}</p>
+                  <p className="text-[11px] text-slate-400">Qty: {item.quantity}</p>
+                </div>
+                <p className="text-sm font-black text-slate-900 shrink-0">${(parseFloat(item.price) * item.quantity).toFixed(2)}</p>
               </div>
             ))}
           </div>
         </div>
+      )}
 
-        {/* IMEI / Device identifier */}
-        {order.deviceIdentifier && (
-          <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
-            <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2">
-              <Cpu size={13} className="text-slate-400" />
-              <p className="text-xs font-bold text-slate-700">Device / IMEI</p>
-            </div>
-            <div className="p-4">
-              <p className="font-mono text-sm font-bold text-slate-800 break-all bg-slate-50 rounded-xl px-3 py-2.5">{order.deviceIdentifier}</p>
-            </div>
+      {/* IMEI / Device identifier */}
+      {order.deviceIdentifier && (
+        <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-100 bg-slate-50">
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1.5"><Cpu size={11} /> Device / IMEI</p>
           </div>
-        )}
+          <div className="p-4">
+            <p className="font-mono text-sm font-bold text-slate-800 break-all">{order.deviceIdentifier}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Customer info */}
+      <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
+        <div className="px-4 py-3 border-b border-slate-100 bg-slate-50">
+          <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Customer</p>
+        </div>
+        <div className="p-4 space-y-3">
+          {[
+            { label: "Name", value: order.customerName || "—" },
+            { label: "Email", value: order.customerEmail || "—" },
+            { label: "Phone", value: order.customerPhone || "—" },
+          ].map(row => (
+            <div key={row.label} className="flex items-start justify-between gap-4">
+              <span className="text-xs font-semibold text-slate-400 shrink-0 w-14">{row.label}</span>
+              <span className="text-sm font-medium text-slate-800 text-right break-all">{row.value}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Payment info */}
+      <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
+        <div className="px-4 py-3 border-b border-slate-100 bg-slate-50">
+          <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Payment</p>
+        </div>
+        <div className="p-4 space-y-3">
+          {[
+            { label: "Method", value: order.paymentMethod || "—" },
+            { label: "Currency", value: order.currency || "USD" },
+            { label: "Notes", value: order.notes || "—" },
+          ].map(row => (
+            <div key={row.label} className="flex items-start justify-between gap-4">
+              <span className="text-xs font-semibold text-slate-400 shrink-0 w-16">{row.label}</span>
+              <span className="text-sm font-medium text-slate-800 text-right break-words max-w-[65%]">{row.value}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Total */}
+      <div className="rounded-2xl p-4 text-white relative overflow-hidden"
+        style={{ background: "linear-gradient(135deg,#1e293b 0%,#0f172a 100%)" }}>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-slate-400 text-xs font-semibold mb-1">Order Total</p>
+            <p className="text-3xl font-black">${Number(order.total).toFixed(2)}</p>
+          </div>
+          <div className="w-14 h-14 rounded-2xl bg-white/10 flex items-center justify-center">
+            <DollarSign size={24} className="text-blue-400" />
+          </div>
+        </div>
+      </div>
 
       {/* Wallet Refund */}
       <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
@@ -1235,7 +1215,7 @@ function OrderDetailView({ order: initialOrder, pwd, onBack }: { order: Order; p
               <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 ${msg.senderType === "admin" ? "bg-blue-600 text-white" : "bg-slate-200 text-slate-600"}`}>
                 {msg.senderType === "admin" ? "A" : "U"}
               </div>
-              <div className={`max-w-[75%] px-3 py-2 rounded-2xl text-xs ${msg.senderType === "admin" ? "bg-blue-600 text-white rounded-tr-sm" : "bg-slate-100 text-slate-800 rounded-tl-sm"}`}>
+              <div className={`max-w-[75%] px-3 py-2 rounded-2xl text-xs ${msg.senderType === "admin" ? "bg-blue-600 text-white rounded-tr-sm" : "bg-violet-100 text-violet-900 rounded-tl-sm"}`}>
                 {msg.message.startsWith("__FILE__:") ? (() => {
                   const rest = msg.message.slice(9);
                   const sep = rest.indexOf("|");
@@ -1295,7 +1275,6 @@ function OrderDetailView({ order: initialOrder, pwd, onBack }: { order: Order; p
         </div>
       </div>
     </div>
-  </div>
   );
 }
 
@@ -1330,7 +1309,6 @@ function OrdersPanel({ pwd }: { pwd: string }) {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-  const [search, setSearch] = useState("");
   const PER = 20;
 
   const load = useCallback(async (p: number, ft: OrderFilter, silent = false) => {
@@ -1392,200 +1370,140 @@ function OrdersPanel({ pwd }: { pwd: string }) {
 
   const pages = filterType === "giftcard" ? 1 : Math.ceil(total / PER);
 
-  const filteredOrders = search.trim()
-    ? orders.filter(o => {
-        const q = search.toLowerCase();
-        return (
-          String(o.id).includes(q) ||
-          (o.customerName ?? "").toLowerCase().includes(q) ||
-          (o.customerEmail ?? "").toLowerCase().includes(q) ||
-          (o.customerPhone ?? "").toLowerCase().includes(q)
-        );
-      })
-    : orders;
-
   if (selectedOrder) {
     return <OrderDetailView order={selectedOrder} pwd={pwd} onBack={() => setSelectedOrder(null)} />;
   }
 
   return (
-    <div className="pb-8" style={{ background: "#f0f2f5", minHeight: "100vh" }}>
-      {/* Header */}
-      <div className="px-4 pt-5 pb-3" style={{ background: "#f0f2f5" }}>
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-[0.15em]">Management</p>
-            <h2 className="text-[18px] font-black text-slate-900 mt-0.5 tracking-tight">Orders</h2>
-          </div>
-          <button onClick={() => load(page, filterType)}
-            className="w-9 h-9 rounded-full bg-white shadow-sm border border-slate-100 flex items-center justify-center text-slate-400 hover:text-blue-500 transition-colors active:scale-90">
-            <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-          </button>
+    <div className="p-4 pb-6 space-y-3">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-xs text-slate-400 font-medium">{total} total</p>
+          <h2 className="text-xl font-black text-slate-900">Orders</h2>
         </div>
-
-        {/* Stats pills */}
-        <div className="flex gap-2 mb-4">
-          {[
-            { label: "Total", value: total, color: "text-slate-700", bg: "bg-white" },
-            { label: "Pending", value: orders.filter(o => o.paymentStatus === "pending").length, color: "text-amber-700", bg: "bg-amber-50" },
-            { label: "Paid", value: orders.filter(o => o.paymentStatus === "paid" || o.paymentStatus === "completed").length, color: "text-emerald-700", bg: "bg-emerald-50" },
-          ].map(s => (
-            <div key={s.label} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full ${s.bg} border border-white/80 shadow-sm`}>
-              <span className={`text-xs font-black ${s.color}`}>{s.value}</span>
-              <span className="text-[10px] text-slate-400 font-medium">{s.label}</span>
-            </div>
-          ))}
-        </div>
-
-        {/* Search */}
-        <div className="relative mb-3">
-          <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search by name, email or order ID…"
-            className="w-full pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 shadow-sm"
-          />
-          {search && (
-            <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700">
-              <X size={13} />
-            </button>
-          )}
-        </div>
-
-        {/* Type filter tabs */}
-        <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1">
-          {ORDER_FILTER_TABS.map(t => (
-            <button
-              key={t.id}
-              onClick={() => handleFilterChange(t.id)}
-              className={`px-3 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap transition-all border ${
-                filterType === t.id
-                  ? "bg-slate-900 text-white border-slate-900 shadow-sm"
-                  : "bg-white text-slate-500 border-slate-200 hover:border-slate-300"
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
+        <button onClick={() => load(page, filterType)}
+          className={`w-9 h-9 rounded-full border border-slate-200 flex items-center justify-center text-slate-400 hover:text-blue-600 hover:border-blue-300 transition-colors ${loading ? "animate-spin" : ""}`}>
+          <RefreshCw size={15} />
+        </button>
       </div>
 
-      <div className="px-4 space-y-2">
-        {loading ? (
-          <div className="space-y-2">{[1,2,3,4,5].map(i => <Skeleton key={i} />)}</div>
-        ) : filterType === "giftcard" ? (
-          activations.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl shadow-sm">
-              <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mb-3">
-                <Zap size={24} className="text-slate-300" />
-              </div>
-              <p className="font-bold text-slate-400 text-sm">No gift card orders yet</p>
-              <p className="text-slate-300 text-xs mt-1">Gift card activations will appear here</p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {activations.map(a => (
-                <div key={a.id} className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex gap-3 min-w-0">
-                      <div className="w-10 h-10 rounded-xl bg-violet-600 flex items-center justify-center shrink-0">
-                        <Zap size={14} className="text-white" />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                          <span className="text-[10px] font-black text-slate-400">#{a.id}</span>
-                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded capitalize ${
-                            a.status === "pending"   ? "bg-amber-100 text-amber-700"
-                            : a.status === "completed" || a.status === "active" ? "bg-emerald-100 text-emerald-700"
-                            : a.status === "failed"  ? "bg-red-100 text-red-600"
-                            : "bg-slate-100 text-slate-500"
-                          }`}>{a.status}</span>
-                        </div>
-                        <p className="text-sm font-bold text-slate-800 truncate">{a.toolName}</p>
-                        <p className="text-[11px] text-slate-400 truncate">{a.userEmail || a.recipientEmail || "—"}</p>
-                        {a.activationCode && (
-                          <p className="text-[11px] font-mono text-emerald-600 mt-0.5 truncate">Code: {a.activationCode}</p>
-                        )}
-                      </div>
-                    </div>
-                    <p className="text-[10px] text-slate-400 shrink-0">{new Date(a.createdAt).toLocaleDateString()}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )
-        ) : filteredOrders.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl shadow-sm">
+      {/* Type filter tabs */}
+      <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1">
+        {ORDER_FILTER_TABS.map(t => (
+          <button
+            key={t.id}
+            onClick={() => handleFilterChange(t.id)}
+            className={`px-3 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap transition-all border ${
+              filterType === t.id
+                ? "bg-slate-900 text-white border-slate-900"
+                : "bg-white text-slate-500 border-slate-200 hover:border-slate-300"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {loading ? (
+        <div className="space-y-2">{[1,2,3,4,5].map(i => <Skeleton key={i} />)}</div>
+      ) : filterType === "giftcard" ? (
+        activations.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20">
             <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mb-3">
-              <ShoppingBag size={24} className="text-slate-300" />
+              <Zap size={24} className="text-slate-300" />
             </div>
-            <p className="font-bold text-slate-400 text-sm">{search ? "No results found" : "No orders yet"}</p>
-            <p className="text-slate-300 text-xs mt-1">{search ? `No orders matching "${search}"` : "Orders will appear here"}</p>
+            <p className="font-bold text-slate-400 text-sm">No gift card orders yet</p>
+            <p className="text-slate-300 text-xs mt-1">Gift card activations will appear here</p>
           </div>
         ) : (
           <div className="space-y-2">
-            {filteredOrders.map(o => {
-              const name = o.customerName || o.customerEmail || "Guest";
-              const initials = name.split(/\s+/).slice(0,2).map((w: string) => w[0]).join("").toUpperCase().slice(0,2) || "?";
-              const avatarColors = ["bg-blue-100 text-blue-700","bg-violet-100 text-violet-700","bg-amber-100 text-amber-700","bg-emerald-100 text-emerald-700","bg-rose-100 text-rose-700"];
-              const avColor = avatarColors[o.id % avatarColors.length];
-              const isPending = o.paymentStatus === "pending";
-              return (
-                <button key={o.id} onClick={() => setSelectedOrder(o)}
-                  className={`w-full bg-white rounded-2xl shadow-sm hover:shadow-md transition-all text-left overflow-hidden ${isPending ? "border-l-4 border-l-amber-400 border border-slate-100" : "border border-slate-100"}`}>
-                  <div className="p-4">
-                    <div className="flex items-center gap-3">
-                      {/* Avatar */}
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-[12px] font-black shrink-0 ${avColor}`}>
-                        {initials}
-                      </div>
-                      {/* Info */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-0.5">
-                          <p className="text-sm font-bold text-slate-900 truncate leading-tight">{name}</p>
-                        </div>
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="text-[10px] font-semibold text-slate-400">#{o.id}</span>
-                          <span className="text-slate-200">·</span>
-                          <StatusBadge status={o.paymentStatus} />
-                          <OrderTypeBadge type={o.orderType} />
-                          {o.paymentMethod && (
-                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500 uppercase tracking-wide">{o.paymentMethod.replace(/_/g, " ")}</span>
-                          )}
-                        </div>
-                      </div>
-                      {/* Amount + date */}
-                      <div className="text-right shrink-0 ml-2">
-                        <p className="font-black text-slate-900 text-base leading-tight">${Number(o.total).toFixed(2)}</p>
-                        <p className="text-[10px] text-slate-400 mt-0.5">{new Date(o.createdAt).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</p>
-                      </div>
-                      <ChevronRight size={14} className="text-slate-300 shrink-0" />
+            {activations.map(a => (
+              <div key={a.id} className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-xl bg-violet-600 flex items-center justify-center shrink-0">
+                      <Zap size={14} className="text-white" />
                     </div>
-                    {o.customerPhone && (
-                      <p className="text-[11px] text-slate-400 mt-2 pl-[52px] truncate">{o.customerPhone}</p>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                        <span className="text-[10px] font-black text-slate-400">#{a.id}</span>
+                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded capitalize ${
+                          a.status === "pending"   ? "bg-amber-100 text-amber-700"
+                          : a.status === "completed" || a.status === "active" ? "bg-emerald-100 text-emerald-700"
+                          : a.status === "failed"  ? "bg-red-100 text-red-600"
+                          : "bg-slate-100 text-slate-500"
+                        }`}>{a.status}</span>
+                      </div>
+                      <p className="text-sm font-bold text-slate-800 truncate">{a.toolName}</p>
+                      <p className="text-[11px] text-slate-400 truncate">{a.userEmail || a.recipientEmail || "—"}</p>
+                      {a.activationCode && (
+                        <p className="text-[11px] font-mono text-emerald-600 mt-0.5 truncate">Code: {a.activationCode}</p>
+                      )}
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-slate-400 shrink-0">{new Date(a.createdAt).toLocaleDateString()}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )
+      ) : orders.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20">
+          <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mb-3">
+            <ShoppingBag size={24} className="text-slate-300" />
+          </div>
+          <p className="font-bold text-slate-400 text-sm">No orders yet</p>
+          <p className="text-slate-300 text-xs mt-1">Orders will appear here</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {orders.map(o => (
+            <button key={o.id} onClick={() => setSelectedOrder(o)}
+              className="w-full bg-white border border-slate-100 rounded-2xl p-4 shadow-sm hover:shadow-md hover:border-blue-100 transition-all text-left">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center shrink-0">
+                    <ShoppingBag size={14} className="text-white" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                      <span className="text-[10px] font-black text-slate-400">#{o.id}</span>
+                      <StatusBadge status={o.paymentStatus} />
+                      <OrderTypeBadge type={o.orderType} />
+                    </div>
+                    <p className="text-sm font-bold text-slate-800 truncate">{o.customerName || o.customerEmail || "Guest"}</p>
+                    <p className="text-[11px] text-slate-400 truncate">{o.customerPhone}</p>
+                    {o.paymentMethod && (
+                      <span className="inline-block mt-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600 uppercase tracking-wide">{o.paymentMethod.replace(/_/g, " ")}</span>
                     )}
                   </div>
-                </button>
-              );
-            })}
-          </div>
-        )}
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <div className="text-right">
+                    <p className="font-black text-slate-900 text-sm">${Number(o.total).toFixed(2)}</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">{new Date(o.createdAt).toLocaleDateString()}</p>
+                  </div>
+                  <ChevronRight size={14} className="text-slate-300" />
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
 
-        {pages > 1 && filterType !== "giftcard" && !search && (
-          <div className="flex items-center justify-center gap-3 pt-2">
-            <button disabled={page === 0} onClick={() => setPage(p => p - 1)}
-              className="w-9 h-9 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-500 disabled:opacity-30 hover:bg-slate-50 shadow-sm">
-              <ChevronLeft size={15} />
-            </button>
-            <span className="text-sm font-bold text-slate-600">{page + 1} / {pages}</span>
-            <button disabled={page >= pages - 1} onClick={() => setPage(p => p + 1)}
-              className="w-9 h-9 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-500 disabled:opacity-30 hover:bg-slate-50 shadow-sm">
-              <ChevronRight size={15} />
-            </button>
-          </div>
-        )}
-      </div>
+      {pages > 1 && filterType !== "giftcard" && (
+        <div className="flex items-center justify-center gap-3">
+          <button disabled={page === 0} onClick={() => setPage(p => p - 1)}
+            className="w-9 h-9 rounded-full border border-slate-200 flex items-center justify-center text-slate-500 disabled:opacity-30 hover:bg-slate-50">
+            <ChevronLeft size={15} />
+          </button>
+          <span className="text-sm font-bold text-slate-600">{page + 1} / {pages}</span>
+          <button disabled={page >= pages - 1} onClick={() => setPage(p => p + 1)}
+            className="w-9 h-9 rounded-full border border-slate-200 flex items-center justify-center text-slate-500 disabled:opacity-30 hover:bg-slate-50">
+            <ChevronRight size={15} />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -1798,13 +1716,13 @@ function ProductsPanel({ pwd }: { pwd: string }) {
               <button onClick={() => setEditModal(null)} className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 text-sm">✕</button>
             </div>
             <div className="space-y-3">
-              <div><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Name</label><input value={editForm.name} onChange={e => setEditForm(f=>({...f,name:e.target.value}))} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+              <div><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Name</label><input value={editForm.name} onChange={e => setEditForm(f=>({...f,name:e.target.value}))} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
               <div className="grid grid-cols-2 gap-2">
-                <div><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Price ($)</label><input type="number" step="0.01" value={editForm.price} onChange={e => setEditForm(f=>({...f,price:e.target.value}))} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
-                <div><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Original Price</label><input type="number" step="0.01" value={editForm.originalPrice} onChange={e => setEditForm(f=>({...f,originalPrice:e.target.value}))} placeholder="Optional" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+                <div><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Price ($)</label><input type="number" step="0.01" value={editForm.price} onChange={e => setEditForm(f=>({...f,price:e.target.value}))} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+                <div><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Original Price</label><input type="number" step="0.01" value={editForm.originalPrice} onChange={e => setEditForm(f=>({...f,originalPrice:e.target.value}))} placeholder="Optional" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
               </div>
-              <div><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Image URL</label><input value={editForm.imageUrl} onChange={e => setEditForm(f=>({...f,imageUrl:e.target.value}))} placeholder="https://..." className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
-              <div><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Description</label><textarea value={editForm.description} onChange={e => setEditForm(f=>({...f,description:e.target.value}))} rows={3} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none" /></div>
+              <div><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Image URL</label><input value={editForm.imageUrl} onChange={e => setEditForm(f=>({...f,imageUrl:e.target.value}))} placeholder="https://..." className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+              <div><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Description</label><textarea value={editForm.description} onChange={e => setEditForm(f=>({...f,description:e.target.value}))} rows={3} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none" /></div>
               <div className="flex gap-4">
                 <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 cursor-pointer"><input type="checkbox" checked={editForm.inStock} onChange={e => setEditForm(f=>({...f,inStock:e.target.checked}))} className="w-4 h-4 rounded" /> In Stock</label>
                 <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 cursor-pointer"><input type="checkbox" checked={editForm.featured} onChange={e => setEditForm(f=>({...f,featured:e.target.checked}))} className="w-4 h-4 rounded" /> Featured</label>
@@ -2163,7 +2081,7 @@ function ResellersPanel({ pwd }: { pwd: string }) {
 
       {/* Reseller full-page detail */}
       {selectedReseller && (
-        <div className="fixed inset-0 z-50 bg-slate-50 overflow-y-auto" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 5rem)" }}>
+        <div className="fixed inset-0 z-50 overflow-y-auto" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 5rem)", background: "linear-gradient(160deg,#eef2ff 0%,#f5f0ff 50%,#f0f8ff 100%)" }}>
           {/* Sticky header */}
           <div className="sticky top-0 z-10 bg-slate-900 flex items-center gap-3 px-4 py-3">
             <button onClick={() => setSelectedReseller(null)}
@@ -2378,7 +2296,7 @@ function ResellersPanel({ pwd }: { pwd: string }) {
               <label className="text-xs font-bold text-slate-500 block mb-1.5">Admin note (optional)</label>
               <input value={wNotes} onChange={e => setWNotes(e.target.value)}
                 placeholder={wActionModal.action === "approve" ? "e.g. Sent via M-Pesa" : "Reason for rejection..."}
-                className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-400" />
             </div>
             <div className="flex gap-2">
               <button onClick={() => setWActionModal(null)} className="flex-1 py-3 border border-slate-200 text-slate-600 font-bold rounded-2xl text-sm">Cancel</button>
@@ -2437,7 +2355,24 @@ function UserDetailView({ user: initUser, pwd, onBack, onUserUpdated, onUserDele
   const [msgSending, setMsgSending] = useState(false);
   const [chatHistory, setChatHistory] = useState<{ id: number; senderType: string; message: string; createdAt: string }[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
+  const [kbOffset, setKbOffset] = useState(0);
+  const [deleteMenu, setDeleteMenu] = useState<{ id: number; x: number; y: number } | null>(null);
+  const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (!msgOpen) { setKbOffset(0); return; }
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const update = () => {
+      const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      setKbOffset(kb);
+    };
+    vv.addEventListener("resize", update);
+    vv.addEventListener("scroll", update);
+    update();
+    return () => { vv.removeEventListener("resize", update); vv.removeEventListener("scroll", update); };
+  }, [msgOpen]);
 
   useEffect(() => {
     setOrdersLoading(true);
@@ -2457,6 +2392,23 @@ function UserDetailView({ user: initUser, pwd, onBack, onUserUpdated, onUserDele
         setChatHistory(d.messages ?? []);
       }
     } finally { setChatLoading(false); }
+  }
+
+  function startPress(e: React.TouchEvent, id: number) {
+    const t = e.touches[0];
+    pressTimer.current = setTimeout(() => setDeleteMenu({ id, x: t.clientX, y: t.clientY }), 600);
+  }
+  function cancelPress() {
+    if (pressTimer.current) { clearTimeout(pressTimer.current); pressTimer.current = null; }
+  }
+  function deleteForMe(id: number) {
+    setChatHistory(prev => prev.filter(m => m.id !== id));
+    setDeleteMenu(null);
+  }
+  async function deleteForEveryone(id: number) {
+    setChatHistory(prev => prev.filter(m => m.id !== id));
+    setDeleteMenu(null);
+    try { await adminFetch(`/api/admin/users/${user.id}/messages/${id}`, pwd, { method: "DELETE" }); } catch { /* non-fatal */ }
   }
 
   async function setStatus(status: string) {
@@ -2524,7 +2476,7 @@ function UserDetailView({ user: initUser, pwd, onBack, onUserUpdated, onUserDele
   const avatarGrad = COLORS[user.id % COLORS.length];
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-50 overflow-y-auto" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 5rem)" }}>
+    <div className="fixed inset-0 z-50 overflow-y-auto" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 5rem)", background: "linear-gradient(160deg,#eef2ff 0%,#f5f0ff 50%,#f0f8ff 100%)" }}>
       {/* Wallet modal */}
       {walletModal && (
         <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 backdrop-blur-sm" onClick={() => { setWalletModal(null); setWalletAmount(""); }}>
@@ -2578,10 +2530,30 @@ function UserDetailView({ user: initUser, pwd, onBack, onUserUpdated, onUserDele
         </div>
       )}
 
+      {/* Long-press delete popup */}
+      {deleteMenu && (
+        <div className="fixed inset-0 z-[90]" onClick={() => setDeleteMenu(null)}>
+          <div className="absolute bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden"
+            style={{ left: Math.min(deleteMenu.x - 80, (typeof window !== "undefined" ? window.innerWidth : 400) - 210), top: Math.max(deleteMenu.y - 120, 60), width: 200 }}>
+            <button className="w-full px-4 py-3.5 text-[13px] text-left text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 font-medium"
+              onClick={e => { e.stopPropagation(); deleteForMe(deleteMenu.id); }}>
+              🗑️ Delete for me
+            </button>
+            <div className="h-px bg-slate-100" />
+            <button className="w-full px-4 py-3.5 text-[13px] text-left text-red-500 hover:bg-red-50 flex items-center gap-2.5 font-medium"
+              onClick={e => { e.stopPropagation(); deleteForEveryone(deleteMenu.id); }}>
+              🔥 Delete for everyone
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Message drawer */}
       {msgOpen && (
-        <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm" onClick={e => { if (e.target === e.currentTarget) { setMsgOpen(false); setMsgText(""); setChatHistory([]); } }}>
-          <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col" style={{ maxHeight: "88vh" }}>
+        <div className="fixed inset-x-0 top-0 z-[60] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm"
+          style={{ bottom: kbOffset > 0 ? `${kbOffset}px` : 0 }}
+          onClick={e => { if (e.target === e.currentTarget) { setMsgOpen(false); setMsgText(""); setChatHistory([]); } }}>
+          <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col sm:mb-0" style={{ maxHeight: "90%", marginBottom: "4.5rem" }}>
             <div className="flex items-center gap-3 px-5 pt-5 pb-3.5 border-b border-slate-100">
               <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${avatarGrad} flex items-center justify-center text-white font-black text-sm shrink-0`}>
                 {(user.name || user.email).charAt(0).toUpperCase()}
@@ -2602,10 +2574,14 @@ function UserDetailView({ user: initUser, pwd, onBack, onUserUpdated, onUserDele
                   <p className="text-xs text-slate-400 font-medium">No messages yet</p>
                 </div>
               ) : chatHistory.map(m => (
-                <div key={m.id} className={`flex ${m.senderType === "admin" ? "justify-end" : "justify-start"}`}>
-                  <div className={`max-w-[78%] px-3 py-2 rounded-2xl text-sm leading-relaxed ${m.senderType === "admin" ? "bg-blue-600 text-white rounded-br-sm" : "bg-slate-100 text-slate-800 rounded-bl-sm"}`}>
+                <div key={m.id} className={`flex ${m.senderType === "admin" ? "justify-end" : "justify-start"}`}
+                  onTouchStart={e => startPress(e, m.id)}
+                  onTouchEnd={cancelPress}
+                  onTouchMove={cancelPress}
+                  onContextMenu={e => { e.preventDefault(); setDeleteMenu({ id: m.id, x: e.clientX, y: e.clientY }); }}>
+                  <div className={`max-w-[78%] px-3 py-2 rounded-2xl text-sm leading-relaxed select-none ${m.senderType === "admin" ? "bg-blue-600 text-white rounded-br-sm" : "bg-violet-100 text-violet-900 rounded-bl-sm"}`}>
                     <p className="whitespace-pre-wrap break-words">{m.message}</p>
-                    <p className={`text-[9px] mt-0.5 ${m.senderType === "admin" ? "text-blue-200" : "text-slate-400"}`}>{new Date(m.createdAt).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}</p>
+                    <p className={`text-[9px] mt-0.5 ${m.senderType === "admin" ? "text-blue-200" : "text-violet-400"}`}>{new Date(m.createdAt).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}</p>
                   </div>
                 </div>
               ))}
@@ -2676,6 +2652,7 @@ function UserDetailView({ user: initUser, pwd, onBack, onUserUpdated, onUserDele
               ...(user.username ? [{ label: "Username", value: `@${user.username}`, mono: false }] : []),
               { label: "Status",    value: user.status,          mono: false },
               { label: "Joined",    value: new Date(user.createdAt).toLocaleDateString(), mono: false },
+              ...(user.country ? [{ label: "Country", value: user.country, mono: false }] : []),
               ...(user.registrationIp ? [{ label: "Reg. IP", value: user.registrationIp, mono: true }] : []),
             ].map(row => (
               <div key={row.label} className="flex items-center justify-between px-4 py-2.5">
@@ -2856,10 +2833,10 @@ function UsersPanel({ pwd }: { pwd: string }) {
               <button onClick={() => setCreateModal(false)} className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200">✕</button>
             </div>
             <div className="space-y-3">
-              <div><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Email *</label><input type="email" value={createForm.email} onChange={e => setCreateForm(f=>({...f,email:e.target.value}))} placeholder="user@example.com" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
-              <div><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Password * (min 6 chars)</label><input type="password" value={createForm.password} onChange={e => setCreateForm(f=>({...f,password:e.target.value}))} placeholder="••••••" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
-              <div><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Name (optional)</label><input value={createForm.name} onChange={e => setCreateForm(f=>({...f,name:e.target.value}))} placeholder="John Doe" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
-              <div><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Starting Wallet Balance ($)</label><input type="number" step="0.01" min="0" value={createForm.walletBalance} onChange={e => setCreateForm(f=>({...f,walletBalance:e.target.value}))} placeholder="0.00" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+              <div><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Email *</label><input type="email" value={createForm.email} onChange={e => setCreateForm(f=>({...f,email:e.target.value}))} placeholder="user@example.com" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+              <div><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Password * (min 6 chars)</label><input type="password" value={createForm.password} onChange={e => setCreateForm(f=>({...f,password:e.target.value}))} placeholder="••••••" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+              <div><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Name (optional)</label><input value={createForm.name} onChange={e => setCreateForm(f=>({...f,name:e.target.value}))} placeholder="John Doe" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+              <div><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Starting Wallet Balance ($)</label><input type="number" step="0.01" min="0" value={createForm.walletBalance} onChange={e => setCreateForm(f=>({...f,walletBalance:e.target.value}))} placeholder="0.00" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
             </div>
             <div className="flex gap-2 pt-1">
               <button onClick={() => setCreateModal(false)} className="flex-1 py-3 border border-slate-200 text-slate-600 font-bold rounded-2xl text-sm">Cancel</button>
@@ -2948,7 +2925,7 @@ function PlainInput({ label, value, onChange, placeholder, hint }: {
     <div>
       <label className="text-xs font-semibold text-slate-500 block mb-1.5">{label}</label>
       <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
-        className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500" />
       {hint && <p className="text-[10px] text-slate-400 mt-1">{hint}</p>}
     </div>
   );
@@ -2983,6 +2960,7 @@ function PaymentsPanel({ pwd }: { pwd: string }) {
     smtpSecure: false,
     smtpUser: "",
     smtpPass: "",
+    resendApiKey: "",
     callmebotApiKey: "",
     whatsappContact: "",
     supportPhone: "",
@@ -3000,9 +2978,6 @@ function PaymentsPanel({ pwd }: { pwd: string }) {
   const [testingOts, setTestingOts] = useState(false);
   const [cascadeStatus, setCascadeStatus] = useState<{ models: string[]; updatedAt: string | null; isDefault: boolean } | null>(null);
   const [cascadeRefreshing, setCascadeRefreshing] = useState(false);
-  const [testEmailSending, setTestEmailSending] = useState(false);
-  const [testEmailType, setTestEmailType] = useState("order_submitted");
-  const [testEmailResult, setTestEmailResult] = useState<{ ok: boolean; msg: string } | null>(null);
 
   async function refreshCascade() {
     setCascadeRefreshing(true);
@@ -3048,6 +3023,7 @@ function PaymentsPanel({ pwd }: { pwd: string }) {
           smtpSecure: d.smtpSecure,
           smtpUser: d.smtpUser ?? "",
           smtpPass: "",
+          resendApiKey: "",
           callmebotApiKey: "",
           whatsappContact: d.whatsappContact ?? "",
           supportPhone: d.supportPhone ?? "",
@@ -3073,25 +3049,6 @@ function PaymentsPanel({ pwd }: { pwd: string }) {
       })
       .catch(() => setLoading(false));
   }, [pwd]);
-
-  async function sendTestEmail() {
-    const to = form.smtpUser || form.emailFrom;
-    if (!to) { setTestEmailResult({ ok: false, msg: "Set SMTP Username or From Email first." }); return; }
-    setTestEmailSending(true); setTestEmailResult(null);
-    try {
-      const r = await adminFetch(apiPath("/api/admin/test-email"), pwd, {
-        method: "POST",
-        body: JSON.stringify({ to, type: testEmailType }),
-      });
-      const d = await r.json() as { success?: boolean; error?: string; to?: string; subject?: string; reason?: string };
-      if (r.ok && d.success) {
-        setTestEmailResult({ ok: true, msg: `Delivered to ${d.to} — subject: "${d.subject}"` });
-      } else {
-        setTestEmailResult({ ok: false, msg: d.error ?? d.reason ?? "SMTP delivery failed." });
-      }
-    } catch { setTestEmailResult({ ok: false, msg: "Network error — check SMTP settings and try again." }); }
-    finally { setTestEmailSending(false); }
-  }
 
   async function save() {
     setSaving(true);
@@ -3125,6 +3082,7 @@ function PaymentsPanel({ pwd }: { pwd: string }) {
       if (form.nowpaymentsApiKey) body.nowpaymentsApiKey = form.nowpaymentsApiKey;
       if (form.coingateApiKey) body.coingateApiKey = form.coingateApiKey;
       if (form.smtpPass) body.smtpPass = form.smtpPass;
+      if (form.resendApiKey) body.resendApiKey = form.resendApiKey;
       if (form.callmebotApiKey) body.callmebotApiKey = form.callmebotApiKey;
       if (form.whatsappContact) body.whatsappContact = form.whatsappContact;
       if (form.googleClientId) body.googleClientId = form.googleClientId;
@@ -3144,7 +3102,7 @@ function PaymentsPanel({ pwd }: { pwd: string }) {
         ...f,
         mpesaConsumerKey: "", mpesaConsumerSecret: "", mpesaPasskey: "",
         nowpaymentsApiKey: "", coingateApiKey: "",
-        smtpPass: "",
+        smtpPass: "", resendApiKey: "", callmebotApiKey: "",
         googleClientId: "", googleClientSecret: "",
         otsApiToken: "", openaiApiKey: "", imeiInfoApiToken: "", botSystemPrompt: f.botSystemPrompt,
         paymentMethods: updated.paymentMethods?.length
@@ -3388,10 +3346,8 @@ function PaymentsPanel({ pwd }: { pwd: string }) {
           <p className="text-[10px] font-semibold text-slate-400">Receive a WhatsApp message when a customer requests human support</p>
         </div>
         <div className="bg-green-50 border border-green-100 rounded-xl px-3.5 py-2.5 text-[11px] text-green-700 leading-relaxed">
-          To get your API key: WhatsApp <strong>+34 644 59 12 60</strong> and send:<br/>
-          <code className="bg-green-100 px-1 rounded font-mono">I allow callmebot to send me messages</code><br/>
-          You'll receive the key in seconds.{" "}
-          <a href="https://www.callmebot.com/blog/free-api-whatsapp-messages/" target="_blank" rel="noreferrer" className="font-bold underline">Learn more ↗</a>
+          To get your API key: WhatsApp <strong>+34 644 59 12 60</strong> and send: <code className="bg-green-100 px-1 rounded">I allow callmebot to send me messages</code>. You'll receive the key in seconds.{" "}
+          <a href="https://www.callmebot.com/blog/free-api-whatsapp-messages/" target="_blank" rel="noreferrer" className="font-bold underline">Learn more</a>
         </div>
         <MaskedInput
           label="CallMeBot API Key"
@@ -3399,7 +3355,7 @@ function PaymentsPanel({ pwd }: { pwd: string }) {
           onChange={v => setForm(f => ({ ...f, callmebotApiKey: v }))}
           placeholder={settings?.callmebotApiKey === "***" ? "Saved — enter new to replace" : "Your CallMeBot API key"}
         />
-        <p className="text-[10px] text-slate-400">Notifications sent to <strong>+254 112 628 799</strong> (hardcoded admin number).</p>
+        <p className="text-[10px] text-slate-400">Notifications are sent to <strong>+254 112 628 799</strong> (hardcoded admin number).</p>
       </div>
 
       {/* ── GSMBot AI ── */}
@@ -3430,7 +3386,7 @@ function PaymentsPanel({ pwd }: { pwd: string }) {
             onChange={e => setForm(f => ({ ...f, botSystemPrompt: e.target.value }))}
             rows={5}
             placeholder={"e.g. Always greet users in Swahili.\nAlways recommend the Express Order for urgent requests.\nOur newest service is XYZ — mention it proactively."}
-            className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-y font-mono text-slate-700 placeholder:text-slate-300 placeholder:font-sans"
+            className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-400 resize-y font-mono text-slate-700 placeholder:text-slate-300 placeholder:font-sans"
           />
           {settings?.botSystemPromptOverride && (
             <p className="text-[10px] text-emerald-600 font-semibold">Custom instructions saved ✓</p>
@@ -3517,10 +3473,29 @@ function PaymentsPanel({ pwd }: { pwd: string }) {
         )}
       </div>
 
+      {/* Email provider – SMTP (Zoho, Gmail, etc.) or optional Resend API key */}
       <div className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm p-4 space-y-3">
         <div>
-          <p className="text-sm font-bold text-slate-800">Email SMTP (Zoho)</p>
-          <p className="text-[10px] font-semibold text-slate-400">SMTP settings — used for all outgoing transactional mail</p>
+          <p className="text-sm font-bold text-slate-800">Resend API Key <span className="text-xs font-normal text-slate-400">(optional — leave blank to use SMTP below)</span></p>
+          <p className="text-[10px] font-semibold text-slate-400">Recommended for Vercel — HTTP-based, no SMTP port blocking. Takes priority over SMTP.</p>
+        </div>
+        <div className="bg-blue-50 border border-blue-100 rounded-xl px-3 py-2.5 text-[11px] text-blue-700 leading-relaxed">
+          Get a free key at{" "}
+          <a href="https://resend.com" target="_blank" rel="noreferrer" className="font-bold underline">resend.com</a>
+          {" "}→ verify your sending domain → add the key below. The <em>From Email</em> must be on that verified domain.
+        </div>
+        <MaskedInput
+          label="Resend API Key"
+          value={form.resendApiKey ?? ""}
+          onChange={v => setForm(f => ({ ...f, resendApiKey: v }))}
+          placeholder={settings?.resendApiKey ? "Saved — enter new to replace" : "re_xxxxxxxxxxxxxxxxx"}
+        />
+      </div>
+
+      <div className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm p-4 space-y-3">
+        <div>
+          <p className="text-sm font-bold text-slate-800">Email SMTP</p>
+          <p className="text-[10px] font-semibold text-slate-400">SMTP settings (Zoho, Gmail, etc.) — used for all outgoing mail</p>
         </div>
         <PlainInput label="From Email" value={form.emailFrom} onChange={v => setForm(f => ({ ...f, emailFrom: v }))} placeholder="no-reply@yourdomain.com" />
         <PlainInput label="SMTP Host" value={form.smtpHost} onChange={v => setForm(f => ({ ...f, smtpHost: v }))} placeholder="smtp.mailprovider.com" />
@@ -3534,46 +3509,6 @@ function PaymentsPanel({ pwd }: { pwd: string }) {
         </div>
         <PlainInput label="SMTP Username" value={form.smtpUser} onChange={v => setForm(f => ({ ...f, smtpUser: v }))} placeholder="SMTP username" />
         <MaskedInput label="SMTP Password" value={form.smtpPass} onChange={v => setForm(f => ({ ...f, smtpPass: v }))} placeholder="Enter new SMTP password" />
-
-        {/* ── Email Deliverability Test ── */}
-        <div className="border-t border-slate-100 pt-3 space-y-2.5">
-          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Deliverability Test</p>
-          <p className="text-[11px] text-slate-400 leading-relaxed">
-            Sends a real email via the configured Zoho SMTP to your SMTP username address. Save settings first before testing.
-          </p>
-          <div className="flex gap-2">
-            <select
-              value={testEmailType}
-              onChange={e => setTestEmailType(e.target.value)}
-              className="flex-1 text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-            >
-              <option value="order_submitted">Order Submitted</option>
-              <option value="payment_confirmed">Payment Confirmed</option>
-              <option value="order_completed">Order Completed</option>
-              <option value="order_status">Order Status Update</option>
-              <option value="more_info">More Info Needed</option>
-              <option value="otp">OTP / Verification Code</option>
-              <option value="login">Login Notification</option>
-              <option value="pending_manual">Pending Manual Payment</option>
-            </select>
-            <button
-              onClick={sendTestEmail}
-              disabled={testEmailSending}
-              className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl disabled:opacity-50 transition-colors shrink-0"
-            >
-              <Send size={12} />
-              {testEmailSending ? "Sending…" : "Send Test"}
-            </button>
-          </div>
-          {testEmailResult && (
-            <div className={`flex items-start gap-2 rounded-xl px-3 py-2.5 text-xs font-medium ${testEmailResult.ok ? "bg-emerald-50 border border-emerald-200 text-emerald-700" : "bg-red-50 border border-red-200 text-red-700"}`}>
-              {testEmailResult.ok
-                ? <CheckCircle2 size={13} className="shrink-0 mt-0.5" />
-                : <XCircle size={13} className="shrink-0 mt-0.5" />}
-              <span>{testEmailResult.msg}</span>
-            </div>
-          )}
-        </div>
       </div>
 
 
@@ -3634,27 +3569,17 @@ function FingerprintSetupModal({ pwd, onDismiss }: { pwd: string; onDismiss: () 
   const [registered, setRegistered] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  // true = WebAuthn, false = localStorage quick-login, null = detecting
-  const [mode, setMode] = useState<"webauthn" | "quicklogin" | null>(null);
 
   useEffect(() => {
     const bridge = getAdminBioBridge();
     if (isAdminNativeApp && bridge) {
-      setMode("webauthn");
       setRegistered(bridge.hasCredential() === "true");
       return;
     }
-    if (waSupported()) {
-      setMode("webauthn");
-      fetch(apiPath("/api/admin/webauthn/status"))
-        .then(r => r.json())
-        .then((d: { registered: boolean }) => setRegistered(d.registered))
-        .catch(() => setRegistered(false));
-    } else {
-      // Browser doesn't support WebAuthn — use localStorage quick-login
-      setMode("quicklogin");
-      setRegistered(qlHas());
-    }
+    fetch(apiPath("/api/admin/webauthn/status"))
+      .then(r => r.json())
+      .then((d: { registered: boolean }) => setRegistered(d.registered))
+      .catch(() => setRegistered(false));
   }, []);
 
   async function handleRegister() {
@@ -3664,35 +3589,12 @@ function FingerprintSetupModal({ pwd, onDismiss }: { pwd: string; onDismiss: () 
       try {
         bridge.saveCredential(JSON.stringify({ password: pwd }));
         setRegistered(true);
-        toast({ title: "Quick login enabled", description: "You can now log in with your fingerprint." });
+        toast({ title: "Fingerprint registered", description: "You can now log in with your fingerprint." });
       } catch {
-        setError("Failed to save. Please try again.");
+        setError("Failed to save fingerprint. Please try again.");
       } finally { setLoading(false); }
       return;
     }
-
-    // localStorage quick-login fallback
-    if (mode === "quicklogin") {
-      try {
-        qlSave(pwd);
-        setRegistered(true);
-        toast({ title: "Quick login saved", description: "Tap 'Quick Login' on the login screen to skip the password." });
-      } catch {
-        setError("Could not save. Check your browser settings.");
-      } finally { setLoading(false); }
-      return;
-    }
-
-    // WebAuthn path
-    try {
-      const hasSensor = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().catch(() => true);
-      if (!hasSensor) {
-        setError("No fingerprint or Face ID sensor found on this device.");
-        setLoading(false);
-        return;
-      }
-    } catch { /* proceed anyway */ }
-
     try {
       const optRes = await adminFetch(apiPath("/api/admin/webauthn/register-challenge"), pwd, { method: "POST" });
       if (!optRes.ok) { setError((await optRes.json() as { error?: string }).error ?? "Failed to start registration."); return; }
@@ -3706,17 +3608,7 @@ function FingerprintSetupModal({ pwd, onDismiss }: { pwd: string; onDismiss: () 
       setRegistered(true);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      if (msg.includes("NotAllowedError") || msg.includes("cancelled") || msg.includes("abort") || msg.includes("timed out") || msg.includes("not allowed")) {
-        setError("Fingerprint scan cancelled or timed out. Please try again.");
-      } else if (msg.includes("SecurityError") || msg.includes("relying party") || msg.includes("domain")) {
-        setError("Security check failed — please access the admin panel from the official domain.");
-      } else if (msg.includes("NotSupportedError") || msg.includes("authenticator") || msg.includes("No authenticator")) {
-        setError("No compatible fingerprint sensor available. Check device settings.");
-      } else if (msg.includes("InvalidStateError")) {
-        setError("A fingerprint is already registered. Remove it first, then try again.");
-      } else {
-        setError(`Registration failed: ${msg.slice(0, 100)}`);
-      }
+      setError(msg.includes("cancelled") || msg.includes("abort") ? "Fingerprint scan cancelled." : "Registration failed. Please try again.");
     } finally { setLoading(false); }
   }
 
@@ -3727,16 +3619,9 @@ function FingerprintSetupModal({ pwd, onDismiss }: { pwd: string; onDismiss: () 
       try {
         bridge.clearCredential();
         setRegistered(false);
-        toast({ title: "Quick login removed", description: "Password-only login is now required." });
-      } catch { setError("Failed to remove."); }
+        toast({ title: "Fingerprint removed", description: "Password-only login is now required." });
+      } catch { setError("Failed to remove fingerprint."); }
       finally { setLoading(false); }
-      return;
-    }
-    if (mode === "quicklogin") {
-      qlClear();
-      setRegistered(false);
-      toast({ title: "Quick login removed", description: "Password-only login is now required." });
-      setLoading(false);
       return;
     }
     try {
@@ -3748,8 +3633,6 @@ function FingerprintSetupModal({ pwd, onDismiss }: { pwd: string; onDismiss: () 
     finally { setLoading(false); }
   }
 
-  const isQuickLogin = mode === "quicklogin";
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
       <div className="bg-slate-900 border border-white/10 rounded-2xl p-6 w-full max-w-sm shadow-2xl">
@@ -3759,21 +3642,14 @@ function FingerprintSetupModal({ pwd, onDismiss }: { pwd: string; onDismiss: () 
               <Fingerprint size={18} className="text-blue-400" />
             </div>
             <div>
-              <p className="text-white font-bold text-sm">{isQuickLogin ? "Quick Login" : "Fingerprint Login"}</p>
-              <p className="text-slate-500 text-xs">{isQuickLogin ? "Saved on this device" : "Biometric authentication"}</p>
+              <p className="text-white font-bold text-sm">Fingerprint Login</p>
+              <p className="text-slate-500 text-xs">Biometric authentication</p>
             </div>
           </div>
           <button onClick={onDismiss} className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center text-slate-400 hover:text-white">
             <X size={14} />
           </button>
         </div>
-
-        {isQuickLogin && (
-          <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2.5 mb-4 flex items-start gap-2">
-            <AlertTriangle size={13} className="text-amber-400 shrink-0 mt-0.5" />
-            <p className="text-amber-300 text-xs leading-relaxed">Your browser doesn't support biometric auth. <span className="font-semibold">Quick Login</span> saves your password on this device so you can log in with one tap.</p>
-          </div>
-        )}
 
         {error && (
           <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2.5 mb-4 flex items-center gap-2">
@@ -3782,38 +3658,31 @@ function FingerprintSetupModal({ pwd, onDismiss }: { pwd: string; onDismiss: () 
           </div>
         )}
 
-        {registered === null || mode === null ? (
+        {registered === null ? (
           <div className="text-center text-slate-500 text-sm py-4">Loading…</div>
         ) : registered ? (
           <div className="space-y-3">
             <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-3 py-3 flex items-center gap-2.5">
               <CheckCircle2 size={15} className="text-emerald-400 shrink-0" />
-              <p className="text-emerald-400 text-xs font-medium">
-                {isQuickLogin ? "Quick login is active on this device" : "Fingerprint is active on this device"}
-              </p>
+              <p className="text-emerald-400 text-xs font-medium">Fingerprint is active on this device</p>
             </div>
-            <p className="text-slate-400 text-xs">
-              {isQuickLogin
-                ? "Your password is saved. Tap 'Quick Login' on the login screen to skip typing it."
-                : "You can log in using your device's biometric sensor instead of a password."}
-            </p>
+            <p className="text-slate-400 text-xs">You can log in using your device's biometric sensor instead of a password.</p>
             <button onClick={handleRemove} disabled={loading}
               className="w-full flex items-center justify-center gap-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 font-semibold py-3 rounded-xl text-sm disabled:opacity-40 transition-colors">
               <Trash2 size={14} />
-              {loading ? "Removing…" : isQuickLogin ? "Remove Quick Login" : "Remove Fingerprint"}
+              {loading ? "Removing…" : "Remove Fingerprint"}
             </button>
           </div>
         ) : (
           <div className="space-y-3">
             <p className="text-slate-400 text-xs leading-relaxed">
-              {isQuickLogin
-                ? "Save your password on this device so you can log in with one tap — no typing required."
-                : "Register your device's fingerprint or Face ID to log in without typing your password. Works with Touch ID, Windows Hello, and Android fingerprint sensors."}
+              Register your device's fingerprint or Face ID to log in without typing your password.
+              Works with Touch ID, Windows Hello, and Android fingerprint sensors.
             </p>
             <button onClick={handleRegister} disabled={loading}
               className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl text-sm disabled:opacity-40 transition-colors">
               <Fingerprint size={15} />
-              {loading ? "Saving…" : isQuickLogin ? "Save on This Device" : "Register Fingerprint"}
+              {loading ? "Scanning…" : "Register Fingerprint"}
             </button>
           </div>
         )}
@@ -3837,18 +3706,10 @@ function LoginScreen({ onLogin }: { onLogin: (pwd: string, isDefault: boolean) =
       setFpAvailable(bridge.hasCredential() === "true");
       return;
     }
-    // If WebAuthn not supported, fall back to localStorage quick-login check
-    if (!waSupported()) {
-      setFpAvailable(qlHas());
-      return;
-    }
     fetch(apiPath("/api/admin/webauthn/status"))
       .then(r => r.json())
-      .then((d: { registered: boolean }) => {
-        // Also show quick-login button if localStorage has a credential (belt + suspenders)
-        setFpAvailable(d.registered || qlHas());
-      })
-      .catch(() => { setFpAvailable(qlHas()); });
+      .then((d: { registered: boolean }) => setFpAvailable(d.registered))
+      .catch(() => {});
   }, []);
 
   async function submit() {
@@ -3892,32 +3753,6 @@ function LoginScreen({ onLogin }: { onLogin: (pwd: string, isDefault: boolean) =
         }
       };
       bridge.authenticate(callbackId);
-      return;
-    }
-
-    // localStorage quick-login path (when WebAuthn not supported by browser)
-    if (!waSupported()) {
-      const saved = qlLoad();
-      if (!saved) {
-        setError("No saved login found. Use 'Fingerprint Login' in settings to set it up first.");
-        setFpLoading(false);
-        return;
-      }
-      try {
-        const r = await fetch(apiPath("/api/admin/login"), {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ password: saved }),
-        });
-        const d = await r.json() as { ok?: boolean; isDefaultPassword?: boolean; error?: string };
-        if (!r.ok) {
-          qlClear(); // saved password is wrong (was changed), remove it
-          setFpAvailable(false);
-          setError("Saved login is outdated. Please log in with your password and re-save.");
-          return;
-        }
-        onLogin(saved, !!(d as { isDefaultPassword?: boolean }).isDefaultPassword);
-      } catch { setError("Cannot reach server. Check your connection."); }
-      finally { setFpLoading(false); }
       return;
     }
 
@@ -3972,7 +3807,7 @@ function LoginScreen({ onLogin }: { onLogin: (pwd: string, isDefault: boolean) =
               <button onClick={loginWithFingerprint} disabled={fpLoading || loading}
                 className="w-full flex items-center justify-center gap-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-2xl text-sm disabled:opacity-40 transition-colors">
                 <Fingerprint size={17} />
-                {fpLoading ? "Signing in…" : waSupported() ? "Login with Fingerprint" : "Quick Login"}
+                {fpLoading ? "Scanning…" : "Login with Fingerprint"}
               </button>
             )}
             {fpAvailable && (
@@ -4017,7 +3852,7 @@ function LiveChatsPanel({ pwd }: { pwd: string }) {
   const [sending, setSending] = useState(false);
   const [showClosed, setShowClosed] = useState(false);
   const [mobileView, setMobileView] = useState<"list" | "chat">("list");
-  const msgsContainerRef = useRef<HTMLDivElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
   // Refs to always have the latest values inside setInterval without recreating it
   const selectedRef = useRef(selected);
   useEffect(() => { selectedRef.current = selected; }, [selected]);
@@ -4069,10 +3904,7 @@ function LiveChatsPanel({ pwd }: { pwd: string }) {
     if (selected) { setMsgs([]); loadMessages(selected); }
   }, [selected?.id, loadMessages]);
 
-  useEffect(() => {
-    const el = msgsContainerRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [msgs]);
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs]);
 
   async function sendReply() {
     if (!reply.trim() || !selected || sending) return;
@@ -4108,270 +3940,180 @@ function LiveChatsPanel({ pwd }: { pwd: string }) {
 
   if (loading) return <div className="p-4 space-y-3">{[1,2,3].map(i => <Skeleton key={i} h="h-16" />)}</div>;
 
-  const activeSessions = sessions.filter(s => s.status !== "closed");
-  const waitingSessions = sessions.filter(s => s.status === "waiting");
-
   return (
-    <div style={{ background: "#f0f2f5", minHeight: "100vh" }}>
-      {/* Header */}
-      <div className="px-4 pt-5 pb-4" style={{ background: "#f0f2f5" }}>
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-[0.15em]">Support</p>
-            <h2 className="text-[18px] font-black text-slate-900 mt-0.5 tracking-tight">Live Chat</h2>
-          </div>
-          <div className="flex items-center gap-2">
-            <button onClick={() => setShowClosed(s => !s)}
-              className={`text-[11px] font-semibold px-3 py-1.5 rounded-xl border transition-colors shadow-sm ${showClosed ? "bg-slate-800 text-white border-slate-800" : "bg-white text-slate-500 border-slate-200"}`}>
-              {showClosed ? "Hide Closed" : "Show Closed"}
-            </button>
-            <button onClick={loadSessions}
-              className="w-9 h-9 rounded-full bg-white border border-slate-100 shadow-sm flex items-center justify-center text-slate-400 hover:text-blue-500 transition-colors active:scale-90">
-              <RefreshCw size={13} />
-            </button>
-          </div>
+    <div className="p-4 space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-black text-slate-800">Live Chat Sessions</p>
+          <p className="text-xs text-slate-400 mt-0.5">{sessions.filter(s => s.status !== "closed").length} active · auto-refreshes every 3s</p>
         </div>
-
-        {/* Stats row */}
-        <div className="flex gap-2">
-          {[
-            { label: "Active", value: activeSessions.length, color: "text-emerald-700", bg: "bg-emerald-50" },
-            { label: "Waiting", value: waitingSessions.length, color: "text-amber-700", bg: "bg-amber-50" },
-            { label: "Polling 3s", value: "●", color: "text-blue-500", bg: "bg-blue-50" },
-          ].map(s => (
-            <div key={s.label} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full ${s.bg} border border-white/80 shadow-sm`}>
-              <span className={`text-xs font-black ${s.color}`}>{s.value}</span>
-              <span className="text-[10px] text-slate-400 font-medium">{s.label}</span>
-            </div>
-          ))}
+        <div className="flex items-center gap-2">
+          <button onClick={() => setShowClosed(s => !s)}
+            className={`text-[11px] font-semibold px-3 py-1.5 rounded-xl border transition-colors ${showClosed ? "bg-slate-800 text-white border-slate-800" : "bg-white text-slate-500 border-slate-200"}`}>
+            {showClosed ? "Hide Closed" : "Show Closed"}
+          </button>
+          <button onClick={loadSessions}
+            className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition-colors">
+            <RefreshCw size={13} />
+          </button>
         </div>
       </div>
 
-      {sessions.length === 0 ? (
-        <div className="mx-4 bg-white rounded-2xl shadow-sm border border-slate-100 p-10 text-center">
-          <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-3">
-            <Headphones size={28} className="text-slate-300" />
-          </div>
+      {sessions.length === 0 && (
+        <div className="bg-white border border-slate-100 rounded-2xl p-8 text-center">
+          <Headphones size={32} className="mx-auto text-slate-200 mb-2" />
           <p className="text-sm font-bold text-slate-400">No live chat sessions</p>
           <p className="text-xs text-slate-300 mt-1">Sessions appear here when customers click "Talk to a human agent"</p>
         </div>
-      ) : (
-        <div className="px-4 pb-6">
-          <div className="grid gap-3 md:grid-cols-[300px_1fr]">
-            {/* Session list */}
-            <div className={`space-y-2 ${mobileView === "chat" ? "hidden md:block" : "block"}`}>
-              {sessions.map(sess => {
-                const isWaiting = sess.status === "waiting";
-                const isSelected = selected?.id === sess.id;
-                return (
-                  <button key={sess.id} onClick={() => { setSelected(sess); setMobileView("chat"); }}
-                    className={`w-full text-left bg-white rounded-2xl shadow-sm transition-all overflow-hidden ${
-                      isSelected
-                        ? "border-2 border-blue-500 shadow-md"
-                        : isWaiting
-                          ? "border-l-4 border-l-amber-400 border border-slate-100 hover:border-l-amber-500"
-                          : "border border-slate-100 hover:border-blue-200"
-                    }`}>
-                    <div className="p-3.5">
-                      <div className="flex items-center justify-between mb-1.5">
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${
-                            isWaiting ? "bg-amber-100" : sess.status === "active" ? "bg-emerald-100" : "bg-slate-100"
-                          }`}>
-                            <UserCheck size={14} className={
-                              isWaiting ? "text-amber-600" : sess.status === "active" ? "text-emerald-600" : "text-slate-400"
-                            } />
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-xs font-bold text-slate-800 truncate">
-                              {sess.visitorName || `Visitor #${sess.id}`}
-                            </p>
-                            <p className="text-[9px] text-slate-400 truncate">{sess.visitorId.slice(0, 10)}…</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          {sess.unreadAdmin > 0 && (
-                            <span className="min-w-[18px] h-[18px] rounded-full bg-blue-600 text-white text-[9px] font-bold flex items-center justify-center px-1">
-                              {sess.unreadAdmin}
-                            </span>
-                          )}
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${statusColor(sess.status)}`}>
-                            {sess.status}
-                          </span>
-                        </div>
-                      </div>
-                      {sess.lastMessage && (
-                        <p className="text-[11px] text-slate-400 truncate mt-1 pl-[46px]">{sess.lastMessage}</p>
-                      )}
-                      <p className="text-[9px] text-slate-300 mt-0.5 pl-[46px]">
-                        {new Date(sess.updatedAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
-                      </p>
-                    </div>
+      )}
+
+      <div className="grid gap-3 md:grid-cols-2">
+        {/* Session list — hidden on mobile when chat is open */}
+        <div className={`space-y-2 ${mobileView === "chat" ? "hidden md:block" : "block"}`}>
+          {sessions.map(sess => (
+            <button key={sess.id} onClick={() => { setSelected(sess); setMobileView("chat"); }}
+              className={`w-full text-left bg-white rounded-2xl border p-3.5 transition-colors hover:border-blue-300 ${selected?.id === sess.id ? "border-blue-400 shadow-sm" : "border-slate-100"}`}>
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center shrink-0">
+                    <UserCheck size={13} className="text-slate-500" />
+                  </div>
+                  <p className="text-xs font-bold text-slate-700 truncate max-w-[120px]">
+                    {sess.visitorName || `Visitor #${sess.id}`}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  {sess.unreadAdmin > 0 && (
+                    <span className="w-4 h-4 rounded-full bg-blue-600 text-white text-[9px] font-bold flex items-center justify-center">{sess.unreadAdmin}</span>
+                  )}
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${statusColor(sess.status)}`}>
+                    {sess.status}
+                  </span>
+                </div>
+              </div>
+              {sess.lastMessage && (
+                <p className="text-[11px] text-slate-400 truncate pl-9">{sess.lastMessage}</p>
+              )}
+              <p className="text-[9px] text-slate-300 pl-9 mt-0.5">
+                {new Date(sess.updatedAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+              </p>
+            </button>
+          ))}
+        </div>
+
+        {/* Selected session */}
+        {selected ? (
+          <div className={`rounded-2xl border border-slate-100 flex flex-col ${mobileView === "list" ? "hidden md:flex" : "flex"}`} style={{ maxHeight: "500px", background: "linear-gradient(160deg,#eef2ff 0%,#f5f0ff 50%,#edfcf4 100%)" }}>
+            {/* Chat header */}
+            <div className="flex items-center justify-between px-3 py-2.5 border-b border-slate-100 shrink-0">
+              <div className="flex items-center gap-2">
+                {/* Back button — mobile only */}
+                <button onClick={() => setMobileView("list")}
+                  className="md:hidden w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition-colors shrink-0">
+                  <ChevronLeft size={14} />
+                </button>
+                <div>
+                  <p className="text-xs font-black text-slate-800">{selected.visitorName || `Visitor #${selected.id}`}</p>
+                  <p className="text-[10px] text-slate-400">{selected.visitorId.slice(0, 12)}…</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${statusColor(selected.status)}`}>{selected.status}</span>
+                {selected.status !== "closed" && (
+                  <button onClick={() => closeSession(selected)}
+                    className="text-[11px] font-semibold text-red-500 hover:text-red-700 px-2 py-1 border border-red-200 rounded-xl transition-colors">
+                    Close chat
                   </button>
-                );
-              })}
-            </div>
-
-            {/* Chat window */}
-            {selected ? (
-              <div className={`bg-white rounded-2xl shadow-sm border border-slate-100 flex flex-col overflow-hidden ${mobileView === "list" ? "hidden md:flex" : "flex"}`}
-                style={{ height: "clamp(420px, 60vh, 620px)" }}>
-
-                {/* ── Chat header ── */}
-                <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-white shrink-0">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <button onClick={() => setMobileView("list")}
-                      className="md:hidden w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition-colors shrink-0">
-                      <ChevronLeft size={15} />
-                    </button>
-                    {/* Avatar with status dot */}
-                    <div className="relative shrink-0">
-                      <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm ${
-                        selected.status === "waiting" ? "bg-amber-100 text-amber-700"
-                        : selected.status === "active" ? "bg-emerald-100 text-emerald-700"
-                        : "bg-slate-100 text-slate-500"
-                      }`}>
-                        {(selected.visitorName || "V").charAt(0).toUpperCase()}
-                      </div>
-                      <span className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white ${
-                        selected.status === "active" ? "bg-emerald-400" : selected.status === "waiting" ? "bg-amber-400" : "bg-slate-300"
-                      }`} />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-bold text-slate-900 leading-tight truncate">
-                        {selected.visitorName || `Visitor #${selected.id}`}
-                      </p>
-                      <p className="text-[10px] text-slate-400 truncate">
-                        {selected.status === "active" ? "● Active now" : selected.status === "waiting" ? "● Waiting for reply" : "Chat ended"}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    {selected.status !== "closed" && (
-                      <button onClick={() => closeSession(selected)}
-                        className="text-[11px] font-semibold text-red-500 hover:text-red-600 px-3 py-1.5 border border-red-200 hover:border-red-300 rounded-xl bg-red-50 hover:bg-red-100 transition-colors">
-                        End Chat
-                      </button>
-                    )}
-                    {selected.status === "closed" && (
-                      <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-slate-100 text-slate-500 border border-slate-200">Closed</span>
-                    )}
-                  </div>
-                </div>
-
-                {/* ── Messages area ── */}
-                <div
-                  ref={msgsContainerRef}
-                  className="flex-1 overflow-y-auto px-4 py-4 space-y-2"
-                  style={{ background: "linear-gradient(180deg,#f0f4ff 0%,#f8fafc 100%)", overflowAnchor: "none" }}
-                >
-                  {msgs.length === 0 ? (
-                    <div className="h-full flex flex-col items-center justify-center text-center gap-2 py-8">
-                      <div className="w-12 h-12 rounded-2xl bg-white shadow-sm border border-slate-100 flex items-center justify-center">
-                        <MessageSquare size={20} className="text-slate-300" />
-                      </div>
-                      <p className="text-xs font-semibold text-slate-400">No messages yet</p>
-                      <p className="text-[10px] text-slate-300">Be the first to say something</p>
-                    </div>
-                  ) : msgs.map((m, idx) => {
-                    const isAdmin = m.senderType === "admin";
-                    const prevSame = idx > 0 && msgs[idx - 1].senderType === m.senderType;
-                    return (
-                      <div key={m.id} className={`flex items-end gap-2 ${isAdmin ? "flex-row-reverse" : "flex-row"} ${prevSame ? "mt-0.5" : "mt-3"}`}>
-                        {/* Avatar — only on first bubble in a run */}
-                        <div className="w-7 shrink-0">
-                          {!prevSame && (
-                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                              isAdmin ? "bg-blue-600 text-white" : "bg-slate-200 text-slate-600"
-                            }`}>
-                              {isAdmin ? "A" : (selected.visitorName || "V").charAt(0).toUpperCase()}
-                            </div>
-                          )}
-                        </div>
-                        {/* Bubble */}
-                        <div className={`flex flex-col gap-0.5 max-w-[75%] ${isAdmin ? "items-end" : "items-start"}`}>
-                          <div className={`px-3.5 py-2 rounded-2xl text-xs leading-relaxed whitespace-pre-wrap break-words shadow-sm ${
-                            isAdmin
-                              ? "bg-blue-600 text-white rounded-tr-sm"
-                              : "bg-white text-slate-800 rounded-tl-sm border border-slate-100"
-                          } ${prevSame && isAdmin ? "rounded-tr-2xl" : ""} ${prevSame && !isAdmin ? "rounded-tl-2xl" : ""}`}>
-                            {m.message}
-                            {m.fileUrl && (
-                              <a href={m.fileUrl} target="_blank" rel="noopener noreferrer"
-                                className={`flex items-center gap-1 mt-1.5 text-[9px] font-semibold underline ${isAdmin ? "text-blue-200" : "text-blue-500"}`}>
-                                📎 Attachment
-                              </a>
-                            )}
-                          </div>
-                          {/* Timestamp + read receipt */}
-                          <div className={`flex items-center gap-1 px-1 ${isAdmin ? "flex-row-reverse" : "flex-row"}`}>
-                            <span className="text-[9px] text-slate-400">
-                              {new Date(m.createdAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
-                            </span>
-                            {isAdmin && (
-                              m.readAt ? (
-                                <svg width="14" height="8" viewBox="0 0 14 8" fill="none" className="text-blue-400">
-                                  <path d="M1 4L4 7L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                                  <path d="M5 4L8 7L13 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                                </svg>
-                              ) : (
-                                <svg width="9" height="8" viewBox="0 0 9 8" fill="none" className="text-slate-300">
-                                  <path d="M1 4L3.5 6.5L8 1.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                                </svg>
-                              )
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* ── Reply area ── */}
-                {selected.status !== "closed" ? (
-                  <div className="px-3 pb-3 pt-2.5 border-t border-slate-100 bg-white shrink-0">
-                    <div className="flex items-end gap-2 bg-slate-50 border border-slate-200 rounded-2xl px-3 py-2 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 transition-all">
-                      <textarea
-                        rows={1}
-                        value={reply}
-                        onChange={e => {
-                          setReply(e.target.value);
-                          e.target.style.height = "auto";
-                          e.target.style.height = Math.min(e.target.scrollHeight, 96) + "px";
-                        }}
-                        onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendReply(); } }}
-                        placeholder="Type a reply…"
-                        disabled={sending}
-                        className="flex-1 text-sm bg-transparent border-none outline-none resize-none placeholder-slate-400 text-slate-800 min-h-[24px] max-h-[96px] py-0.5 leading-relaxed"
-                      />
-                      <button onClick={sendReply} disabled={sending || !reply.trim()}
-                        className="w-9 h-9 bg-blue-600 hover:bg-blue-700 disabled:opacity-30 text-white rounded-xl flex items-center justify-center shrink-0 transition-all active:scale-90 disabled:scale-100">
-                        {sending ? <RefreshCw size={13} className="animate-spin" /> : <Send size={13} />}
-                      </button>
-                    </div>
-                    <p className="text-[9px] text-slate-300 mt-1 px-1">Enter to send · Shift+Enter for newline</p>
-                  </div>
-                ) : (
-                  <div className="px-4 py-3 border-t border-slate-100 shrink-0 flex items-center justify-center gap-2 bg-slate-50 rounded-b-2xl">
-                    <WifiOff size={12} className="text-slate-300" />
-                    <span className="text-xs text-slate-400">Chat ended · {selected.closedBy || "system"}</span>
-                  </div>
                 )}
               </div>
-        ) : (
-          <div className="hidden md:flex bg-white rounded-2xl shadow-sm border border-slate-100 items-center justify-center p-12 text-center">
-            <div>
-              <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-3">
-                <Headphones size={24} className="text-slate-300" />
+            </div>
+
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2" style={{ background: "linear-gradient(180deg,#eef2ff 0%,#edfcf4 100%)" }}>
+              {msgs.length === 0 && (
+                <p className="text-center text-xs text-slate-300 py-4">No messages yet</p>
+              )}
+              {msgs.map(m => {
+                const isAdmin = m.senderType === "admin";
+                return (
+                  <div key={m.id} className={`flex flex-col gap-0.5 ${isAdmin ? "items-end" : "items-start"}`}>
+                    <div className={`flex gap-1.5 ${isAdmin ? "justify-end" : "justify-start"} w-full`}>
+                      <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-xs ${
+                        isAdmin ? "bg-blue-600 text-white rounded-br-sm" : "bg-violet-100 text-violet-900 rounded-bl-sm"
+                      }`}>
+                        <p className={`text-[9px] font-bold mb-0.5 ${isAdmin ? "text-blue-200" : "text-slate-400"}`}>
+                          {isAdmin ? "You (Admin)" : (selected.visitorName || "Visitor")}
+                        </p>
+                        <p className="leading-relaxed whitespace-pre-wrap break-words">{m.message}</p>
+                        {m.fileUrl && (
+                          <a href={m.fileUrl} target="_blank" rel="noopener noreferrer"
+                            className={`flex items-center gap-1 mt-1 text-[9px] font-semibold underline ${isAdmin ? "text-blue-200" : "text-blue-600"}`}>
+                            📎 View attachment
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                    {isAdmin && (
+                      <div className="flex items-center gap-1 pr-1">
+                        {m.readAt ? (
+                          <>
+                            <svg width="14" height="8" viewBox="0 0 14 8" fill="none" className="text-blue-500">
+                              <path d="M1 4L4 7L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                              <path d="M5 4L8 7L13 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                            <span className="text-[9px] text-blue-500 font-semibold">
+                              Read {new Date(m.readAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <svg width="8" height="8" viewBox="0 0 8 8" fill="none" className="text-slate-300">
+                              <path d="M1 4L3.5 6.5L7 1.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                            <span className="text-[9px] text-slate-300 font-medium">Delivered</span>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              <div ref={bottomRef} />
+            </div>
+
+            {/* Reply area */}
+            {selected.status !== "closed" ? (
+              <div className="px-3 pb-3 pt-2 border-t border-slate-100 shrink-0">
+                <div className="flex gap-2">
+                  <input
+                    value={reply}
+                    onChange={e => setReply(e.target.value)}
+                    onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendReply(); } }}
+                    placeholder="Reply to visitor…"
+                    disabled={sending}
+                    className="flex-1 text-sm border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50"
+                  />
+                  <button onClick={sendReply} disabled={sending || !reply.trim()}
+                    className="w-9 h-9 bg-[#1a2332] hover:bg-[#253246] disabled:opacity-40 text-white text-xs font-bold rounded-xl flex items-center justify-center shrink-0 transition-colors">
+                    {sending ? <RefreshCw size={13} className="animate-spin" /> : <Send size={13} />}
+                  </button>
+                </div>
               </div>
-              <p className="text-sm font-bold text-slate-400">Select a session</p>
-              <p className="text-xs text-slate-300 mt-1">Pick a conversation from the left</p>
+            ) : (
+              <div className="px-3 pb-3 pt-2 border-t border-slate-100 shrink-0 flex items-center justify-center gap-2 text-xs text-slate-400">
+                <WifiOff size={12} /> Chat ended by {selected.closedBy || "system"}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="hidden md:flex rounded-2xl border border-slate-100 items-center justify-center p-8 text-center" style={{ background: "linear-gradient(160deg,#eef2ff 0%,#f5f0ff 100%)" }}>
+            <div>
+              <Headphones size={28} className="mx-auto text-slate-200 mb-2" />
+              <p className="text-xs text-slate-400 font-semibold">Select a session</p>
             </div>
           </div>
         )}
-          </div>
-        </div>
-      )}{/* end sessions.length === 0 ternary */}
+      </div>
     </div>
   );
 }
@@ -4832,6 +4574,144 @@ function ImeiLogsPanel({ pwd }: { pwd: string }) {
   );
 }
 
+// ─── Email Preview Panel ─────────────────────────────────────────────────────
+function EmailPreviewPanel({ pwd }: { pwd: string }) {
+  const EMAIL_TEMPLATES = [
+    { id: "otp",                    label: "OTP / Email Verification" },
+    { id: "login_notification",     label: "Login Notification" },
+    { id: "order_submitted",        label: "Order Submitted (Customer)" },
+    { id: "order_completed",        label: "Order Completed" },
+    { id: "payment_confirmed",      label: "Payment Confirmed" },
+    { id: "order_status_update",    label: "Order Status Update" },
+    { id: "more_info_needed",       label: "More Info Needed" },
+    { id: "pending_manual_payment", label: "Pending Manual Payment" },
+    { id: "admin_new_order",        label: "Admin: New Order Alert" },
+  ];
+
+  const [selected, setSelected] = React.useState(EMAIL_TEMPLATES[0].id);
+  const [iframeSrc, setIframeSrc] = React.useState<string | null>(null);
+  const [loading, setLoading] = React.useState(false);
+  const [sendTo, setSendTo] = React.useState("");
+  const [sendStatus, setSendStatus] = React.useState<"idle" | "sending" | "ok" | "error">("idle");
+  const [sendMsg, setSendMsg] = React.useState("");
+
+  const loadPreview = React.useCallback(async (templateId: string) => {
+    setLoading(true);
+    setIframeSrc(null);
+    try {
+      const res = await adminFetch(`/api/admin/email-preview/${templateId}`, pwd);
+      const html = await res.text();
+      const blob = new Blob([html], { type: "text/html" });
+      const url = URL.createObjectURL(blob);
+      setIframeSrc(url);
+    } catch {
+      setIframeSrc(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [pwd]);
+
+  React.useEffect(() => {
+    loadPreview(selected);
+  }, [selected, loadPreview]);
+
+  const sendTestEmail = async () => {
+    if (!sendTo) return;
+    setSendStatus("sending");
+    setSendMsg("");
+    try {
+      const res = await adminFetch("/api/admin/email-preview/send-test", pwd, {
+        method: "POST",
+        body: JSON.stringify({ template: selected, to: sendTo }),
+      });
+      const data = await res.json() as { sent?: boolean; provider?: string; error?: string };
+      if (data.sent) {
+        setSendStatus("ok");
+        setSendMsg(`Sent via ${data.provider ?? "SMTP"}`);
+      } else {
+        setSendStatus("error");
+        setSendMsg(data.error ?? "Failed to send");
+      }
+    } catch {
+      setSendStatus("error");
+      setSendMsg("Network error");
+    }
+    setTimeout(() => setSendStatus("idle"), 4000);
+  };
+
+  return (
+    <div className="p-4 md:p-6 space-y-4 h-full flex flex-col">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-bold text-white flex items-center gap-2">
+            <MessageSquare size={20} className="text-blue-400" />
+            Email Template Preview
+          </h2>
+          <p className="text-sm text-slate-400 mt-0.5">Preview and test all email templates before they go live</p>
+        </div>
+        {/* Send test */}
+        <div className="flex items-center gap-2">
+          <input
+            type="email"
+            placeholder="test@example.com"
+            value={sendTo}
+            onChange={e => setSendTo(e.target.value)}
+            className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 w-48 focus:outline-none focus:border-blue-500"
+          />
+          <button
+            onClick={sendTestEmail}
+            disabled={sendStatus === "sending" || !sendTo}
+            className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm rounded-lg transition-colors font-medium"
+          >
+            <Send size={14} />
+            {sendStatus === "sending" ? "Sending…" : "Send Test"}
+          </button>
+          {sendStatus === "ok" && <span className="text-xs text-emerald-400 font-medium">{sendMsg}</span>}
+          {sendStatus === "error" && <span className="text-xs text-red-400 font-medium">{sendMsg}</span>}
+        </div>
+      </div>
+
+      <div className="flex flex-1 gap-4 min-h-0">
+        {/* Template list */}
+        <div className="w-56 shrink-0 space-y-1">
+          {EMAIL_TEMPLATES.map(t => (
+            <button
+              key={t.id}
+              onClick={() => setSelected(t.id)}
+              className={`w-full text-left px-3 py-2.5 rounded-xl text-sm transition-colors ${
+                selected === t.id
+                  ? "bg-blue-600 text-white font-semibold"
+                  : "text-slate-400 hover:bg-white/10 hover:text-white"
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Preview iframe */}
+        <div className="flex-1 bg-white rounded-xl overflow-hidden relative min-h-[500px]">
+          {loading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-slate-800">
+              <div className="w-8 h-8 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+            </div>
+          )}
+          {iframeSrc && !loading && (
+            <iframe
+              key={iframeSrc}
+              src={iframeSrc}
+              title="Email Preview"
+              className="w-full h-full border-0"
+              sandbox="allow-same-origin"
+            />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function AdminPage() {
   const ADMIN_KEY = "gsm_admin_session";
   const [pwd, setPwd] = useState(() => {
@@ -4851,6 +4731,7 @@ export function AdminPage() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [showFingerprintSetup, setShowFingerprintSetup] = useState(false);
   const [paymentUnread, setPaymentUnread] = useState(0);
+  const [liveUnread, setLiveUnread] = useState(0);
   const lastNotifTs = useRef(0);
   const mainRef = useRef<HTMLElement>(null);
   const { toast } = useToast();
@@ -4972,6 +4853,22 @@ export function AdminPage() {
     return () => clearInterval(id);
   }, [authed, toast]);
 
+  // Poll live-chat sessions → Users tab unread badge
+  useEffect(() => {
+    if (!authed) return;
+    const poll = async () => {
+      try {
+        const r = await fetch("/api/admin/chat/sessions");
+        if (!r.ok) return;
+        const data = await r.json() as { id: number; unreadAdmin: number }[];
+        setLiveUnread(data.reduce((s, sess) => s + (sess.unreadAdmin ?? 0), 0));
+      } catch { /* non-fatal */ }
+    };
+    poll();
+    const id = setInterval(poll, 5000);
+    return () => clearInterval(id);
+  }, [authed]);
+
   function handleLogin(password: string, isDefault: boolean) {
     setPwd(password);
     setAuthed(true);
@@ -4985,8 +4882,73 @@ export function AdminPage() {
     overview: "Dashboard", orders: "Orders",
     products: "Products", users: "Users", payments: "Payments",
     live_chat: "Live Chat", resellers: "Resellers", imei_logs: "IMEI Logs",
-    announcements: "Announcements",
+    announcements: "Announcements", email_preview: "Email Preview",
   };
+
+  const pageSubtitle: Record<Tab, string> = {
+    overview: "Store performance at a glance",
+    orders: "Manage and fulfil customer orders",
+    products: "Catalogue of services & products",
+    users: "Registered customer accounts",
+    payments: "Payment settings & configuration",
+    live_chat: "Customer support conversations",
+    resellers: "Partner reseller accounts",
+    imei_logs: "IMEI check history",
+    announcements: "Broadcast messages to customers",
+    email_preview: "Preview & test email templates",
+  };
+
+  // Sidebar nav groups
+  const NAV_MAIN = NAV.filter(n => ["overview","orders","products","users","resellers"].includes(n.id));
+  const NAV_TOOLS = NAV.filter(n => ["payments","announcements","live_chat","imei_logs","email_preview"].includes(n.id));
+
+  const SidebarNav = ({ onNav }: { onNav?: () => void }) => (
+    <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-4">
+      <div>
+        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-3 mb-1.5">Main</p>
+        <div className="space-y-0.5">
+          {NAV_MAIN.map(item => {
+            const active = tab === item.id;
+            return (
+              <button key={item.id} onClick={() => { setTab(item.id); onNav?.(); }}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-left group ${
+                  active
+                    ? "bg-blue-600 text-white shadow-lg shadow-blue-900/40"
+                    : "text-slate-400 hover:bg-white/8 hover:text-slate-200"
+                }`}>
+                <item.icon size={15} strokeWidth={active ? 2.5 : 1.8} className={active ? "text-white" : "text-slate-500 group-hover:text-slate-300"} />
+                <span className="text-[13px] font-semibold">{item.label}</span>
+                {item.id === "orders" && paymentUnread > 0 && (
+                  <span className="ml-auto w-5 h-5 bg-emerald-500 rounded-full text-[9px] font-bold text-white flex items-center justify-center shrink-0">
+                    {paymentUnread > 9 ? "9+" : paymentUnread}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <div>
+        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-3 mb-1.5">Tools</p>
+        <div className="space-y-0.5">
+          {NAV_TOOLS.map(item => {
+            const active = tab === item.id;
+            return (
+              <button key={item.id} onClick={() => { setTab(item.id); onNav?.(); }}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-left group ${
+                  active
+                    ? "bg-blue-600 text-white shadow-lg shadow-blue-900/40"
+                    : "text-slate-400 hover:bg-white/8 hover:text-slate-200"
+                }`}>
+                <item.icon size={15} strokeWidth={active ? 2.5 : 1.8} className={active ? "text-white" : "text-slate-500 group-hover:text-slate-300"} />
+                <span className="text-[13px] font-semibold">{item.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </nav>
+  );
 
   return (
     <>
@@ -5000,55 +4962,48 @@ export function AdminPage() {
         <FingerprintSetupModal pwd={pwd} onDismiss={() => setShowFingerprintSetup(false)} />
       )}
 
-      <div className="flex h-screen bg-slate-50 overflow-hidden">
+      <div className="flex h-screen overflow-hidden" style={{ background: "#0c1120" }}>
 
         {/* ── Desktop Left Sidebar ── */}
-        <aside className="hidden md:flex flex-col w-56 bg-slate-900 shrink-0">
+        <aside className="hidden md:flex flex-col w-60 shrink-0 border-r border-white/[0.06]" style={{ background: "#0f1729" }}>
           {/* Brand */}
-          <div className="px-5 py-5 border-b border-white/10">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-blue-600 flex items-center justify-center shrink-0">
-                <Shield size={15} className="text-white" />
+          <div className="px-4 py-5 border-b border-white/[0.06]">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-lg"
+                style={{ background: "linear-gradient(135deg,#2563eb,#1d4ed8)" }}>
+                <Shield size={16} className="text-white" />
               </div>
               <div>
-                <p className="text-white font-black text-sm leading-none">GSM World</p>
-                <p className="text-slate-500 text-[10px] mt-0.5">Admin Console</p>
+                <p className="text-white font-black text-[13px] leading-none tracking-tight">GSM World</p>
+                <p className="text-slate-500 text-[10px] mt-0.5 font-medium">Admin Console</p>
               </div>
             </div>
+            {headerApkVersion && (
+              <div className="mt-3 flex items-center gap-1.5 bg-blue-950/60 border border-blue-800/30 rounded-lg px-2.5 py-1.5">
+                <Tag size={9} className="text-blue-400 shrink-0" />
+                <span className="text-blue-300 text-[10px] font-bold">APK {headerApkVersion}</span>
+              </div>
+            )}
           </div>
 
-          {/* Sidebar Nav */}
-          <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-0.5">
-            {NAV.map(item => {
-              const active = tab === item.id;
-              return (
-                <button key={item.id} onClick={() => setTab(item.id)}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors text-left ${
-                    active ? "bg-blue-600 text-white" : "text-slate-400 hover:bg-white/10 hover:text-white"
-                  }`}>
-                  <item.icon size={16} strokeWidth={active ? 2.5 : 1.8} />
-                  <span className="text-sm font-semibold">{item.label}</span>
-                </button>
-              );
-            })}
-          </nav>
+          <SidebarNav />
 
           {/* Sidebar Footer */}
-          <div className="p-3 border-t border-white/10 space-y-1">
+          <div className="p-2 border-t border-white/[0.06]">
             <button onClick={() => { setShowChangePwd(true); setIsDefaultWarn(false); }}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:bg-white/10 hover:text-white transition-colors">
-              <KeyRound size={15} />
-              <span className="text-sm font-medium">Change Password</span>
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-slate-500 hover:bg-white/5 hover:text-slate-300 transition-colors text-left">
+              <KeyRound size={14} />
+              <span className="text-[12px] font-medium">Change Password</span>
             </button>
             <button onClick={() => setShowFingerprintSetup(true)}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:bg-white/10 hover:text-white transition-colors">
-              <Fingerprint size={15} />
-              <span className="text-sm font-medium">Fingerprint Login</span>
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-slate-500 hover:bg-white/5 hover:text-slate-300 transition-colors text-left">
+              <Fingerprint size={14} />
+              <span className="text-[12px] font-medium">Fingerprint Login</span>
             </button>
             <button onClick={() => { setAuthed(false); setPwd(""); _setWaToken(null); try { sessionStorage.removeItem("gsm_admin_session_pwd"); sessionStorage.removeItem("gsm_admin_session_ok"); } catch {} }}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:bg-red-500/20 hover:text-red-400 transition-colors">
-              <LogOut size={15} />
-              <span className="text-sm font-medium">Logout</span>
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-slate-500 hover:bg-red-900/20 hover:text-red-400 transition-colors text-left">
+              <LogOut size={14} />
+              <span className="text-[12px] font-medium">Sign Out</span>
             </button>
           </div>
         </aside>
@@ -5056,69 +5011,67 @@ export function AdminPage() {
         {/* ── Main Area ── */}
         <div className="flex-1 flex flex-col overflow-hidden">
 
-          {/* ── top header ── */}
-          <header className="shrink-0 bg-slate-900 px-4">
+          {/* ── Top Header ── */}
+          <header className="shrink-0 border-b border-white/[0.06] px-4 md:px-6" style={{ background: "#0f1729" }}>
             {/* Mobile: brand row */}
-            <div className="flex md:hidden items-center justify-between py-3 border-b border-white/5">
+            <div className="flex md:hidden items-center justify-between py-3 border-b border-white/[0.05]">
               <div className="flex items-center gap-2.5">
                 <button onClick={() => setMobileSidebarOpen(true)}
-                  className="w-8 h-8 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-colors mr-1">
+                  className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-colors">
                   <Menu size={15} />
                 </button>
-                <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center">
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center"
+                  style={{ background: "linear-gradient(135deg,#2563eb,#1d4ed8)" }}>
                   <Shield size={13} className="text-white" />
                 </div>
                 <div>
                   <p className="text-white font-black text-sm leading-none">GSM World</p>
-                  <p className="text-slate-500 text-[10px]">Admin Console</p>
+                  <p className="text-slate-500 text-[10px]">Admin</p>
                 </div>
               </div>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1.5">
                 <button
                   onClick={async () => { setPaymentUnread(0); await fetch("/api/admin/notifications/mark-read", { method: "POST" }).catch(() => {}); }}
-                  className="relative w-8 h-8 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-emerald-400 transition-colors">
+                  className="relative w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-emerald-400 transition-colors">
                   <Bell size={13} />
                   {paymentUnread > 0 && (
-                    <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-emerald-500 rounded-full text-[9px] font-bold text-white flex items-center justify-center">
+                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full text-[9px] font-bold text-white flex items-center justify-center">
                       {paymentUnread > 9 ? "9+" : paymentUnread}
                     </span>
                   )}
                 </button>
                 <button onClick={() => { setAuthed(false); setPwd(""); _setWaToken(null); try { sessionStorage.removeItem("gsm_admin_session_pwd"); sessionStorage.removeItem("gsm_admin_session_ok"); } catch {} }}
-                  className="flex items-center gap-1.5 bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white text-xs font-semibold px-3 h-8 rounded-xl transition-colors">
-                  <LogOut size={12} />
+                  className="w-8 h-8 rounded-lg bg-white/5 hover:bg-red-900/20 flex items-center justify-center text-slate-400 hover:text-red-400 transition-colors">
+                  <LogOut size={13} />
                 </button>
               </div>
             </div>
-            {/* Page title row */}
-            <div className="py-2.5 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <h1 className="text-white font-black text-lg">{pageTitle[tab]}</h1>
-                {headerApkVersion && (
-                  <span className="hidden md:inline-flex items-center gap-1 bg-blue-900/40 text-blue-300 text-[10px] font-bold px-2 py-0.5 rounded-full border border-blue-700/40">
-                    <Tag size={9} />
-                    APK {headerApkVersion}
-                  </span>
-                )}
+            {/* Page title row — desktop */}
+            <div className="py-3.5 flex items-center justify-between">
+              <div>
+                <h1 className="text-white font-black text-base leading-tight">{pageTitle[tab]}</h1>
+                <p className="text-slate-500 text-[11px] mt-0.5 hidden md:block">{pageSubtitle[tab]}</p>
               </div>
-              {/* Desktop: actions in header */}
-              <div className="hidden md:flex items-center gap-1">
+              {/* Desktop: header actions */}
+              <div className="hidden md:flex items-center gap-2">
                 <button
                   onClick={async () => { setPaymentUnread(0); await fetch("/api/admin/notifications/mark-read", { method: "POST" }).catch(() => {}); }}
-                  className="relative w-8 h-8 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-emerald-400 transition-colors">
+                  className="relative flex items-center gap-2 bg-white/5 hover:bg-white/8 border border-white/[0.07] px-3 h-8 rounded-lg text-slate-400 hover:text-slate-200 transition-colors text-xs font-medium">
                   <Bell size={13} />
+                  <span>Alerts</span>
                   {paymentUnread > 0 && (
-                    <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-emerald-500 rounded-full text-[9px] font-bold text-white flex items-center justify-center">
+                    <span className="w-4 h-4 bg-emerald-500 rounded-full text-[9px] font-bold text-white flex items-center justify-center">
                       {paymentUnread > 9 ? "9+" : paymentUnread}
                     </span>
                   )}
                 </button>
                 <button onClick={() => { setShowChangePwd(true); setIsDefaultWarn(false); }}
-                  className="w-8 h-8 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-colors">
+                  className="flex items-center gap-2 bg-white/5 hover:bg-white/8 border border-white/[0.07] px-3 h-8 rounded-lg text-slate-400 hover:text-slate-200 transition-colors text-xs font-medium">
                   <KeyRound size={13} />
+                  <span>Security</span>
                 </button>
                 <button onClick={() => { setAuthed(false); setPwd(""); _setWaToken(null); try { sessionStorage.removeItem("gsm_admin_session_pwd"); sessionStorage.removeItem("gsm_admin_session_ok"); } catch {} }}
-                  className="flex items-center gap-1.5 bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white text-xs font-semibold px-3 h-8 rounded-xl transition-colors">
+                  className="flex items-center gap-2 bg-white/5 hover:bg-red-900/20 border border-white/[0.07] hover:border-red-800/30 px-3 h-8 rounded-lg text-slate-400 hover:text-red-400 transition-colors text-xs font-medium">
                   <LogOut size={12} />
                   Logout
                 </button>
@@ -5126,8 +5079,8 @@ export function AdminPage() {
             </div>
           </header>
 
-          {/* ── scrollable content ── */}
-          <main ref={mainRef} className="flex-1 overflow-y-auto overscroll-contain pb-16 md:pb-0" style={{ overscrollBehavior: "contain" }}>
+          {/* ── Scrollable content ── */}
+          <main ref={mainRef} className="flex-1 overflow-y-auto overscroll-contain pb-16 md:pb-0" style={{ overscrollBehavior: "contain", background: "#0c1120" }}>
             {tab === "overview"   && <OverviewPanel   pwd={pwd} onNavigate={setTab} />}
             {tab === "orders"     && <OrdersPanel     pwd={pwd} />}
             {tab === "products"   && <ProductsPanel   pwd={pwd} />}
@@ -5137,28 +5090,37 @@ export function AdminPage() {
             {tab === "live_chat"  && <LiveChatsPanel  pwd={pwd} />}
             {tab === "announcements" && <AnnouncementsPanel pwd={pwd} />}
             {tab === "imei_logs"  && <ImeiLogsPanel   pwd={pwd} />}
+            {tab === "email_preview" && <EmailPreviewPanel pwd={pwd} />}
           </main>
 
-          {/* ── Mobile hybrid bottom nav ── */}
+          {/* ── Mobile bottom nav ── */}
           <nav
-            className="fixed bottom-0 inset-x-0 z-50 md:hidden bg-slate-900 border-t border-white/10 flex safe-bottom"
-            style={{ transform: "translateZ(0)", touchAction: "manipulation" }}
+            className="fixed bottom-0 inset-x-0 z-50 md:hidden border-t border-white/[0.06] flex safe-bottom"
+            style={{ background: "#0f1729", transform: "translateZ(0)", touchAction: "manipulation" }}
           >
             {BOTTOM_NAV.map(item => {
               const active = tab === item.id;
+              const navBadge = item.id === "users" && liveUnread > 0 ? liveUnread : null;
               return (
-                <button key={item.id} onClick={() => setTab(item.id)}
-                  className={`flex-1 flex flex-col items-center gap-1 py-2.5 px-1 transition-colors ${
-                    active ? "text-blue-400" : "text-slate-500 hover:text-slate-300"
+                <button key={item.id} onClick={() => { setTab(item.id); if (item.id === "users") setLiveUnread(0); }}
+                  className={`flex-1 flex flex-col items-center gap-1 py-3 px-1 transition-colors ${
+                    active ? "text-blue-400" : "text-slate-600 hover:text-slate-400"
                   }`}>
-                  <item.icon size={18} strokeWidth={active ? 2.5 : 1.8} />
+                  <div className="relative">
+                    <item.icon size={17} strokeWidth={active ? 2.5 : 1.8} />
+                    {navBadge !== null && (
+                      <span className="absolute -top-1.5 -right-2 min-w-[14px] h-[14px] rounded-full bg-red-500 text-white text-[8px] font-bold flex items-center justify-center px-0.5 leading-none">
+                        {navBadge > 99 ? "99+" : navBadge}
+                      </span>
+                    )}
+                  </div>
                   <span className="text-[9px] font-bold leading-none truncate">{item.label}</span>
                 </button>
               );
             })}
             <button onClick={() => setMobileSidebarOpen(true)}
-              className="flex-1 flex flex-col items-center gap-1 py-2.5 px-1 text-slate-500 hover:text-slate-300 transition-colors">
-              <Menu size={18} strokeWidth={1.8} />
+              className="flex-1 flex flex-col items-center gap-1 py-3 px-1 text-slate-600 hover:text-slate-400 transition-colors">
+              <Menu size={17} strokeWidth={1.8} />
               <span className="text-[9px] font-bold leading-none">More</span>
             </button>
           </nav>
@@ -5166,57 +5128,41 @@ export function AdminPage() {
           {/* ── Mobile slide-over sidebar ── */}
           {mobileSidebarOpen && (
             <div className="fixed inset-0 z-50 md:hidden flex">
-              {/* backdrop */}
-              <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setMobileSidebarOpen(false)} />
-              {/* panel */}
-              <aside className="relative w-64 bg-slate-900 flex flex-col h-full shadow-2xl">
+              <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setMobileSidebarOpen(false)} />
+              <aside className="relative w-72 flex flex-col h-full shadow-2xl" style={{ background: "#0f1729", borderRight: "1px solid rgba(255,255,255,0.06)" }}>
                 {/* Brand */}
-                <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-xl bg-blue-600 flex items-center justify-center shrink-0">
-                      <Shield size={15} className="text-white" />
+                <div className="px-4 py-4 border-b border-white/[0.06] flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+                      style={{ background: "linear-gradient(135deg,#2563eb,#1d4ed8)" }}>
+                      <Shield size={16} className="text-white" />
                     </div>
                     <div>
-                      <p className="text-white font-black text-sm leading-none">GSM World</p>
-                      <p className="text-slate-500 text-[10px] mt-0.5">Admin Console</p>
+                      <p className="text-white font-black text-[13px] leading-none">GSM World</p>
+                      <p className="text-slate-500 text-[10px] mt-0.5 font-medium">Admin Console</p>
                     </div>
                   </div>
                   <button onClick={() => setMobileSidebarOpen(false)}
-                    className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center text-slate-400 hover:text-white">
-                    <X size={14} />
+                    className="w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center text-slate-400 hover:text-white border border-white/[0.07]">
+                    <X size={13} />
                   </button>
                 </div>
-                {/* Nav links */}
-                <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-0.5">
-                  {NAV.map(item => {
-                    const active = tab === item.id;
-                    return (
-                      <button key={item.id} onClick={() => { setTab(item.id); setMobileSidebarOpen(false); }}
-                        className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-colors text-left ${
-                          active ? "bg-blue-600 text-white" : "text-slate-400 hover:bg-white/10 hover:text-white"
-                        }`}>
-                        <item.icon size={17} strokeWidth={active ? 2.5 : 1.8} />
-                        <span className="text-sm font-semibold">{item.label}</span>
-                      </button>
-                    );
-                  })}
-                </nav>
-                {/* Footer */}
-                <div className="p-3 border-t border-white/10 space-y-1">
+                <SidebarNav onNav={() => setMobileSidebarOpen(false)} />
+                <div className="p-2 border-t border-white/[0.06]">
                   <button onClick={() => { setShowChangePwd(true); setIsDefaultWarn(false); setMobileSidebarOpen(false); }}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:bg-white/10 hover:text-white transition-colors">
-                    <KeyRound size={15} />
-                    <span className="text-sm font-medium">Change Password</span>
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-500 hover:bg-white/5 hover:text-slate-300 transition-colors">
+                    <KeyRound size={14} />
+                    <span className="text-[12px] font-medium">Change Password</span>
                   </button>
                   <button onClick={() => { setShowFingerprintSetup(true); setMobileSidebarOpen(false); }}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:bg-white/10 hover:text-white transition-colors">
-                    <Fingerprint size={15} />
-                    <span className="text-sm font-medium">Fingerprint Login</span>
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-500 hover:bg-white/5 hover:text-slate-300 transition-colors">
+                    <Fingerprint size={14} />
+                    <span className="text-[12px] font-medium">Fingerprint Login</span>
                   </button>
                   <button onClick={() => { setAuthed(false); setPwd(""); _setWaToken(null); setMobileSidebarOpen(false); try { sessionStorage.removeItem("gsm_admin_session_pwd"); sessionStorage.removeItem("gsm_admin_session_ok"); } catch {} }}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:bg-red-500/20 hover:text-red-400 transition-colors">
-                    <LogOut size={15} />
-                    <span className="text-sm font-medium">Logout</span>
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-500 hover:bg-red-900/20 hover:text-red-400 transition-colors">
+                    <LogOut size={14} />
+                    <span className="text-[12px] font-medium">Sign Out</span>
                   </button>
                 </div>
               </aside>

@@ -121,13 +121,13 @@ function MpesaResendBlock({ order, token }: { order: MpesaOrder; token: string |
   }
 
   return (
-    <div className="bg-green-50 border border-green-200 rounded-xl p-4 space-y-3">
+    <div className="rounded-2xl p-4 space-y-3" style={{ background: "rgba(34,197,94,0.07)", border: "1px solid rgba(34,197,94,0.2)" }}>
       <div className="flex items-center gap-2">
-        <Smartphone size={16} className="text-green-700 shrink-0" />
-        <p className="text-sm font-bold text-green-900">Resend M-Pesa STK Push</p>
+        <Smartphone size={16} className="text-green-400 shrink-0" />
+        <p className="text-sm font-bold text-green-300">Resend M-Pesa STK Push</p>
       </div>
-      <p className="text-xs text-green-700">
-        Didn't receive the M-Pesa prompt? Confirm your Safaricom number below and tap <strong>Send Request</strong>.
+      <p className="text-xs text-green-400/70">
+        Didn't receive the M-Pesa prompt? Confirm your Safaricom number below and tap <strong className="text-green-300">Send Request</strong>.
       </p>
       <div className="flex gap-2">
         <input
@@ -135,12 +135,14 @@ function MpesaResendBlock({ order, token }: { order: MpesaOrder; token: string |
           value={phone}
           onChange={e => setPhone(e.target.value)}
           placeholder="e.g. 0712345678 or 254712345678"
-          className="flex-1 min-w-0 text-sm px-3 py-2.5 border border-green-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-green-400"
+          className="flex-1 min-w-0 text-sm px-3 py-2.5 rounded-xl focus:outline-none text-white/80 placeholder-white/20"
+          style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(34,197,94,0.25)" }}
         />
         <button
           onClick={resend}
           disabled={sending || cooldown > 0 || !phone.trim()}
-          className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-sm font-bold px-4 py-2.5 rounded-xl transition-colors whitespace-nowrap shrink-0"
+          className="flex items-center gap-1.5 text-white text-sm font-bold px-4 py-2.5 rounded-xl disabled:opacity-50 whitespace-nowrap shrink-0 transition-colors"
+          style={{ background: "rgba(34,197,94,0.3)", border: "1px solid rgba(34,197,94,0.4)" }}
         >
           {sending
             ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -149,13 +151,13 @@ function MpesaResendBlock({ order, token }: { order: MpesaOrder; token: string |
         </button>
       </div>
       {sent && (
-        <div className="flex items-center gap-2 bg-green-100 border border-green-200 rounded-xl px-3 py-2">
-          <CheckCircle2 size={14} className="text-green-600 shrink-0" />
-          <p className="text-xs text-green-700 font-medium">M-Pesa prompt sent! Check your phone and enter your PIN.</p>
+        <div className="flex items-center gap-2 rounded-xl px-3 py-2" style={{ background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.25)" }}>
+          <CheckCircle2 size={14} className="text-green-400 shrink-0" />
+          <p className="text-xs text-green-300 font-medium">M-Pesa prompt sent! Check your phone and enter your PIN.</p>
         </div>
       )}
       {error && (
-        <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2">{error}</p>
+        <p className="text-xs text-red-400 rounded-xl px-3 py-2" style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)" }}>{error}</p>
       )}
     </div>
   );
@@ -222,19 +224,20 @@ function PayNowBlock({ order, token, onSuccess }: { order: OrderSummary; token: 
   if (pm === "mpesa") return null;
 
   return (
-    <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3">
+    <div className="rounded-2xl p-4 space-y-3" style={{ background: "rgba(59,130,246,0.07)", border: "1px solid rgba(59,130,246,0.2)" }}>
       <div className="flex items-center gap-2">
-        <CreditCard size={16} className="text-blue-600 shrink-0" />
-        <p className="text-sm font-bold text-blue-900">Complete Your Payment</p>
+        <CreditCard size={16} className="text-blue-400 shrink-0" />
+        <p className="text-sm font-bold text-blue-300">Complete Your Payment</p>
       </div>
 
       {pm === "wallet" && (
         <>
-          {walletMsg && <p className="text-xs text-emerald-700 bg-emerald-50 rounded-lg px-3 py-2 font-medium">{walletMsg}</p>}
-          {walletErr && <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{walletErr}</p>}
+          {walletMsg && <p className="text-xs text-emerald-300 rounded-xl px-3 py-2 font-medium" style={{ background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.2)" }}>{walletMsg}</p>}
+          {walletErr && <p className="text-xs text-red-400 rounded-xl px-3 py-2" style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)" }}>{walletErr}</p>}
           {!walletMsg && (
             <button onClick={payWithWallet} disabled={loading}
-              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold px-4 py-2.5 rounded-xl disabled:opacity-50 transition-colors">
+              className="flex items-center gap-2 text-white text-sm font-bold px-4 py-2.5 rounded-xl disabled:opacity-50 transition-colors"
+              style={{ background: "rgba(59,130,246,0.3)", border: "1px solid rgba(59,130,246,0.4)" }}>
               <Wallet size={14} />
               {loading ? "Processing…" : `Pay $${parseFloat(order.total).toFixed(2)} from Wallet`}
             </button>
@@ -246,17 +249,18 @@ function PayNowBlock({ order, token, onSuccess }: { order: OrderSummary; token: 
         <>
           {!nowPayAddr ? (
             <button onClick={generateNowPaymentsAddress} disabled={loading}
-              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold px-4 py-2.5 rounded-xl disabled:opacity-50 transition-colors">
+              className="flex items-center gap-2 text-white text-sm font-bold px-4 py-2.5 rounded-xl disabled:opacity-50 transition-colors"
+              style={{ background: "rgba(59,130,246,0.3)", border: "1px solid rgba(59,130,246,0.4)" }}>
               <ArrowRight size={14} />
               {loading ? "Generating…" : "Generate Crypto Address"}
             </button>
           ) : (
-            <div className="bg-white rounded-xl p-3 border border-blue-200 space-y-2">
-              <p className="text-xs font-semibold text-slate-600">Send exactly <strong>{nowPayAddr.amount} {nowPayAddr.currency.toUpperCase()}</strong> to:</p>
+            <div className="rounded-xl p-3 space-y-2" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+              <p className="text-xs font-semibold text-white/50">Send exactly <strong className="text-white">{nowPayAddr.amount} {nowPayAddr.currency.toUpperCase()}</strong> to:</p>
               <div className="flex items-center gap-2">
-                <code className="text-xs font-mono bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 flex-1 break-all select-all">{nowPayAddr.address}</code>
+                <code className="text-xs font-mono text-white/70 rounded-lg px-2 py-1.5 flex-1 break-all select-all" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>{nowPayAddr.address}</code>
               </div>
-              <p className="text-[11px] text-slate-400">Page auto-refreshes when payment is detected</p>
+              <p className="text-[11px] text-white/30">Page auto-refreshes when payment is detected</p>
             </div>
           )}
         </>
@@ -265,27 +269,28 @@ function PayNowBlock({ order, token, onSuccess }: { order: OrderSummary; token: 
       {pm === "binance_pay" && (
         <div className="space-y-3">
           {payConfig ? (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 space-y-2">
-              <p className="text-[10px] font-bold text-yellow-800 uppercase tracking-widest">Binance Pay ID</p>
+            <div className="rounded-xl p-4 space-y-2" style={{ background: "rgba(245,158,11,0.07)", border: "1px solid rgba(245,158,11,0.2)" }}>
+              <p className="text-[10px] font-black text-amber-400 uppercase tracking-widest">Binance Pay ID</p>
               <div className="flex items-center gap-2">
-                <span className="text-2xl font-black text-gray-900 tracking-widest flex-1">{payConfig.binancePayId}</span>
+                <span className="text-2xl font-black text-white tracking-widest flex-1">{payConfig.binancePayId}</span>
                 <button
                   onClick={() => copy(payConfig.binancePayId ?? "", "binance")}
-                  className={`shrink-0 px-2 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors ${copiedKey === "binance" ? "bg-green-600 text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}`}>
+                  className={`shrink-0 px-2 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors ${copiedKey === "binance" ? "bg-green-600 text-white" : "text-white/50"}`}
+                  style={copiedKey !== "binance" ? { background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)" } : {}}>
                   {copiedKey === "binance" ? <Check size={12} /> : <Copy size={12} />}
                   {copiedKey === "binance" ? "Copied" : "Copy"}
                 </button>
               </div>
-              <p className="text-[10px] text-yellow-700">Label: <strong>GSM World</strong> — Include <strong>ORDER-{order.id}</strong> in your payment note.</p>
+              <p className="text-[10px] text-amber-400/70">Label: <strong className="text-amber-300">GSM World</strong> — Include <strong className="text-amber-300">ORDER-{order.id}</strong> in your payment note.</p>
             </div>
           ) : (
-            <div className="h-20 rounded-xl bg-yellow-50 border border-yellow-100 animate-pulse" />
+            <div className="h-20 rounded-xl animate-pulse" style={{ background: "rgba(245,158,11,0.07)", border: "1px solid rgba(245,158,11,0.1)" }} />
           )}
-          <div className="flex items-start gap-2 text-xs text-blue-800">
+          <div className="flex items-start gap-2 text-xs text-blue-300/70">
             <MessageCircle size={13} className="shrink-0 mt-0.5" />
-            <span>After sending, <strong>upload your proof screenshot</strong> in the chat below so we can verify.</span>
+            <span>After sending, <strong className="text-blue-300">upload your proof screenshot</strong> in the chat below so we can verify.</span>
           </div>
-          <a href="#chat" className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-700 hover:text-blue-900">
+          <a href="#chat" className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-400 hover:text-blue-300">
             ↓ Go to chat
           </a>
         </div>
@@ -294,28 +299,29 @@ function PayNowBlock({ order, token, onSuccess }: { order: OrderSummary; token: 
       {pm === "usdt_manual" && (
         <div className="space-y-3">
           {payConfig ? (
-            <div className="bg-green-50 border border-green-200 rounded-xl p-4 space-y-2">
-              <p className="text-[10px] font-bold text-green-800 uppercase tracking-widest">USDT TRC20 Address</p>
-              <div className="flex items-center gap-2 bg-white border border-green-200 rounded-lg px-2 py-2">
-                <span className="font-mono text-[10px] text-gray-700 break-all flex-1 select-all">{payConfig.usdtAddress}</span>
+            <div className="rounded-xl p-4 space-y-2" style={{ background: "rgba(34,197,94,0.07)", border: "1px solid rgba(34,197,94,0.2)" }}>
+              <p className="text-[10px] font-black text-green-400 uppercase tracking-widest">USDT TRC20 Address</p>
+              <div className="flex items-center gap-2 rounded-lg px-2 py-2" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                <span className="font-mono text-[10px] text-white/60 break-all flex-1 select-all">{payConfig.usdtAddress}</span>
                 <button
                   onClick={() => copy(payConfig.usdtAddress ?? "", "usdt")}
-                  className={`shrink-0 px-2 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors ${copiedKey === "usdt" ? "bg-green-600 text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}`}>
+                  className={`shrink-0 px-2 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors ${copiedKey === "usdt" ? "bg-green-600 text-white" : "text-white/50"}`}
+                  style={copiedKey !== "usdt" ? { background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)" } : {}}>
                   {copiedKey === "usdt" ? <Check size={12} /> : <Copy size={12} />}
                   {copiedKey === "usdt" ? "Copied" : "Copy"}
                 </button>
               </div>
-              <p className="text-[10px] font-bold text-green-800">Network: TRON (TRC20) only</p>
-              <p className="text-[10px] text-green-700">Include <strong>ORDER-{order.id}</strong> as payment memo/note.</p>
+              <p className="text-[10px] font-bold text-green-300">Network: TRON (TRC20) only</p>
+              <p className="text-[10px] text-green-400/60">Include <strong className="text-green-300">ORDER-{order.id}</strong> as payment memo/note.</p>
             </div>
           ) : (
-            <div className="h-20 rounded-xl bg-green-50 border border-green-100 animate-pulse" />
+            <div className="h-20 rounded-xl animate-pulse" style={{ background: "rgba(34,197,94,0.07)", border: "1px solid rgba(34,197,94,0.1)" }} />
           )}
-          <div className="flex items-start gap-2 text-xs text-blue-800">
+          <div className="flex items-start gap-2 text-xs text-blue-300/70">
             <MessageCircle size={13} className="shrink-0 mt-0.5" />
-            <span>After sending, <strong>upload your proof screenshot</strong> in the chat below so we can verify.</span>
+            <span>After sending, <strong className="text-blue-300">upload your proof screenshot</strong> in the chat below so we can verify.</span>
           </div>
-          <a href="#chat" className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-700 hover:text-blue-900">
+          <a href="#chat" className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-400 hover:text-blue-300">
             ↓ Go to chat
           </a>
         </div>
@@ -323,8 +329,8 @@ function PayNowBlock({ order, token, onSuccess }: { order: OrderSummary; token: 
 
       {!["wallet", "nowpayments", "mpesa", "binance_pay", "usdt_manual"].includes(pm) && (
         <div className="space-y-2">
-          <p className="text-xs text-blue-800">Transfer payment and then <strong>upload your proof screenshot</strong> in the chat below ↓</p>
-          <a href="#chat" className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-700 hover:text-blue-900">
+          <p className="text-xs text-blue-300/70">Transfer payment and then <strong className="text-blue-300">upload your proof screenshot</strong> in the chat below ↓</p>
+          <a href="#chat" className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-400 hover:text-blue-300">
             <MessageCircle size={12} /> Go to chat
           </a>
         </div>
@@ -522,19 +528,19 @@ export function OrderPage() {
     }
   }
 
-  if (isLoading || (!token && orderId)) {
+  if (isLoading) {
     return (
-      <div className="p-4 space-y-3">
-        <Skeleton className="h-20 w-full" />
-        <Skeleton className="h-40 w-full" />
+      <div className="p-4 space-y-3" style={{ background: "#060b15", minHeight: "100vh" }}>
+        <Skeleton className="h-20 w-full" style={{ background: "rgba(255,255,255,0.06)" }} />
+        <Skeleton className="h-40 w-full" style={{ background: "rgba(255,255,255,0.04)" }} />
       </div>
     );
   }
 
   if (error || !order) {
     return (
-      <div className="p-6 text-center">
-        <p className="text-muted-foreground mb-4">Order not found.</p>
+      <div className="p-6 text-center" style={{ background: "#060b15", minHeight: "100vh" }}>
+        <p className="text-white/40 mb-4">Order not found.</p>
         <Button onClick={() => navigate("/")}>Go Home</Button>
       </div>
     );
@@ -542,186 +548,334 @@ export function OrderPage() {
 
   const statusCfg = STATUS_CONFIG[order.paymentStatus as keyof typeof STATUS_CONFIG] ?? STATUS_CONFIG.pending;
 
+  const progressPct =
+    order.paymentStatus === "completed" ? 100 :
+    ["paid", "processing"].includes(order.paymentStatus) ? 66 :
+    ["pending", "pending_payment_confirmation"].includes(order.paymentStatus) ? 33 : 10;
+
   return (
-    <div className="p-4 space-y-5 max-w-2xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <div>
-          <h1 className="font-black text-xl">Order #{order.id}</h1>
-          <p className="text-xs text-muted-foreground">{new Date(order.createdAt).toLocaleString()}</p>
+    <div className="p-4 pb-8 max-w-2xl mx-auto" style={{ background: "#060b15", minHeight: "100vh" }}>
+
+      {/* ── HEADER ── */}
+      <div className="flex items-center justify-between mb-5 pt-1">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: "linear-gradient(135deg,#3b82f6,#6366f1)" }}>
+            <span className="text-white font-black text-sm">G</span>
+          </div>
+          <div>
+            <p className="text-[9px] text-white/30 uppercase tracking-widest leading-none">GSM World</p>
+            <p className="text-[11px] font-black text-white leading-tight">Verification Portal</p>
+          </div>
         </div>
-        <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold ${statusCfg.color}`}>
-          <span className={`w-2 h-2 rounded-full ${statusCfg.dot} ${order.paymentStatus === "pending" ? "animate-pulse" : ""}`} />
-          {statusCfg.label}
+        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full" style={{ background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.22)" }}>
+          <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+          <span className="text-[10px] font-black text-green-400">LIVE</span>
         </div>
       </div>
 
-      {order.paymentStatus === "pending" && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
-          {order.paymentMethod === "mpesa" ? (
-            <p>Waiting for M-Pesa confirmation on <strong>{order.customerPhone}</strong>. This page auto-refreshes.</p>
-          ) : (
-            <p>Waiting for payment confirmation. Once received, your order will be marked as paid.</p>
-          )}
+      {/* ── PROCESSING HERO (paid / processing) ── */}
+      {["paid", "processing"].includes(order.paymentStatus) && (
+        <div className="relative flex flex-col items-center justify-center mb-5 pt-2 pb-1 select-none" style={{ minHeight: 172 }}>
+          <style>{`
+            @keyframes orbitA { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+            @keyframes orbitB { from { transform: rotate(0deg); } to { transform: rotate(-360deg); } }
+            @keyframes scanLine { 0%,100% { top: 10%; opacity: 0.7; } 50% { top: 80%; opacity: 0.3; } }
+            @keyframes pulseGlow { 0%,100% { box-shadow: 0 0 28px 6px rgba(59,130,246,0.22); } 50% { box-shadow: 0 0 48px 14px rgba(99,102,241,0.35); } }
+          `}</style>
+
+          {/* Outer ring 1 */}
+          <div className="absolute rounded-full" style={{
+            width: 154, height: 154,
+            border: "1px dashed rgba(59,130,246,0.22)",
+            animation: "orbitA 12s linear infinite",
+            top: "50%", left: "50%", transform: "translate(-50%, -50%)",
+          }}>
+            <div style={{ position: "absolute", top: -3, left: "50%", transform: "translateX(-50%)", width: 6, height: 6, borderRadius: "50%", background: "#3b82f6", boxShadow: "0 0 8px #3b82f6" }} />
+          </div>
+          {/* Outer ring 2 */}
+          <div className="absolute rounded-full" style={{
+            width: 118, height: 118,
+            border: "1px dashed rgba(139,92,246,0.2)",
+            animation: "orbitB 8s linear infinite",
+            top: "50%", left: "50%", transform: "translate(-50%, -50%)",
+          }}>
+            <div style={{ position: "absolute", top: -3, left: "50%", transform: "translateX(-50%)", width: 5, height: 5, borderRadius: "50%", background: "#8b5cf6", boxShadow: "0 0 7px #8b5cf6" }} />
+          </div>
+
+          {/* Center orb */}
+          <div className="relative flex items-center justify-center" style={{
+            width: 72, height: 72, borderRadius: "50%",
+            background: "linear-gradient(135deg, rgba(30,64,175,0.6), rgba(79,70,229,0.6))",
+            border: "1.5px solid rgba(99,102,241,0.5)",
+            animation: "pulseGlow 2.6s ease-in-out infinite",
+            zIndex: 2,
+          }}>
+            {/* Scan line */}
+            <div style={{
+              position: "absolute", left: 0, right: 0, height: 1.5,
+              background: "linear-gradient(90deg, transparent, rgba(96,165,250,0.85), transparent)",
+              animation: "scanLine 2s ease-in-out infinite",
+              borderRadius: 2, zIndex: 3,
+            }} />
+            <Smartphone size={26} style={{ color: "#93c5fd", position: "relative", zIndex: 4 }} />
+          </div>
+
+          {/* Status text */}
+          <div className="mt-4 text-center z-10">
+            <p className="text-[10px] font-black tracking-[0.22em] uppercase animate-pulse" style={{ color: "#60a5fa" }}>
+              {order.paymentStatus === "processing" ? "🔓 Unlocking In Progress" : "✅ Payment Verified — Processing"}
+            </p>
+            <p className="text-[11px] mt-1" style={{ color: "rgba(255,255,255,0.28)" }}>
+              Estimated: 2–24 hrs · We'll email you when done
+            </p>
+          </div>
         </div>
       )}
 
-      {order.paymentStatus === "pending" && <PayNowBlock order={order} token={token} onSuccess={() => void refetch()} />}
+      {/* ── ORDER STATUS CARD ── */}
+      <div className="rounded-2xl p-4 mb-4" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+        <div className="flex items-start justify-between mb-4">
+          <div>
+            <p className="text-[9px] text-white/30 uppercase tracking-widest leading-none mb-1">Order Reference</p>
+            <p className="text-2xl font-black text-white leading-none">#{order.id}</p>
+            <p className="text-[10px] text-white/25 mt-1">{new Date(order.createdAt).toLocaleString()}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-[9px] text-white/30 uppercase tracking-widest mb-1.5">Status</p>
+            <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[11px] font-black ${statusCfg.color}`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${statusCfg.dot} ${order.paymentStatus === "pending" ? "animate-pulse" : ""}`} />
+              {statusCfg.label}
+            </div>
+          </div>
+        </div>
+
+        {/* Progress bar */}
+        <div className="h-1.5 rounded-full mb-1.5" style={{ background: "rgba(255,255,255,0.05)" }}>
+          <div className="h-1.5 rounded-full transition-all duration-1000"
+            style={{ width: `${progressPct}%`, background: "linear-gradient(90deg,#3b82f6,#6366f1,#8b5cf6)" }} />
+        </div>
+        <div className="flex justify-between text-[9px] font-bold uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.2)" }}>
+          <span>Pending</span><span>Paid</span><span>Complete</span>
+        </div>
+      </div>
+
+      {/* ── VERIFICATION STEPS ── */}
+      <div className="rounded-2xl p-4 mb-4" style={{ background: "rgba(59,130,246,0.04)", border: "1px solid rgba(59,130,246,0.12)" }}>
+        <p className="text-[9px] font-black text-blue-400 uppercase tracking-widest mb-3">Verification Steps</p>
+        {[
+          { label: "Order Received", done: true },
+          { label: "Payment Confirmed", done: ["paid", "processing", "completed"].includes(order.paymentStatus) },
+          { label: "Service Processing", done: ["processing", "completed"].includes(order.paymentStatus) },
+          { label: "Delivery Complete", done: order.paymentStatus === "completed" },
+        ].map(({ label, done }, i) => (
+          <div key={i} className="flex items-center gap-3 py-2" style={{ borderBottom: i < 3 ? "1px solid rgba(255,255,255,0.04)" : undefined }}>
+            <div className="w-5 h-5 rounded-full flex items-center justify-center shrink-0" style={{
+              background: done ? "rgba(34,197,94,0.12)" : "rgba(255,255,255,0.03)",
+              border: done ? "1px solid rgba(34,197,94,0.35)" : "1px solid rgba(255,255,255,0.07)"
+            }}>
+              {done
+                ? <CheckCircle2 size={10} className="text-green-400" />
+                : <span className="w-1.5 h-1.5 rounded-full" style={{ background: "rgba(255,255,255,0.15)" }} />
+              }
+            </div>
+            <span className={`text-[12px] font-bold flex-1 ${done ? "text-white" : "text-white/25"}`}>{label}</span>
+            {!done && i === (["paid", "processing", "completed"].includes(order.paymentStatus) ? 2 : ["pending", "pending_payment_confirmation"].includes(order.paymentStatus) ? 1 : 0) && (
+              <span className="w-3 h-3 border-2 border-blue-400 border-t-transparent rounded-full animate-spin shrink-0" />
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* ── PAYMENT BLOCKS ── */}
+      {order.paymentStatus === "pending" && (
+        <div className="mb-4">
+          <PayNowBlock order={order} token={token} onSuccess={() => void refetch()} />
+        </div>
+      )}
       {order.paymentStatus === "pending" && order.paymentMethod === "mpesa" && (
-        <MpesaResendBlock order={order} token={token} />
+        <div className="mb-4">
+          <MpesaResendBlock order={order} token={token} />
+        </div>
+      )}
+
+      {/* ── STATUS BANNERS ── */}
+      {order.paymentStatus === "pending" && (
+        <div className="rounded-2xl p-4 mb-4 flex items-start gap-3" style={{ background: "rgba(245,158,11,0.07)", border: "1px solid rgba(245,158,11,0.18)" }}>
+          <Clock size={15} className="text-amber-400 shrink-0 mt-0.5" />
+          <div>
+            {order.paymentMethod === "mpesa" ? (
+              <p className="text-sm text-amber-200/80">Waiting for M-Pesa confirmation on <strong className="text-white">{order.customerPhone}</strong>. Page auto-refreshes.</p>
+            ) : (
+              <p className="text-sm text-amber-200/80">Waiting for payment confirmation. Once received, your order will be marked as paid.</p>
+            )}
+          </div>
+        </div>
       )}
 
       {order.paymentStatus === "paid" && (
-        <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-sm text-green-800">
-          <p className="font-semibold flex items-center gap-2">
-            <ShieldCheck size={16} className="text-green-600 shrink-0" />
-            Payment confirmed! Your service will be delivered to <strong>{order.customerEmail}</strong> shortly.
-          </p>
-          {order.paidAt && (
-            <p className="text-xs mt-1 text-green-600">Paid at: {new Date(order.paidAt).toLocaleString()}</p>
-          )}
+        <div className="rounded-2xl p-4 mb-4 flex items-start gap-3" style={{ background: "rgba(34,197,94,0.07)", border: "1px solid rgba(34,197,94,0.18)" }}>
+          <ShieldCheck size={15} className="text-green-400 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-bold text-green-300">Payment confirmed!</p>
+            <p className="text-xs text-green-400/60 mt-0.5">Service will be delivered to <strong className="text-green-300">{order.customerEmail}</strong> shortly.</p>
+            {order.paidAt && <p className="text-[10px] text-green-400/40 mt-1">Paid: {new Date(order.paidAt).toLocaleString()}</p>}
+          </div>
         </div>
       )}
 
       {order.paymentStatus === "completed" && (
-        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-sm text-emerald-800">
-          <p className="font-semibold flex items-center gap-2">
-            <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
-            Order completed! Check your email or the support chat below for delivery details.
-          </p>
+        <div className="rounded-2xl p-4 mb-4 flex items-start gap-3" style={{ background: "rgba(16,185,129,0.07)", border: "1px solid rgba(16,185,129,0.18)" }}>
+          <CheckCircle2 size={15} className="text-emerald-400 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-bold text-emerald-300">Order completed!</p>
+            <p className="text-xs text-emerald-400/60 mt-0.5">Check your email or the chat below for delivery details.</p>
+          </div>
         </div>
       )}
 
       {order.paymentStatus === "cancelled" && (
-        <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 text-sm text-gray-600">
-          <p className="font-semibold flex items-center gap-2">
-            <XCircle size={16} className="text-gray-400 shrink-0" />
-            This order has been cancelled.
-          </p>
+        <div className="rounded-2xl p-4 mb-4 flex items-start gap-3" style={{ background: "rgba(107,114,128,0.07)", border: "1px solid rgba(107,114,128,0.12)" }}>
+          <XCircle size={15} className="text-gray-500 shrink-0 mt-0.5" />
+          <p className="text-sm text-gray-400">This order has been cancelled.</p>
         </div>
       )}
 
-      {/* Cancel within 30 min */}
+      {/* ── CANCEL BLOCK ── */}
       {canCancel && (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4 space-y-3">
-          <div className="flex items-center gap-2">
-            <Clock size={15} className="text-red-500 shrink-0" />
-            <p className="text-sm text-red-700 font-medium">
-              You can cancel this order — window closes in <strong className="font-mono">{countdown.formatted}</strong>
-            </p>
+        <div className="rounded-2xl p-4 mb-4" style={{ background: "rgba(239,68,68,0.07)", border: "1px solid rgba(239,68,68,0.18)" }}>
+          <div className="flex items-center gap-2 mb-3">
+            <Clock size={14} className="text-red-400 shrink-0" />
+            <p className="text-sm text-red-300">Cancel window closes in <strong className="font-mono text-white">{countdown.formatted}</strong></p>
           </div>
-          {cancelError && (
-            <p className="text-xs text-red-600 bg-red-100 rounded-lg px-3 py-2">{cancelError}</p>
-          )}
+          {cancelError && <p className="text-xs text-red-400 mb-3">{cancelError}</p>}
           <button
             onClick={handleCancel}
             disabled={cancelling}
-            className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white text-sm font-bold rounded-xl transition-colors"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-white disabled:opacity-50 transition-colors"
+            style={{ background: "rgba(239,68,68,0.25)", border: "1px solid rgba(239,68,68,0.35)" }}
           >
             {cancelling
               ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              : <XCircle size={15} />}
+              : <XCircle size={14} />}
             {cancelling ? "Cancelling…" : "Cancel Order"}
           </button>
         </div>
       )}
 
-      {/* Order Items */}
-      <div className="bg-muted rounded-xl p-4 space-y-3">
-        <h2 className="font-bold text-sm text-muted-foreground uppercase tracking-wider">Order Items</h2>
-        {order.items.map((item) => (
-          <div key={item.productId} className="flex justify-between items-start text-sm">
-            <div className="flex-1 min-w-0 pr-3">
-              <p className="font-medium text-foreground leading-snug">{item.productName}</p>
-              <p className="text-xs text-muted-foreground">Qty: {item.quantity}</p>
+      {/* ── ORDER ITEMS ── */}
+      <div className="rounded-2xl p-4 mb-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+        <p className="text-[9px] font-black text-white/30 uppercase tracking-widest mb-3">Order Items</p>
+        <div className="space-y-0">
+          {order.items.map((item) => (
+            <div key={item.productId} className="flex justify-between items-start py-2.5" style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+              <div className="flex-1 min-w-0 pr-3">
+                <p className="text-sm font-bold text-white leading-snug">{item.productName}</p>
+                <p className="text-[11px] text-white/25">Qty: {item.quantity}</p>
+              </div>
+              <p className="text-sm font-black text-blue-300">${(parseFloat(item.price) * item.quantity).toFixed(2)}</p>
             </div>
-            <p className="font-bold shrink-0">${(parseFloat(item.price) * item.quantity).toFixed(2)}</p>
+          ))}
+        </div>
+        <div className="flex justify-between items-center pt-3">
+          <span className="text-sm font-bold text-white/40">Total</span>
+          <div className="text-right">
+            <span className="text-xl font-black text-white">${parseFloat(order.total).toFixed(2)}</span>
+            <span className="text-[10px] text-white/30 ml-1">{order.currency}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* ── ORDER DETAILS ── */}
+      <div className="rounded-2xl p-4 mb-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+        <p className="text-[9px] font-black text-white/30 uppercase tracking-widest mb-3">Details</p>
+        <div className="space-y-2.5">
+          <div className="flex justify-between items-center">
+            <span className="text-[12px] text-white/30">Email</span>
+            <span className="text-[12px] font-bold text-white/60 break-all text-right max-w-[55%]">{order.customerEmail}</span>
+          </div>
+          {order.customerPhone && (
+            <div className="flex justify-between items-center">
+              <span className="text-[12px] text-white/30">Phone</span>
+              <span className="text-[12px] font-bold text-white/60">{order.customerPhone}</span>
+            </div>
+          )}
+          {!!(order as unknown as Record<string, unknown>).deviceIdentifier && (
+            <div className="flex justify-between items-center">
+              <span className="text-[12px] text-white/30">IMEI / ID</span>
+              <span className="text-[11px] font-bold font-mono text-white/60">{String((order as unknown as Record<string, unknown>).deviceIdentifier)}</span>
+            </div>
+          )}
+          <div className="flex justify-between items-center">
+            <span className="text-[12px] text-white/30">Payment</span>
+            <span className="text-[12px] font-black text-white/60 uppercase">{order.paymentMethod}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* ── TRUST BADGES ── */}
+      <div className="grid grid-cols-3 gap-2 mb-4">
+        {[
+          { icon: <ShieldCheck size={14} />, label: "256-bit SSL", sub: "Encrypted" },
+          { icon: <CheckCircle2 size={14} />, label: "15K+ Served", sub: "Trusted" },
+          { icon: <Zap size={14} />, label: "2–24 hr Avg", sub: "Delivery" },
+        ].map(({ icon, label, sub }) => (
+          <div key={label} className="rounded-xl py-2.5 flex flex-col items-center gap-0.5" style={{ background: "rgba(59,130,246,0.04)", border: "1px solid rgba(59,130,246,0.1)" }}>
+            <span className="text-blue-400">{icon}</span>
+            <span className="text-[9px] font-black text-white/40 text-center leading-tight">{label}</span>
+            <span className="text-[8px] text-white/20 leading-tight">{sub}</span>
           </div>
         ))}
-        <div className="flex justify-between font-bold border-t pt-3">
-          <span>Total</span>
-          <span className="text-primary">${parseFloat(order.total).toFixed(2)} {order.currency}</span>
-        </div>
       </div>
 
-      {/* Order Details */}
-      <div className="bg-muted rounded-xl p-4 space-y-2 text-sm">
-        <h2 className="font-bold text-sm text-muted-foreground uppercase tracking-wider mb-2">Details</h2>
-        <div className="flex justify-between flex-wrap gap-1">
-          <span className="text-muted-foreground">Email</span>
-          <span className="font-medium break-all">{order.customerEmail}</span>
-        </div>
-        {order.customerPhone && (
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Phone</span>
-            <span className="font-medium">{order.customerPhone}</span>
-          </div>
-        )}
-        {!!(order as unknown as Record<string, unknown>).deviceIdentifier && (
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">IMEI / ID</span>
-            <span className="font-medium font-mono text-xs">{String((order as unknown as Record<string, unknown>).deviceIdentifier)}</span>
-          </div>
-        )}
-        <div className="flex justify-between">
-          <span className="text-muted-foreground">Payment</span>
-          <span className="font-medium uppercase">{order.paymentMethod}</span>
-        </div>
-      </div>
-
-      {/* Support Chat */}
-      <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
-        <div className="px-4 py-3 bg-[#1a2332] flex items-center gap-2">
-          <MessageCircle size={16} className="text-blue-300" />
-          <p className="text-sm font-bold text-white">Support Chat</p>
+      {/* ── SUPPORT CHAT ── */}
+      <div id="chat" className="rounded-2xl overflow-hidden mb-4" style={{ border: "1px solid rgba(255,255,255,0.08)" }}>
+        <div className="px-4 py-3 flex items-center gap-2" style={{ background: "rgba(59,130,246,0.09)", borderBottom: "1px solid rgba(59,130,246,0.14)" }}>
+          <MessageCircle size={15} className="text-blue-400" />
+          <p className="text-sm font-black text-white">Support Chat</p>
           <span className="ml-auto flex items-center gap-1.5">
             {wsReady ? (
-              <>
-                <Zap size={11} className="text-green-300" />
-                <span className="text-[10px] text-green-300 font-bold tracking-wide">Live</span>
-              </>
+              <><Zap size={11} className="text-green-400" /><span className="text-[10px] text-green-400 font-black">Live</span></>
             ) : (
-              <>
-                <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-                <span className="text-[10px] text-green-300 font-medium">Online</span>
-              </>
+              <><span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" /><span className="text-[10px] text-green-400 font-bold">Online</span></>
             )}
           </span>
         </div>
 
-        {/* Messages list */}
-        <div className="min-h-[120px] max-h-72 overflow-y-auto p-4 space-y-3 bg-gray-50">
+        <div className="min-h-[120px] max-h-72 overflow-y-auto p-4 space-y-3" style={{ background: "rgba(0,0,0,0.35)" }}>
           {messagesLoading ? (
             <div className="flex items-center justify-center py-8">
               <span className="w-5 h-5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
             </div>
           ) : messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-6 text-center">
-              <MessageCircle size={28} className="text-gray-200 mb-2" />
-              <p className="text-xs text-gray-400 font-medium">No messages yet</p>
-              <p className="text-[11px] text-gray-300">Send a message and our team will reply shortly.</p>
+              <MessageCircle size={28} className="mb-2" style={{ color: "rgba(255,255,255,0.08)" }} />
+              <p className="text-xs font-bold" style={{ color: "rgba(255,255,255,0.25)" }}>No messages yet</p>
+              <p className="text-[11px]" style={{ color: "rgba(255,255,255,0.15)" }}>Send a message and our team will reply shortly.</p>
             </div>
           ) : (
             messages.map(msg => {
               const isAdmin = msg.senderType === "admin";
               return (
                 <div key={msg.id} className={`flex ${isAdmin ? "justify-start" : "justify-end"}`}>
-                  <div className={`max-w-[80%] rounded-2xl px-3.5 py-2.5 text-sm shadow-sm ${
-                    isAdmin
-                      ? "bg-white border border-gray-200 text-gray-800 rounded-tl-sm"
-                      : "bg-[#1a2332] text-white rounded-tr-sm"
-                  }`}>
-                    {isAdmin && (
-                      <p className="text-[10px] font-bold text-blue-600 mb-1">Support Team</p>
-                    )}
+                  <div className="max-w-[80%] rounded-2xl px-3.5 py-2.5 text-sm" style={isAdmin ? {
+                    background: "rgba(255,255,255,0.07)",
+                    border: "1px solid rgba(255,255,255,0.09)",
+                    color: "#f1f5f9",
+                    borderRadius: "4px 18px 18px 18px",
+                  } : {
+                    background: "linear-gradient(135deg,rgba(59,130,246,0.75),rgba(99,102,241,0.75))",
+                    color: "#fff",
+                    borderRadius: "18px 4px 18px 18px",
+                  }}>
+                    {isAdmin && <p className="text-[10px] font-black text-blue-400 mb-1">Support Team</p>}
                     <p className="leading-relaxed whitespace-pre-wrap break-words">{msg.message}</p>
                     {msg.fileUrl && (
                       <a href={msg.fileUrl} target="_blank" rel="noopener noreferrer"
-                        className={`flex items-center gap-1.5 mt-2 text-[11px] font-medium underline ${isAdmin ? "text-blue-600" : "text-blue-200"}`}>
+                        className="flex items-center gap-1.5 mt-2 text-[11px] font-bold text-blue-300 underline">
                         <Paperclip size={11} /> View attachment
                       </a>
                     )}
-                    <p className={`text-[10px] mt-1 ${isAdmin ? "text-gray-400" : "text-blue-200/70"}`}>
+                    <p className="text-[10px] mt-1" style={{ color: "rgba(255,255,255,0.3)" }}>
                       {new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                     </p>
                   </div>
@@ -732,24 +886,22 @@ export function OrderPage() {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Message input */}
-        <div className="p-4 border-t border-gray-100 space-y-2 bg-white">
+        <div className="p-4 space-y-2" style={{ background: "rgba(0,0,0,0.4)", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
           {uploadError && (
-            <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-xs text-red-600">
+            <div className="flex items-center gap-2 rounded-xl px-3 py-2 text-xs text-red-400" style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.18)" }}>
               <X size={12} /> {uploadError}
               <button onClick={() => setUploadError(null)} className="ml-auto"><X size={11} /></button>
             </div>
           )}
-
           <textarea
             value={chatMsg}
             onChange={e => setChatMsg(e.target.value)}
             onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
             placeholder={`Describe your issue with order #${orderId}…`}
             rows={2}
-            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-400"
+            className="w-full rounded-xl px-3 py-2.5 text-sm resize-none focus:outline-none"
+            style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.8)" }}
           />
-
           <div className="flex items-center gap-2">
             <input
               ref={fileInputRef}
@@ -760,9 +912,12 @@ export function OrderPage() {
             />
             <button
               onClick={() => fileInputRef.current?.click()}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-bold transition-colors ${
-                chatFile ? "border-blue-400 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-500 hover:border-blue-300"
-              }`}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-colors"
+              style={{
+                background: chatFile ? "rgba(59,130,246,0.12)" : "rgba(255,255,255,0.04)",
+                border: chatFile ? "1px solid rgba(59,130,246,0.35)" : "1px solid rgba(255,255,255,0.07)",
+                color: chatFile ? "#93c5fd" : "rgba(255,255,255,0.35)",
+              }}
             >
               <Paperclip size={13} />
               {chatFile ? (
@@ -775,7 +930,8 @@ export function OrderPage() {
 
             <button
               onClick={loadMessages}
-              className="w-8 h-8 rounded-xl border border-gray-200 flex items-center justify-center text-gray-400 hover:text-blue-600 hover:border-blue-300 transition-colors"
+              className="w-8 h-8 rounded-xl flex items-center justify-center transition-colors"
+              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.25)" }}
               title="Refresh messages"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -786,7 +942,8 @@ export function OrderPage() {
             <button
               onClick={sendMessage}
               disabled={chatSending || (!chatMsg.trim() && !chatFile)}
-              className="ml-auto flex items-center gap-1.5 px-4 py-2 bg-[#1a2332] hover:bg-[#253246] disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-colors"
+              className="ml-auto flex items-center gap-1.5 px-4 py-2 text-white text-xs font-black rounded-xl disabled:opacity-40 transition-colors"
+              style={{ background: "linear-gradient(135deg,#3b82f6,#6366f1)" }}
             >
               {chatSending
                 ? <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -794,13 +951,17 @@ export function OrderPage() {
               {chatSending ? "Sending…" : "Send"}
             </button>
           </div>
-          <p className="text-[10px] text-gray-400">Press Enter to send · Shift+Enter for new line</p>
+          <p className="text-[10px]" style={{ color: "rgba(255,255,255,0.18)" }}>Press Enter to send · Shift+Enter for new line</p>
         </div>
       </div>
 
-      <Button variant="outline" className="w-full" onClick={() => navigate("/")}>
-        Continue Shopping
-      </Button>
+      <button
+        onClick={() => navigate("/")}
+        className="w-full py-3 rounded-2xl text-sm font-bold transition-colors"
+        style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.35)" }}
+      >
+        ← Continue Shopping
+      </button>
     </div>
   );
 }
