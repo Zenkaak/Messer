@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and, or, desc } from "drizzle-orm";
-import { db, ordersTable, orderItemsTable, orderMessagesTable, usersTable, notificationsTable, paymentTransactionsTable } from "@workspace/db";
+import { db, ordersTable, orderItemsTable, orderMessagesTable, usersTable, notificationsTable } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 import jwt from "jsonwebtoken";
@@ -12,10 +12,11 @@ import {
   moreInfoNeededEmail,
   orderSubmittedEmail,
   giftCardDeliveryEmail,
-  adminOrderMessageEmail,
+  adminNewOrderEmail,
+  getAdminNotifyEmail,
   appUrl,
 } from "../lib/email";
-import { checkAdminPassword, getBinancePayId, getUsdtManualAddress, getUsdtManualNetwork, getSmtpConfig } from "../lib/admin-settings";
+import { checkAdminPassword, getBinancePayId, getUsdtManualAddress, getUsdtManualNetwork } from "../lib/admin-settings";
 import { initiateSTKPush } from "../lib/mpesa";
 import { notifyOrderUpdate } from "../lib/ws";
 import { randomBytes } from "node:crypto";
@@ -240,24 +241,6 @@ router.post("/orders/:id/messages", async (req, res) => {
       }).catch((err) => req.log.error({ err }, "Failed to insert notification"));
     }
 
-    // When user sends a message → email notification for admin
-    if (!isAdmin && order.customerEmail) {
-      getSmtpConfig().then((smtpCfg) => {
-        const adminEmail = smtpCfg?.emailFrom;
-        if (adminEmail) {
-          sendEmail({
-            to: adminEmail,
-            ...adminOrderMessageEmail({
-              orderId,
-              customerEmail: order.customerEmail!,
-              customerName: order.customerName,
-              message: messageText,
-            }),
-          }).catch((err) => req.log.error({ err }, "Failed to send admin order message notification"));
-        }
-      }).catch((err) => req.log.error({ err }, "Failed to get SMTP config for admin notification"));
-    }
-
     // Push new message live to the order's WS subscribers
     notifyOrderUpdate(orderId, { type: "new_message", message: msg });
 
@@ -398,42 +381,83 @@ router.post("/orders", async (req, res) => {
       ? `${firstItem.productName}${orderItems.length > 1 ? ` +${orderItems.length - 1} more` : ""}`
       : "items";
 
-    // Send email BEFORE responding — Vercel terminates the Lambda as soon as res is sent
-    await sendEmail({
-      to: order.customerEmail,
-      ...orderSubmittedEmail({
-        orderId: order.id,
-        customerName: order.customerName,
-        customerEmail: order.customerEmail,
-        items: orderItems.map((i) => ({ productName: i.productName, quantity: i.quantity, price: i.price })),
-        total: order.total,
-        paymentMethod: order.paymentMethod,
-      }),
-    }).catch((err) => req.log.error({ err }, "Failed to send order confirmation email"));
+    // ── Send emails BEFORE responding ──────────────────────────────────────────
+    // CRITICAL: Vercel terminates the Lambda as soon as res is sent, so ALL
+    // email sends must be awaited before res.json(). Use Promise.allSettled so
+    // one failure never blocks the other.
 
-    // For wallet orders (immediately paid), auto-send gift card codes right away
+    const adminEmail = await getAdminNotifyEmail().catch(() => null);
+
+    const emailTasks: Promise<unknown>[] = [
+      // Customer order confirmation
+      sendEmail({
+        to: order.customerEmail,
+        ...orderSubmittedEmail({
+          orderId: order.id,
+          customerName: order.customerName,
+          customerEmail: order.customerEmail,
+          items: orderItems.map((i) => ({ productName: i.productName, quantity: i.quantity, price: i.price })),
+          total: order.total,
+          paymentMethod: order.paymentMethod,
+        }),
+      }),
+    ];
+
+    // Admin new-order notification
+    if (adminEmail) {
+      emailTasks.push(
+        sendEmail({
+          to: adminEmail,
+          ...adminNewOrderEmail({
+            orderId: order.id,
+            customerName: order.customerName,
+            customerEmail: order.customerEmail,
+            customerPhone: order.customerPhone,
+            paymentMethod: order.paymentMethod,
+            total: order.total,
+            currency: order.currency ?? "USD",
+            items: orderItems.map((i) => ({ productName: i.productName, quantity: i.quantity, price: i.price })),
+            notes: order.notes,
+          }),
+        })
+      );
+    }
+
+    const emailResults = await Promise.allSettled(emailTasks);
+    emailResults.forEach((result, idx) => {
+      if (result.status === "rejected") {
+        req.log.error({ err: result.reason, idx }, "Order email send failed");
+      }
+    });
+
+    // For wallet orders (immediately paid), auto-send gift card codes.
+    // These are secondary — still await them so Vercel doesn't kill the Lambda early.
     if (order.paymentStatus === "paid" && orderData.paymentMethod === "wallet") {
       const giftCardItems = orderItems.filter(i => isGiftCardItem(i.productName));
       if (giftCardItems.length > 0) {
         const orderUrl = appUrl(`/orders/${order.id}`);
+        const gcTasks: Promise<unknown>[] = [];
         for (const item of giftCardItems) {
           const qty = item.quantity ?? 1;
           for (let q = 0; q < qty; q++) {
             const code = generateGiftCardCode();
             const denomination = `$${parseFloat(item.price).toFixed(2)}`;
-            sendEmail({
-              to: order.customerEmail,
-              ...giftCardDeliveryEmail({
-                orderId: order.id,
-                customerName: order.customerName,
-                productName: item.productName,
-                giftCardCode: code,
-                denomination,
-                orderUrl,
-              }),
-            }).catch((err) => req.log.error({ err }, "Failed to send wallet gift card email"));
+            gcTasks.push(
+              sendEmail({
+                to: order.customerEmail,
+                ...giftCardDeliveryEmail({
+                  orderId: order.id,
+                  customerName: order.customerName,
+                  productName: item.productName,
+                  giftCardCode: code,
+                  denomination,
+                  orderUrl,
+                }),
+              })
+            );
           }
         }
+        await Promise.allSettled(gcTasks).catch(() => {});
       }
     }
 
@@ -804,20 +828,13 @@ router.post("/orders/:id/mpesa/trigger", async (req, res) => {
     const emailMatch = order.customerEmail.toLowerCase() === user.email.toLowerCase();
     if (!userIdMatch && !emailMatch) { res.status(403).json({ error: "Access denied" }); return; }
     if (order.paymentStatus !== "pending") { res.status(400).json({ error: "Order is not awaiting payment" }); return; }
-    const amountKes = Math.ceil(parseFloat(order.total));
+    const USD_TO_KES = 130;
+    const amountKes = Math.ceil(parseFloat(order.total) * USD_TO_KES);
     const stk = await initiateSTKPush({
       phone: String(phone),
       amount: amountKes,
       orderId: id,
       description: `Order #${order.orderCode || id}`,
-    });
-    // Store CheckoutRequestID so the /payments/mpesa/callback can find this order
-    await db.insert(paymentTransactionsTable).values({
-      orderId: id,
-      provider: "mpesa",
-      providerReference: stk.CheckoutRequestID,
-      amount: String(amountKes),
-      currency: "KES",
     });
     res.json({ success: true, checkoutRequestId: stk.CheckoutRequestID, message: `STK push sent. Enter your M-Pesa PIN.` });
   } catch (err) {

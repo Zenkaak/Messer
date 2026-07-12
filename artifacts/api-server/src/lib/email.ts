@@ -33,131 +33,144 @@ export function appUrl(path: string) {
 function layout(preheader: string, accentColor: string, headerContent: string, body: string) {
   const year = new Date().getFullYear();
   const storeUrl = getBaseUrl();
-  let hostname = "gsmworld.co.ke";
-  try { hostname = new URL(storeUrl).hostname; } catch { /* fallback */ }
   return `<!DOCTYPE html>
-<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  <meta name="color-scheme" content="light">
-  <meta name="supported-color-schemes" content="light">
   <title>GSM World</title>
   <!--[if mso]><noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript><![endif]-->
   <style>
-    @media only screen and (max-width:620px) {
-      .ow { padding:0 !important; }
-      .shell { border-radius:0 !important; }
-      .ehead { padding:28px 20px 24px !important; }
-      .ehead h1 { font-size:22px !important; line-height:1.3 !important; }
-      .ebody { padding:24px 18px 20px !important; font-size:14px !important; }
-      .efooter { padding:20px 18px !important; }
-      .btn-cta { padding:14px 20px !important; font-size:15px !important; }
-      .digit-box { width:40px !important; height:52px !important; font-size:26px !important; }
-      .product-cell { width:100% !important; display:block !important; padding-right:0 !important; }
+    @media only screen and (max-width: 600px) {
+      .outer-wrapper { padding: 0 !important; }
+      .email-shell { border-radius: 0 !important; }
+      .email-brand-bar { padding: 16px 20px !important; }
+      .email-header { padding: 28px 20px 24px !important; }
+      .email-header h1 { font-size: 22px !important; }
+      .email-body { padding: 24px 20px !important; font-size: 15px !important; }
+      .email-footer { padding: 20px !important; }
+      .btn-cta { padding: 14px 24px !important; font-size: 15px !important; }
+      .info-label { width: auto !important; }
     }
-    a { color:inherit; text-decoration:none; }
-    * { box-sizing:border-box; }
+    a { color: inherit; text-decoration: none; }
   </style>
 </head>
-<body style="margin:0;padding:0;background:#e8edf4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Helvetica Neue',Arial,sans-serif;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;">
-  <div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;color:#e8edf4;line-height:1px;">${preheader} &nbsp;&#8203;&zwnj;&#8203;&zwnj;&#8203;&zwnj;&#8203;&zwnj;&#8203;&zwnj;&#8203;&zwnj;&#8203;&zwnj;&#8203;&zwnj;&#8203;&zwnj;&#8203;&zwnj;&#8203;</div>
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="ow" style="background:#e8edf4;padding:32px 16px 48px;">
-    <tr><td align="center">
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:580px;margin-bottom:16px;">
-          <tr><td style="text-align:center;padding:0 8px;">
-              <a href="${storeUrl}" style="text-decoration:none;">
-                <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto;"><tr>
-                    <td style="vertical-align:middle;padding-right:9px;">
-                      <table role="presentation" cellpadding="0" cellspacing="0"><tr>
-                          <td style="width:32px;height:32px;background:linear-gradient(145deg,#0ea5e9 0%,#0369a1 100%);border-radius:9px;text-align:center;vertical-align:middle;">
-                            <span style="font-size:17px;font-weight:900;color:#fff;font-family:Arial,sans-serif;line-height:32px;display:block;">G</span>
-                          </td>
-                      </tr></table>
-                    </td>
-                    <td style="vertical-align:middle;">
-                      <span style="font-size:16px;font-weight:800;color:#0f172a;letter-spacing:-0.2px;font-family:Arial,sans-serif;">GSM&nbsp;<span style="color:#0ea5e9;">World</span></span>
-                    </td>
-                </tr></table>
-              </a>
-          </td></tr>
-        </table>
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="shell" style="max-width:580px;border-radius:20px;overflow:hidden;box-shadow:0 8px 32px rgba(15,23,42,0.12),0 2px 8px rgba(15,23,42,0.06);">
-          <tr><td style="background:${accentColor};height:3px;padding:0;font-size:0;line-height:0;mso-line-height-rule:exactly;">&nbsp;</td></tr>
-          <tr><td style="padding:0;">${headerContent}</td></tr>
-          <tr><td class="ebody" style="background:#ffffff;padding:32px 36px 28px;color:#374151;font-size:15px;line-height:1.8;">${body}</td></tr>
+<body style="margin:0;padding:0;background-color:#eef2f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Helvetica Neue',Arial,sans-serif;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;">
+  <!-- Preheader -->
+  <div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;color:#eef2f7;line-height:1px;">${preheader}&nbsp;&#8203;&zwnj;&nbsp;&#8203;&zwnj;&nbsp;&#8203;&zwnj;&nbsp;&#8203;&zwnj;&nbsp;&#8203;&zwnj;&nbsp;&#8203;&zwnj;&nbsp;&#8203;&zwnj;&nbsp;&#8203;&zwnj;&nbsp;&#8203;&zwnj;</div>
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="outer-wrapper" style="background-color:#eef2f7;padding:40px 16px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="email-shell" style="max-width:600px;border-radius:20px;overflow:hidden;box-shadow:0 8px 40px rgba(15,23,42,0.13);">
+
+          <!-- ── Brand header bar ── -->
           <tr>
-            <td class="efooter" style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:24px 36px 28px;">
+            <td class="email-brand-bar" style="background:#0b1120;padding:20px 36px;">
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-                <tr><td style="text-align:center;padding-bottom:16px;border-bottom:1px solid #e9eef5;">
-                    <p style="margin:0 0 10px;font-size:12px;color:#94a3b8;line-height:1.6;">You received this because you have a GSM World account.</p>
-                    <p style="margin:0;font-size:12px;line-height:2.2;">
-                      <a href="${storeUrl}" style="color:#0ea5e9;text-decoration:none;font-weight:700;">${hostname}</a>
-                      <span style="color:#e2e8f0;">&nbsp;|&nbsp;</span>
-                      <a href="${storeUrl}/account/orders" style="color:#64748b;text-decoration:none;font-weight:600;">My Orders</a>
-                      <span style="color:#e2e8f0;">&nbsp;|&nbsp;</span>
-                      <a href="${storeUrl}/account" style="color:#64748b;text-decoration:none;font-weight:600;">My Account</a>
-                      <span style="color:#e2e8f0;">&nbsp;|&nbsp;</span>
-                      <a href="${storeUrl}/account/orders" style="color:#0ea5e9;text-decoration:none;font-weight:600;">Live Support</a>
-                      <span style="color:#e2e8f0;">&nbsp;|&nbsp;</span>
-                      <a href="{{UNSUB_URL}}" style="color:#94a3b8;text-decoration:underline;font-weight:500;">Unsubscribe</a>
-                    </p>
-                </td></tr>
-                <tr><td style="text-align:center;padding-top:16px;">
-                    <p style="margin:0 0 4px;font-size:11px;color:#94a3b8;line-height:1.6;">&copy; ${year} GSM World &mdash; Professional GSM Tools &amp; Services</p>
-                    <p style="margin:0;font-size:10.5px;color:#cbd5e1;line-height:1.5;">United States &nbsp;&middot;&nbsp; <a href="mailto:support@dasnett.site" style="color:#cbd5e1;text-decoration:none;">support@dasnett.site</a></p>
-                </td></tr>
+                <tr>
+                  <td style="vertical-align:middle;">
+                    <a href="${storeUrl}" style="text-decoration:none;display:inline-flex;align-items:center;gap:10px;">
+                      <!-- Logo mark -->
+                      <span style="display:inline-block;width:34px;height:34px;background:linear-gradient(135deg,#0ea5e9,#0284c7);border-radius:9px;text-align:center;line-height:34px;font-size:16px;font-weight:900;color:#ffffff;font-family:Arial,sans-serif;letter-spacing:-0.5px;vertical-align:middle;">G</span>
+                      <span style="font-size:16px;font-weight:800;color:#ffffff;letter-spacing:0.2px;font-family:Arial,sans-serif;vertical-align:middle;">GSM&nbsp;<span style="color:#38bdf8;">World</span></span>
+                    </a>
+                  </td>
+                  <td style="text-align:right;vertical-align:middle;">
+                    <span style="font-size:11px;font-weight:600;color:#475569;letter-spacing:0.5px;font-family:Arial,sans-serif;text-transform:uppercase;">Official Store</span>
+                  </td>
+                </tr>
               </table>
             </td>
           </tr>
+
+          <!-- ── Accent stripe ── -->
+          <tr>
+            <td style="background:linear-gradient(90deg,${accentColor},${accentColor}cc);height:3px;padding:0;font-size:0;line-height:0;mso-line-height-rule:exactly;">&nbsp;</td>
+          </tr>
+
+          <!-- ── Hero header ── -->
+          <tr>
+            <td class="email-header" style="padding:0;">
+              ${headerContent}
+            </td>
+          </tr>
+
+          <!-- ── Body ── -->
+          <tr>
+            <td class="email-body" style="background:#ffffff;padding:32px 36px 28px;color:#374151;font-size:15px;line-height:1.8;">
+              ${body}
+            </td>
+          </tr>
+
+          <!-- ── Footer ── -->
+          <tr>
+            <td class="email-footer" style="background:#0b1120;padding:28px 36px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="text-align:center;padding-bottom:16px;border-bottom:1px solid #1e293b;">
+                    <p style="margin:0 0 10px;font-size:12px;color:#64748b;line-height:1.7;">
+                      You received this email because you have an account with GSM World.<br>
+                      If you didn't request this, you can safely ignore it.
+                    </p>
+                    <p style="margin:0;font-size:12px;">
+                      <a href="${storeUrl}" style="color:#38bdf8;text-decoration:none;font-weight:600;">${new URL(storeUrl).hostname}</a>
+                      <span style="color:#334155;">&nbsp;·&nbsp;</span>
+                      <a href="${storeUrl}/account/orders" style="color:#64748b;text-decoration:none;">My Orders</a>
+                      <span style="color:#334155;">&nbsp;·&nbsp;</span>
+                      <a href="${storeUrl}/account" style="color:#64748b;text-decoration:none;">Account</a>
+                      <span style="color:#334155;">&nbsp;·&nbsp;</span>
+                      <a href="{{UNSUB_URL}}" style="color:#475569;text-decoration:underline;">Unsubscribe</a>
+                    </p>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="text-align:center;padding-top:14px;">
+                    <p style="margin:0;font-size:11px;color:#334155;">© ${year} GSM World. All rights reserved. &nbsp;·&nbsp; Official GSM Tools &amp; Services Distributor</p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
         </table>
-    </td></tr>
+      </td>
+    </tr>
   </table>
 </body>
 </html>`;
 }
 
 function header(bg: string, title: string, subtitle: string) {
-  return `<div class="ehead" style="background:${bg};padding:38px 36px 32px;position:relative;overflow:hidden;">
-    <div style="position:absolute;top:-40px;right:-40px;width:180px;height:180px;border-radius:50%;background:rgba(255,255,255,0.06);pointer-events:none;"></div>
-    <div style="position:absolute;bottom:-60px;left:-30px;width:220px;height:220px;border-radius:50%;background:rgba(255,255,255,0.04);pointer-events:none;"></div>
-    <div style="position:absolute;top:20px;right:60px;width:80px;height:80px;border-radius:50%;background:rgba(255,255,255,0.05);pointer-events:none;"></div>
-    <h1 style="margin:0 0 8px;font-size:26px;font-weight:900;color:#ffffff;letter-spacing:-0.5px;line-height:1.2;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Helvetica Neue',Arial,sans-serif;position:relative;">${title}</h1>
-    <p style="margin:0;font-size:13.5px;color:rgba(255,255,255,0.65);font-weight:400;line-height:1.55;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Helvetica Neue',Arial,sans-serif;position:relative;">${subtitle}</p>
+  return `<div class="email-header" style="background:${bg};padding:36px 36px 32px;position:relative;overflow:hidden;">
+    <!-- Subtle grid pattern overlay -->
+    <div style="position:absolute;inset:0;opacity:0.04;background-image:repeating-linear-gradient(0deg,transparent,transparent 20px,rgba(255,255,255,.5) 20px,rgba(255,255,255,.5) 21px),repeating-linear-gradient(90deg,transparent,transparent 20px,rgba(255,255,255,.5) 20px,rgba(255,255,255,.5) 21px);"></div>
+    <h1 style="margin:0 0 8px;font-size:26px;font-weight:800;color:#ffffff;letter-spacing:-0.5px;line-height:1.2;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Helvetica Neue',Arial,sans-serif;">${title}</h1>
+    <p style="margin:0;font-size:14px;color:rgba(255,255,255,0.65);font-weight:400;line-height:1.6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Helvetica Neue',Arial,sans-serif;">${subtitle}</p>
   </div>`;
 }
 
 function btn(label: string, url: string, bg = "#0ea5e9") {
-  return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:28px 0 6px;width:100%;">
+  return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:28px 0 4px;width:100%;">
     <tr>
-      <td style="border-radius:12px;background:${bg};box-shadow:0 4px 14px ${bg}55;">
-        <a href="${url}" class="btn-cta" style="display:block;padding:16px 28px;font-size:15px;font-weight:700;color:#ffffff;text-decoration:none;letter-spacing:0.3px;text-align:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Helvetica Neue',Arial,sans-serif;">${label} &rarr;</a>
+      <td style="border-radius:12px;background:${bg};">
+        <a href="${url}" class="btn-cta" style="display:block;padding:16px 32px;font-size:15px;font-weight:700;color:#ffffff;text-decoration:none;letter-spacing:0.2px;text-align:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Helvetica Neue',Arial,sans-serif;">${label}&nbsp; &#8250;</a>
       </td>
     </tr>
-  </table>
-  <p style="margin:8px 0 0;font-size:11px;color:#94a3b8;text-align:center;word-break:break-all;font-family:Arial,sans-serif;">Or copy: <a href="${url}" style="color:#64748b;text-decoration:underline;">${url}</a></p>`;
+  </table>`;
 }
 
 function codeBlock(code: string) {
-  const digits = code.split("").map(ch =>
-    `<td style="padding:0 5px;">
-      <table role="presentation" cellpadding="0" cellspacing="0"><tr>
-        <td class="digit-box" style="width:52px;height:64px;background:#1e293b;border:2px solid #334155;border-radius:14px;text-align:center;vertical-align:middle;font-size:32px;font-weight:900;color:#38bdf8;font-family:'Courier New',Courier,monospace;line-height:1;">${ch}</td>
-      </tr></table>
-    </td>`
-  ).join("");
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:28px 0;">
     <tr>
-      <td align="center" style="background:#0f172a;border-radius:20px;padding:36px 24px 28px;">
-        <p style="margin:0 0 20px;font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:2.5px;font-family:Arial,sans-serif;">Your Verification Code</p>
-        <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto;">
-          <tr>${digits}</tr>
-        </table>
-        <table role="presentation" cellpadding="0" cellspacing="0" style="margin:22px auto 0;">
+      <td align="center" style="background:#0b1120;border-radius:16px;padding:32px 24px;">
+        <p style="margin:0 0 16px;font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:2px;font-family:Arial,sans-serif;">Verification Code</p>
+        <p style="margin:0;font-size:52px;font-weight:900;color:#38bdf8;letter-spacing:14px;font-family:'Courier New',Courier,monospace;line-height:1;">${code}</p>
+        <table role="presentation" cellpadding="0" cellspacing="0" style="margin:20px auto 0;">
           <tr>
-            <td style="background:#1e293b;border-radius:50px;padding:9px 24px;text-align:center;">
-              <span style="font-size:12px;color:#64748b;font-family:Arial,sans-serif;">&#x23F1;&nbsp; Expires in <strong style="color:#94a3b8;">10 minutes</strong>&nbsp;&nbsp;&middot;&nbsp;&nbsp;Never share this code</span>
+            <td style="background:#1e293b;border-radius:50px;padding:8px 20px;">
+              <p style="margin:0;font-size:12px;color:#64748b;font-family:Arial,sans-serif;">&#x23F0;&nbsp; Expires in <strong style="color:#94a3b8;">10 minutes</strong>&nbsp; · &nbsp;Do not share this code</p>
             </td>
           </tr>
         </table>
@@ -167,83 +180,57 @@ function codeBlock(code: string) {
 }
 
 function infoTable(rows: Array<[string, string]>) {
-  const trs = rows.map(([label, value], i) => `<tr style="background:${i % 2 === 0 ? "#ffffff" : "#f9fafb"};">
-    <td style="padding:13px 16px 13px 20px;${i < rows.length - 1 ? "border-bottom:1px solid #f1f5f9;" : ""}font-size:11.5px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.8px;white-space:nowrap;width:36%;vertical-align:middle;">${label}</td>
-    <td style="padding:13px 20px 13px 12px;${i < rows.length - 1 ? "border-bottom:1px solid #f1f5f9;" : ""}font-size:14px;font-weight:600;color:#0f172a;word-break:break-word;vertical-align:middle;">${value}</td>
+  const trs = rows.map(([label, value], i) => `<tr>
+    <td class="info-label" style="padding:12px 16px 12px 20px;${i < rows.length - 1 ? "border-bottom:1px solid #f1f5f9;" : ""}font-size:12px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.8px;white-space:nowrap;width:38%;vertical-align:top;">${label}</td>
+    <td style="padding:12px 20px 12px 0;${i < rows.length - 1 ? "border-bottom:1px solid #f1f5f9;" : ""}font-size:14px;font-weight:600;color:#111827;text-align:right;word-break:break-word;vertical-align:top;">${value}</td>
   </tr>`).join("");
-  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1.5px solid #e5e7eb;border-radius:14px;overflow:hidden;margin:24px 0;">
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f9fafb;border:1.5px solid #e5e7eb;border-radius:14px;overflow:hidden;margin:24px 0;">
     <tbody>${trs}</tbody>
   </table>`;
 }
 
 function statusChip(label: string, color: string) {
-  const icon = (color === "#059669") ? "&#x2713;" : (color === "#dc2626" || color === "#b91c1c") ? "&#x2715;" : (color === "#d97706") ? "&#x26A0;" : "&#x25CF;";
-  return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:22px 0;">
+  return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:20px 0;">
     <tr>
-      <td style="background:${color}15;border:1.5px solid ${color}40;border-radius:50px;padding:10px 24px;">
-        <span style="font-size:13.5px;font-weight:800;color:${color};letter-spacing:0.3px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;">${icon}&nbsp;&nbsp;${label}</span>
+      <td style="background:${color}12;border:1.5px solid ${color}35;border-radius:50px;padding:9px 22px;">
+        <span style="font-size:13px;font-weight:800;color:${color};letter-spacing:0.2px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;">&#x2022;&nbsp; ${label}</span>
       </td>
     </tr>
   </table>`;
 }
 
 function orderItemsTable(items: Array<{ productName: string; quantity: number; price: string }>, total: string) {
-  const rows = items.map((item, i) =>
-    `<tr style="background:${i % 2 === 0 ? "#ffffff" : "#fafafa"};">
-      <td style="padding:14px 12px 14px 20px;font-size:13.5px;color:#1f2937;border-bottom:1px solid #f3f4f6;line-height:1.45;"><span style="display:inline-block;width:7px;height:7px;background:#0ea5e9;border-radius:50%;margin-right:8px;vertical-align:middle;"></span>${item.productName}</td>
-      <td style="padding:14px 12px;font-size:13px;color:#9ca3af;border-bottom:1px solid #f3f4f6;text-align:center;white-space:nowrap;font-weight:700;">&times;&nbsp;${item.quantity}</td>
-      <td style="padding:14px 20px 14px 0;font-size:14px;font-weight:700;color:#0f172a;border-bottom:1px solid #f3f4f6;text-align:right;white-space:nowrap;">$${(parseFloat(item.price) * item.quantity).toFixed(2)}</td>
+  const rows = items.map(i =>
+    `<tr>
+      <td style="padding:13px 0 13px 20px;font-size:13px;color:#374151;border-bottom:1px solid #f3f4f6;line-height:1.5;">${i.productName}</td>
+      <td style="padding:13px 12px;font-size:13px;color:#9ca3af;border-bottom:1px solid #f3f4f6;text-align:center;white-space:nowrap;font-weight:600;">× ${i.quantity}</td>
+      <td style="padding:13px 20px 13px 0;font-size:13px;font-weight:700;color:#111827;border-bottom:1px solid #f3f4f6;text-align:right;white-space:nowrap;">$${(parseFloat(i.price) * i.quantity).toFixed(2)}</td>
     </tr>`
   ).join("");
-  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border:1.5px solid #e5e7eb;border-radius:16px;overflow:hidden;margin:24px 0;">
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border:1.5px solid #e5e7eb;border-radius:14px;overflow:hidden;margin:24px 0;">
     <thead>
-      <tr style="background:#f8fafc;">
-        <th style="padding:12px 12px 12px 20px;font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:1.2px;text-align:left;">Product / Service</th>
-        <th style="padding:12px;font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:1.2px;text-align:center;">Qty</th>
-        <th style="padding:12px 20px 12px 0;font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:1.2px;text-align:right;">Amount</th>
+      <tr style="background:#f9fafb;">
+        <th style="padding:11px 0 11px 20px;font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:1px;text-align:left;">Product / Service</th>
+        <th style="padding:11px 12px;font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:1px;text-align:center;">Qty</th>
+        <th style="padding:11px 20px 11px 0;font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:1px;text-align:right;">Total</th>
       </tr>
     </thead>
     <tbody>${rows}</tbody>
     <tfoot>
-      <tr style="background:linear-gradient(135deg,#0f172a 0%,#1e293b 100%);">
-        <td colspan="2" style="padding:16px 12px 16px 20px;font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:1px;">Total Amount Due</td>
-        <td style="padding:16px 20px 16px 0;font-size:22px;font-weight:900;color:#38bdf8;text-align:right;font-family:'Courier New',Courier,monospace;">$${parseFloat(total).toFixed(2)}</td>
+      <tr style="background:#0b1120;">
+        <td colspan="2" style="padding:15px 12px 15px 20px;font-size:13px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;">Order Total</td>
+        <td style="padding:15px 20px 15px 0;font-size:20px;font-weight:900;color:#38bdf8;text-align:right;">$${parseFloat(total).toFixed(2)}</td>
       </tr>
     </tfoot>
   </table>`;
 }
 
 function alertBox(title: string, content: string, borderColor = "#0ea5e9", bg = "#f0f9ff") {
-  const titleHtml = title
-    ? `<p style="margin:0 0 7px;font-size:11px;font-weight:800;color:${borderColor};text-transform:uppercase;letter-spacing:1.2px;font-family:Arial,sans-serif;">&#x2139;&nbsp; ${title}</p>`
-    : "";
-  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:22px 0;">
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0;">
     <tr>
-      <td style="background:${bg};border:1px solid ${borderColor}25;border-left:4px solid ${borderColor};border-radius:0 14px 14px 0;padding:16px 20px;">
-        ${titleHtml}
-        <p style="margin:0;font-size:14px;color:#1f2937;white-space:pre-line;line-height:1.75;">${content}</p>
-      </td>
-    </tr>
-  </table>`;
-}
-
-function stepsSection(steps: string[]) {
-  const rows = steps.map((step, i) => `
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:${i < steps.length - 1 ? "14px" : "0"};">
-      <tr>
-        <td style="width:30px;vertical-align:top;padding-top:1px;">
-          <table role="presentation" cellpadding="0" cellspacing="0"><tr>
-            <td style="width:26px;height:26px;background:#0ea5e9;border-radius:50%;text-align:center;vertical-align:middle;font-size:12px;font-weight:900;color:#fff;font-family:Arial,sans-serif;line-height:26px;">${i + 1}</td>
-          </tr></table>
-        </td>
-        <td style="padding-left:12px;font-size:13.5px;color:#475569;line-height:1.65;vertical-align:top;padding-top:2px;">${step}</td>
-      </tr>
-    </table>`).join("");
-  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:24px 0;">
-    <tr>
-      <td style="background:#f8fafc;border:1.5px solid #e9eef5;border-radius:16px;padding:22px 24px;">
-        <p style="margin:0 0 16px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:1.8px;font-family:Arial,sans-serif;">What happens next</p>
-        ${rows}
+      <td style="background:${bg};border:1.5px solid ${borderColor}30;border-left:4px solid ${borderColor};border-radius:0 12px 12px 0;padding:16px 20px;">
+        ${title ? `<p style="margin:0 0 6px;font-size:11px;font-weight:800;color:${borderColor};text-transform:uppercase;letter-spacing:1px;">${title}</p>` : ""}
+        <p style="margin:0;font-size:14px;color:#1f2937;white-space:pre-line;line-height:1.7;">${content}</p>
       </td>
     </tr>
   </table>`;
@@ -258,17 +245,19 @@ export async function sendEmail(message: EmailMessage) {
   let smtpPass: string | null = process.env.SMTP_PASS || null;
   let emailFrom: string | null = process.env.EMAIL_FROM || null;
   let smtpSecure = process.env.SMTP_SECURE === "true";
+  let resendApiKey: string | null = process.env.RESEND_API_KEY || null;
 
-  if (!smtpHost || !emailFrom) {
+  if (!smtpHost || !emailFrom || !resendApiKey) {
     try {
-      const { getSmtpConfig } = await import("./admin-settings");
-      const cfg = await getSmtpConfig();
+      const { getSmtpConfig, getResendApiKey } = await import("./admin-settings");
+      const [cfg, rkey] = await Promise.all([getSmtpConfig(), getResendApiKey()]);
       smtpHost = smtpHost || cfg.smtpHost;
       smtpPort = smtpPort || cfg.smtpPort;
       smtpUser = smtpUser || cfg.smtpUser;
       smtpPass = smtpPass || cfg.smtpPass;
       emailFrom = emailFrom || cfg.emailFrom;
       smtpSecure = smtpSecure || cfg.smtpSecure;
+      resendApiKey = resendApiKey || rkey;
     } catch {
       // DB not available
     }
@@ -292,19 +281,48 @@ export async function sendEmail(message: EmailMessage) {
     "Message-ID": msgId,
     "X-Entity-Ref-ID": entityRef,
     "MIME-Version": "1.0",
-    "Precedence": "transactional",
-    "X-Priority": "3",
-    "X-MS-Exchange-Organization-SCL": "-1",
+    "Precedence": "bulk",
     "X-Mailer": "GSM World Mailer/2.0",
     "List-Unsubscribe": `<${unsubscribeUrl}>, <mailto:unsubscribe@${sendingDomain}?subject=unsubscribe>`,
     "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
     "Feedback-ID": `transactional:gsm-world:${sendingDomain}`,
   };
 
-  // ── SMTP (Zoho) ──
+  // ── Try Resend API first if configured (optional — skip if not set) ──
+  if (resendApiKey && fromAddress) {
+    try {
+      const resp = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${resendApiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          from: fromAddress,
+          to: [message.to],
+          reply_to: emailFrom || undefined,
+          subject: message.subject,
+          html: processedHtml,
+          text: message.text,
+          headers: sharedHeaders,
+        }),
+      });
+      if (resp.ok) {
+        const data = await resp.json() as { id?: string };
+        logger.info({ to: message.to, subject: message.subject, resendId: data.id }, "Email sent via Resend API");
+        return { sent: true, provider: "resend" };
+      }
+      const errText = await resp.text();
+      logger.warn({ to: message.to, status: resp.status, errText, from: fromAddress }, "Resend API failed — falling back to SMTP (Zoho)");
+    } catch (fetchErr) {
+      logger.warn({ to: message.to, err: fetchErr }, "Resend API fetch error — falling back to SMTP (Zoho)");
+    }
+  }
+
+  // ── Fallback: nodemailer SMTP ──
   if (!emailFrom || !smtpHost) {
-    logger.info({ to: message.to, subject: message.subject }, "Email skipped: no SMTP provider configured (add Zoho SMTP settings in admin panel)");
-    return { sent: false, reason: "No email provider configured. Add Zoho SMTP settings in Admin → Settings." };
+    logger.info({ to: message.to, subject: message.subject }, "Email skipped: no email provider configured (add SMTP/Zoho settings in admin panel)");
+    return { sent: false, reason: "No email provider configured. Configure SMTP (Zoho) settings in Admin → Payments & Settings." };
   }
 
   const port = Number(smtpPort || 587);
@@ -403,7 +421,7 @@ export function loginNotificationEmail(name: string | null, meta?: { ip?: string
     <p style="margin:0 0 24px;font-size:14px;color:#475569;"><strong style="color:#dc2626;">This was not you?</strong> Your account may be compromised. We strongly recommend you change your password immediately.</p>
     ${btn("Secure My Account", securityUrl, "#dc2626")}
     <div style="margin-top:32px;padding-top:20px;border-top:1px solid #f1f5f9;">
-      <p style="margin:0;font-size:14px;color:#475569;">If you need assistance, contact our support team via our live chat on the website.</p>
+      <p style="margin:0;font-size:14px;color:#475569;">If you need assistance, contact our support team via WhatsApp or the live chat on our website.</p>
       <p style="margin:12px 0 0;font-size:14px;color:#475569;">Regards,<br><strong style="color:#0f172a;">GSM World Security Team</strong></p>
     </div>
   `;
@@ -447,22 +465,18 @@ export function orderSubmittedEmail(params: {
   );
   const body = `
     <p style="margin:0 0 20px;font-size:15px;color:#475569;">Dear <strong style="color:#0f172a;">${name}</strong>,</p>
-    <p style="margin:0 0 20px;font-size:15px;color:#475569;">Thank you for your order. We have received it successfully and our team is now reviewing your request. Here is a summary:</p>
+    <p style="margin:0 0 20px;font-size:15px;color:#475569;">We have received your order and it is currently under review. Below is a summary of your purchase:</p>
     ${orderItemsTable(params.items, params.total)}
     ${infoTable([
       ["Order Reference", `#${ref}`],
       ["Payment Method", pmLabel],
-      ["Status", "&#x23F3;&nbsp; Pending Review"],
+      ["Status", "Pending Review"],
     ])}
-    ${stepsSection([
-      "Our team reviews your order and verifies your payment — usually within <strong style=\"color:#0f172a;\">10–30 minutes</strong>.",
-      "You will receive an email update as soon as your order status changes.",
-      "Once processed, your service is delivered and a completion email is sent with full details.",
-    ])}
+    <p style="margin:0 0 20px;font-size:14px;color:#475569;">Our team will review and process your order. You will receive a follow-up email once your order status changes. Estimated processing time is <strong style="color:#0f172a;">10 – 30 minutes</strong>.</p>
     ${btn("Track Your Order", orderUrl)}
-    <div style="margin-top:28px;padding-top:18px;border-top:1px solid #f1f5f9;">
-      <p style="margin:0;font-size:13px;color:#64748b;">Save your reference: <strong style="color:#0f172a;">Order #${ref}</strong></p>
-      <p style="margin:10px 0 0;font-size:14px;color:#475569;">Regards,<br><strong style="color:#0f172a;">GSM World Team</strong></p>
+    <div style="margin-top:32px;padding-top:20px;border-top:1px solid #f1f5f9;">
+      <p style="margin:0;font-size:13px;color:#64748b;">Please keep your order reference handy: <strong style="color:#0f172a;">Order #${ref}</strong></p>
+      <p style="margin:12px 0 0;font-size:14px;color:#475569;">Regards,<br><strong style="color:#0f172a;">GSM World Team</strong></p>
     </div>
   `;
   const textItems = params.items.map(i => `  - ${i.productName} × ${i.quantity}  ($${(parseFloat(i.price) * i.quantity).toFixed(2)})`).join("\n");
@@ -522,19 +536,16 @@ export function paymentConfirmedEmail(params: {
 
   const body = `
     <p style="margin:0 0 20px;font-size:15px;color:#475569;">Dear <strong style="color:#0f172a;">${name}</strong>,</p>
-    <p style="margin:0 0 20px;font-size:15px;color:#475569;">Great news — your payment has been verified and confirmed. Your order is now in our processing queue.</p>
-    ${statusChip("&#x2713;&nbsp; Payment Verified — Processing Now", "#059669")}
+    <p style="margin:0 0 20px;font-size:15px;color:#475569;">Great news — your payment has been successfully verified and your order is now being processed by our team.</p>
     ${infoTable(infoRows)}
     ${itemsSection}
-    ${stepsSection([
-      "<strong style=\"color:#059669;\">Payment confirmed.</strong> Your funds have been received and verified on our end.",
-      "Our processing team is working on your order <strong>right now</strong> — estimated time: 10–30 minutes.",
-      "You will receive a completion email with your full delivery details once the service is ready.",
-    ])}
+    ${statusChip("Payment Confirmed — Processing Now", "#059669")}
+    <p style="margin:0 0 8px;font-size:14px;color:#475569;">Our team is working on your order now. Estimated processing time is <strong style="color:#0f172a;">10 – 30 minutes</strong>. You'll receive a completion email when it's done.</p>
     ${btn("Track Your Order", orderUrl, "#059669")}
-    <div style="margin-top:28px;padding-top:18px;border-top:1px solid #f1f5f9;">
-      <p style="margin:0;font-size:13px;color:#64748b;">Keep this as your receipt. Reference: <strong style="color:#0f172a;">ORDER-${ref}</strong></p>
-      <p style="margin:10px 0 0;font-size:14px;color:#475569;">Regards,<br><strong style="color:#0f172a;">GSM World Team</strong></p>
+    ${btn("Contact Support", supportUrl, "#0ea5e9")}
+    <div style="margin-top:32px;padding-top:20px;border-top:1px solid #f1f5f9;">
+      <p style="margin:0;font-size:13px;color:#64748b;">Keep this email as your payment receipt. Reference: <strong>ORDER-${ref}</strong></p>
+      <p style="margin:12px 0 0;font-size:14px;color:#475569;">Regards,<br><strong style="color:#0f172a;">GSM World Team</strong></p>
     </div>
   `;
 
@@ -594,9 +605,9 @@ export function walletTransferSentEmail(params: {
   `;
 
   return {
-    subject: `Transfer to @${params.recipientUsername} Confirmed — GSM World`,
+    subject: `Transfer Sent — $${params.amount.toFixed(2)} to @${params.recipientUsername} | GSM World`,
     text: `Dear ${name},\n\nYour transfer of $${params.amount.toFixed(2)} to @${params.recipientUsername} was successful.\n\nFee: $${params.fee.toFixed(2)}\nTotal deducted: $${params.totalDeducted.toFixed(2)}\nDate: ${sentAt}${params.newBalance != null ? `\nNew balance: $${params.newBalance.toFixed(2)}` : ""}\n\nIf you did not authorise this transfer, contact support immediately.\n\nView your wallet: ${walletUrl}\n\n— GSM World Team`,
-    html: layout(`Your transfer to @${params.recipientUsername} has been processed successfully.`, "#0ea5e9", h, body),
+    html: layout(`$${params.amount.toFixed(2)} sent to @${params.recipientUsername} — transfer complete.`, "#0ea5e9", h, body),
   };
 }
 
@@ -641,9 +652,9 @@ export function walletTransferReceivedEmail(params: {
   `;
 
   return {
-    subject: `Wallet Credit Received — GSM World`,
+    subject: `GSM World: Wallet credit of $${params.amount.toFixed(2)} applied to your account`,
     text: `Dear ${name},\n\nYour GSM World wallet has been credited.\n\nCredited By: @${params.senderUsername}\nAmount: $${params.amount.toFixed(2)} USD\nDate: ${receivedAt}${params.newBalance != null ? `\nUpdated Balance: $${params.newBalance.toFixed(2)} USD` : ""}\n\nThis credit is available immediately on your account.\n\nView your account: ${walletUrl}\n\nIf you did not expect this credit, contact our support team.\n\n— GSM World Team`,
-    html: layout(`Your wallet has been credited — new balance available on your account.`, "#059669", h, body),
+    html: layout(`Your GSM World wallet has been credited with $${params.amount.toFixed(2)} USD by @${params.senderUsername}.`, "#059669", h, body),
   };
 }
 
@@ -681,7 +692,7 @@ export function orderStatusUpdateEmail(params: {
     ${params.notes ? alertBox("Message from Our Team", params.notes, st.accent, "#f8fafc") : ""}
     ${btn("View Order Details", orderUrl, st.accent)}
     <div style="margin-top:32px;padding-top:20px;border-top:1px solid #f1f5f9;">
-      <p style="margin:0;font-size:14px;color:#475569;">For any questions or concerns, please reply to this email or use our live support chat.</p>
+      <p style="margin:0;font-size:14px;color:#475569;">For any questions or concerns, please reply to this email or contact us via WhatsApp.</p>
       <p style="margin:12px 0 0;font-size:14px;color:#475569;">Regards,<br><strong style="color:#0f172a;">GSM World Team</strong></p>
     </div>
   `;
@@ -722,7 +733,7 @@ export function moreInfoNeededEmail(params: {
     </ol>
     ${btn("Open Order & Respond", orderUrl, "#d97706")}
     <div style="margin-top:32px;padding-top:20px;border-top:1px solid #f1f5f9;">
-      <p style="margin:0;font-size:13px;color:#94a3b8;">Accepted formats: images, PDFs, screenshots. For assistance, contact us via our live support chat.</p>
+      <p style="margin:0;font-size:13px;color:#94a3b8;">Accepted formats: images, PDFs, screenshots. For assistance, contact us via WhatsApp.</p>
       <p style="margin:12px 0 0;font-size:14px;color:#475569;">Regards,<br><strong style="color:#0f172a;">GSM World Team</strong></p>
     </div>
   `;
@@ -846,7 +857,7 @@ export function adminNewOrderAlertEmail(params: {
     ${btn("View in Admin Dashboard", adminUrl, "#1e3a5f")}
   `;
   return {
-    subject: `New Order #${ref} — ${params.orderType} (${params.customerEmail})`,
+    subject: `[GSM World] New Order #${ref} — ${params.orderType} ($${parseFloat(params.total).toFixed(2)})`,
     text: `New ${params.orderType} — Order #${ref}\n\nCustomer: ${params.customerEmail}\nItem(s): ${params.items}\nTotal: $${parseFloat(params.total).toFixed(2)}\nPayment: ${pmLabel}\n\nAdmin dashboard: ${adminUrl}`,
     html: layout(`New ${params.orderType} — Order #${ref} placed by ${params.customerEmail}.`, "#0ea5e9", h, body),
   };
@@ -905,7 +916,7 @@ export function pendingManualPaymentEmail(params: {
     <p style="margin:0 0 16px;font-size:14px;color:#475569;">After sending payment, please <strong>upload a screenshot</strong> of your transaction via the order page below so our team can verify it promptly.</p>
     ${btn("Open Order & Upload Screenshot", orderUrl, "#4338ca")}
     <div style="margin-top:32px;padding-top:20px;border-top:1px solid #f1f5f9;">
-      <p style="margin:0;font-size:13px;color:#94a3b8;">Payment verification typically takes 1–3 hours during business hours. For urgent assistance, contact our live support chat.</p>
+      <p style="margin:0;font-size:13px;color:#94a3b8;">Payment verification typically takes 1–3 hours during business hours.${params.whatsappContact ? ` For assistance, message us on WhatsApp: <a href="https://wa.me/${params.whatsappContact}" style="color:#4338ca;">${params.whatsappContact}</a>` : " For urgent assistance, contact our support team."}</p>
       <p style="margin:12px 0 0;font-size:14px;color:#475569;">Regards,<br><strong style="color:#0f172a;">GSM World Team</strong></p>
     </div>
   `;
@@ -944,42 +955,6 @@ export function adminDirectMessageEmail(params: {
     subject: "New Message from GSM World Support",
     text: `Dear ${name},\n\nYou have a new message from GSM World Support:\n\n${params.message}\n\nView your account: ${accountUrl}\n\n— GSM World Team`,
     html: layout("You have a new message from the GSM World support team.", "#0ea5e9", h, body),
-  };
-}
-
-// ── Admin: user sent a support message on an order ────────────────────────────
-
-export function adminOrderMessageEmail(params: {
-  orderId: number;
-  customerEmail: string;
-  customerName?: string | null;
-  message: string;
-}) {
-  const name = params.customerName || params.customerEmail;
-  const adminUrl = appUrl(`/admin?tab=orders&orderId=${params.orderId}`);
-  const orderUrl = appUrl(`/orders/${params.orderId}`);
-  const h = header(
-    "linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%)",
-    "New Support Message",
-    `Customer message on Order #${params.orderId}`
-  );
-  const body = `
-    <p style="margin:0 0 20px;font-size:15px;color:#475569;">A customer has sent a new message on <strong style="color:#0f172a;">Order #${params.orderId}</strong>.</p>
-    ${infoTable([
-      ["Customer", name],
-      ["Email", params.customerEmail],
-      ["Order", `#${params.orderId}`],
-    ])}
-    ${alertBox("Customer Message", params.message, "#0ea5e9", "#f0f9ff")}
-    ${btn("View in Admin Dashboard", adminUrl, "#1e3a5f")}
-    <div style="margin-top:32px;padding-top:20px;border-top:1px solid #f1f5f9;">
-      <p style="margin:0;font-size:14px;color:#475569;">Please respond promptly so the customer can be assisted.</p>
-    </div>
-  `;
-  return {
-    subject: `New Support Message — Order #${params.orderId} (${params.customerEmail})`,
-    text: `New support message on Order #${params.orderId}\n\nCustomer: ${name}\nEmail: ${params.customerEmail}\n\nMessage:\n${params.message}\n\nAdmin dashboard: ${adminUrl}\nOrder page: ${orderUrl}`,
-    html: layout(`New support message from ${params.customerEmail} on Order #${params.orderId}.`, "#0ea5e9", h, body),
   };
 }
 
@@ -1169,7 +1144,7 @@ export function abandonedCartEmail(params: {
     .join("\n");
 
   return {
-    subject: `Your GSM World cart is waiting — ${params.items.length === 1 ? "1 item" : `${params.items.length} items`} saved`,
+    subject: `You left ${params.items.length === 1 ? "an item" : `${params.items.length} items`} in your GSM World cart 🛒`,
     text: `Hi ${name},\n\nYou have items waiting in your GSM World cart:\n\n${textItems}\n\nTotal: $${params.total.toFixed(2)}\n\nComplete your order here: ${cartUrl}\n\n— GSM World Team`,
     html: layout("Your cart is waiting — complete your order before items sell out.", "#f97316", h, body),
   };
@@ -1250,4 +1225,91 @@ export function giftCardDeliveryEmail(params: {
     text: `Hi ${name},\n\nYour gift card is ready!\n\n${params.productName}\nValue: ${params.denomination}\nCode: ${params.giftCardCode}\n\nKeep this code safe and redeem it on the relevant platform.\n\nView order: ${params.orderUrl}\n\n— GSM World Team`,
     html: layout("Your gift card code is ready to use!", "#0ea5e9", h, body),
   };
+}
+
+// ── Admin new order notification ───────────────────────────────────────────────
+export function adminNewOrderEmail(params: {
+  orderId: number;
+  customerName: string | null;
+  customerEmail: string;
+  customerPhone: string | null;
+  paymentMethod: string;
+  total: string;
+  currency: string;
+  items: Array<{ productName: string; quantity: number; price: string }>;
+  notes: string | null;
+}) {
+  const storeUrl = getBaseUrl();
+  const adminOrderUrl = `${storeUrl}/admin`;
+  const rows: Array<[string, string]> = [
+    ["Order ID", `#${params.orderId}`],
+    ["Customer", params.customerName || "N/A"],
+    ["Email", params.customerEmail],
+  ];
+  if (params.customerPhone) rows.push(["Phone", params.customerPhone]);
+  rows.push(
+    ["Payment", params.paymentMethod.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())],
+    ["Total", `${params.currency || "USD"} ${parseFloat(params.total).toFixed(2)}`],
+  );
+  if (params.notes) rows.push(["Notes", params.notes]);
+
+  const h = header(
+    "linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%)",
+    `New Order Received — #${params.orderId}`,
+    `Action required: review and process order from ${params.customerEmail}`
+  );
+
+  const body = `
+    ${statusChip("New Order — Awaiting Review", "#0ea5e9")}
+    <p style="margin:0 0 20px;font-size:15px;color:#475569;">A new order has been placed on GSM World. Please review and process it promptly.</p>
+    ${infoTable(rows)}
+    ${orderItemsTable(params.items, params.total)}
+    ${btn("Open Admin Dashboard →", adminOrderUrl, "#0ea5e9")}
+    <p style="margin:20px 0 0;font-size:13px;color:#94a3b8;text-align:center;">This is an automated notification from GSM World.</p>
+  `;
+
+  return {
+    subject: `[GSM World] New Order #${params.orderId} — ${params.currency || "USD"} ${parseFloat(params.total).toFixed(2)} via ${params.paymentMethod.replace(/_/g, " ")}`,
+    text: `NEW ORDER #${params.orderId}\n\nCustomer: ${params.customerName || "N/A"} <${params.customerEmail}>\nPayment: ${params.paymentMethod}\nTotal: ${params.currency || "USD"} ${parseFloat(params.total).toFixed(2)}\n\nItems:\n${params.items.map(i => `- ${i.productName} x${i.quantity} @ $${i.price}`).join("\n")}\n\nView in admin: ${adminOrderUrl}`,
+    html: layout(`New order #${params.orderId} needs your attention.`, "#0ea5e9", h, body),
+  };
+}
+
+// ── Get the admin notification email address ───────────────────────────────────
+export async function getAdminNotifyEmail(): Promise<string | null> {
+  try {
+    const { getAllSettings } = await import("./admin-settings");
+    const settings = await getAllSettings();
+    if (settings.supportEmail) return settings.supportEmail;
+    if (settings.emailFrom) return settings.emailFrom;
+    return null;
+  } catch {
+    return process.env.EMAIL_FROM || null;
+  }
+}
+
+// ── Email template HTML for admin preview panel ────────────────────────────────
+export function getEmailPreviewHtml(templateName: string): string {
+  const demoOrderId = 123;
+  const demoEmail = "customer@example.com";
+  const demoName = "John Doe";
+  const demoItems = [{ productName: "iPhone 15 Unlock", quantity: 1, price: "29.99" }];
+  const demoTotal = "29.99";
+  const demoUrl = getBaseUrl() + "/orders/" + demoOrderId;
+
+  const templates: Record<string, { subject: string; text: string; html?: string }> = {
+    otp: otpEmail("847362"),
+    login_notification: loginNotificationEmail(demoName, { ip: "196.201.45.12", device: "Chrome on Windows" }),
+    order_submitted: orderSubmittedEmail({ orderId: demoOrderId, customerName: demoName, customerEmail: demoEmail, items: demoItems, total: demoTotal, paymentMethod: "binance_pay" }),
+    order_completed: orderCompletedEmail({ orderId: demoOrderId, customerName: demoName, customerEmail: demoEmail, items: demoItems, total: demoTotal, notes: "Unlock code: 12345-ABCDE" }),
+    payment_confirmed: paymentConfirmedEmail({ orderId: demoOrderId, customerName: demoName, customerEmail: demoEmail, amount: demoTotal, currency: "USD", method: "Binance Pay", orderUrl: demoUrl }),
+    order_status_update: orderStatusUpdateEmail({ orderId: demoOrderId, customerName: demoName, customerEmail: demoEmail, newStatus: "processing", notes: "We have received your order and are processing it now." }),
+    more_info_needed: moreInfoNeededEmail({ orderId: demoOrderId, customerName: demoName, customerEmail: demoEmail, message: "Please provide your device IMEI number and the original carrier." }),
+    pending_manual_payment: pendingManualPaymentEmail({ orderId: demoOrderId, customerName: demoName, customerEmail: demoEmail, paymentMethod: "USDT (TRC20)", walletAddress: "TRX123abc456def789", amount: demoTotal, currency: "USD", orderUrl: demoUrl }),
+    admin_new_order: adminNewOrderEmail({ orderId: demoOrderId, customerName: demoName, customerEmail: demoEmail, customerPhone: "+254712345678", paymentMethod: "binance_pay", total: demoTotal, currency: "USD", items: demoItems, notes: null }),
+  };
+
+  const tpl = templates[templateName];
+  if (!tpl) return `<html><body style="font-family:sans-serif;padding:40px;text-align:center;"><h2>Unknown template: ${templateName}</h2></body></html>`;
+  return tpl.html?.replace(/\{\{UNSUB_URL\}\}/g, "#") || `<pre>${tpl.text}</pre>`;
 }

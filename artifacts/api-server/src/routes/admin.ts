@@ -38,6 +38,7 @@ import {
   orderCompletedEmail,
   pendingManualPaymentEmail,
   announcementEmail,
+  getEmailPreviewHtml,
   appUrl,
 } from "../lib/email";
 
@@ -146,7 +147,7 @@ const ALLOWED_SETTING_KEYS = new Set([
   "nowpayments_enabled", "nowpayments_api_key", "nowpayments_ipn_secret", "nowpayments_public_key",
   "coingate_enabled", "coingate_api_key",
   "email_from", "smtp_host", "smtp_port", "smtp_secure", "smtp_user", "smtp_pass",
-  "payment_methods", "admin_password",
+  "resend_api_key", "payment_methods", "admin_password",
   "google_client_id", "google_client_secret",
   "binance_pay_id", "usdt_manual_address", "usdt_manual_network",
   "ots_api_token", "ots_sender_id", "ots_admin_phone",
@@ -271,6 +272,7 @@ router.get("/admin/users", async (req, res) => {
       status: usersTable.status,
       createdAt: usersTable.createdAt,
       registrationIp: usersTable.registrationIp,
+      country: usersTable.country,
     };
 
     let users;
@@ -529,6 +531,19 @@ router.post("/admin/users/:id/message", async (req, res) => {
     res.status(201).json(msg);
   } catch (err) {
     req.log.error({ err }, "Failed to send direct message");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// DELETE — remove a single DM message (delete for everyone)
+router.delete("/admin/users/:id/messages/:msgId", async (req, res) => {
+  try {
+    if (!(await checkAdminAuth(req, res))) return;
+    const msgId = Number(req.params.msgId);
+    await db.delete(liveChatMessagesTable).where(eq(liveChatMessagesTable.id, msgId));
+    res.json({ ok: true });
+  } catch (err) {
+    req.log.error({ err }, "Failed to delete message");
     res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -855,28 +870,7 @@ router.patch("/admin/products/:id", async (req, res) => {
       .safeParse(req.body);
     if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
     const updateData: Record<string, unknown> = {};
-
-    // Minimum price enforcement: non-credit products must be priced ≥ $10 USD
-    if (parsed.data.price !== undefined) {
-      const newPrice = parseFloat(String(parsed.data.price));
-      const MIN_PRICE = 10;
-      if (newPrice < MIN_PRICE) {
-        const [existingProduct] = await db
-          .select({ name: productsTable.name, description: productsTable.description })
-          .from(productsTable)
-          .where(eq(productsTable.id, id))
-          .limit(1);
-        const nameToCheck = parsed.data.name ?? existingProduct?.name ?? "";
-        const descToCheck = existingProduct?.description ?? "";
-        const isCredit = /credit/i.test(nameToCheck + " " + descToCheck);
-        if (!isCredit) {
-          res.status(400).json({ error: `Minimum price is $${MIN_PRICE.toFixed(2)} USD. Only credit products are exempt from this minimum.` });
-          return;
-        }
-      }
-      updateData.price = String(parsed.data.price);
-    }
-
+    if (parsed.data.price !== undefined) updateData.price = String(parsed.data.price);
     if (parsed.data.inStock !== undefined) updateData.inStock = parsed.data.inStock;
     if (parsed.data.featured !== undefined) updateData.featured = parsed.data.featured;
     if (parsed.data.name !== undefined) updateData.name = parsed.data.name;
@@ -1629,6 +1623,73 @@ router.post("/admin/webauthn/auth", async (req, res) => {
     res.json({ ok: true, token });
   } catch (err) {
     req.log.error({ err }, "webauthn auth error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ─── Email preview panel ───────────────────────────────────────────────────────
+
+const EMAIL_TEMPLATES = [
+  { id: "otp",                   label: "OTP / Email Verification" },
+  { id: "login_notification",    label: "Login Notification" },
+  { id: "order_submitted",       label: "Order Submitted (Customer)" },
+  { id: "order_completed",       label: "Order Completed" },
+  { id: "payment_confirmed",     label: "Payment Confirmed" },
+  { id: "order_status_update",   label: "Order Status Update" },
+  { id: "more_info_needed",      label: "More Info Needed" },
+  { id: "pending_manual_payment",label: "Pending Manual Payment" },
+  { id: "admin_new_order",       label: "Admin: New Order Alert" },
+];
+
+// GET /admin/email-templates — list all available templates
+router.get("/admin/email-templates", async (req, res) => {
+  try {
+    if (!(await checkAdminAuth(req, res))) return;
+    res.json({ templates: EMAIL_TEMPLATES });
+  } catch (err) {
+    req.log.error({ err }, "Failed to list email templates");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// GET /admin/email-preview/:template — render template HTML (returns HTML document)
+router.get("/admin/email-preview/:template", async (req, res) => {
+  try {
+    if (!(await checkAdminAuth(req, res))) return;
+    const template = req.params.template;
+    const html = getEmailPreviewHtml(template);
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.setHeader("X-Frame-Options", "SAMEORIGIN");
+    res.send(html);
+  } catch (err) {
+    req.log.error({ err }, "Failed to render email preview");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// POST /admin/email-preview/send-test — send a test email for a given template
+router.post("/admin/email-preview/send-test", async (req, res) => {
+  try {
+    if (!(await checkAdminAuth(req, res))) return;
+    const parsed = z.object({
+      template: z.string(),
+      to: z.string().email(),
+    }).safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const html = getEmailPreviewHtml(parsed.data.template);
+    const tplLabel = EMAIL_TEMPLATES.find(t => t.id === parsed.data.template)?.label ?? parsed.data.template;
+    const result = await sendEmail({
+      to: parsed.data.to,
+      subject: `[Test] GSM World Email — ${tplLabel}`,
+      text: `This is a test email for template: ${tplLabel}\n\nSent from GSM World Admin.`,
+      html,
+    });
+    res.json({ sent: result.sent, provider: (result as { provider?: string }).provider, reason: (result as { reason?: string }).reason });
+  } catch (err) {
+    req.log.error({ err }, "Failed to send test email");
     res.status(500).json({ error: "Internal server error" });
   }
 });

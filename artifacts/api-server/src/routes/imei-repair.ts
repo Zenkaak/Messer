@@ -162,7 +162,7 @@ router.post("/imei-repair/register", async (req, res) => {
       getWhatsappContact().catch(() => ""),
     ]);
 
-    // Send confirmation email (best-effort — log failures for diagnostics)
+    // Send confirmation email (best-effort)
     sendEmail({
       ...orderSubmittedEmail({
         orderId: order.id,
@@ -174,15 +174,7 @@ router.post("/imei-repair/register", async (req, res) => {
         paymentMethod,
       }),
       to: customerEmail,
-    }).then(result => {
-      if (!result.sent) {
-        req.log.warn({ orderCode, to: customerEmail, reason: result.reason }, "imei-repair confirmation email not sent");
-      } else {
-        req.log.info({ orderCode, to: customerEmail, provider: result.provider }, "imei-repair confirmation email sent");
-      }
-    }).catch(err => {
-      req.log.error({ orderCode, to: customerEmail, err }, "imei-repair confirmation email threw");
-    });
+    }).catch(() => {/* non-critical */});
 
     res.json({
       orderId: order.id,

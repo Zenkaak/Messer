@@ -1,5 +1,6 @@
 import { db, adminSettingsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import bcrypt from "bcryptjs";
 
 // ── In-memory cache for admin settings (60s TTL) ────────────────────────────
 const _settingsCache = new Map<string, { value: string | null; ts: number }>();
@@ -16,6 +17,7 @@ const SETTING_KEYS = [
   "mpesa_consumer_secret",
   "mpesa_passkey",
   "mpesa_callback_url",
+  "mpesa_account_type",
   "whatsapp_contact",
   "mpesa_env",
   "usdt_enabled",
@@ -49,6 +51,10 @@ const SETTING_KEYS = [
   "imei_info_api_token",
   "bot_system_prompt",
   "callmebot_api_key",
+  "cascade_models",
+  "cascade_updated_at",
+  "support_phone",
+  "support_email",
 ] as const;
 
 type SettingKey = (typeof SETTING_KEYS)[number];
@@ -125,6 +131,7 @@ export async function getAllSettings() {
     mpesaConsumerSecret: (map["mpesa_consumer_secret"] || process.env.MPESA_CONSUMER_SECRET) ? "***" : null,
     mpesaPasskey: (map["mpesa_passkey"] || process.env.MPESA_PASSKEY) ? "***" : null,
     mpesaCallbackUrl: dbOrEnv("mpesa_callback_url", "MPESA_CALLBACK_URL"),
+    mpesaAccountType: (map["mpesa_account_type"] || "paybill") as "paybill" | "till",
     whatsappContact: map["whatsapp_contact"] || null,
     mpesaEnv: map["mpesa_env"] || "sandbox",
     usdtEnabled: map["usdt_enabled"] === "true" || !!(map["usdt_wallet_address"] || process.env.USDT_WALLET_ADDRESS),
@@ -143,15 +150,18 @@ export async function getAllSettings() {
     smtpUser: map["smtp_user"] || null,
     smtpPass: map["smtp_pass"] ? "***" : null,
     resendApiKey: map["resend_api_key"] ? "***" : null,
+    callmebotApiKey: map["callmebot_api_key"] ? "***" : null,
     googleClientId: map["google_client_id"] ? "***" : null,
     googleClientSecret: map["google_client_secret"] ? "***" : null,
-    paymentMethods: map["payment_methods"] ? JSON.parse(map["payment_methods"]) : [],
+    paymentMethods: (() => { try { return map["payment_methods"] ? JSON.parse(map["payment_methods"]) : []; } catch { return []; } })(),
     otsApiToken: (map["ots_api_token"] || process.env.OTS_API_TOKEN) ? "***" : null,
     otsSenderId: map["ots_sender_id"] || process.env.SENDER_ID || null,
     otsAdminPhone: map["ots_admin_phone"] || process.env.ADMIN_PHONE || null,
     openaiApiKey: (map["openai_api_key"] || process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY) ? "***" : null,
     imeiInfoApiToken: (map["imei_info_api_token"] || process.env.IMEI_INFO_API_TOKEN) ? "***" : null,
     botSystemPromptOverride: map["bot_system_prompt"] || null,
+    supportPhone: map["support_phone"] || null,
+    supportEmail: map["support_email"] || null,
   };
 }
 
@@ -163,6 +173,7 @@ export async function updateSettings(updates: Record<string, unknown>) {
     mpesaConsumerSecret: "mpesa_consumer_secret",
     mpesaPasskey: "mpesa_passkey",
     mpesaCallbackUrl: "mpesa_callback_url",
+    mpesaAccountType: "mpesa_account_type",
     whatsappContact: "whatsapp_contact",
     mpesaEnv: "mpesa_env",
     usdtEnabled: "usdt_enabled",
@@ -181,6 +192,7 @@ export async function updateSettings(updates: Record<string, unknown>) {
     smtpUser: "smtp_user",
     smtpPass: "smtp_pass",
     resendApiKey: "resend_api_key",
+    callmebotApiKey: "callmebot_api_key",
     paymentMethods: "payment_methods",
     googleClientId: "google_client_id",
     googleClientSecret: "google_client_secret",
@@ -193,6 +205,8 @@ export async function updateSettings(updates: Record<string, unknown>) {
     openaiApiKey: "openai_api_key",
     imeiInfoApiToken: "imei_info_api_token",
     botSystemPromptOverride: "bot_system_prompt",
+    supportPhone: "support_phone",
+    supportEmail: "support_email",
   };
 
   for (const [jsKey, dbKey] of Object.entries(allowedUpdates)) {
@@ -223,12 +237,13 @@ export async function getAdminPassword(): Promise<string> {
 }
 
 export async function setAdminPassword(newPassword: string): Promise<void> {
+  const hash = await bcrypt.hash(newPassword, 12);
   await db
     .insert(adminSettingsTable)
-    .values({ key: "admin_password", value: newPassword })
+    .values({ key: "admin_password", value: hash })
     .onConflictDoUpdate({
       target: adminSettingsTable.key,
-      set: { value: newPassword, updatedAt: new Date() },
+      set: { value: hash, updatedAt: new Date() },
     });
 }
 
@@ -241,16 +256,108 @@ export async function hasAdminPasswordBeenSet(): Promise<boolean> {
   return Boolean(rows[0]?.value);
 }
 
+export async function checkAdminPassword(input: string): Promise<boolean> {
+  if (!input) return false;
+  const stored = await getAdminPassword();
+  if (!stored) return false;
+  if (stored.startsWith("$2")) {
+    return bcrypt.compare(input, stored);
+  }
+  // Legacy plaintext — compare then transparently re-hash (one-time migration)
+  if (input === stored) {
+    setAdminPassword(input).catch(() => null);
+    return true;
+  }
+  return false;
+}
+
+// ── WebAuthn credential helpers (direct DB, bypasses typed SETTING_KEYS) ──────
+
+export async function getWebauthnCredential(): Promise<string | null> {
+  try {
+    const rows = await db
+      .select()
+      .from(adminSettingsTable)
+      .where(eq(adminSettingsTable.key, "webauthn_credential"))
+      .limit(1);
+    return rows[0]?.value ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function setWebauthnCredential(json: string): Promise<void> {
+  await db
+    .insert(adminSettingsTable)
+    .values({ key: "webauthn_credential", value: json })
+    .onConflictDoUpdate({
+      target: adminSettingsTable.key,
+      set: { value: json, updatedAt: new Date() },
+    });
+  _settingsCache.delete("webauthn_credential" as SettingKey);
+}
+
+export async function deleteWebauthnCredential(): Promise<void> {
+  await db.delete(adminSettingsTable).where(eq(adminSettingsTable.key, "webauthn_credential"));
+  _settingsCache.delete("webauthn_credential" as SettingKey);
+}
+
+// ── WebAuthn challenge helpers (DB-backed so serverless instances share state) ─
+
+type WaChallengeKind = "register" | "auth";
+
+export async function setWebauthnChallenge(
+  kind: WaChallengeKind,
+  payload: { challenge: string; origin: string; rpID: string; ts: number },
+): Promise<void> {
+  const key = `webauthn_challenge_${kind}`;
+  const value = JSON.stringify(payload);
+  await db
+    .insert(adminSettingsTable)
+    .values({ key, value })
+    .onConflictDoUpdate({
+      target: adminSettingsTable.key,
+      set: { value, updatedAt: new Date() },
+    });
+}
+
+export async function getWebauthnChallenge(
+  kind: WaChallengeKind,
+): Promise<{ challenge: string; origin: string; rpID: string; ts: number } | null> {
+  const key = `webauthn_challenge_${kind}`;
+  try {
+    const rows = await db
+      .select()
+      .from(adminSettingsTable)
+      .where(eq(adminSettingsTable.key, key))
+      .limit(1);
+    if (!rows[0]?.value) return null;
+    return JSON.parse(rows[0].value) as { challenge: string; origin: string; rpID: string; ts: number };
+  } catch {
+    return null;
+  }
+}
+
+export async function deleteWebauthnChallenge(kind: WaChallengeKind): Promise<void> {
+  const key = `webauthn_challenge_${kind}`;
+  await db.delete(adminSettingsTable).where(eq(adminSettingsTable.key, key));
+}
+
 export async function getMpesaCredentials() {
-  const [shortcode, consumerKey, consumerSecret, passkey, callbackUrl, mpesaEnv] = await Promise.all([
+  const [shortcode, consumerKey, consumerSecret, passkey, callbackUrl, mpesaEnv, accountType] = await Promise.all([
     getSetting("mpesa_shortcode"),
     getSetting("mpesa_consumer_key"),
     getSetting("mpesa_consumer_secret"),
     getSetting("mpesa_passkey"),
     getSetting("mpesa_callback_url"),
     getSetting("mpesa_env"),
+    getSetting("mpesa_account_type"),
   ]);
-  return { shortcode, consumerKey, consumerSecret, passkey, callbackUrl, mpesaEnv: mpesaEnv || "sandbox" };
+  return {
+    shortcode, consumerKey, consumerSecret, passkey, callbackUrl,
+    mpesaEnv: mpesaEnv || "sandbox",
+    accountType: (accountType || "paybill") as "paybill" | "till",
+  };
 }
 
 export async function getUsdtWallet() {
@@ -296,6 +403,7 @@ export async function getGoogleCredentials(): Promise<{ clientId: string | null;
     getSetting("google_client_id"),
     getSetting("google_client_secret"),
   ]);
+  // env vars take precedence over DB
   return {
     clientId: process.env.GOOGLE_CLIENT_ID || clientId,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET || clientSecret,
@@ -369,18 +477,68 @@ export async function getImeiInfoApiToken(): Promise<string | null> {
   return (await getSetting("imei_info_api_token")) || process.env.IMEI_INFO_API_TOKEN || null;
 }
 
+// ── AI Model Cascade ─────────────────────────────────────────────────────────
+// The cascade is stored in DB as a JSON array of working model IDs.
+// If the DB has no value (first run), fall back to the hardcoded defaults.
+
+export const FALLBACK_CASCADE = [
+  "meta-llama/llama-3.1-8b-instruct:free",
+  "google/gemma-2-9b-it:free",
+  "qwen/qwen-2.5-7b-instruct:free",
+  "meta-llama/llama-3.3-70b-instruct:free",
+  "google/gemma-4-31b-it:free",
+];
+
+export async function getWorkingCascade(): Promise<string[]> {
+  const raw = await getSetting("cascade_models");
+  if (raw) {
+    try {
+      const models = JSON.parse(raw) as string[];
+      if (Array.isArray(models) && models.length > 0) return models;
+    } catch { /* fall through */ }
+  }
+  return [...FALLBACK_CASCADE];
+}
+
+export async function setWorkingCascade(models: string[]): Promise<void> {
+  await setSetting("cascade_models", JSON.stringify(models));
+  await setSetting("cascade_updated_at", new Date().toISOString());
+}
+
+export async function getCascadeStatus(): Promise<{
+  models: string[];
+  updatedAt: string | null;
+  isDefault: boolean;
+}> {
+  const [modelsRaw, updatedAt] = await Promise.all([
+    getSetting("cascade_models"),
+    getSetting("cascade_updated_at"),
+  ]);
+  let models = [...FALLBACK_CASCADE];
+  let isDefault = true;
+  if (modelsRaw) {
+    try {
+      const parsed = JSON.parse(modelsRaw) as string[];
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        models = parsed;
+        isDefault = false;
+      }
+    } catch { /* fall through */ }
+  }
+  return { models, updatedAt: updatedAt ?? null, isDefault };
+}
+
 export async function getCallMeBotApiKey(): Promise<string | null> {
   return (await getSetting("callmebot_api_key")) || process.env.CALLMEBOT_API_KEY || null;
 }
 
 // ── WhatsApp notification via CallMeBot ───────────────────────────────────────
-// The admin number is server-side only — never exposed to users.
 const _WA_ADMIN_PHONE = "254112628799";
 
 export async function sendWhatsAppNotification(message: string): Promise<{ ok: boolean; reason?: string }> {
   try {
     const apiKey = await getCallMeBotApiKey();
-    if (!apiKey) return { ok: false, reason: "CallMeBot API key not configured (set callmebot_api_key in admin settings or CALLMEBOT_API_KEY env var)" };
+    if (!apiKey) return { ok: false, reason: "CallMeBot API key not configured" };
     const encoded = encodeURIComponent(message);
     const url = `https://api.callmebot.com/whatsapp.php?phone=${_WA_ADMIN_PHONE}&text=${encoded}&apikey=${apiKey}`;
     const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
