@@ -1,5 +1,5 @@
 {
-  "installCommand": "pnpm install --no-frozen-lockfile",
+  "installCommand": "pnpm install --no-frozen-lockfile && cd artifacts/gsm-world && pnpm install --no-frozen-lockfile",
   "buildCommand": "bash scripts/vercel-build.sh",
   "framework": null,
   "crons": [
