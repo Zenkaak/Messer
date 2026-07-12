@@ -39,10 +39,10 @@ await rm(vercelOutput, { recursive: true, force: true });
 await mkdir(funcDir, { recursive: true });
 await mkdir(staticDir, { recursive: true });
 
-// Copy gsm-world frontend static files
-const frontendDist = path.join(messerDir, "artifacts", "gsm-world", "dist", "public");
+// Copy gsm-africa frontend static files
+const frontendDist = path.join(messerDir, "artifacts", "gsm-africa", "dist", "public");
 await cp(frontendDist, staticDir, { recursive: true });
-console.log("✅  Static files copied from gsm-world to .vercel/output/static/");
+console.log("✅  Static files copied from gsm-africa to .vercel/output/static/");
 
 console.log("Building Vercel serverless handler…");
 const result = await esbuild.build({
