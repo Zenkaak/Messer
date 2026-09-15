@@ -4,7 +4,9 @@
   "framework": null,
   "env": {
     "PORT": "24115",
-    "BASE_PATH": "/"
+    "BASE_PATH": "/",
+    "APP_BASE_URL": "https://unlockgsm.vercel.app",
+    "PUBLIC_APP_URL": "https://unlockgsm.vercel.app"
   },
   "crons": [
     {
