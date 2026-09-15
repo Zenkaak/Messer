@@ -50,6 +50,7 @@ interface AdminSettings {
   smtpUser: string | null;
   smtpPass: string | null;
   resendApiKey?: string | null;
+  resendFromEmail?: string | null;
   callmebotApiKey?: string | null;
   whatsappContact: string | null;
   supportPhone?: string | null;
@@ -2961,6 +2962,7 @@ function PaymentsPanel({ pwd }: { pwd: string }) {
     smtpUser: "",
     smtpPass: "",
     resendApiKey: "",
+    resendFromEmail: "",
     callmebotApiKey: "",
     whatsappContact: "",
     supportPhone: "",
@@ -3024,6 +3026,7 @@ function PaymentsPanel({ pwd }: { pwd: string }) {
           smtpUser: d.smtpUser ?? "",
           smtpPass: "",
           resendApiKey: "",
+          resendFromEmail: d.resendFromEmail ?? "",
           callmebotApiKey: "",
           whatsappContact: d.whatsappContact ?? "",
           supportPhone: d.supportPhone ?? "",
@@ -3083,6 +3086,7 @@ function PaymentsPanel({ pwd }: { pwd: string }) {
       if (form.coingateApiKey) body.coingateApiKey = form.coingateApiKey;
       if (form.smtpPass) body.smtpPass = form.smtpPass;
       if (form.resendApiKey) body.resendApiKey = form.resendApiKey;
+      body.resendFromEmail = form.resendFromEmail;
       if (form.callmebotApiKey) body.callmebotApiKey = form.callmebotApiKey;
       if (form.whatsappContact) body.whatsappContact = form.whatsappContact;
       if (form.googleClientId) body.googleClientId = form.googleClientId;
@@ -3102,7 +3106,7 @@ function PaymentsPanel({ pwd }: { pwd: string }) {
         ...f,
         mpesaConsumerKey: "", mpesaConsumerSecret: "", mpesaPasskey: "",
         nowpaymentsApiKey: "", coingateApiKey: "",
-        smtpPass: "", resendApiKey: "", callmebotApiKey: "",
+        smtpPass: "", resendApiKey: "", resendFromEmail: f.resendFromEmail, callmebotApiKey: "",
         googleClientId: "", googleClientSecret: "",
         otsApiToken: "", openaiApiKey: "", imeiInfoApiToken: "", botSystemPrompt: f.botSystemPrompt,
         paymentMethods: updated.paymentMethods?.length
@@ -3484,6 +3488,7 @@ function PaymentsPanel({ pwd }: { pwd: string }) {
           <a href="https://resend.com" target="_blank" rel="noreferrer" className="font-bold underline">resend.com</a>
           {" "}→ verify your sending domain → add the key below. The <em>From Email</em> must be on that verified domain.
         </div>
+        <PlainInput label="Resend From Email" value={form.resendFromEmail ?? ""} onChange={v => setForm(f => ({ ...f, resendFromEmail: v }))} placeholder="no-reply@your-verified-domain.com" />
         <MaskedInput
           label="Resend API Key"
           value={form.resendApiKey ?? ""}
