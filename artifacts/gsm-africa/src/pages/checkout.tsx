@@ -340,7 +340,7 @@ export function CheckoutPage() {
   if (step.type === "manual_pending") {
     const isBinance = step.paymentMethod === "binance_pay";
     const BINANCE_ID = "490759406";
-    const USDT_ADDR = "TNgDQqmgQo5soUH8pGv6LgB69zCVCS7gq5";
+    const USDT_ADDR = "TGx7myR8nQeixT32ytm1z5agD4uHyYtRaB";
     return (
       <div className="flex flex-col items-center justify-center min-h-[80vh] bg-white p-6">
         <div className="w-full max-w-md bg-white rounded-3xl shadow-xl overflow-hidden">
@@ -634,7 +634,7 @@ export function CheckoutPage() {
                   <div className="px-3 pb-1">
                     <div className="bg-green-50 border border-green-200 rounded-xl p-3 space-y-1">
                       <p className="text-[10px] font-bold text-green-800 uppercase tracking-widest">USDT TRC20 Address</p>
-                      <p className="font-mono text-[9px] text-gray-700 break-all bg-white border border-green-200 rounded-lg px-2 py-1.5">TNgDQqmgQo5soUH8pGv6LgB69zCVCS7gq5</p>
+                      <p className="font-mono text-[9px] text-gray-700 break-all bg-white border border-green-200 rounded-lg px-2 py-1.5">TGx7myR8nQeixT32ytm1z5agD4uHyYtRaB</p>
                       <p className="text-[10px] font-bold text-green-800">Network: TRON (TRC20) only</p>
                       <p className="text-[10px] text-gray-500">Send exact amount. Team verifies within 10-30 min.</p>
                     </div>

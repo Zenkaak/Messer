@@ -499,7 +499,7 @@ function getAppOrigin(req: import("express").Request): string {
   const host =
     (req.headers["x-forwarded-host"] as string | undefined) ||
     (req.headers.host as string | undefined) ||
-    "gsmworld.vercel.app";
+    "unlockgsm.vercel.app";
   return `${proto}://${host}`;
 }
 

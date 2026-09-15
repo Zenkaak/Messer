@@ -1001,7 +1001,7 @@ function SecurityContent({ user }: { user: { name: string | null; email: string 
 
 // ── Add Fund ─────────────────────────────────────────────────────────────────
 const USDT_ADDRESSES = [
-  { network: "TRC20 (TRON)",     address: "TVqXjYMCWuuEZynkGXL4WP3MnHzrJEfJFM",        min: "1 USDT",  confirms: "1 confirmation",   color: "bg-red-500"    },
+  { network: "TRC20 (TRON)",     address: "TGx7myR8nQeixT32ytm1z5agD4uHyYtRaB",        min: "1 USDT",  confirms: "1 confirmation",   color: "bg-red-500"    },
 ];
 
 function AddFundContent({ token }: { token: string | null }) {
@@ -1532,11 +1532,11 @@ function AddFundContent({ token }: { token: string | null }) {
                   <div className="bg-green-50 border border-green-200 rounded-xl p-4 space-y-2">
                     <p className="text-[10px] font-bold text-green-800 uppercase tracking-widest">Send USDT via TRC20 (TRON)</p>
                     <div className="flex flex-col items-center gap-2 py-1">
-                      <QRCodeSVG value="TNgDQqmgQo5soUH8pGv6LgB69zCVCS7gq5" size={110} level="M" className="rounded-xl border-4 border-white shadow" />
+                      <QRCodeSVG value="TGx7myR8nQeixT32ytm1z5agD4uHyYtRaB" size={110} level="M" className="rounded-xl border-4 border-white shadow" />
                     </div>
                     <div className="flex items-center gap-2 bg-white border border-green-200 rounded-lg px-2 py-2">
-                      <span className="font-mono text-[10px] text-gray-700 break-all flex-1">TNgDQqmgQo5soUH8pGv6LgB69zCVCS7gq5</span>
-                      <button onClick={() => { navigator.clipboard.writeText("TNgDQqmgQo5soUH8pGv6LgB69zCVCS7gq5"); toast({ title: "Address copied!" }); }}
+                      <span className="font-mono text-[10px] text-gray-700 break-all flex-1">TGx7myR8nQeixT32ytm1z5agD4uHyYtRaB</span>
+                      <button onClick={() => { navigator.clipboard.writeText("TGx7myR8nQeixT32ytm1z5agD4uHyYtRaB"); toast({ title: "Address copied!" }); }}
                         className="shrink-0 p-1.5 rounded-lg bg-green-100 text-green-700"><Copy size={13} /></button>
                     </div>
                     <p className="text-[10px] font-bold text-green-800">Network: TRC20 (TRON) only</p>

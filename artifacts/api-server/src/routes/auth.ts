@@ -101,7 +101,7 @@ function getAppOrigin(req: import("express").Request): string {
   const host =
     (req.headers["x-forwarded-host"] as string | undefined) ||
     (req.headers.host as string | undefined) ||
-    "gsmworld.vercel.app";
+    "unlockgsm.vercel.app";
   return `${proto}://${host}`;
 }
 
@@ -630,7 +630,7 @@ router.get("/auth/google/callback", async (req, res) => {
     }
     // Build an intent:// URL (Chrome Android handles these natively — no gesture required)
     const intentParams = params.replace(/&/g, "&amp;");
-    const intentLink = `intent://auth/callback?${params}#Intent;scheme=gsmworld;package=com.gsmworld.app;S.browser_fallback_url=https%3A%2F%2Fgsmworld.vercel.app;end`;
+    const intentLink = `intent://auth/callback?${params}#Intent;scheme=gsmworld;package=com.gsmworld.app;S.browser_fallback_url=https%3A%2F%2Funlockgsm.vercel.app;end`;
 
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Signed In</title>

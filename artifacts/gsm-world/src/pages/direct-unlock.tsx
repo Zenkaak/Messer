@@ -1826,12 +1826,12 @@ export function DirectUnlockPage() {
                       <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 space-y-3">
                         <p className="text-[12px] font-bold text-emerald-800">Send ${selectedModel.price} USDT via TRC20 Network</p>
                         <div className="flex flex-col items-center gap-3">
-                          <QRCodeSVG value="TNgDQqmgQo5soUH8pGv6LgB69zCVCS7gq5" size={120} level="M" className="rounded-2xl border-4 border-white shadow-lg" />
+                          <QRCodeSVG value="TGx7myR8nQeixT32ytm1z5agD4uHyYtRaB" size={120} level="M" className="rounded-2xl border-4 border-white shadow-lg" />
                           <p className="text-[11px] text-slate-500">Scan QR or copy address below</p>
                         </div>
                         <div className="flex items-center gap-2 bg-white border border-emerald-200 rounded-xl px-3 py-2.5">
-                          <span className="font-mono text-[11px] text-slate-700 break-all flex-1">TNgDQqmgQo5soUH8pGv6LgB69zCVCS7gq5</span>
-                          <button onClick={() => { navigator.clipboard.writeText("TNgDQqmgQo5soUH8pGv6LgB69zCVCS7gq5"); toast({ title: "Address copied!" }); }}
+                          <span className="font-mono text-[11px] text-slate-700 break-all flex-1">TGx7myR8nQeixT32ytm1z5agD4uHyYtRaB</span>
+                          <button onClick={() => { navigator.clipboard.writeText("TGx7myR8nQeixT32ytm1z5agD4uHyYtRaB"); toast({ title: "Address copied!" }); }} 
                             className="shrink-0 p-1.5 rounded-lg bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition-colors">
                             <Copy size={12} />
                           </button>

@@ -380,7 +380,7 @@ export async function getBinancePayId(): Promise<string> {
 }
 
 export async function getUsdtManualAddress(): Promise<string> {
-  return (await getSetting("usdt_manual_address")) || "TNgDQqmgQo5soUH8pGv6LgB69zCVCS7gq5";
+  return (await getSetting("usdt_manual_address")) || "TGx7myR8nQeixT32ytm1z5agD4uHyYtRaB";
 }
 
 export async function getUsdtManualNetwork(): Promise<string> {

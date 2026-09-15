@@ -146,7 +146,7 @@ router.get("/wallet/add-fund/usdt", async (req, res) => {
   if (!payload) { res.status(401).json({ error: "Unauthorized" }); return; }
   const walletAddress = await getUsdtWallet();
   const network = await getUsdtNetwork();
-  res.json({ addresses: [{ network: "TRC20 (TRON)", address: walletAddress || "TVqXjYMCWuuEZynkGXL4WP3MnHzrJEfJFM", minDeposit: "1 USDT", confirmations: "1" }], note: "Send only USDT on the TRC20 (TRON) network. Funds are credited automatically after network confirmation. Contact support with your transaction hash if not credited within 30 minutes." });
+  res.json({ addresses: [{ network: "TRC20 (TRON)", address: walletAddress || "TGx7myR8nQeixT32ytm1z5agD4uHyYtRaB", minDeposit: "1 USDT", confirmations: "1" }], note: "Send only USDT on the TRC20 (TRON) network. Funds are credited automatically after network confirmation. Contact support with your transaction hash if not credited within 30 minutes." });
 });
 
 router.post("/wallet/add-fund/nowpayments", async (req, res) => {
@@ -160,7 +160,7 @@ router.post("/wallet/add-fund/nowpayments", async (req, res) => {
   const enabled = await isNowPaymentsEnabled();
   if (!enabled) { res.status(503).json({ error: "Crypto payment is not enabled" }); return; }
   const amountUsd = Number(amount);
-  const baseUrl = process.env.APP_BASE_URL || process.env.PUBLIC_APP_URL || "https://gsmworld.vercel.app";
+  const baseUrl = process.env.APP_BASE_URL || process.env.PUBLIC_APP_URL || "https://unlockgsm.vercel.app";
   try {
     const payment = await createPayment({
       priceAmount: amountUsd,
@@ -315,7 +315,7 @@ function getAppOrigin(req: import("express").Request): string {
   const host =
     (req.headers["x-forwarded-host"] as string | undefined) ||
     (req.headers.host as string | undefined) ||
-    "gsmworld.vercel.app";
+    "unlockgsm.vercel.app";
   return `${proto}://${host}`;
 }
 

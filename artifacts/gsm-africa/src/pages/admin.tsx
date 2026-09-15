@@ -3536,7 +3536,7 @@ function PaymentsPanel({ pwd }: { pwd: string }) {
             </a>{" "}
             → Create OAuth 2.0 Client ID → Web application.
             Set Authorised redirect URI to:{" "}
-            <code className="bg-blue-100 px-1 rounded text-[10px]">https://gsmworld.vercel.app/api/auth/google/callback</code>
+            <code className="bg-blue-100 px-1 rounded text-[10px]">https://unlockgsm.vercel.app/api/auth/google/callback</code>
           </div>
           <MaskedInput
             label="Client ID"

@@ -2893,7 +2893,7 @@ router.post("/chat/bot", async (req, res) => {
             headers: {
               Authorization: `Bearer ${apiKey}`,
               "Content-Type": "application/json",
-              "HTTP-Referer": "https://gsmworld.vercel.app",
+              "HTTP-Referer": "https://unlockgsm.vercel.app",
               "X-Title": "GSMBot",
             },
             body: JSON.stringify({
@@ -3210,7 +3210,7 @@ router.post("/chat/live/:sessionId/messages", async (req, res) => {
     // Send email to visitor when admin joins the chat for the first time
     if (isAdmin && wasWaiting && session.visitorEmail) {
       try {
-        const storeUrl = process.env.APP_BASE_URL || process.env.PUBLIC_APP_URL || "https://gsmworld.vercel.app";
+        const storeUrl = process.env.APP_BASE_URL || process.env.PUBLIC_APP_URL || "https://unlockgsm.vercel.app";
         await sendEmail({
           to: session.visitorEmail,
           subject: "A support agent has joined your chat — GSM World",
