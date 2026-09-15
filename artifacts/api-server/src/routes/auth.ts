@@ -156,13 +156,9 @@ router.post("/auth/register", async (req, res) => {
 
     const token = makeToken(user.id, user.email);
     logger.info({ userId: user.id, username }, "User registered");
-    const otp = String(Math.floor(100000 + Math.random() * 900000));
-    await setOtp(user.email, otp, 10 * 60 * 1000);
-    const emailResult = await sendEmail({ to: user.email, ...otpEmail(otp) });
-    if (!emailResult.sent) {
-      logger.error({ reason: emailResult.reason, to: user.email }, "Failed to send signup verification email");
-    }
-    res.status(201).json({ token, user: { id: user.id, email: user.email, name: user.name }, emailSent: emailResult.sent });
+    // Signup does not require email verification for now. Return a session
+    // immediately so the client can log the new user in.
+    res.status(201).json({ token, user: { id: user.id, email: user.email, name: user.name } });
   } catch (err) {
     req.log.error({ err }, "Registration failed");
     res.status(500).json({ error: "Internal server error" });

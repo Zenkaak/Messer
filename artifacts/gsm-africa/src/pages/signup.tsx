@@ -1,11 +1,9 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
-import { Eye, EyeOff, Lock, Mail, User, ShieldCheck, Zap, Globe, ArrowLeft } from "lucide-react";
+import { Eye, EyeOff, Lock, Mail, User, ShieldCheck, Zap, Globe } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useNotifications } from "@/context/notification-context";
-
-type Step = "register" | "verify";
 
 export function SignupPage() {
   const [, navigate] = useLocation();
@@ -14,18 +12,11 @@ export function SignupPage() {
   const { toast } = useToast();
   const { notify } = useNotifications();
 
-  const [step, setStep] = useState<Step>("register");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-
-  // OTP step
-  const [otp, setOtp] = useState("");
-  const [pendingToken, setPendingToken] = useState<string | null>(null);
-  const [pendingUser, setPendingUser] = useState<{ id: number; name: string | null; email: string } | null>(null);
-  const [resending, setResending] = useState(false);
 
   async function handleRegister(e: React.FormEvent) {
     e.preventDefault();
@@ -42,59 +33,13 @@ export function SignupPage() {
         toast({ title: data.error || "Registration failed", variant: "destructive" });
         return;
       }
-      setPendingToken(data.token!);
-      setPendingUser(data.user!);
-      setStep("verify");
-      toast({ title: "Verification code sent!", description: `Check your email at ${email}.` });
-    } catch {
-      toast({ title: "Network error. Please try again.", variant: "destructive" });
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleVerify(e: React.FormEvent) {
-    e.preventDefault();
-    if (!otp.trim() || otp.length !== 6) {
-      toast({ title: "Enter the 6-digit code from your email.", variant: "destructive" });
-      return;
-    }
-    setLoading(true);
-    try {
-      const res = await fetch("/api/auth/verify-otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, code: otp.trim() }),
-      });
-      const data = await res.json() as { error?: string; success?: boolean };
-      if (!res.ok || !data.success) {
-        toast({ title: data.error || "Invalid or expired code.", variant: "destructive" });
-        return;
-      }
-      login(pendingToken!, pendingUser!);
-      notify("Welcome to GSM World!", `Hi ${pendingUser?.name || pendingUser?.email}, your account is now verified.`, "success");
+      login(data.token!, data.user!);
+      notify("Welcome to GSM World!", `Hi ${data.user?.name || data.user?.email}, your account is ready.`, "success");
       navigate(returnTo);
     } catch {
       toast({ title: "Network error. Please try again.", variant: "destructive" });
     } finally {
       setLoading(false);
-    }
-  }
-
-  async function handleResend() {
-    setResending(true);
-    try {
-      const res = await fetch("/api/auth/resend-signup-otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
-      if (!res.ok) throw new Error("failed");
-      toast({ title: "Code resent!", description: "Check your inbox again." });
-    } catch {
-      toast({ title: "Could not resend. Try again shortly.", variant: "destructive" });
-    } finally {
-      setResending(false);
     }
   }
 
@@ -110,24 +55,14 @@ export function SignupPage() {
         <div className="w-16 h-16 rounded-2xl bg-blue-500/20 border border-blue-400/30 flex items-center justify-center mb-4 shadow-lg">
           <User size={28} className="text-white" />
         </div>
-        {step === "register" ? (
-          <>
-            <h1 className="text-2xl font-black text-white mb-1">Create Account</h1>
-            <p className="text-blue-300/70 text-sm max-w-[220px]">Join thousands of GSM professionals worldwide</p>
-          </>
-        ) : (
-          <>
-            <h1 className="text-2xl font-black text-white mb-1">Verify Your Email</h1>
-            <p className="text-blue-300/70 text-sm max-w-[260px]">We sent a 6-digit code to <span className="text-blue-300 font-semibold">{email}</span></p>
-          </>
-        )}
+        <h1 className="text-2xl font-black text-white mb-1">Create Account</h1>
+        <p className="text-blue-300/70 text-sm max-w-[220px]">Join thousands of GSM professionals worldwide</p>
       </div>
 
       {/* Form */}
       <div className="px-5 pt-6 pb-8 space-y-4">
 
-        {step === "register" ? (
-          <form onSubmit={handleRegister} className="space-y-3">
+        <form onSubmit={handleRegister} className="space-y-3">
             {/* Full name */}
             <div>
               <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1.5">
@@ -199,64 +134,8 @@ export function SignupPage() {
               ) : "Create Account"}
             </button>
           </form>
-        ) : (
-          /* ── OTP Verification Step ── */
-          <form onSubmit={handleVerify} className="space-y-4">
-            <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 text-center">
-              <p className="text-sm text-blue-700 font-medium">
-                A 6-digit verification code was sent to
-              </p>
-              <p className="text-sm font-black text-blue-900 mt-0.5">{email}</p>
-              <p className="text-xs text-blue-500 mt-1">The code expires in 10 minutes.</p>
-            </div>
 
-            <div>
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1.5">Verification Code</label>
-              <input
-                type="text"
-                inputMode="numeric"
-                pattern="\d{6}"
-                maxLength={6}
-                value={otp}
-                onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                placeholder="000000"
-                autoFocus
-                className="w-full py-4 text-center text-3xl font-black tracking-[0.5em] border-2 border-gray-200 rounded-2xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 text-gray-900"
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading || otp.length !== 6}
-              className="w-full py-3.5 bg-[#1a2332] hover:bg-[#253246] text-white font-black text-base rounded-2xl transition-colors shadow-lg shadow-gray-900/20 disabled:opacity-60 flex items-center justify-center gap-2"
-            >
-              {loading ? (
-                <><span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Verifying…</>
-              ) : "Verify & Activate Account"}
-            </button>
-
-            <div className="flex items-center justify-between pt-1">
-              <button
-                type="button"
-                onClick={() => { setStep("register"); setOtp(""); }}
-                className="flex items-center gap-1 text-sm text-gray-400 hover:text-gray-600 transition-colors"
-              >
-                <ArrowLeft size={14} /> Back
-              </button>
-              <button
-                type="button"
-                onClick={handleResend}
-                disabled={resending}
-                className="text-sm text-blue-600 font-semibold hover:underline disabled:opacity-50"
-              >
-                {resending ? "Sending…" : "Resend code"}
-              </button>
-            </div>
-          </form>
-        )}
-
-        {step === "register" && (
-          <>
+        <>
             {/* Google sign-in divider */}
             <div className="relative">
               <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200" /></div>
@@ -308,8 +187,7 @@ export function SignupPage() {
             <p className="text-center text-[11px] text-gray-400">
               By creating an account you agree to our terms of service.
             </p>
-          </>
-        )}
+        </>
       </div>
       </div>
     </div>
