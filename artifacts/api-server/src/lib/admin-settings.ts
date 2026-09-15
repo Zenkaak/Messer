@@ -40,6 +40,7 @@ const SETTING_KEYS = [
   "google_client_id",
   "google_client_secret",
   "resend_api_key",
+  "resend_from_email",
   "binance_pay_id",
   "usdt_manual_address",
   "usdt_manual_network",
@@ -150,6 +151,7 @@ export async function getAllSettings() {
     smtpUser: map["smtp_user"] || null,
     smtpPass: map["smtp_pass"] ? "***" : null,
     resendApiKey: map["resend_api_key"] ? "***" : null,
+    resendFromEmail: map["resend_from_email"] || null,
     callmebotApiKey: map["callmebot_api_key"] ? "***" : null,
     googleClientId: map["google_client_id"] ? "***" : null,
     googleClientSecret: map["google_client_secret"] ? "***" : null,
@@ -192,6 +194,7 @@ export async function updateSettings(updates: Record<string, unknown>) {
     smtpUser: "smtp_user",
     smtpPass: "smtp_pass",
     resendApiKey: "resend_api_key",
+    resendFromEmail: "resend_from_email",
     callmebotApiKey: "callmebot_api_key",
     paymentMethods: "payment_methods",
     googleClientId: "google_client_id",
@@ -431,6 +434,10 @@ export async function isEnabled(provider: "mpesa" | "usdt" | "nowpayments" | "co
 
 export async function getResendApiKey(): Promise<string | null> {
   return getSetting("resend_api_key");
+}
+
+export async function getResendFromEmail(): Promise<string | null> {
+  return getSetting("resend_from_email");
 }
 
 export async function getSmtpConfig() {
