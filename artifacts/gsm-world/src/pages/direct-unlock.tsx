@@ -1831,7 +1831,7 @@ export function DirectUnlockPage() {
                         </div>
                         <div className="flex items-center gap-2 bg-white border border-emerald-200 rounded-xl px-3 py-2.5">
                           <span className="font-mono text-[11px] text-slate-700 break-all flex-1">TGx7myR8nQeixT32ytm1z5agD4uHyYtRaB</span>
-                          <button onClick={() => { navigator.clipboard.writeText("TGx7myR8nQeixT32ytm1z5agD4uHyYtRaB"); toast({ title: "Address copied!" }); }} 
+                          <button onClick={() => { navigator.clipboard.writeText("TGx7myR8nQeixT32ytm1z5agD4uHyYtRaB"); toast({ title: "Address copied!" }); }}
                             className="shrink-0 p-1.5 rounded-lg bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition-colors">
                             <Copy size={12} />
                           </button>
