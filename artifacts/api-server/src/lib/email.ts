@@ -1326,10 +1326,10 @@ export function getEmailPreviewHtml(templateName: string): string {
     login_notification: loginNotificationEmail(demoName, { ip: "196.201.45.12", device: "Chrome on Windows" }),
     order_submitted: orderSubmittedEmail({ orderId: demoOrderId, customerName: demoName, customerEmail: demoEmail, items: demoItems, total: demoTotal, paymentMethod: "binance_pay" }),
     order_completed: orderCompletedEmail({ orderId: demoOrderId, customerName: demoName, customerEmail: demoEmail, items: demoItems, total: demoTotal, notes: "Unlock code: 12345-ABCDE" }),
-    payment_confirmed: paymentConfirmedEmail({ orderId: demoOrderId, customerName: demoName, customerEmail: demoEmail, amount: demoTotal, currency: "USD", method: "Binance Pay", orderUrl: demoUrl }),
-    order_status_update: orderStatusUpdateEmail({ orderId: demoOrderId, customerName: demoName, customerEmail: demoEmail, newStatus: "processing", notes: "We have received your order and are processing it now." }),
+    payment_confirmed: paymentConfirmedEmail({ orderId: demoOrderId, customerName: demoName, customerEmail: demoEmail, amount: demoTotal, paymentMethod: "binance_pay" }),
+    order_status_update: orderStatusUpdateEmail({ orderId: demoOrderId, customerName: demoName, customerEmail: demoEmail, status: "processing", notes: "We have received your order and are processing it now." }),
     more_info_needed: moreInfoNeededEmail({ orderId: demoOrderId, customerName: demoName, customerEmail: demoEmail, message: "Please provide your device IMEI number and the original carrier." }),
-    pending_manual_payment: pendingManualPaymentEmail({ orderId: demoOrderId, customerName: demoName, customerEmail: demoEmail, paymentMethod: "USDT (TRC20)", walletAddress: "TRX123abc456def789", amount: demoTotal, currency: "USD", orderUrl: demoUrl }),
+    pending_manual_payment: pendingManualPaymentEmail({ orderId: demoOrderId, customerName: demoName, customerEmail: demoEmail, paymentMethod: "usdt_manual", usdtAddress: "TRX123abc456def789", total: demoTotal }),
     admin_new_order: adminNewOrderEmail({ orderId: demoOrderId, customerName: demoName, customerEmail: demoEmail, customerPhone: "+254712345678", paymentMethod: "binance_pay", total: demoTotal, currency: "USD", items: demoItems, notes: null }),
   };
 
