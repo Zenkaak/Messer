@@ -27,7 +27,7 @@ import java.io.File;
 
 public class MainActivity extends AppCompatActivity {
 
-    private static final String APP_URL = "https://gsmworld.vercel.app";
+    private static final String APP_URL = "https://unlockgsm.vercel.app";
     private static final String APK_FILENAME = "GSMWorld-update.apk";
 
     private WebView webView;
@@ -151,8 +151,7 @@ public class MainActivity extends AppCompatActivity {
                 }
 
                 // Keep everything from our domain inside the WebView
-                if (url.startsWith("https://gsmworld.vercel.app")
-                        || url.startsWith("https://www.gsmworld.vercel.app")) {
+                if (url.startsWith("https://unlockgsm.vercel.app")) {
                     return false;
                 }
 
