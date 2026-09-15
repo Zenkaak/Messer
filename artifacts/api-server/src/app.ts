@@ -25,11 +25,15 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   const origSend = res.send.bind(res);
 
   const compress = (buf: Buffer, cb: (out: Buffer) => void) => {
-    const fn = enc === "br" ? zlib.brotliCompress : zlib.gzip;
-    fn(buf, enc === "br"
-      ? { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 4 } }
-      : {},
-      (err, out) => { if (err || !out) { cb(buf); } else { cb(out); } });
+    const done = (err: Error | null, out: Buffer) => {
+      if (err || !out) cb(buf);
+      else cb(out);
+    };
+    if (enc === "br") {
+      zlib.brotliCompress(buf, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 4 } }, done);
+    } else {
+      zlib.gzip(buf, done);
+    }
   };
 
   const wrapSend = (body: unknown): Response => {
