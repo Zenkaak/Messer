@@ -79,7 +79,7 @@ export async function runDailyMarketingEmail(): Promise<MarketingResult> {
             headers: {
               "Content-Type": "application/json",
               "Authorization": `Bearer ${apiKey}`,
-              "HTTP-Referer": "https://gsmworld.vercel.app",
+              "HTTP-Referer": "https://unlockgsm.vercel.app",
               "X-Title": "GSMWorld DailyMarketing",
             },
             body: JSON.stringify(reqBody),

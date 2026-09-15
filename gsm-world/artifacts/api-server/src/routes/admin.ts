@@ -1061,7 +1061,7 @@ router.post("/admin/announcements/ai-generate", async (req, res) => {
           headers: {
             "Content-Type": "application/json",
             "Authorization": `Bearer ${apiKey}`,
-            "HTTP-Referer": "https://gsmworld.vercel.app",
+            "HTTP-Referer": "https://unlockgsm.vercel.app",
             "X-Title": "GSMWorld Admin",
           },
           body: JSON.stringify(reqBody),
@@ -1320,7 +1320,7 @@ async function probeModel(apiKey: string, baseURL: string, model: string): Promi
       headers: {
         "Authorization": `Bearer ${apiKey}`,
         "Content-Type": "application/json",
-        "HTTP-Referer": "https://gsmworld.vercel.app",
+        "HTTP-Referer": "https://unlockgsm.vercel.app",
         "X-Title": "GSMWorld Model Probe",
       },
       body: JSON.stringify({

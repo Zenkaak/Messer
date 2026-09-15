@@ -20,7 +20,7 @@ type EmailMessage = {
 };
 
 function getBaseUrl() {
-  return process.env.APP_BASE_URL || process.env.PUBLIC_APP_URL || "https://gsmworld.vercel.app";
+  return process.env.APP_BASE_URL || process.env.PUBLIC_APP_URL || "https://unlockgsm.vercel.app";
 }
 
 export function appUrl(path: string) {

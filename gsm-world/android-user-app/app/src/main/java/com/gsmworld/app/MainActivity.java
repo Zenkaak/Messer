@@ -39,8 +39,8 @@ import java.security.KeyStore;
 public class MainActivity extends AppCompatActivity {
 
     private static final String TAG      = "GSMWorld";
-    private static final String APP_URL  = "https://gsmworld.vercel.app/";
-    private static final String APP_HOST = "gsmworld.vercel.app";
+    private static final String APP_URL  = "https://unlockgsm.vercel.app/";
+    private static final String APP_HOST = "unlockgsm.vercel.app";
 
     private WebView            webView;
     private SwipeRefreshLayout swipeRefresh;

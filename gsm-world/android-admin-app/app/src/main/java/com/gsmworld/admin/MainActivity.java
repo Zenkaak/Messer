@@ -51,19 +51,19 @@ import java.util.concurrent.Executors;
 public class MainActivity extends AppCompatActivity {
 
     private static final String TAG        = "GSMAdmin";
-    private static final String ADMIN_URL  = "https://gsmworld.vercel.app/admin";
-    private static final String ADMIN_HOST = "gsmworld.vercel.app";
+    private static final String ADMIN_URL  = "https://unlockgsm.vercel.app/admin";
+    private static final String ADMIN_HOST = "unlockgsm.vercel.app";
     // Version-check endpoint on the GSMWorld server — avoids hitting GitHub API
     // directly and also works if the repo is ever made private.
     private static final String ADMIN_APK_VERSION_API =
-        "https://gsmworld.vercel.app/api/download/admin-apk-version";
+        "https://unlockgsm.vercel.app/api/download/admin-apk-version";
     // Server-side streaming download — uses GitHub token on the server so
     // direct CDN auth issues can never corrupt the download.
     private static final String ADMIN_APK_DOWNLOAD_URL =
-        "https://gsmworld.vercel.app/api/download/admin-apk";
+        "https://unlockgsm.vercel.app/api/download/admin-apk";
     private static final int    REQUEST_INSTALL_PERMISSION = 1001;
     private static final String WEB_VERSION_API =
-        "https://gsmworld.vercel.app/api/web-version";
+        "https://unlockgsm.vercel.app/api/web-version";
     private static final long   WEB_VERSION_POLL_MS = 60_000;
     private static final String PREFS_NAME        = "gsm_admin_prefs";
     private static final String KEY_LAST_TAG      = "last_apk_tag";
