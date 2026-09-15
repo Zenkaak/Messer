@@ -147,7 +147,7 @@ const ALLOWED_SETTING_KEYS = new Set([
   "nowpayments_enabled", "nowpayments_api_key", "nowpayments_ipn_secret", "nowpayments_public_key",
   "coingate_enabled", "coingate_api_key",
   "email_from", "smtp_host", "smtp_port", "smtp_secure", "smtp_user", "smtp_pass",
-  "resend_api_key", "payment_methods", "admin_password",
+  "resend_api_key", "resend_from_email", "payment_methods", "admin_password",
   "google_client_id", "google_client_secret",
   "binance_pay_id", "usdt_manual_address", "usdt_manual_network",
   "ots_api_token", "ots_sender_id", "ots_admin_phone",
