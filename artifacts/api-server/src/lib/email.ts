@@ -269,6 +269,12 @@ export async function sendEmail(message: EmailMessage) {
   if (!emailFrom && smtpUser) {
     emailFrom = smtpUser;
   }
+  // Keep existing installations working: if no dedicated Resend sender was
+  // configured, reuse the existing From Email setting. Resend will return its
+  // precise verified-domain error if that address is not allowed.
+  if (!resendFromEmail && emailFrom) {
+    resendFromEmail = emailFrom;
+  }
 
   const fromAddress = emailFrom ? `GSM World <${emailFrom}>` : null;
   const resendFromAddress = resendFromEmail ? `GSM World <${resendFromEmail}>` : null;
