@@ -246,11 +246,12 @@ export async function sendEmail(message: EmailMessage) {
   let emailFrom: string | null = process.env.EMAIL_FROM || null;
   let smtpSecure = process.env.SMTP_SECURE === "true";
   let resendApiKey: string | null = process.env.RESEND_API_KEY || null;
+  let resendFromEmail: string | null = process.env.RESEND_FROM_EMAIL || process.env.RESEND_FROM || null;
 
-  if (!smtpHost || !emailFrom || !resendApiKey) {
+  if (!smtpHost || !emailFrom || !resendApiKey || !resendFromEmail) {
     try {
-      const { getSmtpConfig, getResendApiKey } = await import("./admin-settings");
-      const [cfg, rkey] = await Promise.all([getSmtpConfig(), getResendApiKey()]);
+      const { getSmtpConfig, getResendApiKey, getResendFromEmail } = await import("./admin-settings");
+      const [cfg, rkey, rfrom] = await Promise.all([getSmtpConfig(), getResendApiKey(), getResendFromEmail()]);
       smtpHost = smtpHost || cfg.smtpHost;
       smtpPort = smtpPort || cfg.smtpPort;
       smtpUser = smtpUser || cfg.smtpUser;
@@ -258,6 +259,7 @@ export async function sendEmail(message: EmailMessage) {
       emailFrom = emailFrom || cfg.emailFrom;
       smtpSecure = smtpSecure || cfg.smtpSecure;
       resendApiKey = resendApiKey || rkey;
+      resendFromEmail = resendFromEmail || rfrom;
     } catch {
       // DB not available
     }
@@ -269,12 +271,13 @@ export async function sendEmail(message: EmailMessage) {
   }
 
   const fromAddress = emailFrom ? `GSM World <${emailFrom}>` : null;
+  const resendFromAddress = resendFromEmail ? `GSM World <${resendFromEmail}>` : null;
   const unsubscribeUrl = buildUnsubUrl(message.to);
   const processedHtml = message.html?.replace(/\{\{UNSUB_URL\}\}/g, unsubscribeUrl);
 
   // Derive the sending domain from emailFrom so Message-ID / List-Unsubscribe
   // always match the verified sender domain (mismatches are a top spam trigger).
-  const sendingDomain = emailFrom?.split("@")[1] ?? "gsmworld.co.ke";
+  const sendingDomain = (resendFromEmail || emailFrom)?.split("@")[1] ?? "gsmworld.co.ke";
   const msgId = `<${Date.now()}.${Math.random().toString(36).slice(2, 10)}@${sendingDomain}>`;
   const entityRef = `gsm-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const sharedHeaders: Record<string, string> = {
@@ -288,8 +291,14 @@ export async function sendEmail(message: EmailMessage) {
     "Feedback-ID": `transactional:gsm-world:${sendingDomain}`,
   };
 
-  // ── Try Resend API first if configured (optional — skip if not set) ──
-  if (resendApiKey && fromAddress) {
+  // Resend is authoritative when configured. Never fall through to SMTP after
+  // a Resend failure: doing so masks the actual provider error (often SMTP 535).
+  if (resendApiKey) {
+    if (!resendFromAddress) {
+      const reason = "Resend is configured but no Resend From Email is set. Add an address on a verified Resend domain in Admin → Email settings.";
+      logger.error({ to: message.to }, reason);
+      return { sent: false, reason };
+    }
     try {
       const resp = await fetch("https://api.resend.com/emails", {
         method: "POST",
@@ -298,7 +307,7 @@ export async function sendEmail(message: EmailMessage) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          from: fromAddress,
+          from: resendFromAddress,
           to: [message.to],
           reply_to: emailFrom || undefined,
           subject: message.subject,
@@ -313,16 +322,25 @@ export async function sendEmail(message: EmailMessage) {
         return { sent: true, provider: "resend" };
       }
       const errText = await resp.text();
-      logger.warn({ to: message.to, status: resp.status, errText, from: fromAddress }, "Resend API failed — falling back to SMTP (Zoho)");
-    } catch (fetchErr) {
-      logger.warn({ to: message.to, err: fetchErr }, "Resend API fetch error — falling back to SMTP (Zoho)");
+      let providerMessage = errText;
+      try {
+        const parsed = JSON.parse(errText) as { message?: string; error?: { message?: string } };
+        providerMessage = parsed.message || parsed.error?.message || errText;
+      } catch { /* keep the raw response */ }
+      const reason = `Resend API rejected the email (HTTP ${resp.status}): ${providerMessage.slice(0, 300)}`;
+      logger.error({ to: message.to, status: resp.status, providerMessage, from: resendFromAddress }, "Resend API failed");
+      return { sent: false, reason };
+    } catch (err) {
+      const reason = `Resend API request failed: ${String(err)}`;
+      logger.error({ to: message.to, err, from: resendFromAddress }, "Resend API request failed");
+      return { sent: false, reason };
     }
   }
 
-  // ── Fallback: nodemailer SMTP ──
+  // Fallback: nodemailer SMTP, used only when Resend is not configured.
   if (!emailFrom || !smtpHost) {
-    logger.info({ to: message.to, subject: message.subject }, "Email skipped: no email provider configured (add SMTP/Zoho settings in admin panel)");
-    return { sent: false, reason: "No email provider configured. Configure SMTP (Zoho) settings in Admin → Payments & Settings." };
+    logger.info({ to: message.to, subject: message.subject }, "Email skipped: no email provider configured");
+    return { sent: false, reason: "No email provider configured. Add a Resend API key and verified sender, or configure SMTP in Admin → Email settings." };
   }
 
   const port = Number(smtpPort || 587);
