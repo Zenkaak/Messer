@@ -32,14 +32,6 @@ type Progress =
   | { kind: "manual"; orderId: number; method: "binance_pay" | "usdt_manual"; binancePayId?: string | null; usdtAddress?: string | null; usdtNetwork?: string | null };
 type OrderResponse = { id?: number; error?: string };
 
-const DEVICES: Device[] = DEVICE_CATALOG.flatMap((brand) =>
-  brand.models.map((model) => ({
-    brand: brand.brand,
-    model: model.name,
-    price: model.price,
-  })),
-);
-
 const PREPARATION_MS = 5 * 60 * 1000;
 const PREPARATION_STEPS = [
   { code: "IMEI", title: "Validate identifier", detail: "Checking the IMEI checksum or serial format you entered.", log: "Identifier format and checksum accepted" },
@@ -94,7 +86,7 @@ function AccountPill({ email }: { email: string }) {
   );
 }
 
-function DeviceStage({ selected, onSelect, onContinue }: { selected: Device | null; onSelect: (device: Device) => void; onContinue: () => void }) {
+function DeviceStage({ selected, onSelect }: { selected: Device | null; onSelect: (device: Device) => void }) {
   const brands = useMemo(() => DEVICE_CATALOG.map((brand) => brand.brand), []);
   const [brand, setBrand] = useState(brands[0]);
   const [search, setSearch] = useState("");
@@ -103,61 +95,57 @@ function DeviceStage({ selected, onSelect, onContinue }: { selected: Device | nu
 
   return (
     <div>
-      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_300px]">
+      <div className="mb-6 flex flex-col justify-between gap-4 border-b border-gray-100 pb-6 sm:flex-row sm:items-end">
         <div>
-          <p className="mono mb-3 text-[11px] font-bold uppercase tracking-[.18em] text-primary">Step 01 / choose device</p>
-          <h1 className="display-font text-[clamp(2rem,5vw,3.7rem)] font-bold leading-[.98] tracking-[-.06em]">Select the exact device.</h1>
-          <p className="mt-4 max-w-2xl text-sm leading-7 text-muted-foreground">Choose the service that matches your device. The full catalog and price are shown before you enter the IMEI or serial number.</p>
+          <p className="font-mono text-[10px] font-bold uppercase tracking-[.2em] text-[#008b99]">DIRECT UNLOCK / SERVICE DESK</p>
+          <h1 className="mt-2 text-2xl font-black tracking-tight text-[#1a2332] sm:text-3xl">Choose a device service</h1>
+          <p className="mt-2 max-w-xl text-sm leading-6 text-gray-500">Select a model below. The IMEI form opens automatically so you can keep moving without hunting for another button.</p>
+        </div>
+        <div className="flex items-center gap-2 self-start rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700 sm:self-auto"><span className="h-2 w-2 rounded-full bg-emerald-500" /> 150 services available</div>
+      </div>
 
-          <div className="mt-8 flex items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3">
-            <Search size={17} className="shrink-0 text-muted-foreground" />
-            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={`Search ${currentBrand.brand} models`} className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground" />
-            <span className="mono shrink-0 text-[10px] text-muted-foreground">{devices.length} models</span>
+      <div className="grid gap-5 lg:grid-cols-[205px_minmax(0,1fr)_250px]">
+        <aside className="rounded-2xl border border-gray-200 bg-gray-50/80 p-3">
+          <div className="mb-3 flex items-center justify-between px-2"><span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Brands</span><Smartphone size={14} className="text-gray-400" /></div>
+          <div className="flex gap-2 overflow-x-auto pb-1 lg:block lg:space-y-1 lg:overflow-visible">
+            {brands.map((item) => {
+              const count = DEVICE_CATALOG.find((entry) => entry.brand === item)?.models.length ?? 0;
+              return <button type="button" key={item} onClick={() => { setBrand(item); setSearch(""); }} className={`flex min-w-max items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-bold transition-colors lg:w-full ${brand === item ? "bg-[#1a2332] text-white shadow-sm" : "text-gray-600 hover:bg-white hover:text-[#008b99]"}`}><span>{item}</span><span className={`font-mono text-[10px] ${brand === item ? "text-white/55" : "text-gray-400"}`}>{count}</span></button>;
+            })}
           </div>
+        </aside>
 
-          <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-            {brands.map((item) => (
-              <button type="button" key={item} onClick={() => { setBrand(item); setSearch(""); }} className={`rounded-xl border px-3 py-3 text-left text-xs font-bold transition-colors ${brand === item ? "border-primary bg-primary text-primary-foreground shadow-sm" : "border-border bg-card text-muted-foreground hover:border-primary/50 hover:text-foreground"}`}>
-                {item}
-              </button>
-            ))}
+        <section className="min-w-0">
+          <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
+            <Search size={17} className="shrink-0 text-gray-400" />
+            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={`Search ${currentBrand.brand} models`} className="min-w-0 flex-1 bg-transparent text-sm text-gray-800 outline-none placeholder:text-gray-400" />
+            <span className="font-mono shrink-0 text-[10px] text-gray-400">{devices.length} results</span>
           </div>
-
-          <div className="mt-5 grid gap-2 sm:grid-cols-2">
+          <div className="mt-3 flex items-center justify-between"><p className="text-xs font-bold text-gray-700">{currentBrand.brand} services</p><p className="text-[11px] text-gray-400">Select one to continue automatically</p></div>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
             {devices.map((model) => {
               const device = { brand: currentBrand.brand, model: model.name, price: model.price };
               const isSelected = selected?.brand === device.brand && selected.model === device.model;
-              return (
-                <button type="button" key={model.name} onClick={() => onSelect(device)} className={`group flex min-h-[76px] items-center justify-between gap-3 rounded-2xl border p-4 text-left transition-all ${isSelected ? "border-primary bg-primary/10 ring-1 ring-primary" : "border-border bg-card hover:-translate-y-0.5 hover:border-primary/60 hover:shadow-sm"}`}>
-                  <span className="flex min-w-0 items-center gap-3">
-                    <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${isSelected ? "bg-primary text-primary-foreground" : "bg-secondary text-primary"}`}><Smartphone size={18} /></span>
-                    <span className="min-w-0">
-                      <span className="block text-sm font-bold leading-5">{model.name}</span>
-                      <span className="mt-1 block text-[11px] text-muted-foreground">{currentBrand.brand} service</span>
-                    </span>
-                  </span>
-                  <span className="mono shrink-0 text-sm font-bold">{money(model.price)}</span>
-                </button>
-              );
+              return <button type="button" key={model.name} onClick={() => onSelect(device)} className={`group flex min-h-[70px] items-center justify-between gap-3 rounded-xl border bg-white p-3.5 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-[#0097a7] hover:shadow-md ${isSelected ? "border-[#0097a7] bg-[#e9f8f8] ring-1 ring-[#0097a7]" : "border-gray-200"}`}><span className="flex min-w-0 items-center gap-3"><span className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg ${isSelected ? "bg-[#008b99] text-white" : "bg-[#eef7f8] text-[#008b99]"}`}><Smartphone size={17} /></span><span className="min-w-0"><span className="block truncate text-sm font-bold text-gray-800">{model.name}</span><span className="mt-1 block text-[11px] text-gray-400">{currentBrand.brand} direct unlock</span></span></span><span className="font-mono ml-3 shrink-0 text-sm font-black text-[#1a2332]">{money(model.price)}</span></button>;
             })}
           </div>
-          {!devices.length && <div className="mt-5 rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">No models match “{search}”. Try another search.</div>}
-        </div>
+          {!devices.length && <div className="mt-5 rounded-xl border border-dashed border-gray-300 p-8 text-center text-sm text-gray-500">No models match “{search}”. Try another search.</div>}
+        </section>
 
-        <aside className="h-fit rounded-2xl border border-border bg-card p-5 lg:sticky lg:top-6">
-          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground"><ListChecks size={15} className="text-primary" /> Request summary</div>
-          <div className="mt-5 rounded-xl bg-secondary/70 p-4">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Selected service</span>
-            <p className="mt-2 text-sm font-bold leading-5">{selected?.model ?? "Choose a device"}</p>
-            <p className="mt-1 text-xs text-muted-foreground">{selected?.brand ?? "Your selection will appear here"}</p>
-            <p className="mono mt-4 text-2xl font-bold text-primary">{selected ? money(selected.price) : "—"}</p>
+        <aside className="h-fit rounded-2xl border border-gray-200 bg-white p-4 shadow-sm lg:sticky lg:top-5">
+          <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-400"><ListChecks size={14} className="text-[#008b99]" /> Request preview</div>
+          <div className="mt-4 rounded-xl bg-[#f6f8fa] p-4">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Selected service</p>
+            <p className="mt-2 text-sm font-black leading-5 text-gray-800">{selected?.model ?? "No device selected"}</p>
+            <p className="mt-1 text-xs text-gray-500">{selected?.brand ?? "Choose a model from the list"}</p>
+            <p className="mt-4 font-mono text-2xl font-black text-[#008b99]">{selected ? money(selected.price) : "—"}</p>
           </div>
-          <div className="mt-5 space-y-3 text-xs text-muted-foreground">
-            <p className="flex gap-2"><CheckCircle2 size={15} className="shrink-0 text-primary" /> Full device catalog and price shown</p>
-            <p className="flex gap-2"><CheckCircle2 size={15} className="shrink-0 text-primary" /> IMEI or serial number required</p>
-            <p className="flex gap-2"><CheckCircle2 size={15} className="shrink-0 text-primary" /> Unlock details sent to your account</p>
+          <div className="mt-4 space-y-3 text-xs text-gray-500">
+            <p className="flex gap-2"><CheckCircle2 size={15} className="shrink-0 text-emerald-500" /> Full catalog and live price</p>
+            <p className="flex gap-2"><CheckCircle2 size={15} className="shrink-0 text-emerald-500" /> IMEI or serial required</p>
+            <p className="flex gap-2"><CheckCircle2 size={15} className="shrink-0 text-emerald-500" /> Email already linked to account</p>
           </div>
-          <button type="button" disabled={!selected} onClick={onContinue} className="mt-6 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-bold text-primary-foreground transition-opacity disabled:cursor-not-allowed disabled:opacity-40">Continue <ArrowRight size={16} /></button>
+          <div className="mt-5 rounded-lg border border-blue-100 bg-blue-50 p-3 text-[11px] leading-5 text-blue-700"><strong>Next:</strong> click any device. We&apos;ll open the identifier form immediately.</div>
         </aside>
       </div>
     </div>
@@ -442,7 +430,7 @@ export function DirectUnlockRemotePage() {
         </div>
         <StageHeader stage={stage} />
         <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-8 lg:p-10">
-          {stage === "device" && <DeviceStage selected={device} onSelect={setDevice} onContinue={() => setStage("details")} />}
+          {stage === "device" && <DeviceStage selected={device} onSelect={(nextDevice) => { setDevice(nextDevice); setStage("details"); }} />}
           {stage === "details" && device && <DetailsStage device={device} identifier={identifier} accountEmail={accountEmail} setIdentifier={setIdentifier} onBack={() => setStage("device")} onContinue={() => setStage("processing")} />}
           {stage === "processing" && device && <ProcessingStage device={device} identifier={identifier} onDone={() => setStage("payment")} />}
           {stage === "payment" && device && <PaymentStage device={device} accountEmail={accountEmail} onBack={() => setStage("processing")} onSubmit={submitPayment} submitting={submitting} error={error} />}
