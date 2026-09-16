@@ -1,6 +1,27 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { ArrowLeft, ArrowRight, Check, Clock3, Copy, Globe2, Mail, Phone, RefreshCw, ShieldCheck, Smartphone } from "lucide-react";
+import { Link } from "wouter";
+import {
+  AlertCircle,
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  CheckCircle2,
+  Circle,
+  Clock3,
+  Copy,
+  Globe2,
+  ListChecks,
+  LockKeyhole,
+  Mail,
+  Phone,
+  RefreshCw,
+  Search,
+  ShieldCheck,
+  Smartphone,
+  UserRound,
+} from "lucide-react";
 import { DEVICE_CATALOG } from "@/pages/direct-unlock";
+import { useAuth } from "@/hooks/use-auth";
 
 type Stage = "device" | "details" | "processing" | "payment" | "pending";
 type PaymentMethod = "mpesa" | "nowpayments" | "binance_pay" | "usdt_manual";
@@ -19,7 +40,13 @@ const DEVICES: Device[] = DEVICE_CATALOG.flatMap((brand) =>
   })),
 );
 
-const PROCESSING_MS = 7 * 60 * 1000;
+const PREPARATION_MS = 18_000;
+const PREPARATION_STEPS = [
+  { title: "Validate the identifier", detail: "Checking the IMEI checksum or serial format you entered." },
+  { title: "Match the selected service", detail: "Confirming the device family and the quoted unlock price." },
+  { title: "Prepare your unlock request", detail: "Creating a request linked to your signed-in account." },
+  { title: "Open payment options", detail: "M-Pesa and crypto payment choices will be available next." },
+];
 const money = (value: number) => `$${value.toFixed(2)}`;
 
 function validIdentifier(value: string) {
@@ -37,80 +64,210 @@ function validIdentifier(value: string) {
   return /^[a-z0-9]{6,24}$/i.test(clean);
 }
 
-function StepHeader({ stage }: { stage: Stage }) {
-  const labels = ["Device", "Identifier", "Processing", "Payment"];
+function StageHeader({ stage }: { stage: Stage }) {
+  const labels = ["Device", "IMEI / serial", "Checks", "Payment"];
   const index = stage === "pending" ? 4 : ["device", "details", "processing", "payment"].indexOf(stage);
-  return <div className="mb-8 flex items-start">
-    {labels.map((label, itemIndex) => <div key={label} className="flex flex-1 items-start last:flex-none">
-      <div className="flex w-20 shrink-0 flex-col items-center gap-2 text-center">
-        <span className={`grid h-8 w-8 place-items-center rounded-full border text-xs font-bold ${itemIndex < index ? "border-primary bg-primary text-primary-foreground" : itemIndex === index ? "border-primary text-primary" : "border-border text-muted-foreground"}`}>{itemIndex < index ? <Check size={14} /> : itemIndex + 1}</span>
-        <span className={`text-[10px] font-semibold ${itemIndex <= index ? "text-primary" : "text-muted-foreground"}`}>{label}</span>
-      </div>
-      {itemIndex < labels.length - 1 && <span className={`mt-4 h-px flex-1 ${itemIndex < index ? "bg-primary" : "bg-border"}`} />}
-    </div>)}
-  </div>;
+  return (
+    <div className="mb-8 flex items-start">
+      {labels.map((label, itemIndex) => (
+        <div key={label} className="flex flex-1 items-start last:flex-none">
+          <div className="flex w-24 shrink-0 flex-col items-center gap-2 text-center">
+            <span className={`grid h-9 w-9 place-items-center rounded-full border text-xs font-bold transition-colors ${itemIndex < index ? "border-primary bg-primary text-primary-foreground" : itemIndex === index ? "border-primary bg-primary/10 text-primary" : "border-border bg-card text-muted-foreground"}`}>
+              {itemIndex < index ? <Check size={15} /> : itemIndex + 1}
+            </span>
+            <span className={`text-[10px] font-semibold ${itemIndex <= index ? "text-foreground" : "text-muted-foreground"}`}>{label}</span>
+          </div>
+          {itemIndex < labels.length - 1 && <span className={`mt-[18px] h-px flex-1 ${itemIndex < index ? "bg-primary" : "bg-border"}`} />}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function AccountPill({ email }: { email: string }) {
+  return (
+    <div className="flex max-w-full items-center gap-2 rounded-full border border-border bg-card px-3 py-2 text-xs">
+      <UserRound size={14} className="shrink-0 text-primary" />
+      <span className="truncate text-muted-foreground">{email}</span>
+      <span className="hidden shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary sm:inline">SIGNED IN</span>
+    </div>
+  );
 }
 
 function DeviceStage({ selected, onSelect, onContinue }: { selected: Device | null; onSelect: (device: Device) => void; onContinue: () => void }) {
-  const brands = useMemo(() => Array.from(new Set(DEVICES.map((device) => device.brand))), []);
+  const brands = useMemo(() => DEVICE_CATALOG.map((brand) => brand.brand), []);
   const [brand, setBrand] = useState(brands[0]);
-  const devices = DEVICES.filter((device) => device.brand === brand);
-  return <div>
-    <p className="mono mb-3 text-[11px] uppercase tracking-[.16em] text-primary">Step 01 / device</p>
-    <h1 className="display-font text-[clamp(2rem,5vw,3.5rem)] font-bold leading-[.98] tracking-[-.06em]">Choose the device to unlock.</h1>
-    <p className="mt-4 max-w-xl text-sm leading-7 text-muted-foreground">Select the exact device and price. You’ll enter its IMEI or serial number next—no USB connection is needed.</p>
-    <div className="mt-7 flex gap-2 overflow-x-auto pb-1">{brands.map((item) => <button type="button" key={item} onClick={() => setBrand(item)} className={`shrink-0 rounded-full border px-4 py-2 text-xs font-bold ${brand === item ? "border-primary bg-primary text-primary-foreground" : "border-border text-muted-foreground"}`}>{item}</button>)}</div>
-    <div className="mt-4 grid gap-3 sm:grid-cols-2">{devices.map((device) => <button type="button" key={device.model} onClick={() => onSelect(device)} className={`flex items-center justify-between rounded-2xl border p-4 text-left ${selected?.model === device.model ? "border-primary bg-secondary/70" : "border-border bg-card hover:border-primary/50"}`}><span className="flex min-w-0 items-center gap-3"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-secondary text-primary"><Smartphone size={19} /></span><span className="min-w-0"><span className="block truncate text-sm font-bold">{device.model}</span><span className="mt-1 block text-xs text-muted-foreground">{device.brand} direct unlock</span></span></span><span className="mono ml-3 shrink-0 text-sm font-medium">{money(device.price)}</span></button>)}</div>
-    <div className="mt-7 flex justify-end border-t border-border pt-6"><button type="button" disabled={!selected} onClick={onContinue} className="flex min-h-11 items-center gap-2 rounded-xl bg-primary px-5 text-sm font-bold text-primary-foreground disabled:opacity-40">Continue <ArrowRight size={16} /></button></div>
-  </div>;
+  const [search, setSearch] = useState("");
+  const currentBrand = DEVICE_CATALOG.find((item) => item.brand === brand) ?? DEVICE_CATALOG[0];
+  const devices = currentBrand.models.filter((model) => model.name.toLowerCase().includes(search.toLowerCase().trim()));
+
+  return (
+    <div>
+      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_300px]">
+        <div>
+          <p className="mono mb-3 text-[11px] font-bold uppercase tracking-[.18em] text-primary">Step 01 / choose device</p>
+          <h1 className="display-font text-[clamp(2rem,5vw,3.7rem)] font-bold leading-[.98] tracking-[-.06em]">Select the exact device.</h1>
+          <p className="mt-4 max-w-2xl text-sm leading-7 text-muted-foreground">Choose the service that matches your device. The full catalog and price are shown before you enter the IMEI or serial number.</p>
+
+          <div className="mt-8 flex items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3">
+            <Search size={17} className="shrink-0 text-muted-foreground" />
+            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={`Search ${currentBrand.brand} models`} className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground" />
+            <span className="mono shrink-0 text-[10px] text-muted-foreground">{devices.length} models</span>
+          </div>
+
+          <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+            {brands.map((item) => (
+              <button type="button" key={item} onClick={() => { setBrand(item); setSearch(""); }} className={`rounded-xl border px-3 py-3 text-left text-xs font-bold transition-colors ${brand === item ? "border-primary bg-primary text-primary-foreground shadow-sm" : "border-border bg-card text-muted-foreground hover:border-primary/50 hover:text-foreground"}`}>
+                {item}
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-5 grid gap-2 sm:grid-cols-2">
+            {devices.map((model) => {
+              const device = { brand: currentBrand.brand, model: model.name, price: model.price };
+              const isSelected = selected?.brand === device.brand && selected.model === device.model;
+              return (
+                <button type="button" key={model.name} onClick={() => onSelect(device)} className={`group flex min-h-[76px] items-center justify-between gap-3 rounded-2xl border p-4 text-left transition-all ${isSelected ? "border-primary bg-primary/10 ring-1 ring-primary" : "border-border bg-card hover:-translate-y-0.5 hover:border-primary/60 hover:shadow-sm"}`}>
+                  <span className="flex min-w-0 items-center gap-3">
+                    <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${isSelected ? "bg-primary text-primary-foreground" : "bg-secondary text-primary"}`}><Smartphone size={18} /></span>
+                    <span className="min-w-0">
+                      <span className="block text-sm font-bold leading-5">{model.name}</span>
+                      <span className="mt-1 block text-[11px] text-muted-foreground">{currentBrand.brand} service</span>
+                    </span>
+                  </span>
+                  <span className="mono shrink-0 text-sm font-bold">{money(model.price)}</span>
+                </button>
+              );
+            })}
+          </div>
+          {!devices.length && <div className="mt-5 rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">No models match “{search}”. Try another search.</div>}
+        </div>
+
+        <aside className="h-fit rounded-2xl border border-border bg-card p-5 lg:sticky lg:top-6">
+          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground"><ListChecks size={15} className="text-primary" /> Request summary</div>
+          <div className="mt-5 rounded-xl bg-secondary/70 p-4">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Selected service</span>
+            <p className="mt-2 text-sm font-bold leading-5">{selected?.model ?? "Choose a device"}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{selected?.brand ?? "Your selection will appear here"}</p>
+            <p className="mono mt-4 text-2xl font-bold text-primary">{selected ? money(selected.price) : "—"}</p>
+          </div>
+          <div className="mt-5 space-y-3 text-xs text-muted-foreground">
+            <p className="flex gap-2"><CheckCircle2 size={15} className="shrink-0 text-primary" /> Full device catalog and price shown</p>
+            <p className="flex gap-2"><CheckCircle2 size={15} className="shrink-0 text-primary" /> IMEI or serial number required</p>
+            <p className="flex gap-2"><CheckCircle2 size={15} className="shrink-0 text-primary" /> Unlock details sent to your account</p>
+          </div>
+          <button type="button" disabled={!selected} onClick={onContinue} className="mt-6 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-bold text-primary-foreground transition-opacity disabled:cursor-not-allowed disabled:opacity-40">Continue <ArrowRight size={16} /></button>
+        </aside>
+      </div>
+    </div>
+  );
 }
 
-function DetailsStage({ device, identifier, email, setIdentifier, setEmail, onBack, onContinue }: { device: Device; identifier: string; email: string; setIdentifier: (value: string) => void; setEmail: (value: string) => void; onBack: () => void; onContinue: () => void }) {
+function DetailsStage({ device, identifier, accountEmail, setIdentifier, onBack, onContinue }: { device: Device; identifier: string; accountEmail: string; setIdentifier: (value: string) => void; onBack: () => void; onContinue: () => void }) {
   const [touched, setTouched] = useState(false);
   const identifierOk = validIdentifier(identifier);
-  const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  return <div>
-    <p className="mono mb-3 text-[11px] uppercase tracking-[.16em] text-primary">Step 02 / identifier</p>
-    <h1 className="display-font text-[clamp(2rem,5vw,3.5rem)] font-bold leading-[.98] tracking-[-.06em]">Enter the device details.</h1>
-    <p className="mt-4 max-w-xl text-sm leading-7 text-muted-foreground">After you submit these details, the secure remote unlock process runs for about 5–8 minutes.</p>
-    <div className="mt-7 rounded-2xl border border-primary/20 bg-secondary/60 p-4"><div className="flex items-center justify-between gap-3"><span className="flex min-w-0 items-center gap-3"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-card text-primary"><Smartphone size={18} /></span><span className="truncate text-sm font-bold">{device.brand} · {device.model}</span></span><span className="mono shrink-0 text-sm">{money(device.price)}</span></div></div>
-    <div className="mt-6 space-y-5">
-      <label className="block"><span className="mb-2 block text-sm font-bold">IMEI or serial number</span><input value={identifier} onChange={(event) => setIdentifier(event.target.value)} onBlur={() => setTouched(true)} placeholder="15-digit IMEI or device serial" className={`field h-12 w-full rounded-xl border bg-card px-4 font-mono text-sm ${touched && !identifierOk ? "border-destructive" : "border-input"}`} />{touched && !identifierOk ? <span className="mt-2 block text-xs text-destructive">Enter a valid 15-digit IMEI or a serial number with at least 6 characters.</span> : <span className="mt-2 block text-xs text-muted-foreground">Find the IMEI by dialing *#06# or in Settings → About. Serial numbers are accepted for supported devices.</span>}</label>
-      <label className="block"><span className="mb-2 block text-sm font-bold">Email for unlock details</span><div className="relative"><Mail className="absolute left-3 top-3.5 text-muted-foreground" size={17} /><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} onBlur={() => setTouched(true)} placeholder="you@example.com" className={`field h-12 w-full rounded-xl border bg-card pl-10 pr-4 text-sm ${touched && !emailOk ? "border-destructive" : "border-input"}`} /></div><span className="mt-2 block text-xs text-muted-foreground">Once payment is confirmed, the unlock details will be sent here.</span></label>
+  return (
+    <div className="mx-auto max-w-3xl">
+      <p className="mono mb-3 text-[11px] font-bold uppercase tracking-[.18em] text-primary">Step 02 / device identifier</p>
+      <h1 className="display-font text-[clamp(2rem,5vw,3.5rem)] font-bold leading-[.98] tracking-[-.06em]">Tell us which device is yours.</h1>
+      <p className="mt-4 max-w-2xl text-sm leading-7 text-muted-foreground">Enter the IMEI or serial number for the selected device. We use it to validate the request before showing payment options.</p>
+
+      <div className="mt-8 grid gap-4 sm:grid-cols-[1fr_auto]">
+        <div className="rounded-2xl border border-primary/25 bg-primary/5 p-5">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-primary">Selected service</span>
+          <p className="mt-2 text-sm font-bold">{device.model}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{device.brand}</p>
+        </div>
+        <div className="rounded-2xl border border-border bg-card p-5 sm:min-w-[150px]">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Price</span>
+          <p className="mono mt-2 text-2xl font-bold">{money(device.price)}</p>
+        </div>
+      </div>
+
+      <label className="mt-6 block">
+        <span className="mb-2 block text-sm font-bold">IMEI or serial number</span>
+        <input value={identifier} onChange={(event) => setIdentifier(event.target.value)} onBlur={() => setTouched(true)} autoFocus placeholder="15-digit IMEI or device serial" className={`h-14 w-full rounded-xl border bg-card px-4 font-mono text-sm outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/15 ${touched && !identifierOk ? "border-destructive" : "border-input"}`} />
+        {touched && !identifierOk ? <span className="mt-2 flex items-center gap-1.5 text-xs text-destructive"><AlertCircle size={13} /> Enter a valid 15-digit IMEI or a serial number with at least 6 characters.</span> : <span className="mt-2 block text-xs leading-5 text-muted-foreground">Find your IMEI by dialing *#06# or in Settings → About. iPad and supported devices can use a serial number.</span>}
+      </label>
+
+      <div className="mt-6 flex items-start gap-3 rounded-2xl border border-border bg-card p-4">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-primary/10 text-primary"><Mail size={16} /></span>
+        <div className="min-w-0">
+          <p className="text-sm font-bold">Unlock details will go to your account</p>
+          <p className="mt-1 truncate text-sm text-primary">{accountEmail}</p>
+          <p className="mt-1 text-xs text-muted-foreground">You are signed in. There is no need to enter your email again.</p>
+        </div>
+      </div>
+
+      <div className="mt-8 flex flex-col-reverse justify-between gap-3 border-t border-border pt-6 sm:flex-row">
+        <button type="button" onClick={onBack} className="flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-bold text-muted-foreground hover:text-foreground"><ArrowLeft size={16} /> Change device</button>
+        <button type="button" disabled={!identifierOk} onClick={onContinue} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-primary px-6 text-sm font-bold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-40">Run device checks <ArrowRight size={16} /></button>
+      </div>
     </div>
-    <div className="mt-8 flex flex-col-reverse justify-between gap-3 border-t border-border pt-6 sm:flex-row"><button type="button" onClick={onBack} className="flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-bold text-muted-foreground"><ArrowLeft size={16} /> Back</button><button type="button" disabled={!identifierOk || !emailOk} onClick={onContinue} className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-bold text-primary-foreground disabled:opacity-40">Start secure check <ArrowRight size={16} /></button></div>
-  </div>;
+  );
 }
 
-function ProcessingStage({ device, onDone }: { device: Device; onDone: () => void }) {
-  const [remaining, setRemaining] = useState(PROCESSING_MS);
+function ProcessingStage({ device, identifier, onDone }: { device: Device; identifier: string; onDone: () => void }) {
+  const [elapsed, setElapsed] = useState(0);
+  const progress = Math.min(100, Math.round((elapsed / PREPARATION_MS) * 100));
+  const completed = Math.min(PREPARATION_STEPS.length, Math.floor((progress / 100) * PREPARATION_STEPS.length));
+  const activeIndex = Math.min(PREPARATION_STEPS.length - 1, completed);
+  const remaining = Math.max(0, Math.ceil((PREPARATION_MS - elapsed) / 1000));
+
   useEffect(() => {
     const started = Date.now();
     const timer = window.setInterval(() => {
-      const next = Math.max(0, PROCESSING_MS - (Date.now() - started));
-      setRemaining(next);
-      if (next === 0) { window.clearInterval(timer); onDone(); }
-    }, 1000);
+      const next = Math.min(PREPARATION_MS, Date.now() - started);
+      setElapsed(next);
+      if (next >= PREPARATION_MS) {
+        window.clearInterval(timer);
+        onDone();
+      }
+    }, 250);
     return () => window.clearInterval(timer);
   }, [onDone]);
-  useEffect(() => {
-    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = "Your unlock process is still running. Keep this page open."; };
-    window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
-  }, []);
-  const progress = Math.min(99, Math.round(((PROCESSING_MS - remaining) / PROCESSING_MS) * 100));
-  const minutes = Math.floor(remaining / 60000);
-  const seconds = Math.floor((remaining % 60000) / 1000).toString().padStart(2, "0");
-  return <div>
-    <p className="mono mb-3 text-[11px] uppercase tracking-[.16em] text-primary">Step 03 / processing</p>
-    <h1 className="display-font text-[clamp(2rem,5vw,3.5rem)] font-bold leading-[.98] tracking-[-.06em]">Your unlock is processing.</h1>
-    <p className="mt-4 max-w-xl text-sm leading-7 text-muted-foreground">We’re running the secure remote unlock check for {device.brand} {device.model}. This normally takes 5–8 minutes.</p>
-    <div className="mt-8 rounded-2xl border border-primary/20 bg-secondary/60 p-6"><div className="flex items-center gap-4"><span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-card text-primary"><RefreshCw size={22} className="animate-spin" /></span><span><span className="block text-sm font-bold">Secure verification in progress</span><span className="mt-1 block text-xs text-muted-foreground">{minutes}:{seconds} remaining · {device.model}</span></span><span className="mono ml-auto text-sm text-primary">{progress}%</span></div><div className="mt-6 h-2 overflow-hidden rounded-full bg-card"><div className="h-full rounded-full bg-primary transition-[width] duration-1000" style={{ width: `${progress}%` }} /></div><div className="mt-2 flex justify-between text-[10px] font-semibold uppercase tracking-wider text-muted-foreground"><span>Checking eligibility</span><span>Estimated 5–8 minutes</span></div></div>
-    <div className="mt-5 flex items-start gap-3 rounded-2xl border border-[#e9cda5] bg-[#fff5e5] p-4 text-sm leading-6 text-[#704a22]"><Clock3 className="mt-0.5 shrink-0" size={18} /><span><strong>Do not close or refresh this page.</strong> The secure process must stay open until it finishes. You’ll see the final device price and payment options next.</span></div>
-  </div>;
+
+  return (
+    <div className="mx-auto max-w-3xl">
+      <p className="mono mb-3 text-[11px] font-bold uppercase tracking-[.18em] text-primary">Step 03 / request preparation</p>
+      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+        <div>
+          <h1 className="display-font text-[clamp(2rem,5vw,3.5rem)] font-bold leading-[.98] tracking-[-.06em]">Preparing your unlock request.</h1>
+          <p className="mt-4 max-w-2xl text-sm leading-7 text-muted-foreground">This is not the unlock itself yet. We are validating your submission and preparing the correct payment request for <strong className="text-foreground">{device.model}</strong>.</p>
+        </div>
+        <div className="shrink-0 rounded-xl border border-border bg-card px-4 py-3 text-right"><span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Identifier</span><span className="mono mt-1 block text-sm">{identifier.slice(0, 4)}••••{identifier.slice(-4)}</span></div>
+      </div>
+
+      <div className="mt-8 rounded-2xl border border-primary/25 bg-card p-5 shadow-sm sm:p-6">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3"><span className="grid h-11 w-11 place-items-center rounded-full bg-primary/10 text-primary"><RefreshCw size={20} className="animate-spin" /></span><div><p className="text-sm font-bold">{PREPARATION_STEPS[activeIndex].title}</p><p className="mt-1 text-xs text-muted-foreground">{PREPARATION_STEPS[activeIndex].detail}</p></div></div>
+          <span className="mono text-xl font-bold text-primary">{progress}%</span>
+        </div>
+        <div className="mt-6 h-2 overflow-hidden rounded-full bg-secondary"><div className="h-full rounded-full bg-primary transition-[width] duration-300" style={{ width: `${progress}%` }} /></div>
+        <div className="mt-2 flex justify-between text-[10px] font-semibold uppercase tracking-wider text-muted-foreground"><span>{completed} of {PREPARATION_STEPS.length} checks complete</span><span>About {remaining}s</span></div>
+      </div>
+
+      <div className="mt-5 divide-y divide-border rounded-2xl border border-border bg-card">
+        {PREPARATION_STEPS.map((step, index) => {
+          const done = index < completed;
+          const active = index === activeIndex && !done;
+          return (
+            <div key={step.title} className="flex items-start gap-4 p-4">
+              <span className={`mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full ${done ? "bg-primary text-primary-foreground" : active ? "border-2 border-primary text-primary" : "border border-border text-muted-foreground"}`}>{done ? <Check size={14} /> : active ? <RefreshCw size={13} className="animate-spin" /> : <Circle size={10} />}</span>
+              <div><p className={`text-sm font-bold ${active ? "text-primary" : done ? "text-foreground" : "text-muted-foreground"}`}>{step.title}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{step.detail}</p></div>
+              {done && <span className="ml-auto flex shrink-0 items-center gap-1 text-[10px] font-bold uppercase text-primary"><CheckCircle2 size={13} /> Done</span>}
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="mt-5 flex items-start gap-3 rounded-2xl border border-border bg-secondary/50 p-4 text-xs leading-5 text-muted-foreground"><Clock3 size={16} className="mt-0.5 shrink-0 text-primary" /><span><strong className="text-foreground">Keep this page open.</strong> When the request is prepared, you’ll choose M-Pesa, crypto, Binance Pay, or USDT payment.</span></div>
+    </div>
+  );
 }
 
-function PaymentStage({ device, email, onBack, onSubmit, submitting, error }: { device: Device; email: string; onBack: () => void; onSubmit: (method: PaymentMethod, value?: string) => void; submitting: boolean; error: string | null }) {
+function PaymentStage({ device, accountEmail, onBack, onSubmit, submitting, error }: { device: Device; accountEmail: string; onBack: () => void; onSubmit: (method: PaymentMethod, value?: string) => void; submitting: boolean; error: string | null }) {
   const [method, setMethod] = useState<PaymentMethod>("mpesa");
   const [phone, setPhone] = useState("");
   const [currency, setCurrency] = useState("usdttrc20");
@@ -121,44 +278,55 @@ function PaymentStage({ device, email, onBack, onSubmit, submitting, error }: { 
     { id: "binance_pay", label: "Binance Pay", description: "Manual confirmation after you send payment", icon: <span>🟡</span> },
     { id: "usdt_manual", label: "USDT TRC20", description: "Manual transfer with payment reference", icon: <span>💲</span> },
   ];
-  return <div>
-    <p className="mono mb-3 text-[11px] uppercase tracking-[.16em] text-primary">Step 04 / payment</p>
-    <h1 className="display-font text-[clamp(2rem,5vw,3.5rem)] font-bold leading-[.98] tracking-[-.06em]">Pay for the selected device.</h1>
-    <p className="mt-4 max-w-xl text-sm leading-7 text-muted-foreground">The amount below is the price for your selected device. Unlock details are released only after payment is confirmed.</p>
-    <div className="mt-7 flex items-center justify-between rounded-2xl border border-border bg-secondary/60 p-5"><span><span className="block text-xs uppercase tracking-wider text-muted-foreground">Direct unlock</span><span className="mt-2 block text-sm font-bold">{device.brand} · {device.model}</span><span className="mt-2 flex items-center gap-2 text-xs text-muted-foreground"><Mail size={13} /> {email}</span></span><span className="mono text-2xl font-medium">{money(device.price)}</span></div>
-    <div className="mt-6 space-y-3">{methods.map((item) => <button type="button" key={item.id} disabled={item.id === "nowpayments" && cryptoDisabled} onClick={() => setMethod(item.id)} className={`flex w-full items-center gap-3 rounded-xl border p-4 text-left ${item.id === "nowpayments" && cryptoDisabled ? "cursor-not-allowed opacity-50" : method === item.id ? "border-primary bg-secondary/60" : "border-border bg-card"}`}><span className="grid h-10 w-10 place-items-center rounded-xl bg-secondary text-primary">{item.icon}</span><span><span className="block text-sm font-bold">{item.label}</span><span className="mt-1 block text-xs text-muted-foreground">{item.description}</span></span>{method === item.id && <Check className="ml-auto text-primary" size={17} />}</button>)}</div>
-    {method === "mpesa" && <label className="mt-5 block"><span className="mb-2 block text-sm font-bold">M-Pesa phone number</span><input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="2547XXXXXXXX" className="field h-12 w-full rounded-xl border border-input bg-card px-4 text-sm" /></label>}
-    {method === "nowpayments" && <label className="mt-5 block"><span className="mb-2 block text-sm font-bold">Cryptocurrency</span><select value={currency} onChange={(event) => setCurrency(event.target.value)} className="field h-12 w-full rounded-xl border border-input bg-card px-4 text-sm"><option value="usdttrc20">USDT (TRC20)</option><option value="usdterc20">USDT (ERC20)</option><option value="btc">Bitcoin</option><option value="eth">Ethereum</option><option value="ltc">Litecoin</option></select></label>}
-    {error && <p className="mt-4 rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">{error}</p>}
-    <div className="mt-8 flex flex-col-reverse justify-between gap-3 border-t border-border pt-6 sm:flex-row"><button type="button" onClick={onBack} disabled={submitting} className="flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-bold text-muted-foreground"><ArrowLeft size={16} /> Back</button><button type="button" onClick={() => onSubmit(method, method === "mpesa" ? phone : method === "nowpayments" ? currency : undefined)} disabled={submitting || (method === "mpesa" && !phone.trim())} className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-bold text-primary-foreground disabled:opacity-40">{submitting ? "Starting payment…" : `Pay ${money(device.price)}`} {!submitting && <ArrowRight size={16} />}</button></div>
-  </div>;
+  return (
+    <div className="mx-auto max-w-3xl">
+      <p className="mono mb-3 text-[11px] font-bold uppercase tracking-[.18em] text-primary">Step 04 / payment</p>
+      <h1 className="display-font text-[clamp(2rem,5vw,3.5rem)] font-bold leading-[.98] tracking-[-.06em]">Choose how to pay.</h1>
+      <p className="mt-4 max-w-2xl text-sm leading-7 text-muted-foreground">Your request is ready. Pay the quoted amount below and the unlock details will be sent to your signed-in account.</p>
+      <div className="mt-7 flex flex-col gap-4 rounded-2xl border border-primary/25 bg-primary/5 p-5 sm:flex-row sm:items-center sm:justify-between">
+        <div><span className="text-[10px] font-bold uppercase tracking-wider text-primary">Direct unlock request</span><p className="mt-2 text-sm font-bold">{device.brand} · {device.model}</p><p className="mt-2 flex items-center gap-2 text-xs text-muted-foreground"><Mail size={13} /> {accountEmail}</p></div>
+        <span className="mono text-3xl font-bold">{money(device.price)}</span>
+      </div>
+      <div className="mt-6 grid gap-3 sm:grid-cols-2">
+        {methods.map((item) => <button type="button" key={item.id} disabled={item.id === "nowpayments" && cryptoDisabled} onClick={() => setMethod(item.id)} className={`flex min-h-[92px] items-start gap-3 rounded-2xl border p-4 text-left transition-colors ${item.id === "nowpayments" && cryptoDisabled ? "cursor-not-allowed opacity-50" : method === item.id ? "border-primary bg-primary/10 ring-1 ring-primary" : "border-border bg-card hover:border-primary/50"}`}><span className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${method === item.id ? "bg-primary text-primary-foreground" : "bg-secondary text-primary"}`}>{item.icon}</span><span><span className="block text-sm font-bold">{item.label}</span><span className="mt-1 block text-xs leading-5 text-muted-foreground">{item.description}</span></span>{method === item.id && <Check className="ml-auto shrink-0 text-primary" size={17} />}</button>)}
+      </div>
+      {method === "mpesa" && <label className="mt-5 block"><span className="mb-2 block text-sm font-bold">M-Pesa phone number</span><input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="2547XXXXXXXX" className="h-12 w-full rounded-xl border border-input bg-card px-4 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/15" /></label>}
+      {method === "nowpayments" && <label className="mt-5 block"><span className="mb-2 block text-sm font-bold">Cryptocurrency</span><select value={currency} onChange={(event) => setCurrency(event.target.value)} className="h-12 w-full rounded-xl border border-input bg-card px-4 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"><option value="usdttrc20">USDT (TRC20)</option><option value="usdterc20">USDT (ERC20)</option><option value="btc">Bitcoin</option><option value="eth">Ethereum</option><option value="ltc">Litecoin</option></select></label>}
+      {error && <p className="mt-4 flex items-start gap-2 rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive"><AlertCircle size={17} className="mt-0.5 shrink-0" /> {error}</p>}
+      <div className="mt-8 flex flex-col-reverse justify-between gap-3 border-t border-border pt-6 sm:flex-row"><button type="button" onClick={onBack} disabled={submitting} className="flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-bold text-muted-foreground hover:text-foreground"><ArrowLeft size={16} /> Back to checks</button><button type="button" onClick={() => onSubmit(method, method === "mpesa" ? phone : method === "nowpayments" ? currency : undefined)} disabled={submitting || (method === "mpesa" && !phone.trim())} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-primary px-6 text-sm font-bold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-40">{submitting ? "Starting payment…" : `Pay ${money(device.price)}`} {!submitting && <ArrowRight size={16} />}</button></div>
+    </div>
+  );
 }
 
-function PendingStage({ device, email, identifier, progress, confirmed, onReset }: { device: Device; email: string; identifier: string; progress: Progress; confirmed: boolean; onReset: () => void }) {
-  const reference = progress ? `GSM-${progress.orderId}` : `GSM-${identifier.slice(-6).toUpperCase()}`;
-  return <div className="text-center">
-    <span className={`mx-auto grid h-16 w-16 place-items-center rounded-full ${confirmed ? "bg-primary text-primary-foreground" : "bg-secondary text-primary"}`}>{confirmed ? <Check size={31} /> : <RefreshCw size={27} className="animate-spin" />}</span>
-    <p className="mono mt-6 text-[11px] uppercase tracking-[.16em] text-primary">{confirmed ? "Payment confirmed" : "Payment started"}</p>
-    <h1 className="display-font mt-3 text-[clamp(2rem,5vw,3.3rem)] font-bold leading-[.98] tracking-[-.06em]">{confirmed ? <>Payment confirmed,<br />your email is next.</> : <>Complete your payment,<br />then we&apos;ll email you.</>}</h1>
-    <p className="mx-auto mt-5 max-w-xl text-sm leading-7 text-muted-foreground">{confirmed ? <>Your payment is confirmed. Unlock details for <strong className="text-foreground">{device.model}</strong> will be sent to <strong className="text-foreground">{email}</strong>.</> : <>Your request is reserved for <strong className="text-foreground">{email}</strong>. Complete payment and we&apos;ll send the unlock details once it is confirmed.</>}</p>
-    {!confirmed && progress?.kind === "mpesa" && <div className="mx-auto mt-7 max-w-lg rounded-2xl border border-primary/20 bg-secondary/60 p-5 text-left"><p className="text-sm font-bold">Check your phone</p><p className="mt-2 text-xs leading-5 text-muted-foreground">An M-Pesa STK push was sent. Enter your PIN; this page checks for confirmation automatically.</p></div>}
-    {!confirmed && progress?.kind === "crypto" && <div className="mx-auto mt-7 max-w-lg rounded-2xl border border-primary/20 bg-secondary/60 p-5 text-left"><p className="text-sm font-bold">Send {progress.amount} {progress.currency.toUpperCase()}</p><p className="mt-3 break-all rounded-lg bg-card p-3 font-mono text-[11px] text-muted-foreground">{progress.address}</p><button type="button" onClick={() => void navigator.clipboard?.writeText(progress.address)} className="mt-3 flex items-center gap-1 text-xs font-bold text-primary"><Copy size={13} /> Copy payment address</button></div>}
-    {!confirmed && progress?.kind === "manual" && <div className="mx-auto mt-7 max-w-lg rounded-2xl border border-[#e9cda5] bg-[#fff5e5] p-5 text-left text-xs leading-5 text-[#704a22]"><p className="font-bold">{progress.method === "binance_pay" ? "Binance Pay instructions" : "USDT TRC20 instructions"}</p><p className="mt-2">{progress.method === "binance_pay" ? `Send ${money(device.price)} to Binance ID ${progress.binancePayId || "the payment ID in your email"}.` : `Send ${money(device.price)} to ${progress.usdtAddress || "the USDT address in your email"} on ${progress.usdtNetwork || "TRC20"}.`}</p><p className="mt-2">Include <strong>{reference}</strong> as the payment reference.</p></div>}
-    <div className="mx-auto mt-7 max-w-lg rounded-2xl border border-border bg-secondary/50 p-5 text-left"><div className="flex items-center justify-between"><span className="text-xs text-muted-foreground">Request reference</span><button type="button" onClick={() => void navigator.clipboard?.writeText(reference)} className="flex items-center gap-1 text-xs font-bold text-primary"><Copy size={13} /> Copy</button></div><p className="mono mt-2 text-lg">{reference}</p><div className="mt-4 grid grid-cols-2 gap-4 border-t border-border pt-4 text-xs"><span><span className="block text-muted-foreground">Device</span><strong className="mt-1 block">{device.model}</strong></span><span><span className="block text-muted-foreground">Amount</span><strong className="mono mt-1 block">{money(device.price)}</strong></span></div></div>
-    {!confirmed && <div className="mx-auto mt-5 flex max-w-lg items-start gap-3 rounded-xl border border-[#e9cda5] bg-[#fff5e5] p-4 text-left text-xs leading-5 text-[#704a22]"><Clock3 size={16} className="mt-0.5 shrink-0" /><span><strong>Payment still needs confirmation.</strong> Once confirmed, the unlock details will be sent to your email.</span></div>}
-    <button type="button" onClick={onReset} className="mt-8 inline-flex min-h-11 items-center gap-2 rounded-xl border border-border bg-card px-5 text-sm font-bold"><RefreshCw size={16} /> Start another unlock</button>
-  </div>;
+function PendingStage({ device, accountEmail, identifier, progress, confirmed, onReset }: { device: Device; accountEmail: string; identifier: string; progress: Progress; confirmed: boolean; onReset: () => void }) {
+  const reference = `GSM-${progress.orderId || identifier.slice(-6).toUpperCase()}`;
+  return (
+    <div className="mx-auto max-w-2xl text-center">
+      <span className={`mx-auto grid h-16 w-16 place-items-center rounded-full ${confirmed ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary"}`}>{confirmed ? <Check size={31} /> : <RefreshCw size={27} className="animate-spin" />}</span>
+      <p className="mono mt-6 text-[11px] font-bold uppercase tracking-[.18em] text-primary">{confirmed ? "Payment confirmed" : "Payment started"}</p>
+      <h1 className="display-font mt-3 text-[clamp(2rem,5vw,3.3rem)] font-bold leading-[.98] tracking-[-.06em]">{confirmed ? <>Payment confirmed.<br />We&apos;re finishing your unlock.</> : <>Complete payment<br />to finish your request.</>}</h1>
+      <p className="mx-auto mt-5 max-w-xl text-sm leading-7 text-muted-foreground">{confirmed ? <>Your payment is confirmed. We&apos;ll send the unlock details for <strong className="text-foreground">{device.model}</strong> to <strong className="text-foreground">{accountEmail}</strong>.</> : <>Your request is reserved for <strong className="text-foreground">{accountEmail}</strong>. Once payment is confirmed, we&apos;ll send the unlock details there.</>}</p>
+      {!confirmed && progress.kind === "mpesa" && <div className="mx-auto mt-7 rounded-2xl border border-primary/25 bg-primary/5 p-5 text-left"><p className="text-sm font-bold">Check your phone</p><p className="mt-2 text-xs leading-5 text-muted-foreground">An M-Pesa STK push was sent. Enter your PIN; this page checks for confirmation automatically.</p></div>}
+      {!confirmed && progress.kind === "crypto" && <div className="mx-auto mt-7 rounded-2xl border border-primary/25 bg-primary/5 p-5 text-left"><p className="text-sm font-bold">Send {progress.amount} {progress.currency.toUpperCase()}</p><div className="mt-3 flex items-center gap-2 rounded-lg bg-card p-3"><span className="min-w-0 flex-1 break-all font-mono text-[11px] text-muted-foreground">{progress.address}</span><button type="button" onClick={() => void navigator.clipboard?.writeText(progress.address)} className="shrink-0 rounded-md p-2 text-primary hover:bg-secondary"><Copy size={14} /></button></div></div>}
+      {!confirmed && progress.kind === "manual" && <div className="mx-auto mt-7 rounded-2xl border border-[#e9cda5] bg-[#fff5e5] p-5 text-left text-xs leading-5 text-[#704a22]"><p className="font-bold">{progress.method === "binance_pay" ? "Binance Pay instructions" : "USDT TRC20 instructions"}</p><p className="mt-2">{progress.method === "binance_pay" ? `Send ${money(device.price)} to Binance ID ${progress.binancePayId || "the payment ID in your email"}.` : `Send ${money(device.price)} to ${progress.usdtAddress || "the USDT address in your email"} on ${progress.usdtNetwork || "TRC20"}.`}</p><p className="mt-2">Include <strong>{reference}</strong> as the payment reference.</p></div>}
+      <div className="mx-auto mt-7 rounded-2xl border border-border bg-card p-5 text-left"><div className="flex items-center justify-between"><span className="text-xs text-muted-foreground">Request reference</span><button type="button" onClick={() => void navigator.clipboard?.writeText(reference)} className="flex items-center gap-1 text-xs font-bold text-primary"><Copy size={13} /> Copy</button></div><p className="mono mt-2 text-lg">{reference}</p><div className="mt-4 grid grid-cols-2 gap-4 border-t border-border pt-4 text-xs"><span><span className="block text-muted-foreground">Device</span><strong className="mt-1 block">{device.model}</strong></span><span><span className="block text-muted-foreground">Amount</span><strong className="mono mt-1 block">{money(device.price)}</strong></span></div></div>
+      {!confirmed && <div className="mx-auto mt-5 flex max-w-lg items-start gap-3 rounded-xl border border-border bg-secondary/50 p-4 text-left text-xs leading-5 text-muted-foreground"><Clock3 size={16} className="mt-0.5 shrink-0 text-primary" /><span><strong className="text-foreground">Payment still needs confirmation.</strong> We&apos;ll email your unlock details automatically after confirmation.</span></div>}
+      <button type="button" onClick={onReset} className="mt-8 inline-flex min-h-11 items-center gap-2 rounded-xl border border-border bg-card px-5 text-sm font-bold hover:border-primary"><RefreshCw size={16} /> Start another unlock</button>
+    </div>
+  );
 }
 
 export function DirectUnlockRemotePage() {
+  const { user, token, isAuthenticated } = useAuth();
   const [stage, setStage] = useState<Stage>("device");
   const [device, setDevice] = useState<Device | null>(null);
   const [identifier, setIdentifier] = useState("");
-  const [email, setEmail] = useState("");
   const [progress, setProgress] = useState<Progress | null>(null);
   const [confirmed, setConfirmed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const accountEmail = user?.email ?? "";
+  const accountName = user?.name || accountEmail.split("@")[0] || "Account";
 
   useEffect(() => {
     if (stage !== "pending" || !progress || progress.kind === "manual" || confirmed) return;
@@ -166,23 +334,24 @@ export function DirectUnlockRemotePage() {
       const endpoint = progress.kind === "mpesa" ? "/api/payments/mpesa/query" : "/api/payments/nowpayments/query";
       const body = progress.kind === "mpesa" ? { orderId: progress.orderId, checkoutRequestId: progress.checkoutRequestId } : { orderId: progress.orderId, paymentId: progress.paymentId };
       try {
-        const response = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+        const response = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(body) });
         const result = await response.json() as { paymentStatus?: string };
         if (result.paymentStatus === "paid") { setConfirmed(true); window.clearInterval(interval); }
         if (result.paymentStatus === "failed") { setError("Payment was not completed. Start again or choose another payment method."); window.clearInterval(interval); }
       } catch { /* retry on the next interval */ }
     }, progress.kind === "mpesa" ? 5000 : 30000);
     return () => window.clearInterval(interval);
-  }, [stage, progress, confirmed]);
+  }, [stage, progress, confirmed, token]);
 
-  const reset = () => { setStage("device"); setDevice(null); setIdentifier(""); setEmail(""); setProgress(null); setConfirmed(false); setError(null); };
+  const reset = () => { setStage("device"); setDevice(null); setIdentifier(""); setProgress(null); setConfirmed(false); setError(null); };
   const submitPayment = async (method: PaymentMethod, value?: string) => {
-    if (!device) return;
+    if (!device || !user) return;
     setSubmitting(true);
     setError(null);
+    const headers = { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) };
     try {
-      const response = await fetch("/api/orders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
-        sessionId: `direct-unlock-${Date.now()}`, customerEmail: email, paymentMethod: method,
+      const response = await fetch("/api/orders", { method: "POST", headers, body: JSON.stringify({
+        sessionId: `direct-unlock-${Date.now()}`, customerEmail: accountEmail, customerName: user.name, paymentMethod: method,
         paymentStatus: method === "binance_pay" || method === "usdt_manual" ? "pending_payment_confirmation" : "pending",
         total: device.price.toFixed(2), currency: "USD", deviceIdentifier: identifier.trim(), orderType: "unlock",
         notes: `Direct unlock request for ${device.brand} ${device.model}. Identifier: ${identifier.trim()}`,
@@ -191,17 +360,17 @@ export function DirectUnlockRemotePage() {
       const order = await response.json() as OrderResponse;
       if (!response.ok || !order.id) throw new Error(order.error || "We could not create your unlock request.");
       if (method === "mpesa") {
-        const triggerResponse = await fetch(`/api/orders/${order.id}/mpesa/trigger`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phone: value, email }) });
+        const triggerResponse = await fetch(`/api/orders/${order.id}/mpesa/trigger`, { method: "POST", headers, body: JSON.stringify({ phone: value }) });
         const trigger = await triggerResponse.json() as { checkoutRequestId?: string; error?: string };
         if (!triggerResponse.ok || !trigger.checkoutRequestId) throw new Error(trigger.error || "We could not start the M-Pesa payment.");
         setProgress({ kind: "mpesa", orderId: order.id, checkoutRequestId: trigger.checkoutRequestId });
       } else if (method === "nowpayments") {
-        const cryptoResponse = await fetch(`/api/orders/${order.id}/nowpayments/generate`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, payCurrency: value }) });
+        const cryptoResponse = await fetch(`/api/orders/${order.id}/nowpayments/generate`, { method: "POST", headers, body: JSON.stringify({ payCurrency: value }) });
         const crypto = await cryptoResponse.json() as { paymentId?: string; payAddress?: string; payAmount?: number; payCurrency?: string; error?: string };
         if (!cryptoResponse.ok || !crypto.paymentId || !crypto.payAddress || !crypto.payAmount || !crypto.payCurrency) throw new Error(crypto.error || "We could not create the crypto payment.");
         setProgress({ kind: "crypto", orderId: order.id, paymentId: crypto.paymentId, address: crypto.payAddress, amount: crypto.payAmount, currency: crypto.payCurrency });
       } else {
-        const configResponse = await fetch("/api/payment-config");
+        const configResponse = await fetch("/api/payment-config", { headers });
         const config = await configResponse.json() as { binancePayId?: string | null; usdtAddress?: string | null; usdtNetwork?: string | null };
         setProgress({ kind: "manual", orderId: order.id, method, ...config });
       }
@@ -213,14 +382,44 @@ export function DirectUnlockRemotePage() {
     }
   };
 
-  return <div className="app-shell min-h-[100dvh]">
-    <header className="topbar"><div className="mx-auto flex h-[72px] max-w-[1120px] items-center justify-between px-5 sm:px-8"><div><p className="display-font text-lg font-bold">GSM World</p><p className="text-[10px] font-semibold uppercase tracking-[.18em] text-muted-foreground">Direct unlock service</p></div><span className="flex items-center gap-2 text-xs text-muted-foreground"><ShieldCheck size={15} className="text-primary" /> Secure remote service</span></div></header>
-    <main className="mx-auto max-w-[1120px] px-5 py-8 sm:px-8 sm:py-12"><StepHeader stage={stage} /><div className="panel rounded-[1.35rem] p-5 sm:p-8 lg:p-10">
-      {stage === "device" && <DeviceStage selected={device} onSelect={setDevice} onContinue={() => setStage("details")} />}
-      {stage === "details" && device && <DetailsStage device={device} identifier={identifier} email={email} setIdentifier={setIdentifier} setEmail={setEmail} onBack={() => setStage("device")} onContinue={() => setStage("processing")} />}
-      {stage === "processing" && device && <ProcessingStage device={device} onDone={() => setStage("payment")} />}
-      {stage === "payment" && device && <PaymentStage device={device} email={email} onBack={() => setStage("processing")} onSubmit={submitPayment} submitting={submitting} error={error} />}
-      {stage === "pending" && device && progress && <PendingStage device={device} email={email} identifier={identifier} progress={progress} confirmed={confirmed} onReset={reset} />}
-    </div></main>
-  </div>;
+  if (!isAuthenticated || !user) {
+    return (
+      <div className="app-shell min-h-[100dvh]">
+        <main className="mx-auto flex min-h-[70dvh] max-w-xl items-center justify-center px-5 py-12">
+          <div className="w-full rounded-3xl border border-border bg-card p-8 text-center shadow-sm">
+            <span className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-primary/10 text-primary"><LockKeyhole size={25} /></span>
+            <p className="mono mt-5 text-[11px] font-bold uppercase tracking-[.18em] text-primary">Account required</p>
+            <h1 className="display-font mt-3 text-3xl font-bold tracking-[-.04em]">Sign in to start an unlock.</h1>
+            <p className="mt-4 text-sm leading-6 text-muted-foreground">Your unlock request and delivery email are linked to your account, so you won&apos;t need to enter your email separately.</p>
+            <Link href="/login" className="mt-7 inline-flex min-h-12 items-center gap-2 rounded-xl bg-primary px-6 text-sm font-bold text-primary-foreground">Sign in <ArrowRight size={16} /></Link>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  return (
+    <div className="app-shell min-h-[100dvh]">
+      <header className="border-b border-border bg-background/95">
+        <div className="mx-auto flex min-h-[76px] max-w-[1200px] items-center justify-between gap-4 px-5 sm:px-8">
+          <div><p className="display-font text-lg font-bold tracking-[-.03em]">GSM World</p><p className="text-[10px] font-bold uppercase tracking-[.18em] text-muted-foreground">Direct unlock</p></div>
+          <AccountPill email={accountEmail} />
+        </div>
+      </header>
+      <main className="mx-auto max-w-[1200px] px-5 py-8 sm:px-8 sm:py-12">
+        <div className="mb-8 flex items-center justify-between gap-4">
+          <div><p className="flex items-center gap-2 text-xs font-bold text-primary"><ShieldCheck size={15} /> Account-linked unlock request</p><p className="mt-1 text-xs text-muted-foreground">Hello, {accountName}. Your unlock details will be delivered to {accountEmail}.</p></div>
+          <span className="hidden items-center gap-2 text-xs text-muted-foreground sm:flex"><LockKeyhole size={14} /> No email re-entry</span>
+        </div>
+        <StageHeader stage={stage} />
+        <div className="rounded-[1.5rem] border border-border bg-background p-5 shadow-sm sm:p-8 lg:p-10">
+          {stage === "device" && <DeviceStage selected={device} onSelect={setDevice} onContinue={() => setStage("details")} />}
+          {stage === "details" && device && <DetailsStage device={device} identifier={identifier} accountEmail={accountEmail} setIdentifier={setIdentifier} onBack={() => setStage("device")} onContinue={() => setStage("processing")} />}
+          {stage === "processing" && device && <ProcessingStage device={device} identifier={identifier} onDone={() => setStage("payment")} />}
+          {stage === "payment" && device && <PaymentStage device={device} accountEmail={accountEmail} onBack={() => setStage("processing")} onSubmit={submitPayment} submitting={submitting} error={error} />}
+          {stage === "pending" && device && progress && <PendingStage device={device} accountEmail={accountEmail} identifier={identifier} progress={progress} confirmed={confirmed} onReset={reset} />}
+        </div>
+      </main>
+    </div>
+  );
 }
