@@ -3183,7 +3183,17 @@ router.post("/chat/live/:sessionId/messages", async (req, res) => {
 
     const parsed = z.object({
       message: z.string().max(2000).default(""),
-      fileUrl: z.string().url().optional().nullable(),
+      // Uploads are returned as same-origin paths (for example
+      // /api/uploads/123-image.png), so a relative URL is valid here too.
+      fileUrl: z.string().trim().refine(value => {
+        try {
+          const parsedUrl = new URL(value, "http://localhost");
+          return parsedUrl.pathname.startsWith("/api/uploads/") &&
+            /\.(jpe?g|png|gif|webp|pdf|txt|zip)$/i.test(parsedUrl.pathname);
+        } catch {
+          return false;
+        }
+      }).optional().nullable(),
     }).refine(d => d.message.trim().length > 0 || d.fileUrl, { message: "Message or file required" })
       .safeParse(req.body);
     if (!parsed.success) { res.status(400).json({ error: "Message or file required" }); return; }

@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import path from "path";
 import fs from "fs";
 import jwt from "jsonwebtoken";
+import { checkAdminPassword } from "../lib/admin-settings";
 
 const router: IRouter = Router();
 const _jwtSecret = process.env.JWT_SECRET || "gsm-africa-jwt-secret-CHANGE-IN-PRODUCTION";
@@ -27,13 +28,23 @@ const ALLOWED_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".gif", ".webp", ".
 router.post("/uploads", async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
-    if (!authHeader?.startsWith("Bearer ")) {
-      res.status(401).json({ error: "Unauthorized" });
-      return;
+    const adminPassword = req.headers["x-admin-password"] as string | undefined;
+    let authenticated = false;
+
+    if (authHeader?.startsWith("Bearer ")) {
+      try {
+        jwt.verify(authHeader.slice(7), _jwtSecret);
+        authenticated = true;
+      } catch {
+        // Fall through so an admin request can still be checked below.
+      }
     }
-    try {
-      jwt.verify(authHeader.slice(7), _jwtSecret);
-    } catch {
+
+    if (!authenticated && adminPassword) {
+      authenticated = await checkAdminPassword(adminPassword);
+    }
+
+    if (!authenticated) {
       res.status(401).json({ error: "Invalid token" });
       return;
     }
@@ -99,8 +110,11 @@ router.post("/uploads", async (req, res) => {
 
         fs.writeFileSync(filePath, Buffer.from(fileBody, "binary"));
 
-        const basePath = process.env.BASE_PATH ?? "/api";
-        const url = `${basePath}/uploads/${filename}`;
+        // This router is mounted at /api, while BASE_PATH is the frontend
+        // deployment prefix (usually "/"). Returning /uploads here produces
+        // a broken same-origin URL such as //uploads/... when BASE_PATH is "/".
+        const appPrefix = (process.env.BASE_PATH ?? "").replace(/\/+$/, "");
+        const url = `${appPrefix}/api/uploads/${filename}`;
         res.status(201).json({ url, filename, mime, size: fileBody.length });
         return;
       }

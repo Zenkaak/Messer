@@ -187,7 +187,15 @@ router.post("/orders/:id/messages", async (req, res) => {
 
     const parsed = z.object({
       message: z.string().max(2000).optional().default(""),
-      fileUrl: z.string().url().optional().nullable(),
+      fileUrl: z.string().trim().refine(value => {
+        try {
+          const parsedUrl = new URL(value, "http://localhost");
+          return parsedUrl.pathname.startsWith("/api/uploads/") &&
+            /\.(jpe?g|png|gif|webp|pdf|txt|zip)$/i.test(parsedUrl.pathname);
+        } catch {
+          return false;
+        }
+      }).optional().nullable(),
     }).refine(d => (d.message && d.message.trim().length > 0) || d.fileUrl, {
       message: "Either a message or a file attachment is required",
     }).safeParse(req.body);

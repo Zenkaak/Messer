@@ -100,6 +100,15 @@ type BotResponse = {
 
 function apiBase() { return import.meta.env.BASE_URL.replace(/\/$/, ""); }
 
+function attachmentUrl(fileUrl: string) {
+  try { return new URL(fileUrl, window.location.origin).toString(); }
+  catch { return fileUrl; }
+}
+
+function isImageAttachment(fileUrl: string) {
+  return /\.(jpe?g|png|gif|webp)(?:[?#]|$)/i.test(fileUrl);
+}
+
 function getVisitorId(): string {
   try {
     let id = sessionStorage.getItem("gsm_visitor_id");
@@ -1895,10 +1904,9 @@ export function GsmBot() {
         const fd = new FormData();
         fd.append("file", humanFile);
         const upRes = await fetch(`${base}/api/uploads`, { method: "POST", body: fd });
-        if (upRes.ok) {
-          const upData = await upRes.json() as { url?: string };
-          fileUrl = upData.url ?? null;
-        }
+        const upData = await upRes.json().catch(() => ({})) as { url?: string; error?: string };
+        if (!upRes.ok || !upData.url) throw new Error(upData.error || "Could not upload attachment");
+        fileUrl = upData.url;
       }
       const body: Record<string, unknown> = {
         message: humanInput.trim() || (humanFile ? `[File: ${humanFile.name}]` : ""),
@@ -1913,15 +1921,23 @@ export function GsmBot() {
           body: JSON.stringify(body),
         }
       );
-      if (res.ok) {
-        const msg = await res.json() as HumanMessage;
-        setHumanMessages(prev => [...prev, msg]);
-        setHumanInput("");
-        setHumanFile(null);
-        if (fileInputRef.current) fileInputRef.current.value = "";
-        setLastPollTime(new Date());
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(data.error || "Could not send message");
       }
-    } catch { /* silent */ } finally {
+      const msg = await res.json() as HumanMessage;
+      setHumanMessages(prev => [...prev, msg]);
+      setHumanInput("");
+      setHumanFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      setLastPollTime(new Date());
+    } catch (err) {
+      setHumanMessages(prev => [...prev, {
+        id: Date.now(), sessionId, senderType: "admin" as const,
+        message: err instanceof Error ? err.message : "Could not send attachment.",
+        createdAt: new Date().toISOString(), fileUrl: null,
+      }]);
+    } finally {
       setHumanSending(false);
     }
   }
@@ -2087,9 +2103,15 @@ export function GsmBot() {
                           {isAdmin && <p className="text-[10px] font-bold text-gray-500 mb-0.5">Support Team</p>}
                           {msg.message}
                           {msg.fileUrl && (
-                            <a href={msg.fileUrl} target="_blank" rel="noopener noreferrer"
-                              className={`flex items-center gap-1 mt-1.5 text-[10px] font-semibold underline ${isAdmin ? "text-blue-600" : "text-blue-300"}`}>
-                              <Paperclip size={9} /> View attachment
+                            <a href={attachmentUrl(msg.fileUrl)} target="_blank" rel="noopener noreferrer"
+                              className={`mt-2 block ${isAdmin ? "text-blue-700" : "text-blue-200"}`}>
+                              {isImageAttachment(msg.fileUrl) && (
+                                <img src={attachmentUrl(msg.fileUrl)} alt="Chat attachment"
+                                  className="max-h-44 max-w-full rounded-lg object-contain border border-black/10 mb-1.5" />
+                              )}
+                              <span className="flex items-center gap-1 text-[10px] font-semibold underline">
+                                <Paperclip size={9} /> {isImageAttachment(msg.fileUrl) ? "Open image" : "Open attachment"}
+                              </span>
                             </a>
                           )}
                         </div>
