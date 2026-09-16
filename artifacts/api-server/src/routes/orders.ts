@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and, or, desc } from "drizzle-orm";
-import { db, ordersTable, orderItemsTable, orderMessagesTable, usersTable, notificationsTable } from "@workspace/db";
+import { db, ordersTable, orderItemsTable, orderMessagesTable, usersTable, notificationsTable, paymentTransactionsTable } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 import jwt from "jsonwebtoken";
@@ -785,21 +785,31 @@ router.post("/orders/:id/nowpayments/generate", async (req, res) => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid order id" }); return; }
   const user = getUserFromToken(req.headers.authorization);
-  if (!user) { res.status(401).json({ error: "Authentication required" }); return; }
+  const guestEmail = typeof req.body?.email === "string" ? req.body.email.toLowerCase().trim() : "";
   try {
     const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, id)).limit(1);
     if (!order) { res.status(404).json({ error: "Order not found" }); return; }
-    const emailMatch = order.customerEmail && order.customerEmail.toLowerCase() === user.email.toLowerCase();
-    if (order.userId !== user.userId && !emailMatch) { res.status(403).json({ error: "Access denied" }); return; }
+    const emailMatch = guestEmail && order.customerEmail.toLowerCase() === guestEmail;
+    const userMatch = user && (order.userId === user.userId || order.customerEmail.toLowerCase() === user.email.toLowerCase());
+    if (!userMatch && !emailMatch) { res.status(403).json({ error: "Access denied" }); return; }
     if (order.paymentStatus !== "pending") { res.status(400).json({ error: "Order is not awaiting payment" }); return; }
 
     const { createPayment } = await import("../lib/nowpayments");
     const payment = await createPayment({
       priceAmount: parseFloat(order.total),
       priceCurrency: "usd",
-      payCurrency: "usdttrc20",
+      payCurrency: typeof req.body?.payCurrency === "string" ? req.body.payCurrency : "usdttrc20",
       orderId: id,
       orderDescription: `Order #${order.orderCode || id}`,
+    });
+    await db.insert(paymentTransactionsTable).values({
+      orderId: id,
+      provider: "nowpayments",
+      providerReference: payment.payment_id,
+      amount: order.total,
+      currency: "USD",
+      status: "pending",
+      rawResponse: payment as unknown as Record<string, unknown>,
     });
     res.json({
       payAddress: payment.pay_address,
@@ -818,15 +828,16 @@ router.post("/orders/:id/mpesa/trigger", async (req, res) => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid order id" }); return; }
   const user = getUserFromToken(req.headers.authorization);
-  if (!user) { res.status(401).json({ error: "Authentication required" }); return; }
   const { phone } = req.body || {};
   if (!phone) { res.status(400).json({ error: "phone is required" }); return; }
+  const guestEmail = typeof req.body?.email === "string" ? req.body.email.toLowerCase().trim() : "";
   try {
     const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, id)).limit(1);
     if (!order) { res.status(404).json({ error: "Order not found" }); return; }
-    const userIdMatch = order.userId != null && order.userId === user.userId;
-    const emailMatch = order.customerEmail.toLowerCase() === user.email.toLowerCase();
-    if (!userIdMatch && !emailMatch) { res.status(403).json({ error: "Access denied" }); return; }
+    const userIdMatch = user && order.userId != null && order.userId === user.userId;
+    const emailMatch = user && order.customerEmail.toLowerCase() === user.email.toLowerCase();
+    const guestMatch = !user && guestEmail && order.customerEmail.toLowerCase() === guestEmail;
+    if (!userIdMatch && !emailMatch && !guestMatch) { res.status(403).json({ error: "Access denied" }); return; }
     if (order.paymentStatus !== "pending") { res.status(400).json({ error: "Order is not awaiting payment" }); return; }
     const USD_TO_KES = 130;
     const amountKes = Math.ceil(parseFloat(order.total) * USD_TO_KES);
@@ -835,6 +846,15 @@ router.post("/orders/:id/mpesa/trigger", async (req, res) => {
       amount: amountKes,
       orderId: id,
       description: `Order #${order.orderCode || id}`,
+    });
+    await db.insert(paymentTransactionsTable).values({
+      orderId: id,
+      provider: "mpesa",
+      providerReference: stk.CheckoutRequestID,
+      amount: String(amountKes),
+      currency: "KES",
+      status: "pending",
+      rawResponse: stk as unknown as Record<string, unknown>,
     });
     res.json({ success: true, checkoutRequestId: stk.CheckoutRequestID, message: `STK push sent. Enter your M-Pesa PIN.` });
   } catch (err) {
