@@ -193,7 +193,12 @@ function attachmentUrl(fileUrl: string) {
 }
 
 function isImageAttachment(fileUrl: string) {
-  return /\.(jpe?g|png|gif|webp)(?:[?#]|$)/i.test(fileUrl);
+  const path = fileUrl.split(/[?#]/, 1)[0].toLowerCase();
+  // New uploads preserve their extension. Older chat records can contain a
+  // route without one, so treat unknown file types as images and let the
+  // browser's image loader decide. Known document types stay link-only.
+  return /\.(jpe?g|png|gif|webp)$/i.test(path) ||
+    !/\.(pdf|txt|zip)$/i.test(path);
 }
 
 function Skeleton({ h = "h-16" }: { h?: string }) {
@@ -4146,13 +4151,16 @@ function LiveChatsPanel({ pwd }: { pwd: string }) {
                         </p>
                         <p className="leading-relaxed whitespace-pre-wrap break-words">{m.message}</p>
                         {m.fileUrl && (
-                          <a href={attachmentUrl(m.fileUrl)} target="_blank" rel="noopener noreferrer"
+                          <a href={attachmentUrl(m.fileUrl)}
+                            target={isAdminNativeApp ? "_self" : "_blank"}
+                            rel="noopener noreferrer"
                             className={`mt-2 block ${isAdmin ? "text-blue-100" : "text-blue-700"}`}>
                             {isImageAttachment(m.fileUrl) && (
                               <img
                                 src={attachmentUrl(m.fileUrl)}
                                 alt="Chat attachment"
                                 className="max-h-44 max-w-full rounded-lg object-contain border border-black/10 mb-1.5"
+                                onError={e => { e.currentTarget.style.display = "none"; }}
                               />
                             )}
                             <span className="flex items-center gap-1 text-[10px] font-semibold underline">

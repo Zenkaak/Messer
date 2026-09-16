@@ -52,7 +52,7 @@ import java.util.concurrent.Executors;
 
 public class MainActivity extends AppCompatActivity {
 
- // Admin WebView compatibility: live-chat scroll and file picker support.
+ // Admin WebView compatibility: nested scrolling, external links, and file picker support.
 
  private static final String TAG = "GSMAdmin";
  private static final String ADMIN_URL = "https://unlockgsm.vercel.app/admin";
@@ -257,26 +257,14 @@ public class MainActivity extends AppCompatActivity {
  webView.addJavascriptInterface(scrollBridge, "AdminScrollBridge");
  webView.addJavascriptInterface(new BiometricBridge(), "AndroidBiometric");
 
- // ── Pull-to-refresh ───────────────────────────────────────────────────
- swipeRefresh.setColorSchemeColors(
- Color.parseColor("#0ea5e9"),
- Color.parseColor("#38bdf8"),
- Color.parseColor("#7dd3fc")
- );
- swipeRefresh.setOnRefreshListener(() -> {
- webView.clearCache(false);
- webView.reload();
- });
-
- // Allow pull-to-refresh ONLY when both the native WebView scroll AND
- // the DOM overflow scroll are at the very top.
- //
- // webView.getScrollY() covers pages that scroll the body/window.
- // scrollBridge.isScrolledPastTop() covers pages that scroll an
- // overflow element (like the admin), where getScrollY() == 0
- // regardless of how far the user has scrolled inside the element.
- swipeRefresh.setOnChildScrollUpCallback((parent, child) ->
- webView.getScrollY() > 0 || scrollBridge.isScrolledPastTop());
+ // The dashboard has several independent CSS scroll regions (the main
+ // navigation, live-chat messages, dialogs, and tables). SwipeRefreshLayout
+ // sits above the WebView and can mistake a downward gesture in one of
+ // those regions for a pull-to-refresh, reloading the whole dashboard.
+ // The dashboard already exposes explicit refresh buttons, so leave native
+ // pull-to-refresh disabled. This lets every nested region receive the
+ // gesture consistently.
+ swipeRefresh.setEnabled(false);
 
  // ── Auto-refresh after APK update ─────────────────────────────────────
  SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
@@ -300,6 +288,8 @@ public class MainActivity extends AppCompatActivity {
  settings.setUseWideViewPort(true);
  settings.setCacheMode(WebSettings.LOAD_DEFAULT);
  settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+ settings.setSupportMultipleWindows(false);
+ settings.setJavaScriptCanOpenWindowsAutomatically(false);
 
  String defaultUa = settings.getUserAgentString();
  settings.setUserAgentString(defaultUa + " GSMAdminApp/1.0");
@@ -362,7 +352,17 @@ public class MainActivity extends AppCompatActivity {
  return true;
  }
 
- return !ADMIN_HOST.equals(host);
+ if (ADMIN_HOST.equals(host)) return false;
+
+ // Browser-only external links (GitHub releases, documentation, messaging
+ // links, etc.) must not be silently swallowed by the WebView. Open them in
+ // the device browser just as a normal browser tab would.
+ try {
+  startActivity(new Intent(Intent.ACTION_VIEW, request.getUrl()));
+ } catch (ActivityNotFoundException e) {
+  Toast.makeText(MainActivity.this, "No browser available", Toast.LENGTH_SHORT).show();
+ }
+ return true;
  }
 
  @Override
