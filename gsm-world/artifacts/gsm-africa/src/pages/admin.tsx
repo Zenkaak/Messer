@@ -9,7 +9,7 @@ import {
   Smartphone, Zap, Ban, Trash2, UserCheck, MoreVertical,
   MessageSquare, Send, Cpu, UserPlus, Phone, Headphones, WifiOff, Bell,
   Store, ExternalLink, Image, Menu, Megaphone, RotateCcw, Wallet,
-  Download, Tag, Fingerprint,
+  Download, Tag, Fingerprint, Paperclip,
 } from "lucide-react";
 import { startRegistration, startAuthentication } from "@simplewebauthn/browser";
 import { BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
@@ -50,6 +50,7 @@ interface AdminSettings {
   smtpUser: string | null;
   smtpPass: string | null;
   resendApiKey?: string | null;
+  resendFromEmail?: string | null;
   callmebotApiKey?: string | null;
   whatsappContact: string | null;
   supportPhone?: string | null;
@@ -159,14 +160,40 @@ function _setWaToken(t: string | null) {
 function adminFetch(path: string, pwd: string, opts: RequestInit = {}) {
   const extra: Record<string, string> = {};
   if (_waToken) extra["x-admin-token"] = _waToken;
-  return fetch(path, {
-    ...opts,
-    headers: { "x-admin-password": pwd, "Content-Type": "application/json", ...extra, ...(opts.headers ?? {}) },
-  });
+  const headers = new Headers(opts.headers);
+  headers.set("x-admin-password", pwd);
+  Object.entries(extra).forEach(([key, value]) => headers.set(key, value));
+
+  // Let the browser add the multipart boundary for FormData uploads.
+  if (opts.body instanceof FormData) headers.delete("Content-Type");
+  else if (!headers.has("Content-Type")) headers.set("Content-Type", "application/json");
+
+  return fetch(path, { ...opts, headers });
 }
 
 function apiPath(path: string) {
   return `${import.meta.env.BASE_URL.replace(/\/$/, "")}${path}`;
+}
+
+function attachmentUrl(fileUrl: string) {
+  const raw = fileUrl.trim();
+  try {
+    const parsed = new URL(raw, window.location.origin);
+    // Older deployments returned /uploads/... (or //uploads/...) even though
+    // the API route is mounted at /api/uploads. Normalize those saved links so
+    // existing chat attachments remain open after the route fix.
+    if (parsed.hostname === "uploads" || parsed.pathname.startsWith("/uploads/")) {
+      const filename = parsed.hostname === "uploads"
+        ? parsed.pathname.slice(1)
+        : parsed.pathname.slice("/uploads/".length);
+      return new URL(apiPath("/api/uploads/" + filename), window.location.origin).toString();
+    }
+    return parsed.toString();
+  } catch { return raw; }
+}
+
+function isImageAttachment(fileUrl: string) {
+  return /\.(jpe?g|png|gif|webp)(?:[?#]|$)/i.test(fileUrl);
 }
 
 function Skeleton({ h = "h-16" }: { h?: string }) {
@@ -2961,6 +2988,7 @@ function PaymentsPanel({ pwd }: { pwd: string }) {
     smtpUser: "",
     smtpPass: "",
     resendApiKey: "",
+    resendFromEmail: "",
     callmebotApiKey: "",
     whatsappContact: "",
     supportPhone: "",
@@ -3024,6 +3052,7 @@ function PaymentsPanel({ pwd }: { pwd: string }) {
           smtpUser: d.smtpUser ?? "",
           smtpPass: "",
           resendApiKey: "",
+          resendFromEmail: d.resendFromEmail ?? "",
           callmebotApiKey: "",
           whatsappContact: d.whatsappContact ?? "",
           supportPhone: d.supportPhone ?? "",
@@ -3083,6 +3112,7 @@ function PaymentsPanel({ pwd }: { pwd: string }) {
       if (form.coingateApiKey) body.coingateApiKey = form.coingateApiKey;
       if (form.smtpPass) body.smtpPass = form.smtpPass;
       if (form.resendApiKey) body.resendApiKey = form.resendApiKey;
+      body.resendFromEmail = form.resendFromEmail;
       if (form.callmebotApiKey) body.callmebotApiKey = form.callmebotApiKey;
       if (form.whatsappContact) body.whatsappContact = form.whatsappContact;
       if (form.googleClientId) body.googleClientId = form.googleClientId;
@@ -3102,7 +3132,7 @@ function PaymentsPanel({ pwd }: { pwd: string }) {
         ...f,
         mpesaConsumerKey: "", mpesaConsumerSecret: "", mpesaPasskey: "",
         nowpaymentsApiKey: "", coingateApiKey: "",
-        smtpPass: "", resendApiKey: "", callmebotApiKey: "",
+        smtpPass: "", resendApiKey: "", resendFromEmail: f.resendFromEmail, callmebotApiKey: "",
         googleClientId: "", googleClientSecret: "",
         otsApiToken: "", openaiApiKey: "", imeiInfoApiToken: "", botSystemPrompt: f.botSystemPrompt,
         paymentMethods: updated.paymentMethods?.length
@@ -3484,6 +3514,7 @@ function PaymentsPanel({ pwd }: { pwd: string }) {
           <a href="https://resend.com" target="_blank" rel="noreferrer" className="font-bold underline">resend.com</a>
           {" "}→ verify your sending domain → add the key below. The <em>From Email</em> must be on that verified domain.
         </div>
+        <PlainInput label="Resend From Email" value={form.resendFromEmail ?? ""} onChange={v => setForm(f => ({ ...f, resendFromEmail: v }))} placeholder="no-reply@your-verified-domain.com" />
         <MaskedInput
           label="Resend API Key"
           value={form.resendApiKey ?? ""}
@@ -3849,10 +3880,14 @@ function LiveChatsPanel({ pwd }: { pwd: string }) {
   const [selected, setSelected] = useState<LiveChatSession | null>(null);
   const [msgs, setMsgs] = useState<LiveChatMsg[]>([]);
   const [reply, setReply] = useState("");
+  const [chatFile, setChatFile] = useState<File | null>(null);
   const [sending, setSending] = useState(false);
   const [showClosed, setShowClosed] = useState(false);
   const [mobileView, setMobileView] = useState<"list" | "chat">("list");
   const bottomRef = useRef<HTMLDivElement>(null);
+  const chatScrollRef = useRef<HTMLDivElement>(null);
+  const keepChatAtBottom = useRef(true);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   // Refs to always have the latest values inside setInterval without recreating it
   const selectedRef = useRef(selected);
   useEffect(() => { selectedRef.current = selected; }, [selected]);
@@ -3863,7 +3898,19 @@ function LiveChatsPanel({ pwd }: { pwd: string }) {
     adminFetch(apiPath(`/api/chat/live?status=${statusParam}`), pwd)
       .then(r => r.ok ? r.json() : Promise.reject())
       .then((data: LiveChatSession[]) => {
-        setSessions(data);
+        setSessions(prev => {
+          const unchanged = prev.length === data.length &&
+            prev.every((session, index) => {
+              const next = data[index];
+              return next &&
+                session.id === next.id &&
+                session.status === next.status &&
+                session.updatedAt === next.updatedAt &&
+                session.unreadAdmin === next.unreadAdmin &&
+                session.lastMessage === next.lastMessage;
+            });
+          return unchanged ? prev : data;
+        });
         setLoading(false);
         // Notify admin when a NEW waiting session arrives
         if (knownIds.current.size > 0) {
@@ -3884,7 +3931,16 @@ function LiveChatsPanel({ pwd }: { pwd: string }) {
   const loadMessages = useCallback((sess: LiveChatSession) => {
     adminFetch(apiPath(`/api/chat/live/${sess.id}/messages`), pwd)
       .then(r => r.ok ? r.json() : Promise.reject())
-      .then((data: LiveChatMsg[]) => setMsgs(data))
+      .then((data: LiveChatMsg[]) => {
+        setMsgs(prev => {
+          const unchanged = prev.length === data.length &&
+            prev.every((msg, index) => {
+              const next = data[index];
+              return next && msg.id === next.id && msg.message === next.message && msg.fileUrl === next.fileUrl;
+            });
+          return unchanged ? prev : data;
+        });
+      })
       .catch(() => {});
   }, [pwd]);
 
@@ -3901,24 +3957,60 @@ function LiveChatsPanel({ pwd }: { pwd: string }) {
   }, [loadSessions, loadMessages]);
 
   useEffect(() => {
-    if (selected) { setMsgs([]); loadMessages(selected); }
+    if (selected) {
+      keepChatAtBottom.current = true;
+      setMsgs([]);
+      loadMessages(selected);
+    }
   }, [selected?.id, loadMessages]);
 
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs]);
+  useEffect(() => {
+    if (keepChatAtBottom.current) {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [msgs]);
 
   async function sendReply() {
-    if (!reply.trim() || !selected || sending) return;
+    if ((!reply.trim() && !chatFile) || !selected || sending) return;
     setSending(true);
     try {
+      let fileUrl: string | null = null;
+      if (chatFile) {
+        const formData = new FormData();
+        formData.append("file", chatFile);
+        const uploadResponse = await adminFetch(apiPath("/api/uploads"), pwd, {
+          method: "POST",
+          body: formData,
+        });
+        const uploadData = await uploadResponse.json().catch(() => ({})) as { url?: string; error?: string };
+        if (!uploadResponse.ok || !uploadData.url) {
+          throw new Error(uploadData.error || "Could not upload attachment");
+        }
+        fileUrl = uploadData.url;
+      }
+
+      const body: Record<string, unknown> = {
+        message: reply.trim() || (chatFile ? `[File: ${chatFile.name}]` : ""),
+      };
+      if (fileUrl) body.fileUrl = fileUrl;
+
       const r = await adminFetch(
         apiPath(`/api/chat/live/${selected.id}/messages`), pwd,
-        { method: "POST", body: JSON.stringify({ message: reply.trim() }) }
+        { method: "POST", body: JSON.stringify(body) }
       );
       if (!r.ok) throw new Error();
       const msg = await r.json() as LiveChatMsg;
       setMsgs(prev => [...prev, msg]);
       setReply("");
-    } catch { toast({ variant: "destructive", title: "Failed to send reply" }); }
+      setChatFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    } catch (err) {
+      toast({
+        variant: "destructive",
+        title: "Failed to send reply",
+        description: err instanceof Error ? err.message : "Please try again.",
+      });
+    }
     finally { setSending(false); }
   }
 
@@ -4003,7 +4095,7 @@ function LiveChatsPanel({ pwd }: { pwd: string }) {
 
         {/* Selected session */}
         {selected ? (
-          <div className={`rounded-2xl border border-slate-100 flex flex-col ${mobileView === "list" ? "hidden md:flex" : "flex"}`} style={{ maxHeight: "500px", background: "linear-gradient(160deg,#eef2ff 0%,#f5f0ff 50%,#edfcf4 100%)" }}>
+          <div className={`min-h-0 h-[min(70vh,600px)] max-h-[calc(100vh-8rem)] rounded-2xl border border-slate-100 flex flex-col ${mobileView === "list" ? "hidden md:flex" : "flex"}`} style={{ background: "linear-gradient(160deg,#eef2ff 0%,#f5f0ff 50%,#edfcf4 100%)" }}>
             {/* Chat header */}
             <div className="flex items-center justify-between px-3 py-2.5 border-b border-slate-100 shrink-0">
               <div className="flex items-center gap-2">
@@ -4029,7 +4121,15 @@ function LiveChatsPanel({ pwd }: { pwd: string }) {
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2" style={{ background: "linear-gradient(180deg,#eef2ff 0%,#edfcf4 100%)" }}>
+            <div
+              ref={chatScrollRef}
+              onScroll={() => {
+                const el = chatScrollRef.current;
+                if (el) keepChatAtBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+              }}
+              className="min-h-0 flex-1 overflow-y-auto overscroll-contain touch-pan-y px-3 py-3 space-y-2"
+              style={{ background: "linear-gradient(180deg,#eef2ff 0%,#edfcf4 100%)" }}
+            >
               {msgs.length === 0 && (
                 <p className="text-center text-xs text-slate-300 py-4">No messages yet</p>
               )}
@@ -4046,9 +4146,18 @@ function LiveChatsPanel({ pwd }: { pwd: string }) {
                         </p>
                         <p className="leading-relaxed whitespace-pre-wrap break-words">{m.message}</p>
                         {m.fileUrl && (
-                          <a href={m.fileUrl} target="_blank" rel="noopener noreferrer"
-                            className={`flex items-center gap-1 mt-1 text-[9px] font-semibold underline ${isAdmin ? "text-blue-200" : "text-blue-600"}`}>
-                            📎 View attachment
+                          <a href={attachmentUrl(m.fileUrl)} target="_blank" rel="noopener noreferrer"
+                            className={`mt-2 block ${isAdmin ? "text-blue-100" : "text-blue-700"}`}>
+                            {isImageAttachment(m.fileUrl) && (
+                              <img
+                                src={attachmentUrl(m.fileUrl)}
+                                alt="Chat attachment"
+                                className="max-h-44 max-w-full rounded-lg object-contain border border-black/10 mb-1.5"
+                              />
+                            )}
+                            <span className="flex items-center gap-1 text-[10px] font-semibold underline">
+                              <Paperclip size={10} /> {isImageAttachment(m.fileUrl) ? "Open image" : "Open attachment"}
+                            </span>
                           </a>
                         )}
                       </div>
@@ -4084,7 +4193,37 @@ function LiveChatsPanel({ pwd }: { pwd: string }) {
             {/* Reply area */}
             {selected.status !== "closed" ? (
               <div className="px-3 pb-3 pt-2 border-t border-slate-100 shrink-0">
-                <div className="flex gap-2">
+                <div className="flex gap-2 items-center">
+                  <input
+                    id="live-chat-attachment"
+                    ref={fileInputRef}
+                    type="file"
+                    className="sr-only"
+                    accept="image/*,.pdf,.txt,.zip"
+                    onChange={e => setChatFile(e.target.files?.[0] || null)}
+                  />
+                  <div className="flex items-center gap-1 shrink-0">
+                    <label
+                      htmlFor="live-chat-attachment"
+                      className={`h-9 px-2.5 rounded-xl border text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-colors ${
+                        chatFile ? "border-blue-400 bg-blue-50 text-blue-700" : "border-slate-200 bg-white text-slate-500 hover:border-blue-300"
+                      } ${sending ? "pointer-events-none opacity-50" : ""}`}
+                      aria-label={chatFile ? `Change attachment: ${chatFile.name}` : "Attach a file"}
+                    >
+                      <Paperclip size={12} />
+                      <span className={chatFile ? "max-w-[90px] truncate" : ""}>{chatFile ? chatFile.name : "Attach"}</span>
+                    </label>
+                    {chatFile && (
+                      <button
+                        type="button"
+                        aria-label="Remove attachment"
+                        onClick={() => { setChatFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
+                        className="w-6 h-6 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 flex items-center justify-center"
+                      >
+                        <X size={11} />
+                      </button>
+                    )}
+                  </div>
                   <input
                     value={reply}
                     onChange={e => setReply(e.target.value)}
@@ -4093,7 +4232,7 @@ function LiveChatsPanel({ pwd }: { pwd: string }) {
                     disabled={sending}
                     className="flex-1 text-sm border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50"
                   />
-                  <button onClick={sendReply} disabled={sending || !reply.trim()}
+                  <button onClick={sendReply} disabled={sending || (!reply.trim() && !chatFile)}
                     className="w-9 h-9 bg-[#1a2332] hover:bg-[#253246] disabled:opacity-40 text-white text-xs font-bold rounded-xl flex items-center justify-center shrink-0 transition-colors">
                     {sending ? <RefreshCw size={13} className="animate-spin" /> : <Send size={13} />}
                   </button>
@@ -5080,7 +5219,7 @@ export function AdminPage() {
           </header>
 
           {/* ── Scrollable content ── */}
-          <main ref={mainRef} className="flex-1 overflow-y-auto overscroll-contain pb-16 md:pb-0" style={{ overscrollBehavior: "contain", background: "#0c1120" }}>
+          <main ref={mainRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-16 md:pb-0" style={{ overscrollBehavior: "contain", background: "#0c1120" }}>
             {tab === "overview"   && <OverviewPanel   pwd={pwd} onNavigate={setTab} />}
             {tab === "orders"     && <OrdersPanel     pwd={pwd} />}
             {tab === "products"   && <ProductsPanel   pwd={pwd} />}
