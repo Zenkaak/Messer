@@ -40,12 +40,12 @@ const DEVICES: Device[] = DEVICE_CATALOG.flatMap((brand) =>
   })),
 );
 
-const PREPARATION_MS = 18_000;
+const PREPARATION_MS = 5 * 60 * 1000;
 const PREPARATION_STEPS = [
-  { title: "Validate the identifier", detail: "Checking the IMEI checksum or serial format you entered." },
-  { title: "Match the selected service", detail: "Confirming the device family and the quoted unlock price." },
-  { title: "Prepare your unlock request", detail: "Creating a request linked to your signed-in account." },
-  { title: "Open payment options", detail: "M-Pesa and crypto payment choices will be available next." },
+  { code: "IMEI", title: "Validate identifier", detail: "Checking the IMEI checksum or serial format you entered.", log: "Identifier format and checksum accepted" },
+  { code: "MODEL", title: "Match device service", detail: "Confirming the device family and the quoted unlock price.", log: "Device profile matched to selected service" },
+  { code: "AUTH", title: "Prepare unlock request", detail: "Creating a request linked to your signed-in account.", log: "Account-linked request prepared for remote queue" },
+  { code: "PAY", title: "Open payment options", detail: "M-Pesa and crypto payment choices will be available next.", log: "Payment session ready — awaiting customer selection" },
 ];
 const money = (value: number) => `$${value.toFixed(2)}`;
 
@@ -68,16 +68,16 @@ function StageHeader({ stage }: { stage: Stage }) {
   const labels = ["Device", "IMEI / serial", "Checks", "Payment"];
   const index = stage === "pending" ? 4 : ["device", "details", "processing", "payment"].indexOf(stage);
   return (
-    <div className="mb-8 flex items-start">
+    <div className="mb-5 flex items-start rounded-2xl border border-gray-200 bg-white px-3 py-4 shadow-sm sm:px-5">
       {labels.map((label, itemIndex) => (
         <div key={label} className="flex flex-1 items-start last:flex-none">
           <div className="flex w-24 shrink-0 flex-col items-center gap-2 text-center">
-            <span className={`grid h-9 w-9 place-items-center rounded-full border text-xs font-bold transition-colors ${itemIndex < index ? "border-primary bg-primary text-primary-foreground" : itemIndex === index ? "border-primary bg-primary/10 text-primary" : "border-border bg-card text-muted-foreground"}`}>
+            <span className={`grid h-8 w-8 place-items-center rounded-full border text-xs font-bold transition-colors ${itemIndex < index ? "border-[#1a2332] bg-[#1a2332] text-white" : itemIndex === index ? "border-[#0097a7] bg-[#e6f7f8] text-[#007c89]" : "border-gray-200 bg-gray-50 text-gray-400"}`}>
               {itemIndex < index ? <Check size={15} /> : itemIndex + 1}
             </span>
-            <span className={`text-[10px] font-semibold ${itemIndex <= index ? "text-foreground" : "text-muted-foreground"}`}>{label}</span>
+            <span className={`text-[10px] font-semibold ${itemIndex <= index ? "text-gray-800" : "text-gray-400"}`}>{label}</span>
           </div>
-          {itemIndex < labels.length - 1 && <span className={`mt-[18px] h-px flex-1 ${itemIndex < index ? "bg-primary" : "bg-border"}`} />}
+          {itemIndex < labels.length - 1 && <span className={`mt-4 h-px flex-1 ${itemIndex < index ? "bg-[#1a2332]" : "bg-gray-200"}`} />}
         </div>
       ))}
     </div>
@@ -86,10 +86,10 @@ function StageHeader({ stage }: { stage: Stage }) {
 
 function AccountPill({ email }: { email: string }) {
   return (
-    <div className="flex max-w-full items-center gap-2 rounded-full border border-border bg-card px-3 py-2 text-xs">
-      <UserRound size={14} className="shrink-0 text-primary" />
-      <span className="truncate text-muted-foreground">{email}</span>
-      <span className="hidden shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary sm:inline">SIGNED IN</span>
+    <div className="flex max-w-full items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-2 text-xs text-white">
+      <UserRound size={14} className="shrink-0 text-cyan-300" />
+      <span className="truncate text-white/75">{email}</span>
+      <span className="hidden shrink-0 rounded-full bg-emerald-400/15 px-2 py-0.5 text-[10px] font-bold text-emerald-300 sm:inline">SIGNED IN</span>
     </div>
   );
 }
@@ -214,6 +214,7 @@ function ProcessingStage({ device, identifier, onDone }: { device: Device; ident
   const completed = Math.min(PREPARATION_STEPS.length, Math.floor((progress / 100) * PREPARATION_STEPS.length));
   const activeIndex = Math.min(PREPARATION_STEPS.length - 1, completed);
   const remaining = Math.max(0, Math.ceil((PREPARATION_MS - elapsed) / 1000));
+  const remainingLabel = `${String(Math.floor(remaining / 60)).padStart(2, "0")}:${String(remaining % 60).padStart(2, "0")}`;
 
   useEffect(() => {
     const started = Date.now();
@@ -229,40 +230,68 @@ function ProcessingStage({ device, identifier, onDone }: { device: Device; ident
   }, [onDone]);
 
   return (
-    <div className="mx-auto max-w-3xl">
-      <p className="mono mb-3 text-[11px] font-bold uppercase tracking-[.18em] text-primary">Step 03 / request preparation</p>
-      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+    <div className="mx-auto max-w-5xl">
+      <div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
         <div>
-          <h1 className="display-font text-[clamp(2rem,5vw,3.5rem)] font-bold leading-[.98] tracking-[-.06em]">Preparing your unlock request.</h1>
-          <p className="mt-4 max-w-2xl text-sm leading-7 text-muted-foreground">This is not the unlock itself yet. We are validating your submission and preparing the correct payment request for <strong className="text-foreground">{device.model}</strong>.</p>
+          <p className="mb-2 font-mono text-[10px] font-bold uppercase tracking-[.2em] text-[#008b99]">REMOTE UNLOCK SERVER / LIVE JOB</p>
+          <h1 className="text-2xl font-black tracking-tight text-[#1a2332] sm:text-3xl">Verifying device eligibility</h1>
+          <p className="mt-2 text-sm text-gray-500">The service request is being prepared for <strong className="text-gray-800">{device.model}</strong>. Payment appears after this server check completes.</p>
         </div>
-        <div className="shrink-0 rounded-xl border border-border bg-card px-4 py-3 text-right"><span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Identifier</span><span className="mono mt-1 block text-sm">{identifier.slice(0, 4)}••••{identifier.slice(-4)}</span></div>
+        <div className="flex items-center gap-2 self-start rounded-full border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-700 sm:self-auto">
+          <span className="h-2 w-2 animate-pulse rounded-full bg-amber-500" /> SERVER CHECK IN PROGRESS
+        </div>
       </div>
 
-      <div className="mt-8 rounded-2xl border border-primary/25 bg-card p-5 shadow-sm sm:p-6">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3"><span className="grid h-11 w-11 place-items-center rounded-full bg-primary/10 text-primary"><RefreshCw size={20} className="animate-spin" /></span><div><p className="text-sm font-bold">{PREPARATION_STEPS[activeIndex].title}</p><p className="mt-1 text-xs text-muted-foreground">{PREPARATION_STEPS[activeIndex].detail}</p></div></div>
-          <span className="mono text-xl font-bold text-primary">{progress}%</span>
-        </div>
-        <div className="mt-6 h-2 overflow-hidden rounded-full bg-secondary"><div className="h-full rounded-full bg-primary transition-[width] duration-300" style={{ width: `${progress}%` }} /></div>
-        <div className="mt-2 flex justify-between text-[10px] font-semibold uppercase tracking-wider text-muted-foreground"><span>{completed} of {PREPARATION_STEPS.length} checks complete</span><span>About {remaining}s</span></div>
-      </div>
-
-      <div className="mt-5 divide-y divide-border rounded-2xl border border-border bg-card">
-        {PREPARATION_STEPS.map((step, index) => {
-          const done = index < completed;
-          const active = index === activeIndex && !done;
-          return (
-            <div key={step.title} className="flex items-start gap-4 p-4">
-              <span className={`mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full ${done ? "bg-primary text-primary-foreground" : active ? "border-2 border-primary text-primary" : "border border-border text-muted-foreground"}`}>{done ? <Check size={14} /> : active ? <RefreshCw size={13} className="animate-spin" /> : <Circle size={10} />}</span>
-              <div><p className={`text-sm font-bold ${active ? "text-primary" : done ? "text-foreground" : "text-muted-foreground"}`}>{step.title}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{step.detail}</p></div>
-              {done && <span className="ml-auto flex shrink-0 items-center gap-1 text-[10px] font-bold uppercase text-primary"><CheckCircle2 size={13} /> Done</span>}
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(250px,.55fr)]">
+        <section className="overflow-hidden rounded-2xl border border-[#26344b] bg-[#111827] shadow-lg">
+          <div className="flex items-center justify-between border-b border-white/10 bg-[#1a2332] px-4 py-3">
+            <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-white"><span className="h-2 w-2 rounded-full bg-emerald-400" /> GSM remote queue</div>
+            <span className="font-mono text-[10px] text-white/45">JOB / {identifier.slice(-6).toUpperCase()}</span>
+          </div>
+          <div className="p-4 sm:p-6">
+            <div className="flex items-end justify-between gap-4">
+              <div><p className="font-mono text-[10px] uppercase tracking-widest text-cyan-300/70">Current operation</p><p className="mt-2 text-lg font-bold text-white">{PREPARATION_STEPS[activeIndex].title}</p><p className="mt-1 max-w-md text-xs leading-5 text-white/55">{PREPARATION_STEPS[activeIndex].detail}</p></div>
+              <div className="text-right"><p className="font-mono text-3xl font-black text-cyan-300">{remainingLabel}</p><p className="font-mono text-[9px] uppercase tracking-widest text-white/40">remaining</p></div>
             </div>
-          );
-        })}
-      </div>
+            <div className="mt-6 h-2 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-emerald-400 transition-[width] duration-300" style={{ width: `${progress}%` }} /></div>
+            <div className="mt-2 flex justify-between font-mono text-[10px] text-white/45"><span>{progress}% complete</span><span>minimum verification time 05:00</span></div>
 
-      <div className="mt-5 flex items-start gap-3 rounded-2xl border border-border bg-secondary/50 p-4 text-xs leading-5 text-muted-foreground"><Clock3 size={16} className="mt-0.5 shrink-0 text-primary" /><span><strong className="text-foreground">Keep this page open.</strong> When the request is prepared, you’ll choose M-Pesa, crypto, Binance Pay, or USDT payment.</span></div>
+            <div className="mt-7 rounded-xl border border-white/10 bg-black/20 p-3">
+              <div className="mb-3 flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest text-white/40"><span className="text-emerald-400">$</span> server activity</div>
+              <div className="space-y-2 font-mono text-[11px] leading-5">
+                <p className="text-emerald-300/80">[00:00:00] connection established · secure queue online</p>
+                {PREPARATION_STEPS.map((step, index) => {
+                  const done = index < completed;
+                  const active = index === activeIndex;
+                  return <p key={step.code} className={done ? "text-emerald-300" : active ? "text-cyan-300" : "text-white/25"}>{`[${step.code}] ${done ? `✓ ${step.log}` : active ? `> ${step.detail}` : "waiting for previous operation"}`}{active && <span className="ml-1 animate-pulse">▌</span>}</p>;
+                })}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <aside className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-gray-500"><Smartphone size={15} className="text-[#008b99]" /> Job details</div>
+          <div className="mt-5 rounded-xl bg-gray-50 p-4">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Device</p>
+            <p className="mt-2 text-sm font-black text-gray-800">{device.model}</p>
+            <p className="mt-1 text-xs text-gray-500">{device.brand} direct unlock</p>
+          </div>
+          <div className="mt-3 space-y-3 border-b border-gray-100 pb-4 text-xs">
+            <div className="flex justify-between gap-3"><span className="text-gray-400">Identifier</span><span className="font-mono text-gray-700">{identifier.slice(0, 4)}••••{identifier.slice(-4)}</span></div>
+            <div className="flex justify-between gap-3"><span className="text-gray-400">Service price</span><span className="font-mono font-bold text-gray-800">{money(device.price)}</span></div>
+            <div className="flex justify-between gap-3"><span className="text-gray-400">Account</span><span className="max-w-[140px] truncate text-gray-700">signed in</span></div>
+          </div>
+          <div className="mt-4 space-y-3">
+            {PREPARATION_STEPS.map((step, index) => {
+              const done = index < completed;
+              const active = index === activeIndex;
+              return <div key={step.code} className="flex items-center gap-3"><span className={`grid h-6 w-6 shrink-0 place-items-center rounded-full ${done ? "bg-emerald-100 text-emerald-600" : active ? "border-2 border-cyan-500 text-cyan-600" : "border border-gray-200 text-gray-300"}`}>{done ? <Check size={12} /> : active ? <RefreshCw size={11} className="animate-spin" /> : <Circle size={8} />}</span><span className={`text-xs font-semibold ${done || active ? "text-gray-700" : "text-gray-400"}`}>{step.title}</span></div>;
+            })}
+          </div>
+        </aside>
+      </div>
+      <div className="mt-4 flex items-start gap-3 rounded-xl border border-blue-100 bg-blue-50 p-4 text-xs leading-5 text-blue-700"><Clock3 size={15} className="mt-0.5 shrink-0" /><span><strong>Why five minutes?</strong> Remote unlock providers need a verification window before they return the eligible service options. Keep this page open; the payment screen will open automatically when the job is ready.</span></div>
     </div>
   );
 }
@@ -384,7 +413,7 @@ export function DirectUnlockRemotePage() {
 
   if (!isAuthenticated || !user) {
     return (
-      <div className="app-shell min-h-[100dvh]">
+      <div className="min-h-[100dvh] bg-gray-50">
         <main className="mx-auto flex min-h-[70dvh] max-w-xl items-center justify-center px-5 py-12">
           <div className="w-full rounded-3xl border border-border bg-card p-8 text-center shadow-sm">
             <span className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-primary/10 text-primary"><LockKeyhole size={25} /></span>
@@ -399,20 +428,20 @@ export function DirectUnlockRemotePage() {
   }
 
   return (
-    <div className="app-shell min-h-[100dvh]">
-      <header className="border-b border-border bg-background/95">
+    <div className="min-h-[100dvh] bg-gray-50">
+      <header className="bg-[#1a2332] text-white shadow-md">
         <div className="mx-auto flex min-h-[76px] max-w-[1200px] items-center justify-between gap-4 px-5 sm:px-8">
-          <div><p className="display-font text-lg font-bold tracking-[-.03em]">GSM World</p><p className="text-[10px] font-bold uppercase tracking-[.18em] text-muted-foreground">Direct unlock</p></div>
+          <div><p className="text-lg font-black tracking-tight">GSM World</p><p className="font-mono text-[10px] font-bold uppercase tracking-[.18em] text-white/45">Direct unlock server</p></div>
           <AccountPill email={accountEmail} />
         </div>
       </header>
       <main className="mx-auto max-w-[1200px] px-5 py-8 sm:px-8 sm:py-12">
         <div className="mb-8 flex items-center justify-between gap-4">
-          <div><p className="flex items-center gap-2 text-xs font-bold text-primary"><ShieldCheck size={15} /> Account-linked unlock request</p><p className="mt-1 text-xs text-muted-foreground">Hello, {accountName}. Your unlock details will be delivered to {accountEmail}.</p></div>
-          <span className="hidden items-center gap-2 text-xs text-muted-foreground sm:flex"><LockKeyhole size={14} /> No email re-entry</span>
+          <div><p className="flex items-center gap-2 text-xs font-bold text-[#008b99]"><ShieldCheck size={15} /> Account-linked unlock request</p><p className="mt-1 text-xs text-gray-500">Hello, {accountName}. Your unlock details will be delivered to {accountEmail}.</p></div>
+          <span className="hidden items-center gap-2 text-xs text-gray-500 sm:flex"><LockKeyhole size={14} /> No email re-entry</span>
         </div>
         <StageHeader stage={stage} />
-        <div className="rounded-[1.5rem] border border-border bg-background p-5 shadow-sm sm:p-8 lg:p-10">
+        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-8 lg:p-10">
           {stage === "device" && <DeviceStage selected={device} onSelect={setDevice} onContinue={() => setStage("details")} />}
           {stage === "details" && device && <DetailsStage device={device} identifier={identifier} accountEmail={accountEmail} setIdentifier={setIdentifier} onBack={() => setStage("device")} onContinue={() => setStage("processing")} />}
           {stage === "processing" && device && <ProcessingStage device={device} identifier={identifier} onDone={() => setStage("payment")} />}
