@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 
 // ── Catalog ─────────────────────────────────────────────────────────────────
-const DEVICE_CATALOG: Array<{ brand: string; icon: string; models: Array<{ name: string; price: number }> }> = [
+export const DEVICE_CATALOG: Array<{ brand: string; icon: string; models: Array<{ name: string; price: number }> }> = [
   { brand: "Samsung", icon: "🔵", models: [
     { name: "Samsung Galaxy S25 / S25+ / S25 Ultra", price: 38 },
     { name: "Samsung Galaxy S24 / S24+ / S24 Ultra", price: 35 },

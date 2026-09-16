@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ArrowLeft, ArrowRight, Check, Clock3, Copy, Globe2, Mail, Phone, RefreshCw, ShieldCheck, Smartphone } from "lucide-react";
+import { DEVICE_CATALOG } from "@/pages/direct-unlock";
 
 type Stage = "device" | "details" | "processing" | "payment" | "pending";
 type PaymentMethod = "mpesa" | "nowpayments" | "binance_pay" | "usdt_manual";
@@ -10,23 +11,13 @@ type Progress =
   | { kind: "manual"; orderId: number; method: "binance_pay" | "usdt_manual"; binancePayId?: string | null; usdtAddress?: string | null; usdtNetwork?: string | null };
 type OrderResponse = { id?: number; error?: string };
 
-const DEVICES: Device[] = [
-  { brand: "Samsung", model: "Galaxy S25 / S25+ / S25 Ultra", price: 38 },
-  { brand: "Samsung", model: "Galaxy S24 / S24+ / S24 Ultra", price: 35 },
-  { brand: "Samsung", model: "Galaxy A54 / A34 / A24", price: 18 },
-  { brand: "iPhone", model: "iPhone 15 / 15 Pro / 15 Pro Max", price: 80 },
-  { brand: "iPhone", model: "iPhone 13 / 13 Pro / 13 Pro Max", price: 65 },
-  { brand: "iPhone", model: "iPhone 11 / 11 Pro / 11 Pro Max", price: 50 },
-  { brand: "Huawei", model: "P30 / P30 Pro / P30 Lite", price: 22 },
-  { brand: "Xiaomi", model: "Redmi Note 12 / 12 Pro", price: 15 },
-  { brand: "Google", model: "Pixel 8 / 8 Pro / 8a", price: 30 },
-  { brand: "Nokia", model: "G60 / G42 / G22", price: 15 },
-  { brand: "OnePlus", model: "OnePlus 12 / 12R / Open", price: 28 },
-  { brand: "TCL", model: "TCL 50 XE / 50 SE / 40 SE", price: 15 },
-  { brand: "Alcatel", model: "Alcatel 3X / 1S / 1V Series", price: 12 },
-  { brand: "Motorola", model: "Moto G84 / G73 / G54", price: 18 },
-  { brand: "Other", model: "Generic Android Device", price: 15 },
-];
+const DEVICES: Device[] = DEVICE_CATALOG.flatMap((brand) =>
+  brand.models.map((model) => ({
+    brand: brand.brand,
+    model: model.name,
+    price: model.price,
+  })),
+);
 
 const PROCESSING_MS = 7 * 60 * 1000;
 const money = (value: number) => `$${value.toFixed(2)}`;
