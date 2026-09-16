@@ -3886,7 +3886,19 @@ function LiveChatsPanel({ pwd }: { pwd: string }) {
     adminFetch(apiPath(`/api/chat/live?status=${statusParam}`), pwd)
       .then(r => r.ok ? r.json() : Promise.reject())
       .then((data: LiveChatSession[]) => {
-        setSessions(data);
+        setSessions(prev => {
+          const unchanged = prev.length === data.length &&
+            prev.every((session, index) => {
+              const next = data[index];
+              return next &&
+                session.id === next.id &&
+                session.status === next.status &&
+                session.updatedAt === next.updatedAt &&
+                session.unreadAdmin === next.unreadAdmin &&
+                session.lastMessage === next.lastMessage;
+            });
+          return unchanged ? prev : data;
+        });
         setLoading(false);
         // Notify admin when a NEW waiting session arrives
         if (knownIds.current.size > 0) {
@@ -4171,28 +4183,35 @@ function LiveChatsPanel({ pwd }: { pwd: string }) {
               <div className="px-3 pb-3 pt-2 border-t border-slate-100 shrink-0">
                 <div className="flex gap-2 items-center">
                   <input
+                    id="live-chat-attachment"
                     ref={fileInputRef}
                     type="file"
-                    className="hidden"
+                    className="sr-only"
                     accept="image/*,.pdf,.txt,.zip"
                     onChange={e => setChatFile(e.target.files?.[0] || null)}
                   />
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={sending}
-                    className={`h-9 px-2.5 rounded-xl border text-[10px] font-bold flex items-center gap-1 shrink-0 transition-colors ${
-                      chatFile ? "border-blue-400 bg-blue-50 text-blue-700" : "border-slate-200 bg-white text-slate-500 hover:border-blue-300"
-                    }`}
-                  >
-                    <Paperclip size={12} />
-                    {chatFile ? (
-                      <span className="flex items-center gap-1 max-w-[90px]">
-                        <span className="truncate">{chatFile.name}</span>
-                        <X size={10} onClick={e => { e.stopPropagation(); setChatFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; }} />
-                      </span>
-                    ) : "Attach"}
-                  </button>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <label
+                      htmlFor="live-chat-attachment"
+                      className={`h-9 px-2.5 rounded-xl border text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-colors ${
+                        chatFile ? "border-blue-400 bg-blue-50 text-blue-700" : "border-slate-200 bg-white text-slate-500 hover:border-blue-300"
+                      } ${sending ? "pointer-events-none opacity-50" : ""}`}
+                      aria-label={chatFile ? `Change attachment: ${chatFile.name}` : "Attach a file"}
+                    >
+                      <Paperclip size={12} />
+                      <span className={chatFile ? "max-w-[90px] truncate" : ""}>{chatFile ? chatFile.name : "Attach"}</span>
+                    </label>
+                    {chatFile && (
+                      <button
+                        type="button"
+                        aria-label="Remove attachment"
+                        onClick={() => { setChatFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
+                        className="w-6 h-6 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 flex items-center justify-center"
+                      >
+                        <X size={11} />
+                      </button>
+                    )}
+                  </div>
                   <input
                     value={reply}
                     onChange={e => setReply(e.target.value)}
