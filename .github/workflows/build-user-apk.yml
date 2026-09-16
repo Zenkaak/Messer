@@ -1,6 +1,12 @@
 name: Build & Release User APK
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - "gsm-world/messer/android/**"
+      - ".github/workflows/build-user-apk.yml"
   workflow_dispatch:
 
 permissions:
@@ -57,9 +63,9 @@ jobs:
           "$BUILD_TOOLS/apksigner" sign \
             --ks "$RUNNER_TEMP/release.p12" \
             --ks-type PKCS12 \
-            --ks-pass pass:gsmworld2024 \
-            --key-pass pass:gsmworld2024 \
-            --ks-key-alias key \
+            --ks-pass pass:"${{ secrets.KEYSTORE_PASSWORD }}" \
+            --key-pass pass:"${{ secrets.KEY_PASSWORD }}" \
+            --ks-key-alias "${{ secrets.KEY_ALIAS }}" \
             --out "$SIGNED" \
             "$ALIGNED"
 
