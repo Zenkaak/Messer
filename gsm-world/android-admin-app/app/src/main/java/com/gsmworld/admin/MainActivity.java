@@ -52,6 +52,8 @@ import java.util.concurrent.Executors;
 
 public class MainActivity extends AppCompatActivity {
 
+ // Admin WebView compatibility: live-chat scroll and file picker support.
+
  private static final String TAG = "GSMAdmin";
  private static final String ADMIN_URL = "https://unlockgsm.vercel.app/admin";
  private static final String ADMIN_HOST = "unlockgsm.vercel.app";
