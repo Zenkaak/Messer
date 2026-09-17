@@ -288,45 +288,25 @@ function DeviceStage({ selected, onSelect }: { selected: Device | null; onSelect
   const [search, setSearch] = useState("");
   const currentBrand = DEVICE_CATALOG.find((item) => item.brand === brand) ?? DEVICE_CATALOG[0];
   const devices = currentBrand.models.filter((model) => model.name.toLowerCase().includes(search.toLowerCase().trim()));
-  const totalServices = DEVICE_CATALOG.reduce((total, item) => total + item.models.length, 0);
 
   return (
     <div className="space-y-4">
-      <section className="relative min-h-[250px] overflow-hidden rounded-[18px] border border-[#19cbb6]/70 bg-[#071d2b] px-5 py-6 text-white shadow-[0_16px_36px_rgba(7,29,43,0.22)] sm:px-7 sm:py-7">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_83%_15%,rgba(0,214,193,.28),transparent_25%),linear-gradient(120deg,transparent_45%,rgba(21,104,139,.18)_46%,transparent_65%)]" />
-        <div className="pointer-events-none absolute -right-20 -top-24 h-72 w-72 rounded-full bg-[#00c9ad]/15 blur-3xl" />
-        <div className="relative z-10 max-w-[62%] sm:max-w-[54%] lg:max-w-[58%]">
-          <p className="flex items-center gap-2 font-mono text-[9px] font-bold uppercase tracking-[0.2em] text-[#53dfcf]"><ShieldCheck size={13} /> Direct unlock service desk</p>
-          <h1 className="mt-3 text-[clamp(1.9rem,4vw,3rem)] font-black leading-[1.02] tracking-[-0.05em]">Choose your <span className="text-[#15d9c2]">device service</span></h1>
-          <p className="mt-3 max-w-xl text-[11px] leading-5 text-slate-300 sm:text-xs">Select a brand and model to start. We will open the secure identifier form immediately, with the exact service price shown before you continue.</p>
-          <div className="mt-6 flex flex-wrap gap-2.5">
-            <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2"><span className="grid h-7 w-7 place-items-center rounded-full bg-[#00c9ad]/15 text-[#55e5d5]"><ShieldCheck size={15} /></span><span><b className="block text-xs font-black">{brands.length}+</b><small className="block text-[8px] uppercase tracking-wider text-slate-400">Brands</small></span></div>
-            <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2"><span className="grid h-7 w-7 place-items-center rounded-full bg-[#00c9ad]/15 text-[#55e5d5]"><Zap size={15} /></span><span><b className="block text-xs font-black">{totalServices}+</b><small className="block text-[8px] uppercase tracking-wider text-slate-400">Services</small></span></div>
-            <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2"><span className="grid h-7 w-7 place-items-center rounded-full bg-[#00c9ad]/15 text-[#55e5d5]"><Globe2 size={15} /></span><span><b className="block text-xs font-black">Live</b><small className="block text-[8px] uppercase tracking-wider text-slate-400">Catalog availability</small></span></div>
-          </div>
-        </div>
-        <div className="pointer-events-none absolute bottom-[-20px] right-[8%] hidden h-[215px] w-[280px] sm:block">
-          <div className="absolute bottom-0 right-5 h-[205px] w-[96px] rotate-[10deg] rounded-[20px] border-2 border-slate-400/60 bg-[linear-gradient(145deg,#dbe8ed_0%,#607b8a_38%,#0a2531_100%)] shadow-2xl"><span className="absolute left-2 top-3 h-10 w-8 rounded-lg bg-slate-900/80 shadow-inner" /><span className="absolute inset-x-3 bottom-3 h-1 rounded-full bg-white/40" /></div>
-          <div className="absolute bottom-[-4px] right-[88px] z-10 h-[232px] w-[104px] rotate-[-3deg] rounded-[20px] border-2 border-slate-300/60 bg-[linear-gradient(145deg,#ecf2f5,#6e8997_42%,#112c39)] shadow-2xl"><span className="absolute left-2 top-3 h-11 w-9 rounded-lg bg-slate-900/90 shadow-inner" /><span className="absolute inset-x-3 bottom-3 h-1 rounded-full bg-white/40" /></div>
-          <div className="absolute bottom-[-28px] right-[166px] z-20 h-[220px] w-[100px] rotate-[-15deg] rounded-[20px] border-2 border-slate-300/70 bg-[linear-gradient(145deg,#dae4ea,#8399a4_42%,#152d39)] shadow-2xl"><span className="absolute left-2 top-3 h-10 w-8 rounded-lg bg-slate-900/90 shadow-inner" /><span className="absolute inset-x-3 bottom-3 h-1 rounded-full bg-white/40" /></div>
-          <div className="absolute right-[-4px] top-20 h-px w-20 bg-[#00e7d1] shadow-[0_0_16px_#00e7d1]" /><span className="absolute right-0 top-[72px] font-mono text-[9px] font-bold uppercase tracking-widest text-[#52e9d7]">Fast<br />Secure<br />Reliable</span>
+      <section className="rounded-[18px] border border-slate-200 bg-white p-4 shadow-[0_12px_30px_rgba(15,23,42,0.07)] sm:p-5">
+        <div className="mb-4 flex items-end justify-between gap-3"><div><p className="font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[#008b99]">Browse catalog</p><p className="mt-1 text-sm font-black text-slate-900">Choose a brand</p></div><span className="text-[10px] font-semibold text-slate-400">{brands.length} brands available</span></div>
+        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-5">
+          {brands.map((item) => {
+            const active = brand === item;
+            const count = DEVICE_CATALOG.find((entry) => entry.brand === item)?.models.length ?? 0;
+            return <button type="button" key={item} onClick={() => { setBrand(item); setSearch(""); }} className={`group flex min-h-[58px] items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left transition-all ${active ? "border-[#00bda9] bg-[#e8fbf8] text-[#007c89] shadow-sm ring-1 ring-[#00bda9]/20" : "border-slate-200 bg-white text-slate-600 hover:-translate-y-0.5 hover:border-[#8edfd5] hover:bg-[#f7fffd] hover:shadow-sm"}`}><span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg text-[9px] font-black ${active ? "bg-[#00bda9] text-white" : "bg-slate-100 text-slate-400 group-hover:bg-[#e8fbf8] group-hover:text-[#008b99]"}`}>{item.slice(0, 2).toUpperCase()}</span><span className="min-w-0 flex-1"><span className="block truncate text-[10px] font-black">{item}</span><span className={`mt-0.5 block text-[9px] font-mono ${active ? "text-[#008b99]/70" : "text-slate-400"}`}>{count} models</span></span></button>;
+          })}
         </div>
       </section>
 
       <section className="rounded-[18px] border border-slate-200 bg-white p-3 shadow-[0_12px_30px_rgba(15,23,42,0.07)] sm:p-4">
-        <div className="flex items-center gap-2 overflow-x-auto border-b border-slate-200 pb-3">
-          {brands.map((item) => {
-            const active = brand === item;
-            const count = DEVICE_CATALOG.find((entry) => entry.brand === item)?.models.length ?? 0;
-            return <button type="button" key={item} onClick={() => { setBrand(item); setSearch(""); }} className={`flex min-w-[88px] items-center justify-center gap-2 rounded-lg border px-3 py-2.5 text-[10px] font-bold transition-all sm:min-w-[104px] ${active ? "border-[#00bda9] bg-[#e8fbf8] text-[#007c89] shadow-sm" : "border-slate-100 bg-white text-slate-500 hover:border-[#b8ebe4] hover:text-[#007c89]"}`}><span className={`grid h-6 w-6 place-items-center rounded-md text-[8px] font-black ${active ? "bg-[#00bda9] text-white" : "bg-slate-100 text-slate-400"}`}>{item.slice(0, 2).toUpperCase()}</span><span className="truncate">{item.split(" /")[0]}</span><span className="hidden font-mono text-[9px] opacity-60 sm:inline">{count}</span></button>;
-          })}
-        </div>
-
-        <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+        <div className="flex flex-col gap-2 sm:flex-row">
           <div className="flex flex-1 items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5"><Search size={15} className="shrink-0 text-[#008b99]" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={`Search ${currentBrand.brand} models...`} className="min-w-0 flex-1 bg-transparent text-[11px] font-medium text-slate-800 outline-none placeholder:text-slate-400" /><span className="font-mono text-[9px] text-slate-400">{devices.length} results</span></div>
-          <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-[10px] font-bold text-slate-500 sm:min-w-[140px]"><span>{currentBrand.brand} models</span><span className="rounded-full bg-[#e8fbf8] px-2 py-0.5 font-mono text-[9px] text-[#007c89]">{devices.length}</span></div>
+          <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-[10px] font-bold text-slate-500 sm:min-w-[150px]"><span>{currentBrand.brand} models</span><span className="rounded-full bg-[#e8fbf8] px-2 py-0.5 font-mono text-[9px] text-[#007c89]">{devices.length}</span></div>
         </div>
-
         <div className="mt-5 flex items-end justify-between gap-3"><div><p className="text-sm font-black text-slate-900">{currentBrand.brand} models</p><p className="mt-1 text-[10px] text-slate-500">Choose a model below to open the identifier form.</p></div><span className="hidden items-center gap-1.5 text-[10px] font-bold text-[#008b99] sm:flex"><Circle size={8} fill="currentColor" /> {devices.length} services</span></div>
         <div className="mt-3">
           {devices.length === 0 ? <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center"><Search size={21} className="mx-auto text-slate-400" /><p className="mt-3 text-sm font-bold text-slate-700">No matching services</p><p className="mt-1 text-xs text-slate-500">Try a different model name or clear the search.</p></div> : <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
