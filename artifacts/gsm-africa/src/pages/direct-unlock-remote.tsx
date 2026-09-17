@@ -81,29 +81,19 @@ function validIdentifier(value: string) {
 }
 
 function StageHeader({ stage }: { stage: Stage }) {
-  const labels = ["Device", "IMEI / serial", "Checks", "Payment"];
+  const labels = ["Device", "IMEI / Serial", "Checks", "Payment"];
   const index = stage === "pending" ? 4 : ["device", "details", "processing", "payment"].indexOf(stage);
   return (
-    <div className="mb-6 rounded-3xl border border-slate-200 bg-white px-4 py-4 shadow-[0_12px_30px_rgba(15,23,42,0.06)] sm:px-6 sm:py-5">
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <div>
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#008b99]">Secure request flow</p>
-          <p className="mt-1 text-xs font-semibold text-slate-500">Complete each step to submit your unlock</p>
-        </div>
-        <span className="hidden items-center gap-1.5 rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1.5 text-[10px] font-bold text-emerald-700 sm:flex"><ShieldCheck size={13} /> Encrypted</span>
-      </div>
+    <div className="mb-4 rounded-[18px] border border-slate-200 bg-white px-4 py-4 shadow-[0_10px_28px_rgba(15,23,42,0.06)] sm:px-7 sm:py-5">
+      <div className="mb-4 flex items-center gap-2"><LockKeyhole size={14} className="text-[#008b99]" /><div><p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#008b99]">Secure request flow</p><p className="mt-0.5 text-[10px] font-semibold text-slate-500">Complete each step to submit your unlock.</p></div></div>
       <div className="flex items-start">
         {labels.map((label, itemIndex) => (
           <div key={label} className="flex min-w-0 flex-1 items-start last:flex-none">
-            <div className="flex min-w-[56px] flex-1 flex-col items-center gap-2 text-center sm:min-w-[88px]">
-              <span aria-current={itemIndex === index ? "step" : undefined} className={
-                `grid h-9 w-9 place-items-center rounded-full border text-[11px] font-black transition-all ${itemIndex < index ? "border-[#142536] bg-[#142536] text-white" : itemIndex === index ? "border-[#008b99] bg-[#e7f9f7] text-[#007c89] ring-4 ring-[#e7f9f7]" : "border-slate-200 bg-slate-50 text-slate-400"}`
-              }>
-                {itemIndex < index ? <Check size={15} strokeWidth={3} /> : itemIndex + 1}
-              </span>
-              <span className={`text-[10px] font-bold leading-tight sm:text-[11px] ${itemIndex <= index ? "text-slate-800" : "text-slate-400"}`}>{label}</span>
+            <div className="flex min-w-[58px] flex-1 flex-col items-center gap-2 text-center sm:min-w-[82px]">
+              <span aria-current={itemIndex === index ? "step" : undefined} className={`grid h-8 w-8 place-items-center rounded-full border text-[10px] font-black transition-all ${itemIndex < index ? "border-[#0d2638] bg-[#0d2638] text-white" : itemIndex === index ? "border-[#00bda9] bg-[#dffaf5] text-[#008b99] ring-4 ring-[#e9fcf8]" : "border-slate-200 bg-slate-50 text-slate-400"}`}>{itemIndex < index ? <Check size={14} strokeWidth={3} /> : itemIndex + 1}</span>
+              <span className={`text-[9px] font-bold leading-tight sm:text-[10px] ${itemIndex <= index ? "text-slate-700" : "text-slate-400"}`}>{label}</span>
             </div>
-            {itemIndex < labels.length - 1 && <span className={`mt-[18px] h-px flex-1 ${itemIndex < index ? "bg-[#142536]" : "bg-slate-200"}`} />}
+            {itemIndex < labels.length - 1 && <span className={`mt-4 h-px flex-1 ${itemIndex < index ? "bg-[#0d2638]" : "bg-slate-200"}`} />}
           </div>
         ))}
       </div>
@@ -300,58 +290,53 @@ function DeviceStage({ selected, onSelect }: { selected: Device | null; onSelect
   const totalServices = DEVICE_CATALOG.reduce((total, item) => total + item.models.length, 0);
 
   return (
-    <div className="space-y-6">
-      <section className="relative overflow-hidden rounded-[28px] bg-[#10253b] px-5 py-6 text-white shadow-[0_18px_45px_rgba(15,35,56,0.16)] sm:px-8 sm:py-8">
-        <div className="pointer-events-none absolute -right-16 -top-24 h-64 w-64 rounded-full bg-[#10cbb2]/15 blur-3xl" />
-        <div className="pointer-events-none absolute bottom-[-100px] left-1/3 h-52 w-52 rounded-full bg-[#3779db]/20 blur-3xl" />
-        <div className="relative flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
-          <div className="max-w-2xl">
-            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-[#5fe4d0]/20 bg-white/5 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-[#8ee9dc]"><Smartphone size={13} /> Direct unlock service desk</div>
-            <h1 className="text-3xl font-black tracking-[-0.04em] sm:text-4xl">Choose your device service</h1>
-            <p className="mt-3 max-w-xl text-sm leading-6 text-slate-300">Select a brand and model to start. We will open the secure identifier form immediately, with the exact service price shown before you continue.</p>
+    <div className="space-y-4">
+      <section className="relative min-h-[250px] overflow-hidden rounded-[18px] border border-[#19cbb6]/70 bg-[#071d2b] px-5 py-6 text-white shadow-[0_16px_36px_rgba(7,29,43,0.22)] sm:px-7 sm:py-7">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_83%_15%,rgba(0,214,193,.28),transparent_25%),linear-gradient(120deg,transparent_45%,rgba(21,104,139,.18)_46%,transparent_65%)]" />
+        <div className="pointer-events-none absolute -right-20 -top-24 h-72 w-72 rounded-full bg-[#00c9ad]/15 blur-3xl" />
+        <div className="relative z-10 max-w-[62%] sm:max-w-[54%] lg:max-w-[58%]">
+          <p className="flex items-center gap-2 font-mono text-[9px] font-bold uppercase tracking-[0.2em] text-[#53dfcf]"><ShieldCheck size={13} /> Direct unlock service desk</p>
+          <h1 className="mt-3 text-[clamp(1.9rem,4vw,3rem)] font-black leading-[1.02] tracking-[-0.05em]">Choose your <span className="text-[#15d9c2]">device service</span></h1>
+          <p className="mt-3 max-w-xl text-[11px] leading-5 text-slate-300 sm:text-xs">Select a brand and model to start. We will open the secure identifier form immediately, with the exact service price shown before you continue.</p>
+          <div className="mt-6 flex flex-wrap gap-2.5">
+            <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2"><span className="grid h-7 w-7 place-items-center rounded-full bg-[#00c9ad]/15 text-[#55e5d5]"><ShieldCheck size={15} /></span><span><b className="block text-xs font-black">{brands.length}+</b><small className="block text-[8px] uppercase tracking-wider text-slate-400">Brands</small></span></div>
+            <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2"><span className="grid h-7 w-7 place-items-center rounded-full bg-[#00c9ad]/15 text-[#55e5d5]"><Zap size={15} /></span><span><b className="block text-xs font-black">{totalServices}+</b><small className="block text-[8px] uppercase tracking-wider text-slate-400">Services</small></span></div>
+            <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2"><span className="grid h-7 w-7 place-items-center rounded-full bg-[#00c9ad]/15 text-[#55e5d5]"><Globe2 size={15} /></span><span><b className="block text-xs font-black">Live</b><small className="block text-[8px] uppercase tracking-wider text-slate-400">Catalog availability</small></span></div>
           </div>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:min-w-[330px]">
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-3"><p className="text-xl font-black text-[#6ee7d3]">{brands.length}</p><p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Brands</p></div>
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-3"><p className="text-xl font-black text-[#8eb8ff]">{totalServices}+</p><p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Services</p></div>
-            <div className="col-span-2 rounded-2xl border border-emerald-300/15 bg-emerald-300/10 p-3 sm:col-span-1"><p className="flex items-center gap-2 text-sm font-black text-emerald-200"><span className="h-2 w-2 animate-pulse rounded-full bg-emerald-300" /> Live</p><p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-emerald-100/60">Catalog availability</p></div>
-          </div>
+        </div>
+        <div className="pointer-events-none absolute bottom-[-20px] right-[8%] hidden h-[215px] w-[280px] sm:block">
+          <div className="absolute bottom-0 right-5 h-[205px] w-[96px] rotate-[10deg] rounded-[20px] border-2 border-slate-400/60 bg-[linear-gradient(145deg,#dbe8ed_0%,#607b8a_38%,#0a2531_100%)] shadow-2xl"><span className="absolute left-2 top-3 h-10 w-8 rounded-lg bg-slate-900/80 shadow-inner" /><span className="absolute inset-x-3 bottom-3 h-1 rounded-full bg-white/40" /></div>
+          <div className="absolute bottom-[-4px] right-[88px] z-10 h-[232px] w-[104px] rotate-[-3deg] rounded-[20px] border-2 border-slate-300/60 bg-[linear-gradient(145deg,#ecf2f5,#6e8997_42%,#112c39)] shadow-2xl"><span className="absolute left-2 top-3 h-11 w-9 rounded-lg bg-slate-900/90 shadow-inner" /><span className="absolute inset-x-3 bottom-3 h-1 rounded-full bg-white/40" /></div>
+          <div className="absolute bottom-[-28px] right-[166px] z-20 h-[220px] w-[100px] rotate-[-15deg] rounded-[20px] border-2 border-slate-300/70 bg-[linear-gradient(145deg,#dae4ea,#8399a4_42%,#152d39)] shadow-2xl"><span className="absolute left-2 top-3 h-10 w-8 rounded-lg bg-slate-900/90 shadow-inner" /><span className="absolute inset-x-3 bottom-3 h-1 rounded-full bg-white/40" /></div>
+          <div className="absolute right-[-4px] top-20 h-px w-20 bg-[#00e7d1] shadow-[0_0_16px_#00e7d1]" /><span className="absolute right-0 top-[72px] font-mono text-[9px] font-bold uppercase tracking-widest text-[#52e9d7]">Fast<br />Secure<br />Reliable</span>
         </div>
       </section>
 
-      <div className="grid gap-5 lg:grid-cols-[220px_minmax(0,1fr)_250px] lg:items-start">
-        <aside className="rounded-3xl border border-slate-200 bg-slate-50/80 p-3 shadow-sm">
-          <div className="mb-3 flex items-center justify-between px-2"><div><p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Browse catalog</p><p className="mt-1 text-xs font-semibold text-slate-500">Choose a brand</p></div><Smartphone size={16} className="text-[#008b99]" /></div>
-          <div className="flex gap-2 overflow-x-auto pb-1 lg:block lg:space-y-1.5 lg:overflow-visible">
-            {brands.map((item) => {
-              const count = DEVICE_CATALOG.find((entry) => entry.brand === item)?.models.length ?? 0;
-              const active = brand === item;
-              return <button type="button" key={item} onClick={() => { setBrand(item); setSearch(""); }} className={`group flex min-w-max items-center justify-between gap-3 rounded-2xl border px-3 py-2.5 text-left text-xs font-bold transition-all lg:w-full ${active ? "border-[#142536] bg-[#142536] text-white shadow-md shadow-slate-300/40" : "border-transparent text-slate-600 hover:border-slate-200 hover:bg-white hover:text-[#008b99]"}`}><span className="flex items-center gap-2"><span className={`grid h-7 w-7 place-items-center rounded-lg text-[10px] font-black ${active ? "bg-white/15 text-[#8ee9dc]" : "bg-white text-slate-400 shadow-sm"}`}>{item.slice(0, 2).toUpperCase()}</span><span>{item}</span></span><span className={`font-mono text-[10px] ${active ? "text-white/60" : "text-slate-400"}`}>{count}</span></button>;
-            })}
-          </div>
-        </aside>
-
-        <section className="min-w-0">
-          <div className="rounded-2xl border border-slate-200 bg-white p-2 shadow-sm transition-shadow focus-within:border-[#72d9ce] focus-within:shadow-[0_8px_25px_rgba(0,139,153,0.08)]">
-            <div className="flex items-center gap-3 rounded-xl bg-slate-50 px-3 py-3"><Search size={17} className="shrink-0 text-[#008b99]" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={`Search ${currentBrand.brand} models`} className="min-w-0 flex-1 bg-transparent text-sm font-medium text-slate-800 outline-none placeholder:text-slate-400" /><span className="hidden rounded-full bg-white px-2.5 py-1 font-mono text-[10px] font-bold text-slate-400 shadow-sm sm:inline">{devices.length} results</span></div>
-          </div>
-          <div className="mt-5 flex items-end justify-between gap-3"><div><p className="text-sm font-black text-slate-900">{currentBrand.brand} services</p><p className="mt-1 text-xs text-slate-500">Select one to continue automatically</p></div><span className="rounded-full bg-[#e7f9f7] px-2.5 py-1 text-[10px] font-black text-[#007c89]">{devices.length} available</span></div>
-          <div className="mt-3 grid gap-3 sm:grid-cols-2">
-            {devices.length === 0 && <div className="col-span-full rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center"><Search size={22} className="mx-auto text-slate-400" /><p className="mt-3 text-sm font-bold text-slate-700">No matching services</p><p className="mt-1 text-xs text-slate-500">Try a different model name or clear the search.</p></div>}
+      <section className="rounded-[18px] border border-slate-200 bg-white p-3 shadow-[0_12px_30px_rgba(15,23,42,0.07)] sm:p-4">
+        <div className="mb-3 flex items-center gap-2 overflow-x-auto pb-1">
+          {brands.map((item) => {
+            const active = brand === item;
+            const count = DEVICE_CATALOG.find((entry) => entry.brand === item)?.models.length ?? 0;
+            return <button type="button" key={item} onClick={() => { setBrand(item); setSearch(""); }} className={`flex min-w-[88px] items-center justify-center gap-2 rounded-lg border px-3 py-2.5 text-[10px] font-bold transition-all sm:min-w-[104px] ${active ? "border-[#00bda9] bg-[#e8fbf8] text-[#007c89] shadow-sm" : "border-slate-100 bg-white text-slate-500 hover:border-[#b8ebe4] hover:text-[#007c89]"}`}><span className={`grid h-6 w-6 place-items-center rounded-md text-[8px] font-black ${active ? "bg-[#00bda9] text-white" : "bg-slate-100 text-slate-400"}`}>{item.slice(0, 2).toUpperCase()}</span><span className="truncate">{item.split(" /")[0]}</span><span className="hidden font-mono text-[9px] opacity-60 sm:inline">{count}</span></button>;
+          })}
+        </div>
+        <div className="mb-4 flex flex-col gap-2 sm:flex-row">
+          <div className="flex flex-1 items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5"><Search size={15} className="shrink-0 text-[#008b99]" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={`Search ${currentBrand.brand} models...`} className="min-w-0 flex-1 bg-transparent text-[11px] font-medium text-slate-800 outline-none placeholder:text-slate-400" /><span className="hidden font-mono text-[9px] text-slate-400 sm:inline">{devices.length} results</span></div>
+          <button type="button" className="flex items-center justify-between gap-8 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-[10px] font-bold text-slate-500"><span>All series</span><ChevronDown size={13} /></button>
+          <button type="button" className="flex items-center justify-between gap-5 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-[10px] font-bold text-slate-500"><span>Sort: Popular</span><ChevronDown size={13} /></button>
+        </div>
+        <div className="grid gap-4 lg:grid-cols-[124px_minmax(0,1fr)]">
+          <aside className="hidden rounded-xl border border-slate-200 bg-slate-50/70 p-2.5 lg:block"><p className="px-2 py-2 text-[9px] font-black uppercase tracking-widest text-slate-400">{currentBrand.brand}</p><div className="space-y-1"><div className="flex items-center justify-between rounded-lg bg-[#00bda9] px-2.5 py-2 text-[10px] font-bold text-white"><span>All services</span><span>{currentBrand.models.length}</span></div><div className="flex items-center justify-between px-2.5 py-2 text-[10px] font-semibold text-slate-500"><span>Popular</span><span>★</span></div><div className="flex items-center justify-between px-2.5 py-2 text-[10px] font-semibold text-slate-500"><span>Budget</span><span>↘</span></div><div className="flex items-center justify-between px-2.5 py-2 text-[10px] font-semibold text-slate-500"><span>Premium</span><span>↗</span></div></div></aside>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {devices.length === 0 && <div className="col-span-full rounded-xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center"><Search size={21} className="mx-auto text-slate-400" /><p className="mt-3 text-sm font-bold text-slate-700">No matching services</p><p className="mt-1 text-xs text-slate-500">Try a different model name or clear the search.</p></div>}
             {devices.map((model) => {
               const device = { brand: currentBrand.brand, model: model.name, price: model.price };
               const isSelected = selected?.brand === device.brand && selected.model === device.model;
-              return <button type="button" key={model.name} onClick={() => onSelect(device)} className={`group flex min-h-[86px] items-center gap-3 rounded-2xl border p-3.5 text-left transition-all ${isSelected ? "border-[#008b99] bg-[#effcf9] shadow-[0_8px_22px_rgba(0,139,153,0.12)]" : "border-slate-200 bg-white hover:-translate-y-0.5 hover:border-[#7adbd0] hover:shadow-[0_10px_24px_rgba(15,23,42,0.08)]"}`}><span className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${isSelected ? "bg-[#008b99] text-white" : "bg-slate-100 text-slate-500 group-hover:bg-[#e7f9f7] group-hover:text-[#008b99]"}`}><Smartphone size={17} /></span><span className="min-w-0 flex-1"><span className="block truncate text-[13px] font-bold text-slate-800">{model.name}</span><span className="mt-1 flex items-center gap-1.5 text-[10px] font-semibold text-slate-400"><CheckCircle2 size={12} className="text-emerald-500" /> Verified service</span></span><span className="flex shrink-0 flex-col items-end gap-1"><span className="font-mono text-lg font-black text-[#008b99]">{money(model.price)}</span><ChevronRight size={15} className={isSelected ? "text-[#008b99]" : "text-slate-300 group-hover:text-[#008b99]"} /></span></button>;
+              return <button type="button" key={model.name} onClick={() => onSelect(device)} className={`group flex min-h-[108px] items-center gap-3 rounded-xl border p-3 text-left transition-all ${isSelected ? "border-[#00bda9] bg-[#edfcf9] shadow-[0_8px_18px_rgba(0,189,169,0.12)]" : "border-slate-200 bg-white hover:-translate-y-0.5 hover:border-[#8edfd5] hover:shadow-[0_8px_18px_rgba(15,23,42,0.08)]"}`}><span className={`relative grid h-[68px] w-[48px] shrink-0 place-items-center overflow-hidden rounded-lg border ${isSelected ? "border-[#75dace] bg-[#dffaf5]" : "border-slate-200 bg-[linear-gradient(145deg,#f1f5f8,#c6d4dc)]"}`}><span className="absolute left-1 top-1 h-3 w-2 rounded-sm bg-slate-700/80" /><Smartphone size={24} className={isSelected ? "text-[#008b99]" : "text-slate-500"} /></span><span className="min-w-0 flex-1"><span className="block truncate text-[11px] font-black text-slate-800 sm:text-xs">{model.name}</span><span className="mt-1 flex items-center gap-1 text-[9px] font-semibold text-emerald-600"><CheckCircle2 size={11} /> Verified service</span><span className="mt-2 block truncate text-[8px] font-medium text-slate-400">Network unlock · Carrier unlock · All regions</span></span><span className="flex shrink-0 flex-col items-end gap-2"><ChevronRight size={14} className={isSelected ? "text-[#008b99]" : "text-slate-300 group-hover:text-[#008b99]"} /><span className="rounded-full bg-[#e2faf5] px-2 py-1 font-mono text-[9px] font-black text-[#007c89]">{money(model.price)}</span></span></button>;
             })}
           </div>
-        </section>
-
-        <aside className="rounded-3xl border border-[#cceee9] bg-[#f0fcfa] p-5 shadow-sm lg:sticky lg:top-6">
-          <div className="flex items-center gap-2 text-[#007c89]"><span className="grid h-8 w-8 place-items-center rounded-xl bg-white shadow-sm"><CheckCircle2 size={16} /></span><p className="text-[10px] font-black uppercase tracking-[0.16em]">Selected service</p></div>
-          <div className="mt-5 min-h-[96px]">{selected ? <><p className="text-sm font-black leading-5 text-slate-900">{selected.model}</p><p className="mt-1 text-xs font-medium text-slate-500">{selected.brand}</p><p className="mt-4 font-mono text-3xl font-black text-[#008b99]">{money(selected.price)}</p></> : <><p className="text-sm font-bold leading-5 text-slate-600">No device selected</p><p className="mt-1 text-xs leading-5 text-slate-500">Choose a model from the catalog to continue.</p></>}</div>
-          <div className="mt-5 space-y-3 border-t border-[#cceee9] pt-5 text-xs font-medium text-slate-600"><p className="flex gap-2"><CheckCircle2 size={15} className="shrink-0 text-emerald-500" /> Full catalog and live price</p><p className="flex gap-2"><CheckCircle2 size={15} className="shrink-0 text-emerald-500" /> IMEI or serial required</p><p className="flex gap-2"><CheckCircle2 size={15} className="shrink-0 text-emerald-500" /> Email already linked to account</p></div>
-          <div className="mt-5 rounded-2xl bg-white/80 p-3 text-[11px] leading-5 text-slate-500"><strong className="text-slate-700">Next:</strong> select any device and the identifier form opens automatically.</div>
-        </aside>
-      </div>
+        </div>
+      </section>
     </div>
   );
 }
@@ -624,23 +609,21 @@ export function DirectUnlockRemotePage() {
   }
 
   return (
-    <div className="min-h-[100dvh] bg-[radial-gradient(circle_at_top,#f8fbfd_0%,#f3f6f9_42%,#eef2f6_100%)]">
-      <header className="bg-[#10253b] text-white shadow-[0_8px_24px_rgba(15,35,56,0.16)]">
-        <div className="mx-auto flex min-h-[78px] max-w-[1280px] items-center justify-between gap-4 px-4 sm:px-7">
-          <div className="flex items-center gap-3">
-            <span className="grid h-10 w-10 place-items-center rounded-2xl bg-[#10cbb2] text-lg font-black text-[#06212e] shadow-[0_0_0_5px_rgba(16,203,178,0.12)]">G</span>
-            <div><p className="text-lg font-black tracking-tight">GSM World</p><p className="mt-1 font-mono text-[9px] font-bold uppercase tracking-[0.2em] text-[#91a8be]">Direct unlock server</p></div>
-          </div>
+    <div className="min-h-[100dvh] bg-[#071522]">
+      <header className="border-b border-white/10 bg-[#071522] text-white">
+        <div className="mx-auto flex min-h-[62px] max-w-[1280px] items-center justify-between gap-4 px-4 sm:px-7">
+          <div className="flex items-center gap-2.5"><span className="grid h-9 w-9 place-items-center rounded-xl border border-[#00c9ad]/50 bg-[#00c9ad]/10 text-[#2de1c9]"><LockKeyhole size={19} /></span><div><p className="text-sm font-black tracking-tight sm:text-base">GSM <span className="text-[#16d9bd]">WORLD</span></p><p className="hidden text-[8px] font-semibold tracking-wide text-slate-400 sm:block">Global Unlock Services</p></div></div>
+          <nav className="hidden items-center gap-7 text-[10px] font-semibold text-slate-300 md:flex"><Link href="/" className="hover:text-white">Home</Link><Link href="/direct-unlock" className="border-b-2 border-[#16d9bd] pb-2 text-[#16d9bd]">Services</Link><Link href="/orders/lookup" className="hover:text-white">Track Order</Link><Link href="/account" className="hover:text-white">Support</Link></nav>
           <AccountPill email={accountEmail} />
         </div>
       </header>
-      <main className="mx-auto max-w-[1280px] px-4 py-6 sm:px-7 sm:py-10">
-        <div className="mb-6 flex flex-col justify-between gap-4 rounded-2xl border border-slate-200 bg-white/80 px-4 py-4 shadow-sm backdrop-blur sm:flex-row sm:items-center sm:px-5">
-          <div><p className="flex items-center gap-2 text-xs font-black text-[#008b99]"><ShieldCheck size={15} /> Account-linked unlock request</p><p className="mt-1 text-xs leading-5 text-slate-500">Hello, {accountName}. Your unlock details will be delivered to {accountEmail}.</p></div>
-          <span className="flex items-center gap-2 text-[11px] font-bold text-slate-500"><LockKeyhole size={14} className="text-[#008b99]" /> No email re-entry</span>
+      <main className="mx-auto max-w-[1280px] px-4 pb-10 pt-4 sm:px-7 sm:pt-6">
+        <div className="mb-3 flex flex-col justify-between gap-3 rounded-[10px] border border-[#1daca9]/50 bg-[linear-gradient(105deg,#0b3e4b_0%,#0a3944_55%,#06313d_100%)] px-4 py-3 text-white shadow-[0_8px_24px_rgba(0,201,173,0.08)] sm:flex-row sm:items-center sm:px-5">
+          <div className="flex min-w-0 items-center gap-3"><span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#16e2c4] text-[#06313d]"><CirclePlus size={17} /></span><div className="min-w-0"><p className="text-[10px] font-black text-[#71f0df]">Account-linked unlock request</p><p className="truncate text-[10px] text-slate-200">Hello, {accountName}. Your unlock details will be delivered to {accountEmail}.</p></div></div>
+          <span className="flex shrink-0 items-center gap-1.5 rounded-lg border border-[#4ae4d1]/30 bg-white/5 px-2.5 py-1.5 text-[9px] font-bold text-[#b5f7ef]"><Mail size={12} /> No email re-entry</span>
         </div>
         <StageHeader stage={stage} />
-        <div className="rounded-[30px] border border-slate-200/90 bg-white/95 p-4 shadow-[0_20px_50px_rgba(15,23,42,0.07)] sm:p-7 lg:p-10">
+        <div className="rounded-[20px] border border-slate-200/80 bg-[#f5f8fa] p-3 shadow-[0_20px_50px_rgba(0,0,0,0.14)] sm:p-5 lg:p-6">
           {stage === "device" && <DeviceStage selected={device} onSelect={(nextDevice) => { setDevice(nextDevice); setStage("details"); }} />}
           {stage === "details" && device && <DetailsStage device={device} identifier={identifier} accountEmail={accountEmail} setIdentifier={setIdentifier} onBack={() => setStage("device")} onContinue={() => setStage("processing")} />}
           {stage === "processing" && device && <ProcessingStage device={device} identifier={identifier} onDone={() => setStage("payment")} />}
