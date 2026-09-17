@@ -283,31 +283,46 @@ function AccountPill({ email }: { email: string }) {
 }
 
 function DeviceStage({ selected, onSelect }: { selected: Device | null; onSelect: (device: Device) => void }) {
-  const brands = useMemo(() => DEVICE_CATALOG.map((brand) => brand.brand), []);
-  const [brand, setBrand] = useState(brands[0]);
+  const brands = useMemo(() => DEVICE_CATALOG.map((entry) => entry.brand), []);
+  const [brand, setBrand] = useState<string | null>(null);
+  const [view, setView] = useState<"brands" | "models">("brands");
   const [search, setSearch] = useState("");
-  const currentBrand = DEVICE_CATALOG.find((item) => item.brand === brand) ?? DEVICE_CATALOG[0];
+  const currentBrand = DEVICE_CATALOG.find((entry) => entry.brand === brand) ?? DEVICE_CATALOG[0];
   const devices = currentBrand.models.filter((model) => model.name.toLowerCase().includes(search.toLowerCase().trim()));
+
+  const openBrand = (nextBrand: string) => {
+    setBrand(nextBrand);
+    setSearch("");
+    setView("models");
+  };
+
+  if (view === "brands") {
+    return (
+      <div className="space-y-4">
+        <section className="rounded-[18px] border border-slate-200 bg-white p-4 shadow-[0_12px_30px_rgba(15,23,42,0.07)] sm:p-5">
+          <div className="mb-4 flex items-end justify-between gap-3"><div><p className="font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[#008b99]">Browse catalog</p><p className="mt-1 text-sm font-black text-slate-900">Choose a brand</p></div><span className="text-[10px] font-semibold text-slate-400">{brands.length} brands available</span></div>
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-5">
+            {brands.map((item) => {
+              const active = brand === item;
+              const count = DEVICE_CATALOG.find((entry) => entry.brand === item)?.models.length ?? 0;
+              return <button type="button" key={item} onClick={() => openBrand(item)} className={`group flex min-h-[58px] items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left transition-all ${active ? "border-[#00bda9] bg-[#e8fbf8] text-[#007c89] shadow-sm ring-1 ring-[#00bda9]/20" : "border-slate-200 bg-white text-slate-600 hover:-translate-y-0.5 hover:border-[#8edfd5] hover:bg-[#f7fffd] hover:shadow-sm"}`}><span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg text-[9px] font-black ${active ? "bg-[#00bda9] text-white" : "bg-slate-100 text-slate-400 group-hover:bg-[#e8fbf8] group-hover:text-[#008b99]"}`}>{item.slice(0, 2).toUpperCase()}</span><span className="min-w-0 flex-1"><span className="block truncate text-[10px] font-black">{item}</span><span className={`mt-0.5 block text-[9px] font-mono ${active ? "text-[#008b99]/70" : "text-slate-400"}`}>{count} models</span></span><ArrowRight size={13} className="shrink-0 text-slate-300 group-hover:text-[#008b99]" /></button>;
+            })}
+          </div>
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
       <section className="rounded-[18px] border border-slate-200 bg-white p-4 shadow-[0_12px_30px_rgba(15,23,42,0.07)] sm:p-5">
-        <div className="mb-4 flex items-end justify-between gap-3"><div><p className="font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[#008b99]">Browse catalog</p><p className="mt-1 text-sm font-black text-slate-900">Choose a brand</p></div><span className="text-[10px] font-semibold text-slate-400">{brands.length} brands available</span></div>
-        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-5">
-          {brands.map((item) => {
-            const active = brand === item;
-            const count = DEVICE_CATALOG.find((entry) => entry.brand === item)?.models.length ?? 0;
-            return <button type="button" key={item} onClick={() => { setBrand(item); setSearch(""); }} className={`group flex min-h-[58px] items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left transition-all ${active ? "border-[#00bda9] bg-[#e8fbf8] text-[#007c89] shadow-sm ring-1 ring-[#00bda9]/20" : "border-slate-200 bg-white text-slate-600 hover:-translate-y-0.5 hover:border-[#8edfd5] hover:bg-[#f7fffd] hover:shadow-sm"}`}><span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg text-[9px] font-black ${active ? "bg-[#00bda9] text-white" : "bg-slate-100 text-slate-400 group-hover:bg-[#e8fbf8] group-hover:text-[#008b99]"}`}>{item.slice(0, 2).toUpperCase()}</span><span className="min-w-0 flex-1"><span className="block truncate text-[10px] font-black">{item}</span><span className={`mt-0.5 block text-[9px] font-mono ${active ? "text-[#008b99]/70" : "text-slate-400"}`}>{count} models</span></span></button>;
-          })}
-        </div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><button type="button" onClick={() => { setView("brands"); setSearch(""); }} className="inline-flex w-fit items-center gap-2 text-[10px] font-black uppercase tracking-[0.12em] text-[#008b99] transition-colors hover:text-[#006f7b]"><ArrowLeft size={14} /> Back to brands</button><span className="text-[10px] font-semibold text-slate-400">{brands.length} brands available</span></div>
+        <div className="mt-4 flex items-end justify-between gap-3"><div><p className="font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[#008b99]">Selected brand</p><p className="mt-1 text-lg font-black text-slate-900">{currentBrand.brand}</p><p className="mt-1 text-[10px] text-slate-500">Choose a model to open the identifier form.</p></div><span className="rounded-full bg-[#e8fbf8] px-2.5 py-1 font-mono text-[9px] font-black text-[#007c89]">{currentBrand.models.length} models</span></div>
+        <div className="mt-4 flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5"><Search size={15} className="shrink-0 text-[#008b99]" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={`Search ${currentBrand.brand} models...`} className="min-w-0 flex-1 bg-transparent text-[11px] font-medium text-slate-800 outline-none placeholder:text-slate-400" /><span className="font-mono text-[9px] text-slate-400">{devices.length} results</span></div>
       </section>
 
       <section className="rounded-[18px] border border-slate-200 bg-white p-3 shadow-[0_12px_30px_rgba(15,23,42,0.07)] sm:p-4">
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <div className="flex flex-1 items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5"><Search size={15} className="shrink-0 text-[#008b99]" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={`Search ${currentBrand.brand} models...`} className="min-w-0 flex-1 bg-transparent text-[11px] font-medium text-slate-800 outline-none placeholder:text-slate-400" /><span className="font-mono text-[9px] text-slate-400">{devices.length} results</span></div>
-          <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-[10px] font-bold text-slate-500 sm:min-w-[150px]"><span>{currentBrand.brand} models</span><span className="rounded-full bg-[#e8fbf8] px-2 py-0.5 font-mono text-[9px] text-[#007c89]">{devices.length}</span></div>
-        </div>
-        <div className="mt-5 flex items-end justify-between gap-3"><div><p className="text-sm font-black text-slate-900">{currentBrand.brand} models</p><p className="mt-1 text-[10px] text-slate-500">Choose a model below to open the identifier form.</p></div><span className="hidden items-center gap-1.5 text-[10px] font-bold text-[#008b99] sm:flex"><Circle size={8} fill="currentColor" /> {devices.length} services</span></div>
+        <div className="flex items-center justify-between gap-3"><div><p className="text-sm font-black text-slate-900">{currentBrand.brand} models</p><p className="mt-1 text-[10px] text-slate-500">Verified remote-unlock services available for this brand.</p></div><span className="hidden items-center gap-1.5 text-[10px] font-bold text-[#008b99] sm:flex"><Circle size={8} fill="currentColor" /> {devices.length} services</span></div>
         <div className="mt-3">
           {devices.length === 0 ? <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center"><Search size={21} className="mx-auto text-slate-400" /><p className="mt-3 text-sm font-bold text-slate-700">No matching services</p><p className="mt-1 text-xs text-slate-500">Try a different model name or clear the search.</p></div> : <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {devices.map((model) => {
