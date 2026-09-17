@@ -32,6 +32,7 @@ import {
   Smartphone,
   UserRound,
   Wallet,
+  Zap,
 } from "lucide-react";
 import { DEVICE_CATALOG } from "@/pages/direct-unlock";
 import { useAuth } from "@/hooks/use-auth";
