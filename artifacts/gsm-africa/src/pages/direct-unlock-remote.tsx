@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import {
   AlertCircle,
   Activity,
@@ -35,6 +35,8 @@ import {
 } from "lucide-react";
 import { DEVICE_CATALOG } from "@/pages/direct-unlock";
 import { useAuth } from "@/hooks/use-auth";
+import { useWalletBalance } from "@/hooks/use-wallet";
+import { useNotifications } from "@/context/notification-context";
 
 type Stage = "dashboard" | "device" | "details" | "processing" | "payment" | "pending";
 type PaymentMethod = "mpesa" | "nowpayments" | "binance_pay" | "usdt_manual";
@@ -53,6 +55,15 @@ const PREPARATION_STEPS = [
   { code: "PAY", title: "Open payment options", detail: "M-Pesa and crypto payment choices will be available next.", log: "Payment session ready — awaiting customer selection" },
 ];
 const money = (value: number) => `$${value.toFixed(2)}`;
+
+type DashboardOrder = {
+  id: number;
+  paymentStatus: string;
+  deviceIdentifier?: string | null;
+  orderType?: string | null;
+  createdAt?: string | null;
+  items?: Array<{ productName?: string | null }>;
+};
 
 function validIdentifier(value: string) {
   const clean = value.replace(/[\s-]/g, "");
@@ -89,27 +100,95 @@ function StageHeader({ stage }: { stage: Stage }) {
   );
 }
 
-const DASHBOARD_ORDERS = [
-  { device: "iPhone 13", identifier: "356789123456789", status: "Completed", age: "2h ago", tone: "teal" },
-  { device: "Samsung Galaxy S21", identifier: "354567890123456", status: "Completed", age: "3h ago", tone: "teal" },
-  { device: "iPhone 12", identifier: "353456789012345", status: "Processing", age: "5h ago", tone: "blue" },
-  { device: "Xiaomi Redmi Note 10", identifier: "863456789012345", status: "Pending", age: "7h ago", tone: "amber" },
-  { device: "iPhone 11", identifier: "352345678901234", status: "Completed", age: "9h ago", tone: "teal" },
-] as const;
-
 const STATUS_STYLES = {
   teal: "bg-[#00c9ad]/15 text-[#25e0c3]",
   blue: "bg-[#1676de]/20 text-[#4da4ff]",
   amber: "bg-[#f6b51b]/20 text-[#f9c83f]",
 } as const;
 
+function dashboardStatus(status: string): { label: string; tone: keyof typeof STATUS_STYLES } {
+  if (status === "paid" || status === "completed" || status === "delivered") {
+    return { label: "Completed", tone: "teal" };
+  }
+  if (status === "processing" || status === "active") {
+    return { label: "Processing", tone: "blue" };
+  }
+  if (status === "pending_payment_confirmation") {
+    return { label: "Awaiting Payment", tone: "amber" };
+  }
+  if (status === "cancelled" || status === "failed" || status === "refunded") {
+    return { label: status[0].toUpperCase() + status.slice(1), tone: "amber" };
+  }
+  return { label: "Pending", tone: "amber" };
+}
+
+function orderIsCompleted(status: string) {
+  return status === "paid" || status === "completed" || status === "delivered";
+}
+
+function orderIsOpen(status: string) {
+  return !orderIsCompleted(status) && !["cancelled", "failed", "refunded"].includes(status);
+}
+
+function orderAge(createdAt?: string | null) {
+  if (!createdAt) return "—";
+  const elapsed = Math.max(0, Date.now() - new Date(createdAt).getTime());
+  const minutes = Math.floor(elapsed / 60000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
 function DashboardStatus({ status, tone }: { status: string; tone: keyof typeof STATUS_STYLES }) {
   return <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${STATUS_STYLES[tone]}`}>{status}</span>;
 }
 
-function DashboardEntry({ accountName, onStartUnlock }: { accountName: string; onStartUnlock: () => void }) {
+function DashboardEntry({ accountName, token, onStartUnlock }: { accountName: string; token: string | null; onStartUnlock: () => void }) {
   const firstName = accountName.split(/\s+/)[0] || "there";
   const initials = accountName.slice(0, 1).toUpperCase();
+  const [, navigate] = useLocation();
+  const { data: balance, isLoading: balanceLoading, isError: balanceError } = useWalletBalance();
+  const { unreadCount } = useNotifications();
+  const [orders, setOrders] = useState<DashboardOrder[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(true);
+  const [ordersError, setOrdersError] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadOrders() {
+      if (!token) {
+        setOrders([]);
+        setOrdersLoading(false);
+        return;
+      }
+      setOrdersLoading(true);
+      setOrdersError(false);
+      try {
+        const response = await fetch("/api/orders/my", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await response.json() as DashboardOrder[] | { error?: string };
+        if (!response.ok || !Array.isArray(data)) throw new Error("Could not load orders");
+        if (!cancelled) setOrders(data);
+      } catch {
+        if (!cancelled) {
+          setOrders([]);
+          setOrdersError(true);
+        }
+      } finally {
+        if (!cancelled) setOrdersLoading(false);
+      }
+    }
+    void loadOrders();
+    return () => { cancelled = true; };
+  }, [token]);
+
+  const completedOrders = orders.filter((order) => orderIsCompleted(order.paymentStatus)).length;
+  const openOrders = orders.filter((order) => orderIsOpen(order.paymentStatus)).length;
+  const balanceLabel = balanceLoading ? "…" : balanceError ? "—" : money(Number(balance ?? 0));
 
   return (
     <div className="min-h-[100dvh] bg-[#061322] text-white">
@@ -127,7 +206,7 @@ function DashboardEntry({ accountName, onStartUnlock }: { accountName: string; o
             [<Wallet size={16} />, "Balance & Payments", false],
             [<History size={16} />, "History", false],
             [<Headphones size={16} />, "Support", false],
-          ].map(([icon, label, active]) => <button type="button" key={String(label)} onClick={label === "New Unlock" ? onStartUnlock : undefined} className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[12px] font-semibold ${active ? "bg-[#00bda9]/20 text-[#2ae0c2]" : "text-[#8da2bd] hover:bg-white/5 hover:text-white"}`}>{icon}<span>{label}</span></button>)}
+           ].map(([icon, label, active]) => <button type="button" key={String(label)} onClick={label === "New Unlock" ? onStartUnlock : label === "Orders" || label === "History" ? () => navigate("/account/orders") : label === "Balance & Payments" ? () => navigate("/account/wallet") : undefined} className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[12px] font-semibold ${active ? "bg-[#00bda9]/20 text-[#2ae0c2]" : "text-[#8da2bd] hover:bg-white/5 hover:text-white"}`}>{icon}<span>{label}</span></button>)}
         </nav>
         <div className="mt-auto rounded-xl border border-[#344459] bg-[#111b28] p-4">
           <span className="text-xl">♛</span>
@@ -143,9 +222,9 @@ function DashboardEntry({ accountName, onStartUnlock }: { accountName: string; o
           <div className="flex items-center gap-2.5 lg:hidden"><span className="grid h-9 w-9 place-items-center rounded-xl bg-[#09cdb3] text-lg font-black text-[#031321]">U</span><span className="text-[15px] font-black">UnlockGSM</span></div>
           <span className="hidden text-xs text-[#6e89a5] lg:block">Client dashboard</span>
           <div className="flex items-center gap-4">
-            <button type="button" aria-label="Notifications" className="relative text-[#a1b2c7]"><Bell size={18} /><span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-[#fa4b51]" /></button>
+             <button type="button" aria-label="Notifications" onClick={() => navigate("/account/notifications")} className="relative text-[#a1b2c7]"><Bell size={18} />{unreadCount > 0 && <span className="absolute -right-1 -top-1 grid min-h-3 min-w-3 place-items-center rounded-full bg-[#fa4b51] px-0.5 text-[8px] font-bold text-white">{unreadCount > 9 ? "9+" : unreadCount}</span>}</button>
             <div className="hidden h-7 w-px bg-[#1b3857] sm:block" />
-            <div className="flex items-center gap-2.5"><span className="grid h-9 w-9 place-items-center rounded-full bg-[#075d68] text-sm font-bold text-[#6ef1dc]">{initials}</span><span className="hidden sm:block"><span className="block text-[11px] font-bold">{accountName}</span><span className="mt-0.5 block text-[9px] text-[#7891ac]">Business Account</span></span><ChevronDown size={14} className="text-[#7891ac]" /></div>
+             <button type="button" aria-label="Open profile" onClick={() => navigate("/account/profile")} className="flex items-center gap-2.5 rounded-lg p-1 text-left hover:bg-white/5"><span className="grid h-9 w-9 place-items-center rounded-full bg-[#075d68] text-sm font-bold text-[#6ef1dc]">{initials}</span><span className="hidden sm:block"><span className="block text-[11px] font-bold">{accountName}</span><span className="mt-0.5 block text-[9px] text-[#7891ac]">Business Account</span></span><ChevronDown size={14} className="text-[#7891ac]" /></button>
           </div>
         </header>
 
@@ -155,8 +234,8 @@ function DashboardEntry({ accountName, onStartUnlock }: { accountName: string; o
             <div className="min-w-0">
               <section className="relative overflow-hidden rounded-2xl border border-[#00bda9]/70 bg-[linear-gradient(135deg,#092b37_0%,#082335_52%,#07192b_100%)] p-4 sm:p-5">
                 <div className="absolute -right-12 -top-28 h-64 w-64 rounded-full border border-[#00c9ad]/20 bg-[#00c9ad]/10" />
-                <div className="relative flex items-start justify-between"><div><div className="flex items-center gap-2 text-[12px] text-[#d5e7ef]">Wallet Balance <span className="text-[#5d89a6]">◉</span></div><p className="mt-1 text-[34px] font-bold leading-none tracking-[-.05em] sm:text-[38px]">$124.50</p><p className="mt-2 text-[12px] text-[#63e3ce]">↗ +12% <span className="text-[#89a3b8]">from last week</span></p></div><span className="grid h-12 w-12 place-items-center rounded-2xl bg-[#00c9ad]/15 text-[#17ddc0]"><Wallet size={23} /></span></div>
-                <div className="relative mt-5 grid grid-cols-3 border-t border-white/10 pt-4">{[["Total Orders", "48", "+8%", <FileText key="orders" size={17} />], ["Completed", "42", "+10%", <CheckCircle2 key="completed" size={17} />], ["Pending", "6", "Needs attention", <Clock3 key="pending" size={17} />]].map(([label, value, change, icon], index) => <div key={String(label)} className={`flex items-start gap-2 px-2 first:pl-0 sm:px-4 ${index > 0 ? "border-l border-white/10" : ""}`}><span className={`hidden h-8 w-8 shrink-0 place-items-center rounded-lg sm:grid ${index === 0 ? "bg-[#0c79d3]/25 text-[#46a8ff]" : index === 1 ? "bg-[#8552d5]/30 text-[#b283ff]" : "bg-[#a26f10]/30 text-[#f4c133]"}`}>{icon}</span><span className="min-w-0"><span className="block truncate text-[10px] text-[#91a8c2]">{label}</span><span className="mt-1 block text-lg font-bold leading-none">{value}</span><span className={`mt-1 block truncate text-[9px] ${index === 2 ? "text-[#f4c133]" : "text-[#14d7b8]"}`}>{index === 2 && "◉ "}{change}</span></span></div>)}</div>
+                 <div className="relative flex items-start justify-between"><div><div className="flex items-center gap-2 text-[12px] text-[#d5e7ef]">Wallet Balance <span className="text-[#5d89a6]">◉</span></div><p className="mt-1 text-[34px] font-bold leading-none tracking-[-.05em] sm:text-[38px]">{balanceLabel}</p><p className="mt-2 text-[12px] text-[#89a3b8]">Live account balance</p></div><span className="grid h-12 w-12 place-items-center rounded-2xl bg-[#00c9ad]/15 text-[#17ddc0]"><Wallet size={23} /></span></div>
+                 <div className="relative mt-5 grid grid-cols-3 border-t border-white/10 pt-4">{[["Total Orders", ordersLoading ? "…" : ordersError ? "—" : String(orders.length), <FileText key="orders" size={17} />], ["Completed", ordersLoading ? "…" : ordersError ? "—" : String(completedOrders), <CheckCircle2 key="completed" size={17} />], ["Pending", ordersLoading ? "…" : ordersError ? "—" : String(openOrders), <Clock3 key="pending" size={17} />]].map(([label, value, icon], index) => <div key={String(label)} className={`flex items-start gap-2 px-2 first:pl-0 sm:px-4 ${index > 0 ? "border-l border-white/10" : ""}`}><span className={`hidden h-8 w-8 shrink-0 place-items-center rounded-lg sm:grid ${index === 0 ? "bg-[#0c79d3]/25 text-[#46a8ff]" : index === 1 ? "bg-[#8552d5]/30 text-[#b283ff]" : "bg-[#a26f10]/30 text-[#f4c133]"}`}>{icon}</span><span className="min-w-0"><span className="block truncate text-[10px] text-[#91a8c2]">{label}</span><span className="mt-1 block text-lg font-bold leading-none">{value}</span><span className={`mt-1 block truncate text-[9px] ${index === 2 ? "text-[#f4c133]" : "text-[#14d7b8]"}`}>{index === 2 ? "Open account orders" : "From your account"}</span></span></div>)}</div>
               </section>
 
               <section className="mt-4 rounded-2xl border border-[#153554] bg-[#081a2e] p-3 sm:p-4">
@@ -165,26 +244,26 @@ function DashboardEntry({ accountName, onStartUnlock }: { accountName: string; o
               </section>
 
               <section className="mt-4 overflow-hidden rounded-2xl border border-[#153554] bg-[#081a2e]">
-                <div className="flex items-center justify-between border-b border-[#153554] px-4 py-3"><h2 className="flex items-center gap-2 text-sm font-bold"><Clock3 size={17} className="text-[#14d7b8]" /> Recent Orders</h2><Link href="/orders/lookup" className="text-[11px] font-semibold text-[#16d9bd]">View all <ArrowRight className="ml-1 inline" size={13} /></Link></div>
-                <div className="divide-y divide-[#153554]">{DASHBOARD_ORDERS.map((order) => <div key={order.identifier} className="flex items-center gap-2.5 px-3 py-2.5 sm:px-4"><span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[#122b48] text-[#b4d1ef]"><Smartphone size={16} /></span><span className="min-w-0 flex-1"><span className="block truncate text-[11px] font-semibold text-[#e5eef8]">{order.device}</span><span className="mt-0.5 block truncate font-mono text-[9px] text-[#708baa]">{order.identifier}</span></span><DashboardStatus status={order.status} tone={order.tone} /><span className="hidden w-12 text-right text-[9px] text-[#7891ac] sm:block">{order.age}</span><ChevronRight size={14} className="text-[#56718f]" /></div>)}</div>
-                <Link href="/orders/lookup" className="block border-t border-[#153554] px-4 py-3 text-[10px] font-bold text-[#16d9bd]">View all orders <ArrowRight className="ml-1 inline" size={12} /></Link>
+                 <div className="flex items-center justify-between border-b border-[#153554] px-4 py-3"><h2 className="flex items-center gap-2 text-sm font-bold"><Clock3 size={17} className="text-[#14d7b8]" /> Recent Orders</h2><Link href="/account/orders" className="text-[11px] font-semibold text-[#16d9bd]">View all <ArrowRight className="ml-1 inline" size={13} /></Link></div>
+                 <div className="divide-y divide-[#153554]">{ordersLoading ? <div className="px-4 py-8 text-center text-xs text-[#7891ac]">Loading your orders…</div> : ordersError ? <div className="px-4 py-8 text-center text-xs text-[#f4c133]">Your orders could not be loaded.</div> : orders.length === 0 ? <div className="px-4 py-8 text-center text-xs text-[#7891ac]">No orders found for this account.</div> : orders.slice(0, 5).map((order) => { const status = dashboardStatus(order.paymentStatus); const device = order.items?.[0]?.productName || (order.orderType === "unlock" ? "Direct Unlock" : `Order #${order.id}`); return <button type="button" key={order.id} onClick={() => navigate(`/account/orders#order-${order.id}`)} className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left hover:bg-white/[.03] sm:px-4"><span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[#122b48] text-[#b4d1ef]"><Smartphone size={16} /></span><span className="min-w-0 flex-1"><span className="block truncate text-[11px] font-semibold text-[#e5eef8]">{device}</span><span className="mt-0.5 block truncate font-mono text-[9px] text-[#708baa]">{order.deviceIdentifier || `Order #${order.id}`}</span></span><DashboardStatus status={status.label} tone={status.tone} /><span className="hidden w-12 text-right text-[9px] text-[#7891ac] sm:block">{orderAge(order.createdAt)}</span><ChevronRight size={14} className="text-[#56718f]" /></button>; })}</div>
+                 <Link href="/account/orders" className="block border-t border-[#153554] px-4 py-3 text-[10px] font-bold text-[#16d9bd]">View all orders <ArrowRight className="ml-1 inline" size={12} /></Link>
               </section>
             </div>
 
             <aside className="hidden space-y-4 xl:block">
               <section className="rounded-2xl border border-[#00bda9]/70 bg-[linear-gradient(145deg,#092c37,#071b2b)] p-4"><span className="grid h-9 w-9 place-items-center rounded-full bg-[#00c9ad]/15 text-[#20e0c3]"><Plus size={20} /></span><h2 className="mt-3 text-sm font-bold">New Unlock Request</h2><p className="mt-1 text-[10px] leading-5 text-[#93abc2]">Start a new phone unlocking order in just a few steps.</p><button type="button" onClick={onStartUnlock} className="mt-4 w-full rounded-lg bg-[#09cdb3] py-2.5 text-[11px] font-bold text-[#03202a]">Start Now <ArrowRight className="ml-1 inline" size={13} /></button></section>
               <section className="rounded-2xl border border-[#153554] bg-[#081a2e] p-4"><h2 className="mb-3 flex items-center gap-2 text-sm font-bold"><span className="text-[#ffe140]">ϟ</span> Quick Actions</h2>{[["Check IMEI Status", true], ["View Order History", false], ["Add Funds", false], ["Contact Support", false]].map(([label, active]) => <button type="button" key={String(label)} onClick={active ? onStartUnlock : undefined} className="flex w-full items-center gap-3 rounded-lg px-1 py-2.5 text-left text-[11px] text-[#b4c6da] hover:text-white"><Search size={15} /><span className="flex-1">{label}</span><ChevronRight size={13} className="text-[#59728e]" /></button>)}</section>
-              <section className="rounded-2xl border border-[#153554] bg-[#081a2e] p-4"><div className="flex items-center justify-between"><h2 className="text-sm font-bold">Your Balance</h2><Wallet size={17} className="text-[#14d7b8]" /></div><p className="mt-3 text-2xl font-bold">$124.50 <span className="rounded-full bg-[#00c9ad]/15 px-2 py-1 align-middle text-[9px] text-[#19d9bc]">+12%</span></p><button type="button" onClick={onStartUnlock} className="mt-3 w-full rounded-lg border border-[#126a6e] bg-[#07333d] py-2 text-[10px] font-bold text-[#18d5bb]">Manage Balance <ArrowRight className="ml-1 inline" size={12} /></button></section>
+               <section className="rounded-2xl border border-[#153554] bg-[#081a2e] p-4"><div className="flex items-center justify-between"><h2 className="text-sm font-bold">Your Balance</h2><Wallet size={17} className="text-[#14d7b8]" /></div><p className="mt-3 text-2xl font-bold">{balanceLabel}</p><button type="button" onClick={() => navigate("/account/wallet")} className="mt-3 w-full rounded-lg border border-[#126a6e] bg-[#07333d] py-2 text-[10px] font-bold text-[#18d5bb]">Manage Balance <ArrowRight className="ml-1 inline" size={12} /></button></section>
             </aside>
           </div>
         </main>
 
         <nav className="fixed inset-x-0 bottom-0 z-30 flex items-center justify-around border-t border-[#153554] bg-[#061322]/95 px-2 py-2 backdrop-blur lg:hidden">
           <button type="button" className="flex min-w-14 flex-col items-center gap-1 text-[#16d9bd]"><Home size={19} /><span className="text-[9px] font-semibold">Home</span></button>
-          <button type="button" className="flex min-w-14 flex-col items-center gap-1 text-[#8aa1bc]"><FileText size={18} /><span className="text-[9px] font-semibold">Orders</span></button>
+           <button type="button" onClick={() => navigate("/account/orders")} className="flex min-w-14 flex-col items-center gap-1 text-[#8aa1bc]"><FileText size={18} /><span className="text-[9px] font-semibold">Orders</span></button>
           <button type="button" onClick={onStartUnlock} className="-mt-6 grid h-14 w-14 place-items-center rounded-full border-4 border-[#061322] bg-[#09cdb3] text-[#03202a] shadow-[0_0_24px_rgba(9,205,179,.35)]"><Plus size={26} /></button>
-          <button type="button" className="flex min-w-14 flex-col items-center gap-1 text-[#8aa1bc]"><Wallet size={18} /><span className="text-[9px] font-semibold">Wallet</span></button>
-          <button type="button" className="flex min-w-14 flex-col items-center gap-1 text-[#8aa1bc]"><UserRound size={18} /><span className="text-[9px] font-semibold">Profile</span></button>
+           <button type="button" onClick={() => navigate("/account/wallet")} className="flex min-w-14 flex-col items-center gap-1 text-[#8aa1bc]"><Wallet size={18} /><span className="text-[9px] font-semibold">Wallet</span></button>
+           <button type="button" onClick={() => navigate("/account/profile")} className="flex min-w-14 flex-col items-center gap-1 text-[#8aa1bc]"><UserRound size={18} /><span className="text-[9px] font-semibold">Profile</span></button>
         </nav>
       </div>
     </div>
@@ -531,7 +610,7 @@ export function DirectUnlockRemotePage() {
   }
 
   if (stage === "dashboard") {
-    return <DashboardEntry accountName={accountName} onStartUnlock={() => setStage("device")} />;
+     return <DashboardEntry accountName={accountName} token={token} onStartUnlock={() => setStage("device")} />;
   }
 
   return (
