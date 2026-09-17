@@ -114,7 +114,59 @@ function notificationIcon(type: string) {
 
 function NotificationsContent() {
   const { notifications, unreadCount, markAllRead, markRead, clearAll } = useNotifications();
+  const { token } = useAuth();
   const [, navigate] = useLocation();
+  const [serverNotifications, setServerNotifications] = useState<Array<{
+    id: number;
+    title: string;
+    message: string;
+    type: string;
+    read: boolean;
+    orderId: number | null;
+    createdAt: string;
+  }>>([]);
+
+  useEffect(() => {
+    if (!token) {
+      setServerNotifications([]);
+      return;
+    }
+    let cancelled = false;
+    fetch("/api/notifications", { headers: { Authorization: `Bearer ${token}` } })
+      .then(async (response) => {
+        if (!response.ok) return [];
+        return await response.json() as Array<{
+          id: number;
+          title: string;
+          message: string;
+          type: string;
+          read: boolean;
+          orderId: number | null;
+          createdAt: string;
+        }>;
+      })
+      .then((data) => {
+        if (!cancelled) setServerNotifications(Array.isArray(data) ? data : []);
+      })
+      .catch(() => {
+        if (!cancelled) setServerNotifications([]);
+      });
+    return () => { cancelled = true; };
+  }, [token]);
+
+  const pageNotifications = [
+    ...serverNotifications.map((notification) => ({
+      id: `srv-${notification.id}`,
+      title: notification.title,
+      message: notification.message,
+      type: notification.type,
+      timestamp: new Date(notification.createdAt).getTime(),
+      read: notification.read,
+      orderId: notification.orderId ?? undefined,
+      link: notification.orderId ? "/account/orders" : undefined,
+    })),
+    ...notifications.filter((notification) => !notification.id.startsWith("srv-")),
+  ].sort((left, right) => right.timestamp - left.timestamp);
 
   function openNotification(id: string, link?: string, orderId?: number) {
     markRead(id);
@@ -131,11 +183,11 @@ function NotificationsContent() {
         </div>
         <div className="flex items-center gap-1">
           {unreadCount > 0 && <button type="button" onClick={markAllRead} className="rounded-lg p-2 text-gray-500 hover:bg-gray-100" aria-label="Mark all notifications as read"><CheckCheck size={16} /></button>}
-          {notifications.length > 0 && <button type="button" onClick={clearAll} className="rounded-lg p-2 text-gray-400 hover:bg-red-50 hover:text-red-500" aria-label="Clear notifications"><Trash2 size={16} /></button>}
+          {pageNotifications.length > 0 && <button type="button" onClick={clearAll} className="rounded-lg p-2 text-gray-400 hover:bg-red-50 hover:text-red-500" aria-label="Clear notifications"><Trash2 size={16} /></button>}
         </div>
       </div>
 
-      {notifications.length === 0 ? (
+      {pageNotifications.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-gray-200 bg-white px-6 py-16 text-center">
           <Bell size={30} className="mx-auto text-gray-200" />
           <p className="mt-3 text-sm font-bold text-gray-500">No notifications yet</p>
@@ -143,7 +195,7 @@ function NotificationsContent() {
         </div>
       ) : (
         <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
-          {notifications.map((notification) => {
+          {pageNotifications.map((notification) => {
             const clickable = Boolean(notification.link || notification.orderId);
             return (
               <button
