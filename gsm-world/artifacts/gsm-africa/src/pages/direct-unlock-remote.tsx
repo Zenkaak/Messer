@@ -1,8 +1,15 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { ArrowLeft, ArrowRight, Check, Clock3, Copy, Globe2, Mail, Phone, RefreshCw, ShieldCheck, Smartphone } from "lucide-react";
+import { Link } from "wouter";
+import {
+  AlertCircle, ArrowLeft, ArrowRight, ArrowUpRight, Bell, Check, CheckCircle2,
+  ChevronDown, ChevronRight, CirclePlus, Clock3, Copy, FileText, Globe2,
+  Headphones, History, Home, Mail, Phone, Plus, RefreshCw, Search,
+  ShieldCheck, ShoppingCart, Smartphone, UserRound, Wallet,
+} from "lucide-react";
+import { useAuth } from "@/hooks/use-auth";
 import { DEVICE_CATALOG } from "@/pages/direct-unlock";
 
-type Stage = "device" | "details" | "processing" | "payment" | "pending";
+type Stage = "dashboard" | "device" | "details" | "processing" | "payment" | "pending";
 type PaymentMethod = "mpesa" | "nowpayments" | "binance_pay" | "usdt_manual";
 type Device = { brand: string; model: string; price: number };
 type Progress =
@@ -49,6 +56,295 @@ function StepHeader({ stage }: { stage: Stage }) {
       {itemIndex < labels.length - 1 && <span className={`mt-4 h-px flex-1 ${itemIndex < index ? "bg-primary" : "bg-border"}`} />}
     </div>)}
   </div>;
+}
+
+const DASHBOARD_ORDERS = [
+  { device: "iPhone 13", identifier: "356789123456789", status: "Completed", age: "2h ago", tone: "teal" },
+  { device: "Samsung Galaxy S21", identifier: "354567890123456", status: "Completed", age: "3h ago", tone: "teal" },
+  { device: "iPhone 12", identifier: "353456789012345", status: "Processing", age: "5h ago", tone: "blue" },
+  { device: "Xiaomi Redmi Note 10", identifier: "863456789012345", status: "Pending", age: "7h ago", tone: "amber" },
+  { device: "iPhone 11", identifier: "352345678901234", status: "Completed", age: "9h ago", tone: "teal" },
+] as const;
+
+const DASHBOARD_ACTIVITY = [
+  ["Sep 15, 2025 10:24 AM", "Phone Unlock", "iPhone 13", "Completed", "teal"],
+  ["Sep 15, 2025 08:12 AM", "IMEI Check", "356789123456789", "Completed", "teal"],
+  ["Sep 14, 2025 06:45 PM", "Phone Unlock", "Samsung S21", "Processing", "blue"],
+  ["Sep 14, 2025 02:33 PM", "Phone Unlock", "Xiaomi Redmi Note 10", "Pending", "amber"],
+  ["Sep 13, 2025 11:17 AM", "IMEI Check", "353456789012345", "Completed", "teal"],
+] as const;
+
+const toneClasses = {
+  teal: "bg-[#00c9ad]/15 text-[#25e0c3]",
+  blue: "bg-[#1676de]/20 text-[#4da4ff]",
+  amber: "bg-[#f6b51b]/20 text-[#f9c83f]",
+} as const;
+
+function DashboardStatus({ status, tone }: { status: string; tone: keyof typeof toneClasses }) {
+  return <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${toneClasses[tone]}`}>{status}</span>;
+}
+
+function DashboardBrand({ compact = false }: { compact?: boolean }) {
+  return (
+    <div className="flex items-center gap-2.5">
+      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#09cdb3] text-[#031321] shadow-[0_0_24px_rgba(9,205,179,.2)]">
+        <span className="text-lg font-black">U</span>
+      </span>
+      <span className={compact ? "hidden sm:block" : "block"}>
+        <span className="block text-[15px] font-black leading-none text-white">UnlockGSM</span>
+        <span className="mt-1 block text-[9px] font-medium tracking-wide text-[#83a0bf]">Unlock Your Freedom</span>
+      </span>
+    </div>
+  );
+}
+
+function DashboardNavItem({
+  icon,
+  label,
+  active = false,
+  onClick,
+}: {
+  icon: ReactNode;
+  label: string;
+  active?: boolean;
+  onClick?: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[12px] font-semibold transition-colors ${
+        active ? "bg-[#00bda9]/20 text-[#2ae0c2]" : "text-[#8da2bd] hover:bg-white/5 hover:text-white"
+      }`}
+    >
+      {icon}
+      <span>{label}</span>
+    </button>
+  );
+}
+
+function QuickAction({
+  icon,
+  label,
+  accent,
+  onClick,
+}: {
+  icon: ReactNode;
+  label: string;
+  accent: string;
+  onClick?: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="group flex min-h-[96px] flex-1 flex-col items-center justify-center gap-2 rounded-xl border border-[#1b3a5d] bg-[#091d34] px-2 py-3 text-center transition-colors hover:border-[#00bda9]/70 hover:bg-[#0c2943]"
+    >
+      <span className={`grid h-10 w-10 place-items-center rounded-xl ${accent}`}>{icon}</span>
+      <span className="text-[11px] font-semibold leading-tight text-[#d7e4f3]">{label}</span>
+    </button>
+  );
+}
+
+function DashboardStage({ onStartUnlock }: { onStartUnlock: () => void }) {
+  const { user } = useAuth();
+  const displayName = user?.name?.trim() || user?.username?.trim() || "Timothy Cheruiyot";
+  const firstName = displayName.split(/\s+/)[0];
+  const initials = displayName.slice(0, 1).toUpperCase();
+
+  return (
+    <div className="direct-dashboard min-h-[100dvh] bg-[#061322] text-white">
+      <aside className="fixed inset-y-0 left-0 z-20 hidden w-[235px] flex-col border-r border-[#16304d] bg-[#061322] px-4 py-5 lg:flex">
+        <DashboardBrand />
+        <nav className="mt-10 space-y-1">
+          <DashboardNavItem icon={<Home size={16} />} label="Dashboard" active />
+          <DashboardNavItem icon={<Smartphone size={16} />} label="New Unlock" onClick={onStartUnlock} />
+          <DashboardNavItem icon={<FileText size={16} />} label="Orders" />
+          <DashboardNavItem icon={<Search size={16} />} label="IMEI Check" />
+          <DashboardNavItem icon={<Wallet size={16} />} label="Balance & Payments" />
+          <DashboardNavItem icon={<History size={16} />} label="History" />
+          <DashboardNavItem icon={<Headphones size={16} />} label="Support" />
+        </nav>
+        <div className="mt-auto rounded-xl border border-[#344459] bg-[#111b28] p-4">
+          <span className="text-xl">♛</span>
+          <p className="mt-3 text-xs font-bold text-white">Premium Service</p>
+          <p className="mt-2 text-[10px] leading-5 text-[#9badc4]">Fast, Secure and Reliable Phone Unlocking Worldwide.</p>
+          <button type="button" onClick={onStartUnlock} className="mt-3 rounded-lg bg-[#09cdb3] px-3 py-2 text-[10px] font-bold text-[#03202a]">
+            Get Started <ArrowRight className="ml-1 inline" size={12} />
+          </button>
+        </div>
+        <p className="mt-5 px-1 text-[9px] leading-4 text-[#637a95]">UnlockGSM v1.0.0<br />© 2025 UnlockGSM. All rights reserved.</p>
+      </aside>
+
+      <div className="lg:pl-[235px]">
+        <header className="flex h-[68px] items-center justify-between border-b border-[#16304d] px-4 sm:px-8 lg:px-10">
+          <div className="lg:hidden"><DashboardBrand compact /></div>
+          <div className="hidden text-xs text-[#6e89a5] lg:block">Client dashboard</div>
+          <div className="flex items-center gap-4">
+            <button type="button" aria-label="Notifications" className="relative text-[#a1b2c7] hover:text-white">
+              <Bell size={18} />
+              <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-[#fa4b51]" />
+            </button>
+            <div className="hidden h-7 w-px bg-[#1b3857] sm:block" />
+            <div className="flex items-center gap-2.5">
+              <span className="grid h-9 w-9 place-items-center rounded-full bg-[#075d68] text-sm font-bold text-[#6ef1dc]">{initials}</span>
+              <span className="hidden sm:block">
+                <span className="block text-[11px] font-bold text-white">{displayName}</span>
+                <span className="mt-0.5 block text-[9px] text-[#7891ac]">Business Account</span>
+              </span>
+              <ChevronDown size={14} className="text-[#7891ac]" />
+            </div>
+          </div>
+        </header>
+
+        <main className="mx-auto max-w-[1370px] px-4 pb-24 pt-5 sm:px-8 sm:pt-7 lg:px-10 lg:pb-10">
+          <div className="mb-5">
+            <h1 className="text-[21px] font-bold tracking-[-.03em] sm:text-2xl">Good morning, {firstName} <span className="text-base">👋</span></h1>
+            <p className="mt-1 text-[11px] text-[#7891ac] sm:text-xs">Here&apos;s what&apos;s happening with your account today.</p>
+          </div>
+
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_255px]">
+            <div className="min-w-0">
+              <section className="relative overflow-hidden rounded-2xl border border-[#00bda9]/70 bg-[linear-gradient(135deg,#092b37_0%,#082335_52%,#07192b_100%)] p-4 sm:p-5">
+                <div className="absolute -right-12 -top-28 h-64 w-64 rounded-full border border-[#00c9ad]/20 bg-[#00c9ad]/10 blur-sm" />
+                <div className="relative flex items-start justify-between">
+                  <div>
+                    <div className="flex items-center gap-2 text-[12px] text-[#d5e7ef]"><span>Wallet Balance</span><span className="text-[#5d89a6]">◉</span></div>
+                    <p className="mt-1 text-[34px] font-bold leading-none tracking-[-.05em] sm:text-[38px]">$124.50</p>
+                    <p className="mt-2 text-[12px] text-[#63e3ce]"><ArrowUpRight className="mr-1 inline" size={15} strokeWidth={3} />+12% <span className="text-[#89a3b8]">from last week</span></p>
+                  </div>
+                  <span className="grid h-12 w-12 place-items-center rounded-2xl bg-[#00c9ad]/15 text-[#17ddc0]"><Wallet size={23} /></span>
+                </div>
+                <div className="relative mt-5 grid grid-cols-3 border-t border-white/10 pt-4">
+                  {[
+                    ["Total Orders", "48", "+8%", <FileText key="orders" size={17} />],
+                    ["Completed", "42", "+10%", <CheckCircle2 key="completed" size={17} />],
+                    ["Pending", "6", "Needs attention", <Clock3 key="pending" size={17} />],
+                  ].map(([label, value, change, icon], index) => (
+                    <div key={String(label)} className={`flex items-start gap-2 px-2 first:pl-0 sm:px-4 ${index > 0 ? "border-l border-white/10" : ""}`}>
+                      <span className={`hidden h-8 w-8 shrink-0 place-items-center rounded-lg sm:grid ${index === 0 ? "bg-[#0c79d3]/25 text-[#46a8ff]" : index === 1 ? "bg-[#8552d5]/30 text-[#b283ff]" : "bg-[#a26f10]/30 text-[#f4c133]"}`}>{icon}</span>
+                      <span className="min-w-0">
+                        <span className="block truncate text-[10px] text-[#91a8c2]">{label}</span>
+                        <span className="mt-1 block text-lg font-bold leading-none">{value}</span>
+                        <span className={`mt-1 block truncate text-[9px] ${index === 2 ? "text-[#f4c133]" : "text-[#14d7b8]"}`}>{index === 2 && <AlertCircle className="mr-0.5 inline" size={10} />}{change}</span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              <section className="mt-4 rounded-2xl border border-[#153554] bg-[#081a2e] p-3 sm:p-4">
+                <div className="mb-3 flex items-center justify-between px-1">
+                  <h2 className="text-sm font-bold">Quick Actions</h2>
+                  <button type="button" onClick={onStartUnlock} className="text-[11px] font-semibold text-[#16d9bd]">View all <ArrowRight className="ml-1 inline" size={13} /></button>
+                </div>
+                <div className="flex gap-2 sm:gap-3">
+                  <QuickAction icon={<Smartphone size={20} />} label={<>Check IMEI<br />Status</>} accent="bg-[#00aa79]/60 text-[#6df2c4]" />
+                  <QuickAction icon={<ShoppingCart size={20} />} label={<>Place<br />Order</>} accent="bg-[#075cc1] text-[#73b8ff]" onClick={onStartUnlock} />
+                  <QuickAction icon={<CirclePlus size={20} />} label={<>New Unlock<br />Request</>} accent="bg-[#7f3fc1] text-[#dfaeff]" onClick={onStartUnlock} />
+                  <QuickAction icon={<History size={20} />} label={<>Order<br />History</>} accent="bg-[#294679] text-[#b8d0ff]" />
+                </div>
+              </section>
+
+              <section className="mt-4 hidden overflow-hidden rounded-2xl border border-[#153554] bg-[#081a2e] lg:block">
+                <div className="flex items-center justify-between border-b border-[#153554] px-4 py-3">
+                  <h2 className="flex items-center gap-2 text-sm font-bold"><ArrowUpRight size={17} className="text-[#12d6bb]" /> Orders Overview</h2>
+                  <button type="button" className="rounded-lg border border-[#1e4265] px-3 py-1.5 text-[10px] text-[#a2b7ce]">Last 7 days <ChevronDown className="ml-1 inline" size={12} /></button>
+                </div>
+                <div className="relative h-44 px-4 pb-4 pt-3">
+                  <div className="absolute inset-x-5 top-5 space-y-8 border-t border-dashed border-[#183a5d]">
+                    <span className="block border-t border-dashed border-[#183a5d]" />
+                    <span className="block border-t border-dashed border-[#183a5d]" />
+                    <span className="block border-t border-dashed border-[#183a5d]" />
+                  </div>
+                  <svg viewBox="0 0 700 150" preserveAspectRatio="none" className="relative h-full w-full">
+                    <defs><linearGradient id="orders-fill" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="#00c9ad" stopOpacity=".38" /><stop offset="1" stopColor="#00c9ad" stopOpacity="0" /></linearGradient></defs>
+                    <path d="M0,118 C55,100 80,108 125,95 C170,82 185,84 230,67 C275,50 315,62 350,64 C390,66 420,77 458,66 C500,54 520,44 565,35 C610,25 650,28 700,9 L700,150 L0,150 Z" fill="url(#orders-fill)" />
+                    <path d="M0,118 C55,100 80,108 125,95 C170,82 185,84 230,67 C275,50 315,62 350,64 C390,66 420,77 458,66 C500,54 520,44 565,35 C610,25 650,28 700,9" fill="none" stroke="#0bd2b8" strokeWidth="2.5" />
+                  </svg>
+                  <div className="absolute bottom-0 inset-x-5 flex justify-between text-[9px] text-[#708aa6]"><span>Sep 9</span><span>Sep 10</span><span>Sep 11</span><span>Sep 12</span><span>Sep 13</span><span>Sep 14</span><span>Sep 15</span></div>
+                </div>
+              </section>
+
+              <section className="mt-4 overflow-hidden rounded-2xl border border-[#153554] bg-[#081a2e]">
+                <div className="flex items-center justify-between border-b border-[#153554] px-4 py-3">
+                  <h2 className="flex items-center gap-2 text-sm font-bold"><Clock3 size={17} className="text-[#14d7b8]" /> Recent Orders</h2>
+                  <Link href="/orders/lookup" className="text-[11px] font-semibold text-[#16d9bd]">View all <ArrowRight className="ml-1 inline" size={13} /></Link>
+                </div>
+                <div className="divide-y divide-[#153554]">
+                  {DASHBOARD_ORDERS.map((order) => (
+                    <div key={order.identifier} className="flex items-center gap-2.5 px-3 py-2.5 sm:px-4">
+                      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[#122b48] text-[#b4d1ef]"><Smartphone size={16} /></span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[11px] font-semibold text-[#e5eef8]">{order.device}</span>
+                        <span className="mt-0.5 block truncate font-mono text-[9px] text-[#708baa]">{order.identifier}</span>
+                      </span>
+                      <DashboardStatus status={order.status} tone={order.tone} />
+                      <span className="hidden w-12 text-right text-[9px] text-[#7891ac] sm:block">{order.age}</span>
+                      <ChevronRight size={14} className="text-[#56718f]" />
+                    </div>
+                  ))}
+                </div>
+                <Link href="/orders/lookup" className="block border-t border-[#153554] px-4 py-3 text-[10px] font-bold text-[#16d9bd]">View all orders <ArrowRight className="ml-1 inline" size={12} /></Link>
+              </section>
+            </div>
+
+            <aside className="hidden space-y-4 xl:block">
+              <section className="rounded-2xl border border-[#00bda9]/70 bg-[linear-gradient(145deg,#092c37,#071b2b)] p-4">
+                <span className="grid h-9 w-9 place-items-center rounded-full bg-[#00c9ad]/15 text-[#20e0c3]"><Plus size={20} /></span>
+                <h2 className="mt-3 text-sm font-bold">New Unlock Request</h2>
+                <p className="mt-1 text-[10px] leading-5 text-[#93abc2]">Start a new phone unlocking order in just a few steps.</p>
+                <button type="button" onClick={onStartUnlock} className="mt-4 w-full rounded-lg bg-[#09cdb3] py-2.5 text-[11px] font-bold text-[#03202a]">Start Now <ArrowRight className="ml-1 inline" size={13} /></button>
+              </section>
+              <section className="rounded-2xl border border-[#153554] bg-[#081a2e] p-4">
+                <h2 className="mb-3 flex items-center gap-2 text-sm font-bold"><span className="text-[#ffe140]">ϟ</span> Quick Actions</h2>
+                <div className="space-y-1">
+                  {[
+                    [<Search size={15} />, "Check IMEI Status"],
+                    [<History size={15} />, "View Order History"],
+                    [<Wallet size={15} />, "Add Funds"],
+                    [<Headphones size={15} />, "Contact Support"],
+                  ].map(([icon, label]) => <button type="button" key={String(label)} onClick={label === "Check IMEI Status" ? onStartUnlock : undefined} className="flex w-full items-center gap-3 rounded-lg px-1 py-2.5 text-left text-[11px] text-[#b4c6da] hover:text-white">{icon}<span className="flex-1">{label}</span><ChevronRight size={13} className="text-[#59728e]" /></button>)}
+                </div>
+              </section>
+              <section className="rounded-2xl border border-[#153554] bg-[#081a2e] p-4">
+                <div className="flex items-center justify-between"><h2 className="text-sm font-bold">Your Balance</h2><Wallet size={17} className="text-[#14d7b8]" /></div>
+                <p className="mt-3 text-2xl font-bold">$124.50 <span className="rounded-full bg-[#00c9ad]/15 px-2 py-1 align-middle text-[9px] text-[#19d9bc]">+12%</span></p>
+                <button type="button" onClick={onStartUnlock} className="mt-3 w-full rounded-lg border border-[#126a6e] bg-[#07333d] py-2 text-[10px] font-bold text-[#18d5bb]">Manage Balance <ArrowRight className="ml-1 inline" size={12} /></button>
+              </section>
+              <section className="rounded-2xl border border-[#153554] bg-[#081a2e] p-4">
+                <Headphones size={20} className="text-[#19d9bc]" />
+                <h2 className="mt-3 text-sm font-bold">Need Help?</h2>
+                <p className="mt-1 text-[10px] leading-5 text-[#8fa5bc]">Our support team is here to assist you 24/7.</p>
+                <button type="button" className="mt-3 w-full rounded-lg border border-[#1e4265] py-2 text-[10px] font-bold text-[#18d5bb]">Contact Support</button>
+              </section>
+            </aside>
+          </div>
+
+          <section className="mt-4 hidden overflow-hidden rounded-2xl border border-[#153554] bg-[#081a2e] lg:block">
+            <div className="flex items-center justify-between border-b border-[#153554] px-4 py-3">
+              <h2 className="text-sm font-bold">Latest Activity</h2>
+              <button type="button" className="text-[10px] font-semibold text-[#16d9bd]">View all <ArrowRight className="ml-1 inline" size={12} /></button>
+            </div>
+            <div className="grid grid-cols-[1.25fr_1fr_1fr_1fr] px-4 py-2 text-[9px] font-semibold text-[#718aa5]">
+              <span>Date &amp; Time</span><span>Service</span><span>Device</span><span>Status</span>
+            </div>
+            <div className="divide-y divide-[#153554]">
+              {DASHBOARD_ACTIVITY.map(([date, service, device, status, tone]) => <div key={`${date}-${service}`} className="grid grid-cols-[1.25fr_1fr_1fr_1fr] items-center px-4 py-2 text-[9px] text-[#b1c4d9]"><span>{date}</span><span>{service}</span><span>{device}</span><span><DashboardStatus status={status} tone={tone} /></span></div>)}
+            </div>
+          </section>
+        </main>
+
+        <nav className="fixed inset-x-0 bottom-0 z-30 flex items-center justify-around border-t border-[#153554] bg-[#061322]/95 px-2 py-2 backdrop-blur lg:hidden">
+          <button type="button" className="flex min-w-14 flex-col items-center gap-1 text-[#16d9bd]"><Home size={19} /><span className="text-[9px] font-semibold">Home</span></button>
+          <button type="button" className="flex min-w-14 flex-col items-center gap-1 text-[#8aa1bc]"><FileText size={18} /><span className="text-[9px] font-semibold">Orders</span></button>
+          <button type="button" onClick={onStartUnlock} className="-mt-6 grid h-14 w-14 place-items-center rounded-full border-4 border-[#061322] bg-[#09cdb3] text-[#03202a] shadow-[0_0_24px_rgba(9,205,179,.35)]"><Plus size={26} /></button>
+          <button type="button" className="flex min-w-14 flex-col items-center gap-1 text-[#8aa1bc]"><Wallet size={18} /><span className="text-[9px] font-semibold">Wallet</span></button>
+          <button type="button" className="flex min-w-14 flex-col items-center gap-1 text-[#8aa1bc]"><UserRound size={18} /><span className="text-[9px] font-semibold">Profile</span></button>
+        </nav>
+      </div>
+    </div>
+  );
 }
 
 function DeviceStage({ selected, onSelect, onContinue }: { selected: Device | null; onSelect: (device: Device) => void; onContinue: () => void }) {
@@ -151,7 +447,7 @@ function PendingStage({ device, email, identifier, progress, confirmed, onReset 
 }
 
 export function DirectUnlockRemotePage() {
-  const [stage, setStage] = useState<Stage>("device");
+  const [stage, setStage] = useState<Stage>("dashboard");
   const [device, setDevice] = useState<Device | null>(null);
   const [identifier, setIdentifier] = useState("");
   const [email, setEmail] = useState("");
@@ -212,6 +508,10 @@ export function DirectUnlockRemotePage() {
       setSubmitting(false);
     }
   };
+
+  if (stage === "dashboard") {
+    return <DashboardStage onStartUnlock={() => setStage("device")} />;
+  }
 
   return <div className="app-shell min-h-[100dvh]">
     <header className="topbar"><div className="mx-auto flex h-[72px] max-w-[1120px] items-center justify-between px-5 sm:px-8"><div><p className="display-font text-lg font-bold">GSM World</p><p className="text-[10px] font-semibold uppercase tracking-[.18em] text-muted-foreground">Direct unlock service</p></div><span className="flex items-center gap-2 text-xs text-muted-foreground"><ShieldCheck size={15} className="text-primary" /> Secure remote service</span></div></header>
