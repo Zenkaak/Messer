@@ -1,7 +1,8 @@
 import { Link, useParams, useLocation } from "wouter";
-import { ArrowLeft, User, ShieldCheck, Cpu, DollarSign, FileText, BookOpen, ShoppingBag, BarChart2, ShoppingCart, Zap, Copy, Check, Smartphone, KeyRound, Shield, Eye, EyeOff, CheckCircle, RefreshCw, ChevronRight, MessageSquare, Send, Lock, Paperclip, X as XIcon, Wallet, Plus, ArrowRightLeft, CheckCircle2, CreditCard, ArrowDownLeft, ArrowUpRight, Gift } from "lucide-react";
+import { ArrowLeft, User, ShieldCheck, Cpu, DollarSign, FileText, BookOpen, ShoppingBag, BarChart2, ShoppingCart, Zap, Copy, Check, Smartphone, KeyRound, Shield, Eye, EyeOff, CheckCircle, RefreshCw, ChevronRight, MessageSquare, Send, Lock, Paperclip, X as XIcon, Wallet, Plus, ArrowRightLeft, CheckCircle2, CreditCard, ArrowDownLeft, ArrowUpRight, Gift, Bell, CheckCheck, Trash2, Info, AlertTriangle, XCircle } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useWalletBalance } from "@/hooks/use-wallet";
+import { useNotifications } from "@/context/notification-context";
 import { useState, useEffect, useRef, useCallback, type ReactNode } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
@@ -20,6 +21,7 @@ const PAGES: Record<string, { title: string; icon: React.ReactNode }> = {
   invoices:        { title: "Invoices",          icon: <FileText size={20} /> },
   ledger:          { title: "Account Ledger",    icon: <BookOpen size={20} /> },
   transfer:        { title: "Send Funds",        icon: <ArrowRightLeft size={20} /> },
+  notifications:   { title: "Notifications",     icon: <Bell size={20} /> },
 };
 
 export function AccountSubPage() {
@@ -69,6 +71,7 @@ export function AccountSubPage() {
         {sub === "orders"    && <OrdersContent />}
         {sub === "profile"   && <ProfileContent user={user} />}
         {sub === "security"  && <SecurityContent user={user} />}
+        {sub === "notifications" && <NotificationsContent />}
         {sub === "add-fund" && !token && (
           <div className="flex flex-col items-center justify-center py-20 text-center px-6 gap-5">
             <div className="w-16 h-16 rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center">
@@ -88,6 +91,79 @@ export function AccountSubPage() {
         {sub === "ledger" && <LedgerContent token={token} />}
         {sub === "transfer" && <TransferContent token={token} />}
       </div>
+    </div>
+  );
+}
+
+function notificationTimeAgo(timestamp: number): string {
+  const seconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1000));
+  if (seconds < 60) return "just now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
+
+function notificationIcon(type: string) {
+  if (type === "success") return <CheckCircle size={16} className="mt-0.5 shrink-0 text-emerald-500" />;
+  if (type === "warning") return <AlertTriangle size={16} className="mt-0.5 shrink-0 text-amber-500" />;
+  if (type === "error") return <XCircle size={16} className="mt-0.5 shrink-0 text-red-500" />;
+  return <Info size={16} className="mt-0.5 shrink-0 text-blue-500" />;
+}
+
+function NotificationsContent() {
+  const { notifications, unreadCount, markAllRead, markRead, clearAll } = useNotifications();
+  const [, navigate] = useLocation();
+
+  function openNotification(id: string, link?: string, orderId?: number) {
+    markRead(id);
+    const destination = link ?? (orderId ? `/account/orders#order-${orderId}` : undefined);
+    if (destination) navigate(destination);
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between rounded-2xl bg-white p-4 shadow-sm">
+        <div>
+          <p className="text-sm font-black text-gray-900">Your account notifications</p>
+          <p className="mt-1 text-xs text-gray-500">{unreadCount ? `${unreadCount} unread` : "You’re all caught up"}</p>
+        </div>
+        <div className="flex items-center gap-1">
+          {unreadCount > 0 && <button type="button" onClick={markAllRead} className="rounded-lg p-2 text-gray-500 hover:bg-gray-100" aria-label="Mark all notifications as read"><CheckCheck size={16} /></button>}
+          {notifications.length > 0 && <button type="button" onClick={clearAll} className="rounded-lg p-2 text-gray-400 hover:bg-red-50 hover:text-red-500" aria-label="Clear notifications"><Trash2 size={16} /></button>}
+        </div>
+      </div>
+
+      {notifications.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-gray-200 bg-white px-6 py-16 text-center">
+          <Bell size={30} className="mx-auto text-gray-200" />
+          <p className="mt-3 text-sm font-bold text-gray-500">No notifications yet</p>
+          <p className="mt-1 text-xs text-gray-400">Order and account updates will appear here.</p>
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
+          {notifications.map((notification) => {
+            const clickable = Boolean(notification.link || notification.orderId);
+            return (
+              <button
+                type="button"
+                key={notification.id}
+                onClick={() => openNotification(notification.id, notification.link, notification.orderId)}
+                className={`flex w-full gap-3 border-b border-gray-100 p-4 text-left last:border-b-0 ${notification.read ? "bg-white" : "bg-blue-50/40"} ${clickable ? "hover:bg-gray-50" : "cursor-default"}`}
+              >
+                {notificationIcon(notification.type)}
+                <span className="min-w-0 flex-1">
+                  <span className={`block text-sm leading-tight ${notification.read ? "font-medium text-gray-700" : "font-bold text-gray-900"}`}>{notification.title}</span>
+                  <span className="mt-1 block text-xs leading-5 text-gray-500">{notification.message}</span>
+                  <span className="mt-2 block text-[10px] text-gray-400">{notificationTimeAgo(notification.timestamp)}{notification.orderId ? ` · Order #${notification.orderId}` : ""}</span>
+                </span>
+                {!notification.read && <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-blue-500" />}
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
