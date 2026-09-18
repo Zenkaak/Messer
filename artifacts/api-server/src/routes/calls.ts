@@ -2,15 +2,13 @@ import { Router, type IRouter } from "express";
 import { and, asc, desc, eq, gt, inArray, or } from "drizzle-orm";
 import { randomBytes } from "node:crypto";
 import jwt from "jsonwebtoken";
-import { db, liveCallSignalsTable, liveCallsTable, liveChatSessionsTable, usersTable } from "@workspace/db";
+import { db, liveCallPresenceTable, liveCallSignalsTable, liveCallsTable, liveChatSessionsTable, usersTable } from "@workspace/db";
 import { checkAdminPassword } from "../lib/admin-settings";
 
 const router: IRouter = Router();
 const ACTIVE_CALL_STATUSES = ["queued", "ringing", "active"] as const;
 const JWT_SECRET = process.env.JWT_SECRET || "gsm-africa-jwt-secret-CHANGE-IN-PRODUCTION";
 const PRESENCE_WINDOW_MS = 20_000;
-let adminPresenceAt = 0;
-const userPresence = new Map<number, number>();
 
 type CallStatus = "queued" | "ringing" | "active" | "completed" | "cancelled";
 
@@ -76,12 +74,23 @@ async function findVisitorCall(visitorId: string) {
   return rows[0] ?? null;
 }
 
-function isAdminOnline() {
-  return Date.now() - adminPresenceAt < PRESENCE_WINDOW_MS;
+async function touchPresence(actorKey: string, role: "admin" | "user") {
+  await db
+    .insert(liveCallPresenceTable)
+    .values({ actorKey, role, lastSeenAt: new Date() })
+    .onConflictDoUpdate({
+      target: liveCallPresenceTable.actorKey,
+      set: { role, lastSeenAt: new Date() },
+    });
 }
 
-function isUserOnline(userId: number) {
-  return Date.now() - (userPresence.get(userId) ?? 0) < PRESENCE_WINDOW_MS;
+async function isOnline(actorKey: string) {
+  const [presence] = await db
+    .select({ lastSeenAt: liveCallPresenceTable.lastSeenAt })
+    .from(liveCallPresenceTable)
+    .where(eq(liveCallPresenceTable.actorKey, actorKey))
+    .limit(1);
+  return Boolean(presence && Date.now() - presence.lastSeenAt.getTime() < PRESENCE_WINDOW_MS);
 }
 
 router.post("/calls", async (req, res) => {
@@ -109,7 +118,7 @@ router.post("/calls", async (req, res) => {
         callerLabel: "GSM UNLOCK",
         direction: "user_to_admin",
         signalToken: createSignalToken(),
-        status: isAdminOnline() ? "ringing" : "queued",
+        status: await isOnline("admin") ? "ringing" : "queued",
       })
       .returning();
 
@@ -143,7 +152,7 @@ router.get("/calls/:id", async (req, res) => {
         res.status(401).json({ error: "Sign in to receive direct calls." });
         return;
       }
-      userPresence.set(user.userId, Date.now());
+      await touchPresence(`user:${user.userId}`, "user");
       const calls = await db
         .select()
         .from(liveCallsTable)
@@ -302,7 +311,7 @@ router.get("/admin/calls", async (req, res) => {
 router.post("/admin/calls/presence", async (req, res) => {
   try {
     if (!(await authenticateAdmin(req, res))) return;
-    adminPresenceAt = Date.now();
+    await touchPresence("admin", "admin");
     res.json({ online: true, expiresInMs: PRESENCE_WINDOW_MS });
   } catch (err) {
     req.log.error({ err }, "Failed to update admin call presence");
@@ -442,7 +451,7 @@ router.post("/admin/calls/user/:userId", async (req, res) => {
         callerLabel: "GSM UNLOCK",
         direction: "admin_to_user",
         signalToken: createSignalToken(),
-        status: isUserOnline(targetUserId) ? "ringing" : "queued",
+        status: await isOnline(`user:${targetUserId}`) ? "ringing" : "queued",
       })
       .returning();
     res.status(201).json(await presentCall(call));

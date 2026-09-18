@@ -12,6 +12,7 @@ export * from "./notifications";
 export * from "./live_chats";
 export * from "./live_calls";
 export * from "./live_call_signals";
+export * from "./live_call_presence";
 export * from "./resellers";
 export * from "./imeiLookups";
 export * from "./walletTransactions";
