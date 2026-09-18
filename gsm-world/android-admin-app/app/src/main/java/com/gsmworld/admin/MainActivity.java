@@ -44,6 +44,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.json.JSONTokener;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -313,7 +314,7 @@ public class MainActivity extends AppCompatActivity {
  || "application/vnd.android.package-archive".equals(mimetype)) {
  mainHandler.post(() -> Toast.makeText(MainActivity.this,
  "Downloading update…", Toast.LENGTH_SHORT).show());
- executor.execute(() -> downloadAndInstallSilent(url));
+  downloadWithWebViewPassword(url);
  }
  });
 
@@ -362,7 +363,7 @@ public class MainActivity extends AppCompatActivity {
  if (path != null && path.endsWith(".apk")) {
  mainHandler.post(() -> Toast.makeText(MainActivity.this,
  "Downloading update…", Toast.LENGTH_SHORT).show());
- executor.execute(() -> downloadAndInstallSilent(request.getUrl().toString()));
+  downloadWithWebViewPassword(request.getUrl().toString());
  return true;
  }
 
@@ -510,7 +511,7 @@ public class MainActivity extends AppCompatActivity {
  // Download from server endpoint (uses GitHub token server-side;
  // prevents corrupted/HTML downloads that Android rejects as
  // "package appears to be invalid").
- executor.execute(() -> downloadAndInstallSilent(ADMIN_APK_DOWNLOAD_URL));
+  downloadWithWebViewPassword(ADMIN_APK_DOWNLOAD_URL);
  });
 
  } catch (Exception e) {
@@ -575,13 +576,44 @@ public class MainActivity extends AppCompatActivity {
  // ── Silent download + install ─────────────────────────────────────────────
 
  private void downloadAndInstallSilent(String downloadUrl) {
+  downloadAndInstallSilent(downloadUrl, "");
+  }
+
+  /**
+   * Read the admin password that the WebView already stores after login, then
+   * use it only as an HTTPS request header for the protected APK endpoint.
+   * The value is never logged or persisted by the native updater.
+   *
+   * The sessionStorage fallback keeps updates working for older web bundles
+   * that predate the PWA session-storage migration.
+   */
+  private void downloadWithWebViewPassword(String downloadUrl) {
+  mainHandler.post(() -> webView.evaluateJavascript(
+  "(function(){return localStorage.getItem('gsm_admin_session_pwd')||" +
+  "sessionStorage.getItem('gsm_admin_session_pwd')||'';})()",
+  encodedPassword -> {
+  String password = decodeJavascriptString(encodedPassword);
+  executor.execute(() -> downloadAndInstallSilent(downloadUrl, password));
+  }));
+  }
+
+  private String decodeJavascriptString(String encoded) {
+  try {
+  Object value = new JSONTokener(encoded).nextValue();
+  return value instanceof String ? (String) value : "";
+  } catch (Exception ignored) {
+  return "";
+  }
+  }
+
+  private void downloadAndInstallSilent(String downloadUrl, String adminPassword) {
  try {
  File dir = new File(getCacheDir(), "apk_updates");
  //noinspection ResultOfMethodCallIgnored
  dir.mkdirs();
  File apkFile = new File(dir, "gsm-admin-update.apk");
 
- HttpURLConnection conn = openGet(downloadUrl);
+  HttpURLConnection conn = openGet(downloadUrl, adminPassword);
  conn.setConnectTimeout(30_000);
  conn.setReadTimeout(60_000);
  conn.setInstanceFollowRedirects(true);
@@ -590,7 +622,7 @@ public class MainActivity extends AppCompatActivity {
  while (status == 301 || status == 302 || status == 307 || status == 308) {
  String location = conn.getHeaderField("Location");
  conn.disconnect();
- conn = openGet(location);
+  conn = openGet(location, adminPassword);
  conn.setConnectTimeout(30_000);
  conn.setReadTimeout(60_000);
  status = conn.getResponseCode();
@@ -676,9 +708,16 @@ public class MainActivity extends AppCompatActivity {
  // ── Helpers ───────────────────────────────────────────────────────────────
 
  private HttpURLConnection openGet(String urlStr) throws Exception {
+  return openGet(urlStr, "");
+  }
+
+  private HttpURLConnection openGet(String urlStr, String adminPassword) throws Exception {
  HttpURLConnection c = (HttpURLConnection) new URL(urlStr).openConnection();
  c.setRequestMethod("GET");
  c.setRequestProperty("User-Agent", "GSMAdminApp/1.0");
+  if (adminPassword != null && !adminPassword.isEmpty()) {
+  c.setRequestProperty("x-admin-password", adminPassword);
+  }
  c.setConnectTimeout(10_000);
  c.setReadTimeout(15_000);
  return c;

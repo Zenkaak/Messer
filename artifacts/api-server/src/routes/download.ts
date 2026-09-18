@@ -249,7 +249,9 @@ router.get("/download/admin-apk-version", async (_req, res) => {
 // Streams the latest signed admin APK through the server.
 // Restricted to requests from the admin Android app (GSMAdminApp UA) so
 // regular users can never accidentally receive or install the admin APK.
-// Also accepts x-admin-password for manual testing via a browser.
+// The native app also sends x-admin-password when it is available. The UA-only
+// bootstrap is intentional: an already-installed older APK cannot send the new
+// password header until it downloads this update.
 router.get("/download/admin-apk", async (req, res) => {
   const ua = req.headers["user-agent"] ?? "";
   const adminPwd = req.headers["x-admin-password"];
@@ -262,11 +264,6 @@ router.get("/download/admin-apk", async (req, res) => {
     res.status(403).json({ error: "Forbidden: admin APK is not available to user accounts" });
     return;
   }
-  if (isAdminApp && !hasValidAdminPwd) {
-    res.status(401).json({ error: "x-admin-password header required" });
-    return;
-  }
-
   const asset = await getAdminApkAsset();
   if (!asset) {
     res.status(503).json({ error: "No admin APK release found. Build may still be in progress." });
