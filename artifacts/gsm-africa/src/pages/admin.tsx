@@ -56,6 +56,8 @@ interface AdminSettings {
   whatsappContact: string | null;
   supportPhone?: string | null;
   supportEmail?: string | null;
+  onesignalAppId?: string | null;
+  onesignalRestApiKey?: string | null;
   googleClientId?: string | null;
   googleClientSecret?: string | null;
   paymentMethods: Array<{ method: string; walletAddress: string; network: string | null; label: string | null; enabled?: boolean }>;
@@ -3063,6 +3065,8 @@ function PaymentsPanel({ pwd }: { pwd: string }) {
     whatsappContact: "",
     supportPhone: "",
     supportEmail: "",
+    onesignalAppId: "955effe4-8fe1-4735-83c6-8aa90061d916",
+    onesignalRestApiKey: "",
     googleClientId: "",
     googleClientSecret: "",
     paymentMethods: [{ method: "BTC", walletAddress: "", network: "", label: "", enabled: true }],
@@ -3127,6 +3131,8 @@ function PaymentsPanel({ pwd }: { pwd: string }) {
           whatsappContact: d.whatsappContact ?? "",
           supportPhone: d.supportPhone ?? "",
           supportEmail: d.supportEmail ?? "",
+          onesignalAppId: d.onesignalAppId ?? "955effe4-8fe1-4735-83c6-8aa90061d916",
+          onesignalRestApiKey: "",
           googleClientId: "",
           googleClientSecret: "",
           paymentMethods: d.paymentMethods?.length ? d.paymentMethods.map(m => ({ method: m.method ?? "", walletAddress: m.walletAddress ?? "", network: m.network ?? "", label: m.label ?? "", enabled: m.enabled !== false })) : [{ method: "BTC", walletAddress: "", network: "", label: "", enabled: true }],
@@ -3169,6 +3175,7 @@ function PaymentsPanel({ pwd }: { pwd: string }) {
         whatsappContact: form.whatsappContact,
         supportPhone: form.supportPhone,
         supportEmail: form.supportEmail,
+        onesignalAppId: form.onesignalAppId,
         paymentMethods: form.paymentMethods.filter(m => m.method || m.walletAddress || m.label || m.network),
       };
       if (form.mpesaShortcode) body.mpesaShortcode = form.mpesaShortcode;
@@ -3192,6 +3199,7 @@ function PaymentsPanel({ pwd }: { pwd: string }) {
       if (form.otsAdminPhone) body.otsAdminPhone = form.otsAdminPhone;
       if (form.openaiApiKey) body.openaiApiKey = form.openaiApiKey;
       if (form.imeiInfoApiToken) body.imeiInfoApiToken = form.imeiInfoApiToken;
+      if (form.onesignalRestApiKey) body.onesignalRestApiKey = form.onesignalRestApiKey;
       body.botSystemPromptOverride = form.botSystemPrompt;
 
       const r = await adminFetch(apiPath("/api/admin/settings/update"), pwd, { method: "POST", body: JSON.stringify(body) });
@@ -3205,6 +3213,7 @@ function PaymentsPanel({ pwd }: { pwd: string }) {
         smtpPass: "", resendApiKey: "", resendFromEmail: f.resendFromEmail, callmebotApiKey: "",
         googleClientId: "", googleClientSecret: "",
         otsApiToken: "", openaiApiKey: "", imeiInfoApiToken: "", botSystemPrompt: f.botSystemPrompt,
+         onesignalRestApiKey: "",
         paymentMethods: updated.paymentMethods?.length
           ? updated.paymentMethods.map(m => ({ method: m.method, walletAddress: m.walletAddress, network: m.network ?? "", label: m.label ?? "", enabled: m.enabled !== false }))
           : f.paymentMethods,
@@ -3418,6 +3427,27 @@ function PaymentsPanel({ pwd }: { pwd: string }) {
         <PlainInput label="WhatsApp Number" value={form.whatsappContact} onChange={v => setForm(f => ({ ...f, whatsappContact: v }))} placeholder="2547XXXXXXXX" hint="Include country code, no plus sign needed." />
         <PlainInput label="Support Phone" value={form.supportPhone ?? ""} onChange={v => setForm(f => ({ ...f, supportPhone: v }))} placeholder="+254 700 000 000" hint="Displayed in order emails and support pages." />
         <PlainInput label="Support Email" value={form.supportEmail ?? ""} onChange={v => setForm(f => ({ ...f, supportEmail: v }))} placeholder="support@gsmworld.com" hint="Customer-facing support email address." />
+      </div>
+
+      {/* ── OneSignal call notifications ── */}
+      <div className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm p-4 space-y-3">
+        <div>
+          <p className="text-sm font-bold text-slate-800">OneSignal Call Notifications</p>
+          <p className="text-[10px] font-semibold text-slate-400">Used to ring signed-in users when GSM UNLOCK calls them</p>
+        </div>
+        <PlainInput
+          label="OneSignal App ID"
+          value={form.onesignalAppId ?? ""}
+          onChange={v => setForm(f => ({ ...f, onesignalAppId: v }))}
+          placeholder="955effe4-8fe1-4735-83c6-8aa90061d916"
+        />
+        <MaskedInput
+          label="OneSignal REST API Key"
+          value={form.onesignalRestApiKey ?? ""}
+          onChange={v => setForm(f => ({ ...f, onesignalRestApiKey: v }))}
+          placeholder={saved(settings?.onesignalRestApiKey ?? null) ? "Saved — enter new to replace" : "REST API key"}
+        />
+        <p className="text-[10px] text-slate-400">The REST key is stored server-side and is never sent to the browser.</p>
       </div>
 
       {/* ── OTS SMS ── */}

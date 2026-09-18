@@ -4,6 +4,7 @@ import { randomBytes } from "node:crypto";
 import jwt from "jsonwebtoken";
 import { db, liveCallPresenceTable, liveCallSignalsTable, liveCallsTable, liveChatSessionsTable, usersTable } from "@workspace/db";
 import { checkAdminPassword } from "../lib/admin-settings";
+import { sendIncomingCallPush } from "../lib/onesignal";
 
 const router: IRouter = Router();
 const ACTIVE_CALL_STATUSES = ["queued", "ringing", "active"] as const;
@@ -477,6 +478,9 @@ router.post("/admin/calls/:id/retry", async (req, res) => {
         status: await isOnline(`user:${targetUserId}`) ? "ringing" : "queued",
       })
       .returning();
+    if (call) {
+      void sendIncomingCallPush({ userId: targetUserId, callId: call.id });
+    }
     res.status(201).json(await presentCall(call));
   } catch (err) {
     req.log.error({ err }, "Failed to retry live call");
@@ -524,6 +528,9 @@ router.post("/admin/calls/user/:userId", async (req, res) => {
         status: await isOnline(`user:${targetUserId}`) ? "ringing" : "queued",
       })
       .returning();
+    if (call) {
+      void sendIncomingCallPush({ userId: targetUserId, callId: call.id });
+    }
     res.status(201).json(await presentCall(call));
   } catch (err) {
     req.log.error({ err }, "Failed to create direct admin call");

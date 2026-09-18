@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
+import { syncOneSignalUser } from "@/lib/onesignal";
 
 interface AuthUser {
   id: number;
@@ -54,6 +55,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (user) window.localStorage.setItem(USER_KEY, JSON.stringify(user));
     else window.localStorage.removeItem(USER_KEY);
   }, [user]);
+
+  useEffect(() => {
+    syncOneSignalUser(user?.id ?? null);
+  }, [user?.id]);
 
   function login(newToken: string, newUser: AuthUser) {
     const guestSessionId =

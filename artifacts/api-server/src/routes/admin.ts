@@ -153,6 +153,7 @@ const ALLOWED_SETTING_KEYS = new Set([
   "ots_api_token", "ots_sender_id", "ots_admin_phone",
   "openai_api_key", "openai_api_url", "imei_info_api_token",
   "bot_system_prompt", "cascade_models", "cascade_updated_at",
+  "onesignal_app_id", "onesignal_rest_api_key",
 ]);
 
 router.post("/admin/settings", async (req, res) => {

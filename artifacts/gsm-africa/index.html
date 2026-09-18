@@ -32,6 +32,17 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
+    <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+    <script>
+      window.OneSignalDeferred = window.OneSignalDeferred || [];
+      OneSignalDeferred.push(async function(OneSignal) {
+        if (window.location.hostname !== "unlockgsm.vercel.app") return;
+        await OneSignal.init({
+          appId: "955effe4-8fe1-4735-83c6-8aa90061d916",
+        });
+      });
+    </script>
+
     <!-- Schema.org structured data -->
     <script type="application/ld+json">
     {

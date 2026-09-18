@@ -56,6 +56,8 @@ const SETTING_KEYS = [
   "cascade_updated_at",
   "support_phone",
   "support_email",
+  "onesignal_app_id",
+  "onesignal_rest_api_key",
 ] as const;
 
 type SettingKey = (typeof SETTING_KEYS)[number];
@@ -91,6 +93,8 @@ async function getSetting(key: SettingKey): Promise<string | null> {
       ots_admin_phone: process.env.ADMIN_PHONE,
       openai_api_key: process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY,
       openai_api_url: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || process.env.OPENAI_BASE_URL,
+      onesignal_app_id: process.env.ONESIGNAL_APP_ID,
+      onesignal_rest_api_key: process.env.ONESIGNAL_REST_API_KEY,
     };
     result = envFallback[key] ?? null;
   }
@@ -164,6 +168,8 @@ export async function getAllSettings() {
     botSystemPromptOverride: map["bot_system_prompt"] || null,
     supportPhone: map["support_phone"] || null,
     supportEmail: map["support_email"] || null,
+    onesignalAppId: dbOrEnv("onesignal_app_id", "ONESIGNAL_APP_ID") || "955effe4-8fe1-4735-83c6-8aa90061d916",
+    onesignalRestApiKey: (map["onesignal_rest_api_key"] || process.env.ONESIGNAL_REST_API_KEY) ? "***" : null,
   };
 }
 
@@ -210,6 +216,8 @@ export async function updateSettings(updates: Record<string, unknown>) {
     botSystemPromptOverride: "bot_system_prompt",
     supportPhone: "support_phone",
     supportEmail: "support_email",
+    onesignalAppId: "onesignal_app_id",
+    onesignalRestApiKey: "onesignal_rest_api_key",
   };
 
   for (const [jsKey, dbKey] of Object.entries(allowedUpdates)) {
@@ -225,6 +233,15 @@ export async function updateSettings(updates: Record<string, unknown>) {
   }
 
   return getAllSettings();
+}
+
+export async function getOneSignalCredentials() {
+  const appId = await getSetting("onesignal_app_id");
+  const apiKey = await getSetting("onesignal_rest_api_key");
+  return {
+    appId: appId || process.env.ONESIGNAL_APP_ID || "955effe4-8fe1-4735-83c6-8aa90061d916",
+    apiKey: apiKey || process.env.ONESIGNAL_REST_API_KEY || null,
+  };
 }
 
 export async function getAdminPassword(): Promise<string> {
