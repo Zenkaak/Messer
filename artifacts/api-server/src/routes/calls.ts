@@ -1,13 +1,16 @@
 import { Router, type IRouter } from "express";
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, or } from "drizzle-orm";
 import { randomBytes } from "node:crypto";
 import jwt from "jsonwebtoken";
-import { db, liveCallsTable, liveChatSessionsTable, usersTable } from "@workspace/db";
+import { db, liveCallSignalsTable, liveCallsTable, liveChatSessionsTable, usersTable } from "@workspace/db";
 import { checkAdminPassword } from "../lib/admin-settings";
 
 const router: IRouter = Router();
 const ACTIVE_CALL_STATUSES = ["queued", "ringing", "active"] as const;
 const JWT_SECRET = process.env.JWT_SECRET || "gsm-africa-jwt-secret-CHANGE-IN-PRODUCTION";
+const PRESENCE_WINDOW_MS = 20_000;
+let adminPresenceAt = 0;
+const userPresence = new Map<number, number>();
 
 type CallStatus = "queued" | "ringing" | "active" | "completed" | "cancelled";
 
@@ -73,6 +76,14 @@ async function findVisitorCall(visitorId: string) {
   return rows[0] ?? null;
 }
 
+function isAdminOnline() {
+  return Date.now() - adminPresenceAt < PRESENCE_WINDOW_MS;
+}
+
+function isUserOnline(userId: number) {
+  return Date.now() - (userPresence.get(userId) ?? 0) < PRESENCE_WINDOW_MS;
+}
+
 router.post("/calls", async (req, res) => {
   try {
     const visitorId = String(req.body?.visitorId ?? "").trim();
@@ -98,7 +109,7 @@ router.post("/calls", async (req, res) => {
         callerLabel: "GSM UNLOCK",
         direction: "user_to_admin",
         signalToken: createSignalToken(),
-        status: "queued",
+        status: isAdminOnline() ? "ringing" : "queued",
       })
       .returning();
 
@@ -111,6 +122,46 @@ router.post("/calls", async (req, res) => {
 
 router.get("/calls/:id", async (req, res) => {
   try {
+    if (req.params.id === "history") {
+      const user = getAuthenticatedUser(req);
+      if (!user) {
+        res.status(401).json({ error: "Authentication required" });
+        return;
+      }
+      const calls = await db
+        .select()
+        .from(liveCallsTable)
+        .where(or(eq(liveCallsTable.userId, user.userId), eq(liveCallsTable.targetUserId, user.userId)))
+        .orderBy(desc(liveCallsTable.queuedAt), desc(liveCallsTable.id))
+        .limit(100);
+      res.json(calls);
+      return;
+    }
+    if (req.params.id === "incoming") {
+      const user = getAuthenticatedUser(req);
+      if (!user) {
+        res.status(401).json({ error: "Sign in to receive direct calls." });
+        return;
+      }
+      userPresence.set(user.userId, Date.now());
+      const calls = await db
+        .select()
+        .from(liveCallsTable)
+        .where(and(eq(liveCallsTable.targetUserId, user.userId), inArray(liveCallsTable.status, ["queued", "ringing", "active"])))
+        .orderBy(desc(liveCallsTable.updatedAt))
+        .limit(1);
+      if (calls[0]?.status === "queued") {
+        const [promoted] = await db
+          .update(liveCallsTable)
+          .set({ status: "ringing", updatedAt: new Date() })
+          .where(and(eq(liveCallsTable.id, calls[0].id), eq(liveCallsTable.status, "queued")))
+          .returning();
+        res.json(promoted ? await presentCall(promoted) : await presentCall(calls[0]));
+        return;
+      }
+      res.json(calls.length ? await presentCall(calls[0]) : null);
+      return;
+    }
     const id = Number(req.params.id);
     const visitorId = String(req.query.visitorId ?? "").trim();
     if (!id || !visitorId) {
@@ -131,26 +182,6 @@ router.get("/calls/:id", async (req, res) => {
     res.json(await presentCall(call));
   } catch (err) {
     req.log.error({ err }, "Failed to get live call");
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
-
-router.get("/calls/incoming", async (req, res) => {
-  try {
-    const user = getAuthenticatedUser(req);
-    if (!user) {
-      res.status(401).json({ error: "Sign in to receive direct calls." });
-      return;
-    }
-    const calls = await db
-      .select()
-      .from(liveCallsTable)
-      .where(and(eq(liveCallsTable.targetUserId, user.userId), inArray(liveCallsTable.status, ["ringing", "active"])))
-      .orderBy(desc(liveCallsTable.updatedAt))
-      .limit(1);
-    res.json(calls.length ? await presentCall(calls[0]) : null);
-  } catch (err) {
-    req.log.error({ err }, "Failed to load incoming calls");
     res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -253,15 +284,28 @@ router.post("/calls/:id/hangup", async (req, res) => {
 router.get("/admin/calls", async (req, res) => {
   try {
     if (!(await authenticateAdmin(req, res))) return;
-    const statusFilter = String(req.query.status ?? "queued,active").split(",").filter(Boolean) as CallStatus[];
+    const requestedStatuses = String(req.query.status ?? "queued,active").split(",").filter(Boolean);
+    const statusFilter = requestedStatuses.includes("all") ? undefined : requestedStatuses as CallStatus[];
     const calls = await db
       .select()
       .from(liveCallsTable)
-      .where(statusFilter.length ? inArray(liveCallsTable.status, statusFilter) : undefined)
-      .orderBy(asc(liveCallsTable.status), asc(liveCallsTable.queuedAt), asc(liveCallsTable.id));
+      .where(statusFilter && statusFilter.length ? inArray(liveCallsTable.status, statusFilter) : undefined)
+      .orderBy(desc(liveCallsTable.queuedAt), desc(liveCallsTable.id))
+      .limit(200);
     res.json(await Promise.all(calls.map(presentCall)));
   } catch (err) {
     req.log.error({ err }, "Failed to list live calls");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.post("/admin/calls/presence", async (req, res) => {
+  try {
+    if (!(await authenticateAdmin(req, res))) return;
+    adminPresenceAt = Date.now();
+    res.json({ online: true, expiresInMs: PRESENCE_WINDOW_MS });
+  } catch (err) {
+    req.log.error({ err }, "Failed to update admin call presence");
     res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -289,8 +333,8 @@ router.post("/admin/calls/:id/accept", async (req, res) => {
       res.status(404).json({ error: "Call not found" });
       return;
     }
-    if (call.status !== "queued") {
-      res.status(409).json({ error: "Call is no longer queued" });
+    if (!["queued", "ringing"].includes(call.status)) {
+      res.status(409).json({ error: "Call is no longer available" });
       return;
     }
 
@@ -398,12 +442,73 @@ router.post("/admin/calls/user/:userId", async (req, res) => {
         callerLabel: "GSM UNLOCK",
         direction: "admin_to_user",
         signalToken: createSignalToken(),
-        status: "ringing",
+        status: isUserOnline(targetUserId) ? "ringing" : "queued",
       })
       .returning();
     res.status(201).json(await presentCall(call));
   } catch (err) {
     req.log.error({ err }, "Failed to create direct admin call");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.get("/calls/:id/signals", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const after = Math.max(0, Number(req.query.after ?? 0));
+    const visitorId = String(req.query.visitorId ?? "").trim();
+    const [call] = await db.select().from(liveCallsTable).where(eq(liveCallsTable.id, id)).limit(1);
+    if (!call) {
+      res.status(404).json({ error: "Call not found" });
+      return;
+    }
+    const isAdmin = typeof req.headers["x-admin-password"] === "string" && await checkAdminPassword(req.headers["x-admin-password"] as string);
+    if (!isAdmin && !canAccessCall(call, req, visitorId)) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const signals = await db
+      .select()
+      .from(liveCallSignalsTable)
+      .where(and(eq(liveCallSignalsTable.callId, id), gt(liveCallSignalsTable.id, after)))
+      .orderBy(asc(liveCallSignalsTable.id))
+      .limit(100);
+    res.json(signals);
+  } catch (err) {
+    req.log.error({ err }, "Failed to load call signals");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.post("/calls/:id/signals", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const role = req.body?.role;
+    const payload = req.body?.payload;
+    const visitorId = String(req.body?.visitorId ?? "").trim();
+    if (!id || (role !== "admin" && role !== "user") || !payload || typeof payload !== "object") {
+      res.status(400).json({ error: "A call id, role, and payload are required" });
+      return;
+    }
+    const [call] = await db.select().from(liveCallsTable).where(eq(liveCallsTable.id, id)).limit(1);
+    if (!call || !["ringing", "active"].includes(call.status)) {
+      res.status(404).json({ error: "Call is not available" });
+      return;
+    }
+    const isAdmin = role === "admin" && typeof req.headers["x-admin-password"] === "string" &&
+      await checkAdminPassword(req.headers["x-admin-password"] as string);
+    const isUser = role === "user" && canAccessCall(call, req, visitorId);
+    if (!isAdmin && !isUser) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const [signal] = await db
+      .insert(liveCallSignalsTable)
+      .values({ callId: id, senderRole: role, payload })
+      .returning();
+    res.status(201).json(signal);
+  } catch (err) {
+    req.log.error({ err }, "Failed to save call signal");
     res.status(500).json({ error: "Internal server error" });
   }
 });

@@ -9,10 +9,12 @@ interface CallRecord {
   targetUserId?: number | null;
   callerName?: string | null;
   callerLabel?: string | null;
+  direction?: "user_to_admin" | "admin_to_user" | string | null;
   status: "queued" | "ringing" | "active" | "completed" | "cancelled";
   position?: number | null;
   queuedAt?: string | null;
   signalToken?: string | null;
+  endedAt?: string | null;
 }
 
 function apiBase() {
@@ -79,12 +81,14 @@ export function CallDashboard() {
 
   const refreshCall = useCallback(async (record: CallRecord) => {
     try {
-      const response = await fetch(`${base}/api/calls/${record.id}?visitorId=${encodeURIComponent(record.visitorId)}`);
+      const response = await fetch(`${base}/api/calls/${record.id}?visitorId=${encodeURIComponent(record.visitorId)}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
       if (response.ok) setCall(await response.json() as CallRecord);
     } catch {
       // Polling should not interrupt an active dashboard.
     }
-  }, [base]);
+  }, [base, token]);
 
   useEffect(() => {
     const openDashboard = () => setOpen(true);
@@ -105,7 +109,7 @@ export function CallDashboard() {
   }, [call, refreshCall]);
 
   useEffect(() => {
-    if (!call || call.status !== "ringing") return;
+    if (!call || call.status !== "ringing" || call.direction !== "admin_to_user") return;
     const timer = window.setInterval(ringOnce, 1800);
     return () => window.clearInterval(timer);
   }, [call]);
@@ -155,11 +159,14 @@ export function CallDashboard() {
       if (call.status === "active") {
         await fetch(`${base}/api/calls/${call.id}/hangup`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
           body: JSON.stringify({ visitorId: call.visitorId }),
         });
       } else {
-        await fetch(`${base}/api/calls/${call.id}?visitorId=${encodeURIComponent(call.visitorId)}`, { method: "DELETE" });
+        await fetch(`${base}/api/calls/${call.id}?visitorId=${encodeURIComponent(call.visitorId)}`, {
+          method: "DELETE",
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
       }
     } finally {
       setCall(null);
@@ -168,7 +175,8 @@ export function CallDashboard() {
     }
   }
 
-  const isIncoming = call?.status === "ringing";
+  const isIncoming = call?.status === "ringing" && call.direction === "admin_to_user";
+  const isOutgoingRinging = call?.status === "ringing" && call.direction !== "admin_to_user";
   const isActive = call?.status === "active";
   const isQueued = call?.status === "queued";
 
@@ -183,7 +191,9 @@ export function CallDashboard() {
         <Phone className="h-4 w-4" />
         <span>
           <span className="block text-sm font-extrabold">{isActive ? "Call in progress" : "Call GSM UNLOCK"}</span>
-          <span className="block text-[10px] text-teal-50/80">{isQueued ? "Waiting for an agent" : "Voice support"}</span>
+          <span className="block text-[10px] text-teal-50/80">
+            {isQueued ? "Calling…" : call?.status === "ringing" ? "Ringing now" : "Voice support"}
+          </span>
         </span>
       </button>
 
@@ -224,11 +234,25 @@ export function CallDashboard() {
                 </div>
               )}
 
+              {isOutgoingRinging && (
+                <div className="rounded-3xl bg-white p-5 text-center shadow-sm">
+                  <div className="mx-auto grid h-16 w-16 animate-pulse place-items-center rounded-full bg-[#087f8c] text-white"><PhoneCall className="h-7 w-7" /></div>
+                  <p className="mt-4 text-[10px] font-black uppercase tracking-[0.16em] text-[#087f8c]">Ringing</p>
+                  <h3 className="mt-1 text-xl font-extrabold text-[#163642]">GSM UNLOCK</h3>
+                  <p className="mt-2 text-sm text-[#66838b]">An agent is online and being connected to your call.</p>
+                  <button type="button" onClick={() => void hangUp()} disabled={loading} className="mt-5 w-full rounded-xl border border-rose-200 px-4 py-3 text-sm font-bold text-rose-600">
+                    <PhoneOff className="mr-1 inline h-4 w-4" /> Cancel call
+                  </button>
+                </div>
+              )}
+
               {isQueued && (
                 <div className="rounded-3xl bg-white p-5 text-center shadow-sm">
                   <Clock3 className="mx-auto h-8 w-8 text-[#087f8c]" />
-                  <h3 className="mt-3 text-lg font-extrabold text-[#163642]">You’re in the queue</h3>
-                  <p className="mt-2 text-sm text-[#66838b]">Position {call.position ? `#${call.position}` : "next up"}. Keep this tab open and we’ll ring you here.</p>
+                  <h3 className="mt-3 text-lg font-extrabold text-[#163642]">Calling GSM UNLOCK…</h3>
+                  <p className="mt-2 text-sm text-[#66838b]">
+                    {call.position ? `Position #${call.position}.` : "The request is being delivered."} We’ll show Ringing when an agent is online.
+                  </p>
                   <button type="button" onClick={() => void hangUp()} disabled={loading} className="mt-5 w-full rounded-xl border border-[#d7e9ec] px-4 py-3 text-sm font-bold text-[#52717a]">Cancel request</button>
                 </div>
               )}

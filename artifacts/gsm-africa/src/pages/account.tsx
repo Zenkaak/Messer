@@ -8,7 +8,7 @@ import {
   User, BarChart2, ShoppingBag, ShoppingCart, Zap,
   UserCircle, ShieldCheck, Cpu, DollarSign, FileText,
   BookOpen, LogOut, ChevronRight, Plus, Server, KeyRound, Store,
-  Wallet, Settings, TrendingUp, ArrowLeftRight, Fingerprint, Loader2, Trash2,
+  Wallet, Settings, TrendingUp, ArrowLeftRight, Fingerprint, Loader2, Trash2, Phone,
 } from "lucide-react";
 
 export function AccountPage() {
@@ -247,6 +247,7 @@ export function AccountPage() {
         <Section label="Account">
           <MenuItem icon={<UserCircle size={16} />}  gradient="from-slate-500 to-slate-600"   label="Profile"          href="/account/profile" />
           <MenuItem icon={<ShieldCheck size={16} />} gradient="from-emerald-500 to-emerald-600" label="Account Security" href="/account/security" />
+          <MenuItem icon={<Phone size={16} />}        gradient="from-cyan-500 to-teal-600"      label="Call History"     href="/account/calls" />
           <MenuItem icon={<Cpu size={16} />}         gradient="from-violet-500 to-violet-600"  label="API Settings"     href="/account/api" />
         </Section>
 

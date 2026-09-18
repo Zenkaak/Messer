@@ -1,5 +1,5 @@
 import { Link, useParams, useLocation } from "wouter";
-import { ArrowLeft, User, ShieldCheck, Cpu, DollarSign, FileText, BookOpen, ShoppingBag, BarChart2, ShoppingCart, Zap, Copy, Check, Smartphone, KeyRound, Shield, Eye, EyeOff, CheckCircle, RefreshCw, ChevronRight, MessageSquare, Send, Lock, Paperclip, X as XIcon, Wallet, Plus, ArrowRightLeft, CheckCircle2, CreditCard, ArrowDownLeft, ArrowUpRight, Gift, Bell, CheckCheck, Trash2, Info, AlertTriangle, XCircle } from "lucide-react";
+import { ArrowLeft, User, ShieldCheck, Cpu, DollarSign, FileText, BookOpen, ShoppingBag, BarChart2, ShoppingCart, Zap, Copy, Check, Smartphone, KeyRound, Shield, Eye, EyeOff, CheckCircle, RefreshCw, ChevronRight, MessageSquare, Send, Lock, Paperclip, X as XIcon, Wallet, Plus, ArrowRightLeft, CheckCircle2, CreditCard, ArrowDownLeft, ArrowUpRight, Gift, Bell, CheckCheck, Trash2, Info, AlertTriangle, XCircle, Phone, PhoneCall, PhoneOff } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useWalletBalance } from "@/hooks/use-wallet";
 import { useNotifications } from "@/context/notification-context";
@@ -22,6 +22,7 @@ const PAGES: Record<string, { title: string; icon: React.ReactNode }> = {
   ledger:          { title: "Account Ledger",    icon: <BookOpen size={20} /> },
   transfer:        { title: "Send Funds",        icon: <ArrowRightLeft size={20} /> },
   notifications:   { title: "Notifications",     icon: <Bell size={20} /> },
+  calls:           { title: "Call History",       icon: <Phone size={20} /> },
 };
 
 export function AccountSubPage() {
@@ -72,6 +73,7 @@ export function AccountSubPage() {
         {sub === "profile"   && <ProfileContent user={user} />}
         {sub === "security"  && <SecurityContent user={user} />}
         {sub === "notifications" && <NotificationsContent />}
+        {sub === "calls" && <CallHistoryContent token={token} />}
         {sub === "add-fund" && !token && (
           <div className="flex flex-col items-center justify-center py-20 text-center px-6 gap-5">
             <div className="w-16 h-16 rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center">
@@ -3033,6 +3035,85 @@ function LedgerContent({ token }: { token: string | null }) {
 }
 
 // ── Coming Soon ───────────────────────────────────────────────────────────────
+interface AccountCallRecord {
+  id: number;
+  callerLabel?: string | null;
+  direction?: string | null;
+  status: "queued" | "ringing" | "active" | "completed" | "cancelled";
+  queuedAt: string;
+  acceptedAt?: string | null;
+  endedAt?: string | null;
+}
+
+function CallHistoryContent({ token }: { token: string | null }) {
+  const [calls, setCalls] = useState<AccountCallRecord[]>([]);
+  const [loading, setLoading] = useState(Boolean(token));
+  const base = (import.meta.env.BASE_URL as string).replace(/\/$/, "");
+
+  useEffect(() => {
+    if (!token) {
+      setLoading(false);
+      return;
+    }
+    fetch(`${base}/api/calls/history`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((response) => response.ok ? response.json() as Promise<AccountCallRecord[]> : Promise.reject())
+      .then(setCalls)
+      .catch(() => setCalls([]))
+      .finally(() => setLoading(false));
+  }, [base, token]);
+
+  if (!token) {
+    return (
+      <div className="rounded-2xl border border-blue-100 bg-blue-50 px-5 py-8 text-center">
+        <Phone size={28} className="mx-auto text-blue-500" />
+        <p className="mt-3 text-sm font-bold text-gray-900">Sign in to view call history</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-2xl bg-gradient-to-br from-[#0f172a] to-[#164e63] p-5 text-white">
+        <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-cyan-200">GSM UNLOCK</p>
+        <h2 className="mt-1 text-xl font-black">Your calls</h2>
+        <p className="mt-1 text-xs text-blue-100/70">Every support call, with its date and time.</p>
+      </div>
+      {loading ? (
+        <div className="rounded-2xl bg-white p-8 text-center text-sm text-gray-400 shadow-sm">Loading call history…</div>
+      ) : calls.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-gray-200 bg-white p-8 text-center">
+          <PhoneCall size={28} className="mx-auto text-gray-300" />
+          <p className="mt-3 text-sm font-bold text-gray-600">No calls yet</p>
+          <p className="mt-1 text-xs text-gray-400">Your GSM UNLOCK support calls will appear here.</p>
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-gray-100">
+          {calls.map((call) => {
+            const incoming = call.direction === "admin_to_user";
+            const complete = call.status === "completed";
+            return (
+              <div key={call.id} className="flex items-center gap-3 border-b border-gray-100 px-4 py-3.5 last:border-0">
+                <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${complete ? "bg-emerald-50 text-emerald-600" : "bg-slate-50 text-slate-400"}`}>
+                  {complete ? <PhoneCall size={17} /> : <PhoneOff size={17} />}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-bold text-gray-800">{call.callerLabel || "GSM UNLOCK"}</p>
+                  <p className="mt-0.5 text-[11px] text-gray-400">
+                    {incoming ? "Incoming call" : "Outgoing call"} · {new Date(call.queuedAt).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}
+                  </p>
+                </div>
+                <span className={`text-[10px] font-bold ${complete ? "text-emerald-600" : "text-gray-400"}`}>
+                  {complete ? "Completed" : call.status === "cancelled" ? "Cancelled" : "Missed"}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ComingSoon({ title }: { title: string }) {
   return (
     <div className="text-center py-12">

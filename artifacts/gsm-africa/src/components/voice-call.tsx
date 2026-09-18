@@ -14,24 +14,24 @@ interface VoiceCallProps {
   visitorId?: string;
 }
 
-interface SignalMessage {
-  type?: string;
-  payload?: {
-    kind?: "offer" | "answer" | "ice";
-    sdp?: RTCSessionDescriptionInit;
-    candidate?: RTCIceCandidateInit;
-  };
+interface SignalPayload {
+  kind?: "join" | "offer" | "answer" | "ice";
+  sdp?: RTCSessionDescriptionInit;
+  candidate?: RTCIceCandidateInit;
 }
 
-function socketUrl() {
-  const base = (import.meta.env.BASE_URL as string).replace(/\/$/, "");
-  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-  return `${protocol}//${window.location.host}${base}/api/ws`;
+interface SignalMessage {
+  id: number;
+  senderRole: string;
+  payload: SignalPayload;
+}
+
+function apiBase() {
+  return (import.meta.env.BASE_URL as string).replace(/\/$/, "");
 }
 
 export function VoiceCallPanel({
   callId,
-  signalToken,
   role,
   onHangUp,
   compact = false,
@@ -39,31 +39,47 @@ export function VoiceCallPanel({
   adminPassword,
   visitorId,
 }: VoiceCallProps) {
-  const socketRef = useRef<WebSocket | null>(null);
   const peerRef = useRef<RTCPeerConnection | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
-  const [status, setStatus] = useState("Connecting securely…");
+  const offerStartedRef = useRef(false);
+  const remoteDescriptionRef = useRef(false);
+  const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
+  const [status, setStatus] = useState(role === "admin" ? "Waiting for the user to answer…" : "Connecting to GSM UNLOCK…");
   const [error, setError] = useState<string | null>(null);
   const [muted, setMuted] = useState(false);
   const [connected, setConnected] = useState(false);
+  const base = apiBase();
 
-  const send = useCallback((message: Record<string, unknown>) => {
-    const socket = socketRef.current;
-    if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message));
-  }, []);
+  const requestHeaders = useCallback(() => {
+    const headers: Record<string, string> = {};
+    if (authToken) headers.Authorization = `Bearer ${authToken}`;
+    if (adminPassword) headers["x-admin-password"] = adminPassword;
+    return headers;
+  }, [adminPassword, authToken]);
+
+  const sendSignal = useCallback(async (payload: SignalPayload) => {
+    const response = await fetch(`${base}/api/calls/${callId}/signals`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...requestHeaders() },
+      body: JSON.stringify({ role, payload, visitorId }),
+    });
+    if (!response.ok) throw new Error("The call signaling service is unavailable.");
+  }, [base, callId, requestHeaders, role, visitorId]);
 
   const createOffer = useCallback(async () => {
     const peer = peerRef.current;
-    if (!peer) return;
+    if (!peer || offerStartedRef.current) return;
+    offerStartedRef.current = true;
     const offer = await peer.createOffer();
     await peer.setLocalDescription(offer);
-    send({ type: "call-signal", callId, payload: { kind: "offer", sdp: offer } });
+    await sendSignal({ kind: "offer", sdp: offer });
     setStatus("Ringing the other participant…");
-  }, [callId, send]);
+  }, [sendSignal]);
 
   useEffect(() => {
     let disposed = false;
+    let cursor = 0;
     const peer = new RTCPeerConnection({
       iceServers: [
         { urls: "stun:stun.l.google.com:19302" },
@@ -72,9 +88,23 @@ export function VoiceCallPanel({
     });
     peerRef.current = peer;
 
+    const flushCandidates = async () => {
+      if (!remoteDescriptionRef.current) return;
+      const pending = pendingCandidatesRef.current.splice(0);
+      for (const candidate of pending) {
+        try {
+          await peer.addIceCandidate(candidate);
+        } catch {
+          // A late ICE candidate can be safely ignored after a peer disconnects.
+        }
+      }
+    };
+
     peer.onicecandidate = (event) => {
       if (event.candidate) {
-        send({ type: "call-signal", callId, payload: { kind: "ice", candidate: event.candidate.toJSON() } });
+        void sendSignal({ kind: "ice", candidate: event.candidate.toJSON() }).catch((err) => {
+          if (!disposed) setError(err instanceof Error ? err.message : "Could not send call signal.");
+        });
       }
     };
     peer.onconnectionstatechange = () => {
@@ -93,10 +123,55 @@ export function VoiceCallPanel({
       }
     };
 
-    const socket = new WebSocket(socketUrl());
-    socketRef.current = socket;
-    socket.onopen = async () => {
-      send({ type: "call-join", callId, signalToken, role, authToken, adminPassword, visitorId });
+    const handleSignal = async (message: SignalMessage) => {
+      if (message.senderRole === role) return;
+      const payload = message.payload;
+      if (payload.kind === "join") {
+        if (role === "admin") await createOffer();
+        return;
+      }
+      try {
+        if (payload.kind === "offer" && payload.sdp) {
+          await peer.setRemoteDescription(payload.sdp);
+          remoteDescriptionRef.current = true;
+          await flushCandidates();
+          const answer = await peer.createAnswer();
+          await peer.setLocalDescription(answer);
+          await sendSignal({ kind: "answer", sdp: answer });
+          setStatus("Connecting audio…");
+        } else if (payload.kind === "answer" && payload.sdp) {
+          await peer.setRemoteDescription(payload.sdp);
+          remoteDescriptionRef.current = true;
+          await flushCandidates();
+          setStatus("Connecting audio…");
+        } else if (payload.kind === "ice" && payload.candidate) {
+          if (remoteDescriptionRef.current) await peer.addIceCandidate(payload.candidate);
+          else pendingCandidatesRef.current.push(payload.candidate);
+        }
+      } catch {
+        if (!disposed) setError("The audio connection could not be established.");
+      }
+    };
+
+    const pollSignals = async () => {
+      try {
+        const query = new URLSearchParams({ after: String(cursor) });
+        if (visitorId) query.set("visitorId", visitorId);
+        const response = await fetch(`${base}/api/calls/${callId}/signals?${query.toString()}`, {
+          headers: requestHeaders(),
+        });
+        if (!response.ok) throw new Error("The call signaling service is unavailable.");
+        const signals = await response.json() as SignalMessage[];
+        for (const signal of signals) {
+          cursor = Math.max(cursor, signal.id);
+          await handleSignal(signal);
+        }
+      } catch (err) {
+        if (!disposed) setError(err instanceof Error ? err.message : "Could not connect the call.");
+      }
+    };
+
+    const start = async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
         if (disposed) {
@@ -105,58 +180,30 @@ export function VoiceCallPanel({
         }
         streamRef.current = stream;
         stream.getTracks().forEach((track) => peer.addTrack(track, stream));
-        setStatus(role === "admin" ? "Waiting for the user to answer…" : "Waiting for GSM UNLOCK…");
-      } catch {
-        setError("Microphone permission is required for voice calls.");
-        setStatus("Microphone unavailable");
-      }
-    };
-    socket.onmessage = async (event) => {
-      const message = JSON.parse(event.data) as SignalMessage;
-      if (message.type === "call-peer-joined" && role === "admin") {
-        await createOffer();
-        return;
-      }
-      if (message.type === "call-ended" || message.type === "call-peer-left") {
-        setStatus("The other participant ended the call");
-        setConnected(false);
-        return;
-      }
-      if (message.type === "call-error") {
-        setError("This call is no longer available.");
-        return;
-      }
-      if (message.type !== "call-signal" || !message.payload) return;
-      const payload = message.payload;
-      try {
-        if (payload.kind === "offer" && payload.sdp) {
-          await peer.setRemoteDescription(payload.sdp);
-          const answer = await peer.createAnswer();
-          await peer.setLocalDescription(answer);
-          send({ type: "call-signal", callId, payload: { kind: "answer", sdp: answer } });
-          setStatus("Connecting audio…");
-        } else if (payload.kind === "answer" && payload.sdp) {
-          await peer.setRemoteDescription(payload.sdp);
-          setStatus("Connecting audio…");
-        } else if (payload.kind === "ice" && payload.candidate) {
-          await peer.addIceCandidate(payload.candidate);
+        await sendSignal({ kind: "join" });
+        setStatus(role === "admin" ? "Calling the user…" : "Ringing GSM UNLOCK…");
+      } catch (err) {
+        if (!disposed) {
+          setError(err instanceof Error && err.message.includes("signaling")
+            ? err.message
+            : "Microphone permission is required for voice calls.");
+          setStatus("Call setup failed");
         }
-      } catch {
-        setError("The audio connection could not be established.");
       }
     };
-    socket.onerror = () => setError("The call signaling connection failed.");
+
+    void start();
+    const timer = window.setInterval(() => void pollSignals(), 600);
+    void pollSignals();
 
     return () => {
       disposed = true;
-      send({ type: "call-leave", callId });
-      socket.close();
+      window.clearInterval(timer);
       peer.close();
       streamRef.current?.getTracks().forEach((track) => track.stop());
-      socketRef.current = null;
       peerRef.current = null;
     };
-  }, [adminPassword, authToken, callId, createOffer, role, send, signalToken, visitorId]);
+  }, [base, callId, createOffer, requestHeaders, role, sendSignal, visitorId]);
 
   function toggleMute() {
     const next = !muted;

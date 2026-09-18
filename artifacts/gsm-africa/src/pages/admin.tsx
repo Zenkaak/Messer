@@ -7,7 +7,7 @@ import {
   ChevronLeft, ChevronRight, CheckCircle2, Clock, XCircle, AlertCircle,
   ToggleLeft, ToggleRight, KeyRound, AlertTriangle, X, ArrowUpRight,
   Smartphone, Zap, Ban, Trash2, UserCheck, MoreVertical,
-  MessageSquare, Send, Cpu, UserPlus, Phone, Headphones, WifiOff, Bell,
+  MessageSquare, Send, Cpu, UserPlus, Phone, PhoneOff, Headphones, WifiOff, Bell,
   Store, ExternalLink, Image, Menu, Megaphone, RotateCcw, Wallet,
   Download, Tag, Fingerprint, Paperclip,
 } from "lucide-react";
@@ -121,6 +121,9 @@ interface LiveCall {
   position: number | null;
   targetUserId?: number | null;
   signalToken?: string | null;
+  direction?: "user_to_admin" | "admin_to_user" | string | null;
+  callerLabel?: string | null;
+  endedAt?: string | null;
 }
 
 const NAV = [
@@ -2385,6 +2388,7 @@ function UserDetailView({ user: initUser, pwd, onBack, onUserUpdated, onUserDele
   const [chatHistory, setChatHistory] = useState<{ id: number; senderType: string; message: string; createdAt: string }[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
   const [callingUser, setCallingUser] = useState(false);
+  const [directCall, setDirectCall] = useState<LiveCall | null>(null);
   const [kbOffset, setKbOffset] = useState(0);
   const [deleteMenu, setDeleteMenu] = useState<{ id: number; x: number; y: number } | null>(null);
   const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -2458,8 +2462,9 @@ function UserDetailView({ user: initUser, pwd, onBack, onUserUpdated, onUserDele
     setCallingUser(true);
     try {
       const r = await adminFetch(`/api/admin/calls/user/${user.id}`, pwd, { method: "POST" });
-      const data = await r.json() as { error?: string };
+      const data = await r.json() as LiveCall & { error?: string };
       if (!r.ok) throw new Error(data.error || "Could not start the call");
+      setDirectCall(data);
       toast({ title: "Calling user", description: "GSM UNLOCK is ringing their account now." });
     } catch (err) {
       toast({ variant: "destructive", title: "Call failed", description: err instanceof Error ? err.message : "Could not start the call" });
@@ -2467,6 +2472,23 @@ function UserDetailView({ user: initUser, pwd, onBack, onUserUpdated, onUserDele
       setCallingUser(false);
     }
   }
+
+  useEffect(() => {
+    if (!directCall || ["completed", "cancelled"].includes(directCall.status)) return;
+    const refresh = async () => {
+      try {
+        const response = await adminFetch(apiPath("/api/admin/calls?status=all"), pwd);
+        if (!response.ok) return;
+        const records = await response.json() as LiveCall[];
+        const latest = records.find((call) => call.id === directCall.id);
+        if (latest) setDirectCall(latest);
+      } catch {
+        // The queue panel remains the source of truth if this detail view is closed.
+      }
+    };
+    const timer = window.setInterval(() => void refresh(), 2500);
+    return () => window.clearInterval(timer);
+  }, [directCall, pwd]);
 
   async function adjustWallet() {
     const amt = parseFloat(walletAmount);
@@ -2657,6 +2679,31 @@ function UserDetailView({ user: initUser, pwd, onBack, onUserUpdated, onUserDele
          </button>
          <UserStatusBadge status={user.status} />
       </div>
+
+      {directCall && !["completed", "cancelled"].includes(directCall.status) && (
+        <div className="border-b border-teal-100 bg-teal-50/60 px-4 py-4 sm:px-5">
+          {directCall.status === "queued" ? (
+            <div className="flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+              <Phone size={17} className="animate-pulse text-amber-600" />
+              <div>
+                <p className="text-sm font-black text-amber-900">Calling user…</p>
+                <p className="text-xs text-amber-700">The user is offline. This call will ring when they come online.</p>
+              </div>
+            </div>
+          ) : directCall.signalToken ? (
+            <VoiceCallPanel
+              callId={directCall.id}
+              signalToken={directCall.signalToken}
+              role="admin"
+              adminPassword={pwd}
+              onHangUp={() => {
+                void adminFetch(apiPath(`/api/admin/calls/${directCall.id}/hangup`), pwd, { method: "POST" })
+                  .finally(() => setDirectCall(null));
+              }}
+            />
+          ) : null}
+        </div>
+      )}
 
       {/* ── Profile ── */}
       <div className="bg-white border-b border-slate-100 px-5 py-5">
@@ -3903,7 +3950,8 @@ function LiveCallsPanel({ pwd }: { pwd: string }) {
 
   const loadCalls = useCallback(async () => {
     try {
-      const response = await adminFetch(apiPath("/api/admin/calls?status=queued,ringing,active"), pwd);
+      await adminFetch(apiPath("/api/admin/calls/presence"), pwd, { method: "POST" });
+      const response = await adminFetch(apiPath("/api/admin/calls?status=all"), pwd);
       const body = await response.json().catch(() => ({})) as LiveCall[] | { error?: string };
       if (!response.ok) {
         throw new Error(!Array.isArray(body) && body.error ? body.error : `Call queue returned ${response.status}`);
@@ -3967,6 +4015,8 @@ function LiveCallsPanel({ pwd }: { pwd: string }) {
 
   const queued = calls.filter((call) => call.status === "queued");
   const active = calls.find((call) => call.status === "active" || call.status === "ringing");
+  const liveCalls = calls.filter((call) => ["queued", "ringing", "active"].includes(call.status));
+  const history = calls.filter((call) => ["completed", "cancelled"].includes(call.status));
 
   return (
     <section className="border-b border-slate-200 bg-white px-4 py-5 sm:px-6">
@@ -3998,7 +4048,7 @@ function LiveCallsPanel({ pwd }: { pwd: string }) {
           <p className="mt-1 text-xs text-red-600">{error}</p>
           <button onClick={loadCalls} className="mt-3 rounded-xl bg-red-600 px-3 py-2 text-[11px] font-bold text-white hover:bg-red-700">Try again</button>
         </div>
-      ) : calls.length === 0 ? (
+      ) : liveCalls.length === 0 ? (
         <div className="mt-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-7 text-center">
           <Phone size={28} className="mx-auto text-slate-300" />
           <p className="mt-2 text-sm font-bold text-slate-500">No incoming calls</p>
@@ -4006,7 +4056,7 @@ function LiveCallsPanel({ pwd }: { pwd: string }) {
         </div>
       ) : (
         <div className="mt-4 space-y-2">
-          {calls.map((call) => (
+          {liveCalls.map((call) => (
               <div key={call.id} className={`flex flex-wrap items-center gap-3 rounded-2xl border p-3.5 ${call.status === "active" ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50/60"}`}>
                <div className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${call.status === "active" ? "bg-emerald-600 text-white" : "bg-amber-400 text-white animate-pulse"}`}><Phone size={15} /></div>
               <div className="min-w-0 flex-1">
@@ -4016,9 +4066,9 @@ function LiveCallsPanel({ pwd }: { pwd: string }) {
               <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${call.status === "active" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
                  {call.status === "active" ? "Connected" : call.status === "ringing" ? "Ringing user" : `Queue #${call.position ?? "—"}`}
               </span>
-               {call.status === "queued" ? (
-                <button onClick={() => updateCall(call.id, "accept")} disabled={workingId !== null || Boolean(active)} className="rounded-xl bg-emerald-600 px-3 py-2 text-[11px] font-bold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40">
-                  {workingId === call.id ? "Accepting…" : active ? "Finish active call" : "Accept call"}
+               {call.status === "queued" || call.status === "ringing" ? (
+                <button onClick={() => updateCall(call.id, "accept")} disabled={workingId !== null || Boolean(active && active.id !== call.id)} className="rounded-xl bg-emerald-600 px-3 py-2 text-[11px] font-bold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40">
+                  {workingId === call.id ? "Accepting…" : active && active.id !== call.id ? "Finish active call" : call.status === "ringing" ? "Answer call" : "Accept call"}
                 </button>
               ) : (
                 <button onClick={() => updateCall(call.id, "hangup")} disabled={workingId !== null} className="rounded-xl bg-red-600 px-3 py-2 text-[11px] font-bold text-white hover:bg-red-700 disabled:opacity-40">
@@ -4027,6 +4077,29 @@ function LiveCallsPanel({ pwd }: { pwd: string }) {
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {history.length > 0 && (
+        <div className="mt-6 border-t border-slate-100 pt-4">
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-xs font-black uppercase tracking-wider text-slate-500">Call history</p>
+            <span className="text-[10px] font-semibold text-slate-400">{history.length} recent</span>
+          </div>
+          <div className="space-y-2">
+            {history.slice(0, 20).map((call) => (
+              <div key={call.id} className="flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5">
+                <PhoneOff size={14} className={call.status === "completed" ? "text-emerald-500" : "text-slate-400"} />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[11px] font-bold text-slate-700">{call.callerName || call.callerEmail || `Call #${call.id}`}</p>
+                  <p className="text-[10px] text-slate-400">{new Date(call.queuedAt).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}</p>
+                </div>
+                <span className={`text-[10px] font-bold ${call.status === "completed" ? "text-emerald-600" : "text-slate-400"}`}>
+                  {call.status === "completed" ? "Completed" : "Cancelled"}
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </section>
@@ -5381,7 +5454,8 @@ export function AdminPage() {
 
           {/* ── Scrollable content ── */}
           <main ref={mainRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-16 md:pb-0" style={{ overscrollBehavior: "contain", background: "#0c1120" }}>
-            {tab === "overview"   && <><LiveCallsPanel pwd={pwd} /><OverviewPanel pwd={pwd} onNavigate={setTab} /></>}
+            {authed && <LiveCallsPanel pwd={pwd} />}
+            {tab === "overview"   && <OverviewPanel pwd={pwd} onNavigate={setTab} />}
             {tab === "orders"     && <OrdersPanel     pwd={pwd} />}
             {tab === "products"   && <ProductsPanel   pwd={pwd} />}
             {tab === "users"      && <UsersPanel      pwd={pwd} />}

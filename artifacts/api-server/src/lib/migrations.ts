@@ -112,6 +112,20 @@ export async function runMigrations(): Promise<void> {
         WHERE status = 'active'
     `);
 
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS live_call_signals (
+        id          SERIAL PRIMARY KEY,
+        call_id     INTEGER NOT NULL,
+        sender_role TEXT NOT NULL,
+        payload     JSONB NOT NULL,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS live_call_signals_call_cursor_idx
+        ON live_call_signals (call_id, id)
+    `);
+
     // ── reseller tables ───────────────────────────────────────────────────────
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS reseller_applications (
