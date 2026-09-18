@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Clock3, Phone, PhoneCall, PhoneOff, ShieldCheck, X } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
-import { requestMicrophoneAccess, VoiceCallPanel } from "@/components/voice-call";
+import { microphoneErrorMessage, requestMicrophoneAccess, VoiceCallPanel } from "@/components/voice-call";
 
 interface CallRecord {
   id: number;
@@ -60,6 +60,7 @@ export function CallDashboard() {
   const [call, setCall] = useState<CallRecord | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [preparedStream, setPreparedStream] = useState<MediaStream | null>(null);
   const lastIncomingId = useRef<number | null>(null);
   const notifiedIncomingId = useRef<number | null>(null);
   const base = apiBase();
@@ -160,17 +161,20 @@ export function CallDashboard() {
   async function acceptIncoming() {
     if (!call || !token) return;
     setLoading(true);
+    let stream: MediaStream | null = null;
     try {
-      await requestMicrophoneAccess();
+      stream = await requestMicrophoneAccess();
       const response = await fetch(`${base}/api/calls/${call.id}/accept`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await response.json() as CallRecord & { error?: string };
       if (!response.ok) throw new Error(data.error || "The call is no longer available");
+      setPreparedStream(stream);
       setCall(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not accept the call");
+      stream?.getTracks().forEach((track) => track.stop());
+      setError(microphoneErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -194,6 +198,7 @@ export function CallDashboard() {
       }
     } finally {
       setCall(null);
+      setPreparedStream(null);
       setOpen(false);
       setLoading(false);
     }
@@ -288,6 +293,7 @@ export function CallDashboard() {
                   role="user"
                   authToken={token}
                   visitorId={call.visitorId}
+                  initialStream={preparedStream}
                   onHangUp={() => void hangUp()}
                 />
               )}

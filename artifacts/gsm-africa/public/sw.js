@@ -1,4 +1,4 @@
-const CACHE_VERSION = "gsm-world-v3.0.2";
+const CACHE_VERSION = "gsm-world-v3.0.3";
   const CACHE_NAME = `gsm-world-${CACHE_VERSION}`;
 
   self.addEventListener("install", (event) => {

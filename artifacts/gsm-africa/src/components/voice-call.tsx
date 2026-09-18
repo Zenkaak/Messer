@@ -12,6 +12,7 @@ interface VoiceCallProps {
   authToken?: string | null;
   adminPassword?: string;
   visitorId?: string;
+  initialStream?: MediaStream | null;
 }
 
 interface SignalPayload {
@@ -26,15 +27,21 @@ interface SignalMessage {
   payload: SignalPayload;
 }
 
-export async function requestMicrophoneAccess() {
+export async function requestMicrophoneAccess(): Promise<MediaStream> {
   if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
     throw new Error("Microphone access is only available from a secure browser or the GSM World app.");
   }
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-  stream.getTracks().forEach((track) => track.stop());
+  return navigator.mediaDevices.getUserMedia({
+    audio: {
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: true,
+    },
+    video: false,
+  });
 }
 
-function microphoneErrorMessage(error: unknown) {
+export function microphoneErrorMessage(error: unknown) {
   if (error instanceof DOMException) {
     if (error.name === "NotAllowedError" || error.name === "PermissionDeniedError") {
       return "Microphone access was denied. Allow microphone access for GSM World, then try the call again.";
@@ -43,7 +50,7 @@ function microphoneErrorMessage(error: unknown) {
       return "No microphone was found on this device.";
     }
     if (error.name === "NotReadableError") {
-      return "The microphone is busy in another app. Close that app and try again.";
+      return "The microphone could not be opened. Close any other app using the microphone, then try the call again.";
     }
     if (error.name === "SecurityError") {
       return "Microphone access is blocked by the browser. Open site permissions and allow the microphone.";
@@ -65,6 +72,7 @@ export function VoiceCallPanel({
   authToken,
   adminPassword,
   visitorId,
+  initialStream,
 }: VoiceCallProps) {
   const peerRef = useRef<RTCPeerConnection | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -213,7 +221,7 @@ export function VoiceCallPanel({
         if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
           throw new Error("Microphone access is only available from a secure browser or the GSM World app.");
         }
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        const stream = initialStream ?? await requestMicrophoneAccess();
         if (disposed) {
           stream.getTracks().forEach((track) => track.stop());
           return;
@@ -224,11 +232,7 @@ export function VoiceCallPanel({
         setStatus(role === "admin" ? "Calling the user…" : "Ringing GSM UNLOCK…");
       } catch (err) {
         if (!disposed) {
-          setError(err instanceof Error && !err.message.includes("permission")
-            && !err.message.includes("Microphone")
-            && !err.message.includes("microphone")
-            ? err.message
-            : microphoneErrorMessage(err));
+          setError(microphoneErrorMessage(err));
           setStatus("Call setup failed");
         }
       }
@@ -245,7 +249,7 @@ export function VoiceCallPanel({
       streamRef.current?.getTracks().forEach((track) => track.stop());
       peerRef.current = null;
     };
-  }, [base, callId, createOffer, requestHeaders, role, sendSignal, visitorId]);
+  }, [base, callId, createOffer, initialStream, requestHeaders, role, sendSignal, visitorId]);
 
   function toggleMute() {
     const next = !muted;

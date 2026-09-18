@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { startRegistration, startAuthentication } from "@simplewebauthn/browser";
 import { BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
-import { requestMicrophoneAccess, VoiceCallPanel } from "@/components/voice-call";
+import { microphoneErrorMessage, requestMicrophoneAccess, VoiceCallPanel } from "@/components/voice-call";
 
 // ─── types ────────────────────────────────────────────────────────────────────
 interface PaymentNotification {
@@ -153,8 +153,43 @@ const BOTTOM_NAV: Array<typeof NAV[number]> = [
   { id: "payments",  label: "Payments",  icon: Settings },
 ] as typeof NAV[number][];
 
-// ─── WebAuthn session token (persisted across page loads via sessionStorage) ────
-let _waToken: string | null = (() => { try { return sessionStorage.getItem("gsm_admin_webauthn_token"); } catch { return null; } })();
+// ─── Admin session storage ─────────────────────────────────────────────────────
+// localStorage is shared by the normal browser and an installed same-origin PWA.
+// sessionStorage is scoped to one tab/window, which made the admin console appear
+// logged out every time it was opened from the home-screen app.
+const ADMIN_SESSION_PASSWORD_KEY = "gsm_admin_session_pwd";
+const ADMIN_SESSION_AUTH_KEY = "gsm_admin_session_ok";
+const ADMIN_WEBAUTHN_TOKEN_KEY = "gsm_admin_webauthn_token";
+
+function readAdminSession(key: string): string | null {
+  try {
+    const persistent = localStorage.getItem(key);
+    if (persistent !== null) return persistent;
+    const legacy = sessionStorage.getItem(key);
+    if (legacy !== null) {
+      localStorage.setItem(key, legacy);
+      return legacy;
+    }
+  } catch {}
+  return null;
+}
+
+function writeAdminSession(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value);
+    sessionStorage.removeItem(key);
+  } catch {}
+}
+
+function removeAdminSession(key: string) {
+  try {
+    localStorage.removeItem(key);
+    sessionStorage.removeItem(key);
+  } catch {}
+}
+
+// ─── WebAuthn session token (persisted across browser/PWA launches) ─────────────
+let _waToken: string | null = readAdminSession(ADMIN_WEBAUTHN_TOKEN_KEY);
 
 // ─── Native biometric bridge (Android admin app) ──────────────────────────────
 // The admin app registers as "AndroidBiometric" via a JavascriptInterface.
@@ -174,7 +209,8 @@ function getAdminBioBridge(): AdminBioBridge | null {
 }
 function _setWaToken(t: string | null) {
   _waToken = t;
-  try { if (t) sessionStorage.setItem("gsm_admin_webauthn_token", t); else sessionStorage.removeItem("gsm_admin_webauthn_token"); } catch {}
+  if (t) writeAdminSession(ADMIN_WEBAUTHN_TOKEN_KEY, t);
+  else removeAdminSession(ADMIN_WEBAUTHN_TOKEN_KEY);
 }
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -2393,6 +2429,7 @@ function UserDetailView({ user: initUser, pwd, onBack, onUserUpdated, onUserDele
   const [chatLoading, setChatLoading] = useState(false);
   const [callingUser, setCallingUser] = useState(false);
   const [directCall, setDirectCall] = useState<LiveCall | null>(null);
+  const [preparedCallStream, setPreparedCallStream] = useState<MediaStream | null>(null);
   const [kbOffset, setKbOffset] = useState(0);
   const [deleteMenu, setDeleteMenu] = useState<{ id: number; x: number; y: number } | null>(null);
   const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -2464,15 +2501,25 @@ function UserDetailView({ user: initUser, pwd, onBack, onUserUpdated, onUserDele
 
   async function callUser() {
     setCallingUser(true);
+    let stream: MediaStream | null = null;
     try {
-      await requestMicrophoneAccess();
+      stream = await requestMicrophoneAccess();
       const r = await adminFetch(`/api/admin/calls/user/${user.id}`, pwd, { method: "POST" });
       const data = await r.json() as LiveCall & { error?: string };
       if (!r.ok) throw new Error(data.error || "Could not start the call");
+      if (data.status === "queued") {
+        stream.getTracks().forEach((track) => track.stop());
+        stream = null;
+        setPreparedCallStream(null);
+      } else {
+        setPreparedCallStream(stream);
+      }
       setDirectCall(data);
       toast({ title: "Calling user", description: "GSM UNLOCK is ringing their account now." });
     } catch (err) {
-      toast({ variant: "destructive", title: "Call failed", description: err instanceof Error ? err.message : "Could not start the call" });
+      stream?.getTracks().forEach((track) => track.stop());
+      setPreparedCallStream(null);
+      toast({ variant: "destructive", title: "Call failed", description: microphoneErrorMessage(err) });
     } finally {
       setCallingUser(false);
     }
@@ -2701,9 +2748,13 @@ function UserDetailView({ user: initUser, pwd, onBack, onUserUpdated, onUserDele
               signalToken={directCall.signalToken}
               role="admin"
               adminPassword={pwd}
+               initialStream={preparedCallStream}
               onHangUp={() => {
                 void adminFetch(apiPath(`/api/admin/calls/${directCall.id}/hangup`), pwd, { method: "POST" })
-                  .finally(() => setDirectCall(null));
+                   .finally(() => {
+                     setDirectCall(null);
+                     setPreparedCallStream(null);
+                   });
               }}
             />
           ) : null}
@@ -3981,6 +4032,7 @@ function LiveCallsPanel({ pwd }: { pwd: string }) {
   const [selectedCall, setSelectedCall] = useState<LiveCall | null>(null);
   const [selectedHistory, setSelectedHistory] = useState<LiveCall | null>(null);
   const [retryingId, setRetryingId] = useState<number | null>(null);
+  const [preparedStream, setPreparedStream] = useState<MediaStream | null>(null);
   const knownIds = useRef<Set<number>>(new Set());
 
   const loadCalls = useCallback(async () => {
@@ -4033,17 +4085,25 @@ function LiveCallsPanel({ pwd }: { pwd: string }) {
 
   async function updateCall(id: number, action: "accept" | "hangup") {
     setWorkingId(id);
+    let stream: MediaStream | null = null;
     try {
-      if (action === "accept") await requestMicrophoneAccess();
+      if (action === "accept") stream = await requestMicrophoneAccess();
       const response = await adminFetch(apiPath(`/api/admin/calls/${id}/${action}`), pwd, { method: "POST" });
       const data = await response.json() as LiveCall & { error?: string };
       if (!response.ok) throw new Error(data.error || `Could not ${action} call`);
-      if (action === "accept") setSelectedCall(data);
-      if (action === "hangup") setSelectedCall(null);
+      if (action === "accept") {
+        setPreparedStream(stream);
+        setSelectedCall(data);
+      }
+      if (action === "hangup") {
+        setSelectedCall(null);
+        setPreparedStream(null);
+      }
       toast({ title: action === "accept" ? "Call accepted" : "Call ended" });
       loadCalls();
     } catch (err) {
-      toast({ variant: "destructive", title: "Call action failed", description: err instanceof Error ? err.message : "Please try again." });
+      stream?.getTracks().forEach((track) => track.stop());
+      toast({ variant: "destructive", title: "Call action failed", description: microphoneErrorMessage(err) });
     } finally {
       setWorkingId(null);
     }
@@ -4093,6 +4153,7 @@ function LiveCallsPanel({ pwd }: { pwd: string }) {
             signalToken={selectedCall.signalToken}
             role="admin"
             adminPassword={pwd}
+            initialStream={preparedStream}
             onHangUp={() => updateCall(selectedCall.id, "hangup")}
           />
         </div>
@@ -5169,12 +5230,11 @@ function EmailPreviewPanel({ pwd }: { pwd: string }) {
 }
 
 export function AdminPage() {
-  const ADMIN_KEY = "gsm_admin_session";
   const [pwd, setPwd] = useState(() => {
-    try { return sessionStorage.getItem(ADMIN_KEY + "_pwd") ?? ""; } catch { return ""; }
+    return readAdminSession(ADMIN_SESSION_PASSWORD_KEY) ?? "";
   });
   const [authed, setAuthed] = useState(() => {
-    try { return sessionStorage.getItem(ADMIN_KEY + "_ok") === "1"; } catch { return false; }
+    return readAdminSession(ADMIN_SESSION_AUTH_KEY) === "1";
   });
   const [location, navigate] = useLocation();
   const tabFromUrl = location.match(/^\/admin\/([^/]+)/)?.[1] ?? "overview";
@@ -5328,7 +5388,8 @@ export function AdminPage() {
   function handleLogin(password: string, isDefault: boolean) {
     setPwd(password);
     setAuthed(true);
-    try { sessionStorage.setItem("gsm_admin_session_pwd", password); sessionStorage.setItem("gsm_admin_session_ok", "1"); } catch {}
+    writeAdminSession(ADMIN_SESSION_PASSWORD_KEY, password);
+    writeAdminSession(ADMIN_SESSION_AUTH_KEY, "1");
     if (isDefault) { setIsDefaultWarn(true); setShowChangePwd(true); }
   }
 
@@ -5411,7 +5472,7 @@ export function AdminPage() {
     <>
       {showChangePwd && (
         <ChangePasswordModal pwd={pwd} isForced={isDefaultWarn}
-          onSuccess={np => { setPwd(np); setShowChangePwd(false); setIsDefaultWarn(false); try { sessionStorage.setItem("gsm_admin_session_pwd", np); } catch {} }}
+          onSuccess={np => { setPwd(np); setShowChangePwd(false); setIsDefaultWarn(false); writeAdminSession(ADMIN_SESSION_PASSWORD_KEY, np); }}
           onDismiss={() => { setShowChangePwd(false); setIsDefaultWarn(false); }}
         />
       )}
@@ -5457,7 +5518,7 @@ export function AdminPage() {
               <Fingerprint size={14} />
               <span className="text-[12px] font-medium">Fingerprint Login</span>
             </button>
-            <button onClick={() => { setAuthed(false); setPwd(""); _setWaToken(null); try { sessionStorage.removeItem("gsm_admin_session_pwd"); sessionStorage.removeItem("gsm_admin_session_ok"); } catch {} }}
+            <button onClick={() => { setAuthed(false); setPwd(""); _setWaToken(null); removeAdminSession(ADMIN_SESSION_PASSWORD_KEY); removeAdminSession(ADMIN_SESSION_AUTH_KEY); }}
               className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-slate-500 hover:bg-red-900/20 hover:text-red-400 transition-colors text-left">
               <LogOut size={14} />
               <span className="text-[12px] font-medium">Sign Out</span>
@@ -5497,7 +5558,7 @@ export function AdminPage() {
                     </span>
                   )}
                 </button>
-                <button onClick={() => { setAuthed(false); setPwd(""); _setWaToken(null); try { sessionStorage.removeItem("gsm_admin_session_pwd"); sessionStorage.removeItem("gsm_admin_session_ok"); } catch {} }}
+                <button onClick={() => { setAuthed(false); setPwd(""); _setWaToken(null); removeAdminSession(ADMIN_SESSION_PASSWORD_KEY); removeAdminSession(ADMIN_SESSION_AUTH_KEY); }}
                   className="w-8 h-8 rounded-lg bg-white/5 hover:bg-red-900/20 flex items-center justify-center text-slate-400 hover:text-red-400 transition-colors">
                   <LogOut size={13} />
                 </button>
@@ -5527,7 +5588,7 @@ export function AdminPage() {
                   <KeyRound size={13} />
                   <span>Security</span>
                 </button>
-                <button onClick={() => { setAuthed(false); setPwd(""); _setWaToken(null); try { sessionStorage.removeItem("gsm_admin_session_pwd"); sessionStorage.removeItem("gsm_admin_session_ok"); } catch {} }}
+                <button onClick={() => { setAuthed(false); setPwd(""); _setWaToken(null); removeAdminSession(ADMIN_SESSION_PASSWORD_KEY); removeAdminSession(ADMIN_SESSION_AUTH_KEY); }}
                   className="flex items-center gap-2 bg-white/5 hover:bg-red-900/20 border border-white/[0.07] hover:border-red-800/30 px-3 h-8 rounded-lg text-slate-400 hover:text-red-400 transition-colors text-xs font-medium">
                   <LogOut size={12} />
                   Logout
@@ -5617,7 +5678,7 @@ export function AdminPage() {
                     <Fingerprint size={14} />
                     <span className="text-[12px] font-medium">Fingerprint Login</span>
                   </button>
-                  <button onClick={() => { setAuthed(false); setPwd(""); _setWaToken(null); setMobileSidebarOpen(false); try { sessionStorage.removeItem("gsm_admin_session_pwd"); sessionStorage.removeItem("gsm_admin_session_ok"); } catch {} }}
+                  <button onClick={() => { setAuthed(false); setPwd(""); _setWaToken(null); setMobileSidebarOpen(false); removeAdminSession(ADMIN_SESSION_PASSWORD_KEY); removeAdminSession(ADMIN_SESSION_AUTH_KEY); }}
                     className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-500 hover:bg-red-900/20 hover:text-red-400 transition-colors">
                     <LogOut size={14} />
                     <span className="text-[12px] font-medium">Sign Out</span>
