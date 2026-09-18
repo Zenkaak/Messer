@@ -8,6 +8,7 @@ const isServe = process.env.NODE_ENV !== "production";
 
 const rawPort = process.env.PORT;
 const port = Number(rawPort) || 3000;
+const apiPort = Number(process.env.API_PORT) || 8080;
 if (isServe && rawPort && (Number.isNaN(port) || port <= 0)) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
@@ -53,7 +54,7 @@ export default defineConfig({
     allowedHosts: true,
     proxy: {
       "/api": {
-        target: "http://localhost:8099",
+        target: `http://localhost:${apiPort}`,
         changeOrigin: true,
         secure: false,
       },
@@ -68,7 +69,7 @@ export default defineConfig({
     allowedHosts: true,
     proxy: {
       "/api": {
-        target: "http://localhost:8099",
+        target: `http://localhost:${apiPort}`,
         changeOrigin: true,
         secure: false,
       },

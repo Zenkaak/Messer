@@ -116,11 +116,11 @@ export function CallWidget({
         onClick={onCompactClick ?? onRequest}
         disabled={loading}
         className={cx(
-          "group inline-flex min-h-12 items-center gap-3 rounded-2xl bg-[#087f8c] px-4 text-left text-white shadow-[0_10px_28px_rgba(8,127,140,0.24)] transition-transform duration-200 hover:-translate-y-0.5 hover:bg-[#086f7b] focus:outline-none focus:ring-2 focus:ring-[#69d5d2] focus:ring-offset-2 disabled:cursor-default disabled:hover:translate-y-0",
+          "group inline-flex min-h-12 items-center gap-3 rounded-2xl bg-[linear-gradient(135deg,#ff1744_0%,#ff6d00_100%)] px-4 text-left text-white shadow-[0_10px_30px_rgba(255,43,56,0.48)] ring-2 ring-[#ffd166]/80 transition-transform duration-200 hover:-translate-y-0.5 hover:brightness-105 focus:outline-none focus:ring-4 focus:ring-[#ff9f1c]/70 focus:ring-offset-2 disabled:cursor-default disabled:hover:translate-y-0",
           className,
         )}
       >
-        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-white/15">
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-white/25">
           {loading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Phone className="h-4 w-4" aria-hidden="true" />}
         </span>
         <span className="min-w-0">

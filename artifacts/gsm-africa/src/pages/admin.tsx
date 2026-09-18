@@ -3875,13 +3875,18 @@ function LiveCallsPanel({ pwd }: { pwd: string }) {
   const { toast } = useToast();
   const [calls, setCalls] = useState<LiveCall[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [workingId, setWorkingId] = useState<number | null>(null);
   const knownIds = useRef<Set<number>>(new Set());
 
-  const loadCalls = useCallback(() => {
-    adminFetch(apiPath("/api/admin/calls?status=queued,active"), pwd)
-      .then((response) => response.ok ? response.json() : Promise.reject())
-      .then((data: LiveCall[]) => {
+  const loadCalls = useCallback(async () => {
+    try {
+      const response = await adminFetch(apiPath("/api/admin/calls?status=queued,active"), pwd);
+      const body = await response.json().catch(() => ({})) as LiveCall[] | { error?: string };
+      if (!response.ok) {
+        throw new Error(!Array.isArray(body) && body.error ? body.error : `Call queue returned ${response.status}`);
+      }
+      const data = body as LiveCall[];
         const newCalls = data.filter((call) => call.status === "queued" && !knownIds.current.has(call.id));
         if (knownIds.current.size > 0 && newCalls.length > 0) {
           const first = newCalls[0];
@@ -3904,9 +3909,12 @@ function LiveCallsPanel({ pwd }: { pwd: string }) {
         }
         data.forEach((call) => knownIds.current.add(call.id));
         setCalls(data);
+        setError(null);
         setLoading(false);
-      })
-      .catch(() => setLoading(false));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not load the call queue.");
+      setLoading(false);
+    }
   }, [pwd, toast]);
 
   useEffect(() => {
@@ -3945,6 +3953,12 @@ function LiveCallsPanel({ pwd }: { pwd: string }) {
 
       {loading ? (
         <div className="mt-4 rounded-2xl bg-slate-50 p-6 text-center text-xs text-slate-400">Loading call queue…</div>
+      ) : error ? (
+        <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-5 text-center">
+          <p className="text-sm font-bold text-red-700">Call queue unavailable</p>
+          <p className="mt-1 text-xs text-red-600">{error}</p>
+          <button onClick={loadCalls} className="mt-3 rounded-xl bg-red-600 px-3 py-2 text-[11px] font-bold text-white hover:bg-red-700">Try again</button>
+        </div>
       ) : calls.length === 0 ? (
         <div className="mt-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-7 text-center">
           <Phone size={28} className="mx-auto text-slate-300" />
@@ -5328,13 +5342,13 @@ export function AdminPage() {
 
           {/* ── Scrollable content ── */}
           <main ref={mainRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-16 md:pb-0" style={{ overscrollBehavior: "contain", background: "#0c1120" }}>
-            {tab === "overview"   && <OverviewPanel   pwd={pwd} onNavigate={setTab} />}
+            {tab === "overview"   && <><LiveCallsPanel pwd={pwd} /><OverviewPanel pwd={pwd} onNavigate={setTab} /></>}
             {tab === "orders"     && <OrdersPanel     pwd={pwd} />}
             {tab === "products"   && <ProductsPanel   pwd={pwd} />}
             {tab === "users"      && <UsersPanel      pwd={pwd} />}
             {tab === "resellers"  && <ResellersPanel  pwd={pwd} />}
             {tab === "payments"   && <PaymentsPanel   pwd={pwd} />}
-            {tab === "live_chat"  && <><LiveCallsPanel pwd={pwd} /><LiveChatsPanel pwd={pwd} /></>}
+            {tab === "live_chat"  && <LiveChatsPanel pwd={pwd} />}
             {tab === "announcements" && <AnnouncementsPanel pwd={pwd} />}
             {tab === "imei_logs"  && <ImeiLogsPanel   pwd={pwd} />}
             {tab === "email_preview" && <EmailPreviewPanel pwd={pwd} />}
