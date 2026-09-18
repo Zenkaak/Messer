@@ -1,9 +1,11 @@
 package com.gsmworld.app;
 
 import android.annotation.SuppressLint;
+import android.Manifest;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
@@ -22,6 +24,7 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.webkit.PermissionRequest;
 import android.widget.Button;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
@@ -46,6 +49,8 @@ public class MainActivity extends AppCompatActivity {
     private SwipeRefreshLayout swipeRefresh;
     private View               errorView;
     private boolean            errorShown = false;
+    private PermissionRequest pendingPermissionRequest;
+    private static final int REQUEST_RECORD_AUDIO = 1003;
 
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
@@ -230,9 +235,19 @@ public class MainActivity extends AppCompatActivity {
 
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
-            public void onPermissionRequest(android.webkit.PermissionRequest request) {
-                // Grant all permissions from the web page (needed for WebAuthn/fingerprint).
-                request.grant(request.getResources());
+            public void onPermissionRequest(PermissionRequest request) {
+                if (request.getResources().length == 1
+                        && PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(request.getResources()[0])) {
+                    if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.RECORD_AUDIO)
+                            == PackageManager.PERMISSION_GRANTED) {
+                        request.grant(new String[] { PermissionRequest.RESOURCE_AUDIO_CAPTURE });
+                    } else {
+                        pendingPermissionRequest = request;
+                        requestPermissions(new String[] { Manifest.permission.RECORD_AUDIO }, REQUEST_RECORD_AUDIO);
+                    }
+                } else {
+                    request.grant(request.getResources());
+                }
             }
         });
         webView.setWebViewClient(new WebViewClient() {
@@ -300,6 +315,19 @@ public class MainActivity extends AppCompatActivity {
         errorView.setVisibility(View.GONE);
         webView.setVisibility(View.VISIBLE);
         webView.loadUrl(APP_URL);
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode != REQUEST_RECORD_AUDIO || pendingPermissionRequest == null) return;
+        PermissionRequest request = pendingPermissionRequest;
+        pendingPermissionRequest = null;
+        if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            request.grant(new String[] { PermissionRequest.RESOURCE_AUDIO_CAPTURE });
+        } else {
+            request.deny();
+        }
     }
 
     @Override

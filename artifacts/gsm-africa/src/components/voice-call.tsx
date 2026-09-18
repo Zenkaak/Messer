@@ -26,12 +26,39 @@ interface SignalMessage {
   payload: SignalPayload;
 }
 
+export async function requestMicrophoneAccess() {
+  if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+    throw new Error("Microphone access is only available from a secure browser or the GSM World app.");
+  }
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+  stream.getTracks().forEach((track) => track.stop());
+}
+
+function microphoneErrorMessage(error: unknown) {
+  if (error instanceof DOMException) {
+    if (error.name === "NotAllowedError" || error.name === "PermissionDeniedError") {
+      return "Microphone access was denied. Allow microphone access for GSM World, then try the call again.";
+    }
+    if (error.name === "NotFoundError") {
+      return "No microphone was found on this device.";
+    }
+    if (error.name === "NotReadableError") {
+      return "The microphone is busy in another app. Close that app and try again.";
+    }
+    if (error.name === "SecurityError") {
+      return "Microphone access is blocked by the browser. Open site permissions and allow the microphone.";
+    }
+  }
+  return error instanceof Error ? error.message : "Microphone permission is required for voice calls.";
+}
+
 function apiBase() {
   return (import.meta.env.BASE_URL as string).replace(/\/$/, "");
 }
 
 export function VoiceCallPanel({
   callId,
+  signalToken,
   role,
   onHangUp,
   compact = false,
@@ -62,10 +89,13 @@ export function VoiceCallPanel({
     const response = await fetch(`${base}/api/calls/${callId}/signals`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...requestHeaders() },
-      body: JSON.stringify({ role, payload, visitorId }),
+      body: JSON.stringify({ role, payload, visitorId, signalToken }),
     });
-    if (!response.ok) throw new Error("The call signaling service is unavailable.");
-  }, [base, callId, requestHeaders, role, visitorId]);
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({})) as { error?: string };
+      throw new Error(body.error || "The call signaling service is unavailable.");
+    }
+  }, [base, callId, requestHeaders, role, signalToken, visitorId]);
 
   const createOffer = useCallback(async () => {
     const peer = peerRef.current;
@@ -116,6 +146,12 @@ export function VoiceCallPanel({
         setStatus("Connection interrupted");
       }
     };
+    peer.oniceconnectionstatechange = () => {
+      if (peer.iceConnectionState === "failed") {
+        setConnected(false);
+        setError("The network could not connect the two devices. Check the internet connection and try again.");
+      }
+    };
     peer.ontrack = (event) => {
       if (remoteAudioRef.current) {
         remoteAudioRef.current.srcObject = event.streams[0];
@@ -157,6 +193,7 @@ export function VoiceCallPanel({
       try {
         const query = new URLSearchParams({ after: String(cursor) });
         if (visitorId) query.set("visitorId", visitorId);
+        query.set("signalToken", signalToken);
         const response = await fetch(`${base}/api/calls/${callId}/signals?${query.toString()}`, {
           headers: requestHeaders(),
         });
@@ -173,6 +210,9 @@ export function VoiceCallPanel({
 
     const start = async () => {
       try {
+        if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+          throw new Error("Microphone access is only available from a secure browser or the GSM World app.");
+        }
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
         if (disposed) {
           stream.getTracks().forEach((track) => track.stop());
@@ -184,9 +224,11 @@ export function VoiceCallPanel({
         setStatus(role === "admin" ? "Calling the user…" : "Ringing GSM UNLOCK…");
       } catch (err) {
         if (!disposed) {
-          setError(err instanceof Error && err.message.includes("signaling")
+          setError(err instanceof Error && !err.message.includes("permission")
+            && !err.message.includes("Microphone")
+            && !err.message.includes("microphone")
             ? err.message
-            : "Microphone permission is required for voice calls.");
+            : microphoneErrorMessage(err));
           setStatus("Call setup failed");
         }
       }

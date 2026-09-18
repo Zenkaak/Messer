@@ -1,4 +1,4 @@
-const CACHE_VERSION = "gsm-world-v3.0.1";
+const CACHE_VERSION = "gsm-world-v3.0.2";
   const CACHE_NAME = `gsm-world-${CACHE_VERSION}`;
 
   self.addEventListener("install", (event) => {
@@ -17,6 +17,22 @@ const CACHE_VERSION = "gsm-world-v3.0.1";
     if (event.data?.type === "SKIP_WAITING") {
       self.skipWaiting();
     }
+  });
+
+  self.addEventListener("notificationclick", (event) => {
+    event.notification.close();
+    const targetUrl = event.notification.data?.url || "/";
+    event.waitUntil(
+      self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+        const existing = clients.find((client) => "focus" in client);
+        if (existing) {
+          existing.focus();
+          existing.navigate(targetUrl);
+          return;
+        }
+        return self.clients.openWindow(targetUrl);
+      }),
+    );
   });
 
   self.addEventListener("fetch", (event) => {

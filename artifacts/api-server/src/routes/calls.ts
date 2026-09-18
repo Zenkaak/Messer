@@ -213,6 +213,10 @@ router.post("/calls/:id/accept", async (req, res) => {
       .set({ status: "active", acceptedAt: new Date(), updatedAt: new Date() })
       .where(and(eq(liveCallsTable.id, id), eq(liveCallsTable.status, "ringing")))
       .returning();
+    if (!updated) {
+      res.status(409).json({ error: "This call was accepted by another participant." });
+      return;
+    }
     res.json(await presentCall(updated));
   } catch (err) {
     req.log.error({ err }, "Failed to accept incoming call");
@@ -368,7 +372,7 @@ router.post("/admin/calls/:id/accept", async (req, res) => {
         callerLabel: "GSM UNLOCK",
         updatedAt: new Date(),
       })
-      .where(and(eq(liveCallsTable.id, id), eq(liveCallsTable.status, "queued")))
+      .where(and(eq(liveCallsTable.id, id), inArray(liveCallsTable.status, ["queued", "ringing"])))
       .returning();
     if (!updated) {
       res.status(409).json({ error: "Call was accepted by another admin." });
@@ -410,6 +414,72 @@ router.post("/admin/calls/:id/hangup", async (req, res) => {
     res.json(await presentCall(updated));
   } catch (err) {
     req.log.error({ err }, "Failed to hang up live call");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.post("/admin/calls/:id/retry", async (req, res) => {
+  try {
+    if (!(await authenticateAdmin(req, res))) return;
+    const id = Number(req.params.id);
+    if (!id) {
+      res.status(400).json({ error: "A valid call id is required" });
+      return;
+    }
+
+    const [previous] = await db
+      .select()
+      .from(liveCallsTable)
+      .where(eq(liveCallsTable.id, id))
+      .limit(1);
+    if (!previous) {
+      res.status(404).json({ error: "Call not found" });
+      return;
+    }
+
+    const targetUserId = previous.targetUserId ?? previous.userId;
+    if (!targetUserId) {
+      res.status(409).json({ error: "This guest call does not have a user account to call back." });
+      return;
+    }
+
+    const [user] = await db
+      .select({ id: usersTable.id, name: usersTable.name, email: usersTable.email })
+      .from(usersTable)
+      .where(eq(usersTable.id, targetUserId))
+      .limit(1);
+    if (!user) {
+      res.status(404).json({ error: "The user account for this call no longer exists." });
+      return;
+    }
+
+    const [existing] = await db
+      .select({ id: liveCallsTable.id })
+      .from(liveCallsTable)
+      .where(and(eq(liveCallsTable.targetUserId, targetUserId), inArray(liveCallsTable.status, ["ringing", "active"])))
+      .limit(1);
+    if (existing) {
+      res.status(409).json({ error: "This user already has an active or ringing call." });
+      return;
+    }
+
+    const [call] = await db
+      .insert(liveCallsTable)
+      .values({
+        visitorId: `user:${targetUserId}`,
+        userId: targetUserId,
+        targetUserId,
+        callerName: "GSM UNLOCK",
+        callerEmail: user.email,
+        callerLabel: "GSM UNLOCK",
+        direction: "admin_to_user",
+        signalToken: createSignalToken(),
+        status: await isOnline(`user:${targetUserId}`) ? "ringing" : "queued",
+      })
+      .returning();
+    res.status(201).json(await presentCall(call));
+  } catch (err) {
+    req.log.error({ err }, "Failed to retry live call");
     res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -466,9 +536,14 @@ router.get("/calls/:id/signals", async (req, res) => {
     const id = Number(req.params.id);
     const after = Math.max(0, Number(req.query.after ?? 0));
     const visitorId = String(req.query.visitorId ?? "").trim();
+    const signalToken = String(req.query.signalToken ?? "").trim();
     const [call] = await db.select().from(liveCallsTable).where(eq(liveCallsTable.id, id)).limit(1);
     if (!call) {
       res.status(404).json({ error: "Call not found" });
+      return;
+    }
+    if (!call.signalToken || signalToken !== call.signalToken) {
+      res.status(403).json({ error: "Invalid call signal token" });
       return;
     }
     const isAdmin = typeof req.headers["x-admin-password"] === "string" && await checkAdminPassword(req.headers["x-admin-password"] as string);
@@ -495,6 +570,7 @@ router.post("/calls/:id/signals", async (req, res) => {
     const role = req.body?.role;
     const payload = req.body?.payload;
     const visitorId = String(req.body?.visitorId ?? "").trim();
+    const signalToken = String(req.body?.signalToken ?? "").trim();
     if (!id || (role !== "admin" && role !== "user") || !payload || typeof payload !== "object") {
       res.status(400).json({ error: "A call id, role, and payload are required" });
       return;
@@ -502,6 +578,10 @@ router.post("/calls/:id/signals", async (req, res) => {
     const [call] = await db.select().from(liveCallsTable).where(eq(liveCallsTable.id, id)).limit(1);
     if (!call || !["ringing", "active"].includes(call.status)) {
       res.status(404).json({ error: "Call is not available" });
+      return;
+    }
+    if (!call.signalToken || signalToken !== call.signalToken) {
+      res.status(403).json({ error: "Invalid call signal token" });
       return;
     }
     const isAdmin = role === "admin" && typeof req.headers["x-admin-password"] === "string" &&

@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { startRegistration, startAuthentication } from "@simplewebauthn/browser";
 import { BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
-import { VoiceCallPanel } from "@/components/voice-call";
+import { requestMicrophoneAccess, VoiceCallPanel } from "@/components/voice-call";
 
 // ─── types ────────────────────────────────────────────────────────────────────
 interface PaymentNotification {
@@ -115,6 +115,7 @@ interface LiveCall {
   callerName: string | null;
   callerEmail: string | null;
   callerPhone: string | null;
+  userId?: number | null;
   status: "queued" | "ringing" | "active" | "completed" | "cancelled";
   queuedAt: string;
   acceptedAt: string | null;
@@ -128,6 +129,7 @@ interface LiveCall {
 
 const NAV = [
   { id: "overview",       label: "Overview",       icon: LayoutDashboard },
+  { id: "calls",          label: "Calls",           icon: Phone },
   { id: "orders",         label: "Orders",         icon: ShoppingBag },
   { id: "products",       label: "Products",       icon: Package },
   { id: "users",          label: "Users",          icon: Users },
@@ -143,8 +145,8 @@ type Tab = typeof NAV[number]["id"];
 // Bottom-nav tabs (mobile) — keep to 5 so they fit comfortably
 const BOTTOM_NAV: Array<typeof NAV[number]> = [
   { id: "overview",  label: "Overview",  icon: LayoutDashboard },
+  { id: "calls",     label: "Calls",     icon: Phone },
   { id: "orders",    label: "Orders",    icon: ShoppingBag },
-  { id: "products",  label: "Products",  icon: Package },
   { id: "users",     label: "Users",     icon: Users },
   { id: "payments",  label: "Payments",  icon: Settings },
 ] as typeof NAV[number][];
@@ -2461,6 +2463,7 @@ function UserDetailView({ user: initUser, pwd, onBack, onUserUpdated, onUserDele
   async function callUser() {
     setCallingUser(true);
     try {
+      await requestMicrophoneAccess();
       const r = await adminFetch(`/api/admin/calls/user/${user.id}`, pwd, { method: "POST" });
       const data = await r.json() as LiveCall & { error?: string };
       if (!r.ok) throw new Error(data.error || "Could not start the call");
@@ -3946,6 +3949,8 @@ function LiveCallsPanel({ pwd }: { pwd: string }) {
   const [error, setError] = useState<string | null>(null);
   const [workingId, setWorkingId] = useState<number | null>(null);
   const [selectedCall, setSelectedCall] = useState<LiveCall | null>(null);
+  const [selectedHistory, setSelectedHistory] = useState<LiveCall | null>(null);
+  const [retryingId, setRetryingId] = useState<number | null>(null);
   const knownIds = useRef<Set<number>>(new Set());
 
   const loadCalls = useCallback(async () => {
@@ -3957,7 +3962,7 @@ function LiveCallsPanel({ pwd }: { pwd: string }) {
         throw new Error(!Array.isArray(body) && body.error ? body.error : `Call queue returned ${response.status}`);
       }
       const data = body as LiveCall[];
-        const newCalls = data.filter((call) => call.status === "queued" && !knownIds.current.has(call.id));
+        const newCalls = data.filter((call) => ["queued", "ringing"].includes(call.status) && !knownIds.current.has(call.id));
         if (knownIds.current.size > 0 && newCalls.length > 0) {
           const first = newCalls[0];
           toast({
@@ -3999,6 +4004,7 @@ function LiveCallsPanel({ pwd }: { pwd: string }) {
   async function updateCall(id: number, action: "accept" | "hangup") {
     setWorkingId(id);
     try {
+      if (action === "accept") await requestMicrophoneAccess();
       const response = await adminFetch(apiPath(`/api/admin/calls/${id}/${action}`), pwd, { method: "POST" });
       const data = await response.json() as LiveCall & { error?: string };
       if (!response.ok) throw new Error(data.error || `Could not ${action} call`);
@@ -4010,6 +4016,28 @@ function LiveCallsPanel({ pwd }: { pwd: string }) {
       toast({ variant: "destructive", title: "Call action failed", description: err instanceof Error ? err.message : "Please try again." });
     } finally {
       setWorkingId(null);
+    }
+  }
+
+  async function retryCall(call: LiveCall) {
+    setRetryingId(call.id);
+    try {
+      const response = await adminFetch(apiPath(`/api/admin/calls/${call.id}/retry`), pwd, { method: "POST" });
+      const data = await response.json() as LiveCall & { error?: string };
+      if (!response.ok) throw new Error(data.error || "Could not call this user again");
+      setSelectedCall(data.status === "ringing" || data.status === "active" ? data : null);
+      setSelectedHistory(null);
+      toast({
+        title: "Calling user",
+        description: data.status === "queued"
+          ? "The call will ring when the user comes online."
+          : "The user's device is ringing now.",
+      });
+      await loadCalls();
+    } catch (err) {
+      toast({ variant: "destructive", title: "Call again failed", description: err instanceof Error ? err.message : "Please try again." });
+    } finally {
+      setRetryingId(null);
     }
   }
 
@@ -4087,18 +4115,43 @@ function LiveCallsPanel({ pwd }: { pwd: string }) {
             <span className="text-[10px] font-semibold text-slate-400">{history.length} recent</span>
           </div>
           <div className="space-y-2">
-            {history.slice(0, 20).map((call) => (
-              <div key={call.id} className="flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5">
-                <PhoneOff size={14} className={call.status === "completed" ? "text-emerald-500" : "text-slate-400"} />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-[11px] font-bold text-slate-700">{call.callerName || call.callerEmail || `Call #${call.id}`}</p>
-                  <p className="text-[10px] text-slate-400">{new Date(call.queuedAt).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}</p>
-                </div>
-                <span className={`text-[10px] font-bold ${call.status === "completed" ? "text-emerald-600" : "text-slate-400"}`}>
-                  {call.status === "completed" ? "Completed" : "Cancelled"}
-                </span>
-              </div>
-            ))}
+             {history.slice(0, 20).map((call) => (
+               <div
+                 key={call.id}
+                 onClick={() => setSelectedHistory(call)}
+                 className={`cursor-pointer rounded-xl border px-3 py-2.5 transition-colors ${
+                   selectedHistory?.id === call.id
+                     ? "border-blue-200 bg-blue-50"
+                     : "border-slate-100 bg-slate-50 hover:border-blue-100 hover:bg-blue-50/50"
+                 }`}
+               >
+                 <div className="flex items-center gap-3">
+                   <PhoneOff size={14} className={call.status === "completed" ? "text-emerald-500" : "text-slate-400"} />
+                   <div className="min-w-0 flex-1">
+                     <p className="truncate text-[11px] font-bold text-slate-700">{call.callerName || call.callerEmail || `Call #${call.id}`}</p>
+                     <p className="text-[10px] text-slate-400">{new Date(call.queuedAt).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}</p>
+                   </div>
+                   <span className={`text-[10px] font-bold ${call.status === "completed" ? "text-emerald-600" : "text-slate-400"}`}>
+                     {call.status === "completed" ? "Completed" : "Cancelled"}
+                   </span>
+                 </div>
+                 {selectedHistory?.id === call.id && (
+                   <div className="mt-2 flex items-center justify-between gap-2 border-t border-blue-100 pt-2">
+                     <span className="text-[10px] text-slate-500">
+                       {call.targetUserId || call.userId ? "Call this user again" : "Guest calls cannot be called back"}
+                     </span>
+                     <button
+                       type="button"
+                       onClick={(event) => { event.stopPropagation(); void retryCall(call); }}
+                       disabled={retryingId !== null || (!call.targetUserId && !call.userId)}
+                       className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-2.5 py-1.5 text-[10px] font-bold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
+                     >
+                       <Phone size={11} /> {retryingId === call.id ? "Calling…" : "Call again"}
+                     </button>
+                   </div>
+                 )}
+               </div>
+             ))}
           </div>
         </div>
       )}
@@ -5252,7 +5305,7 @@ export function AdminPage() {
   if (!authed) return <LoginScreen onLogin={handleLogin} />;
 
   const pageTitle: Record<Tab, string> = {
-    overview: "Dashboard", orders: "Orders",
+    overview: "Dashboard", calls: "Calls", orders: "Orders",
     products: "Products", users: "Users", payments: "Payments",
     live_chat: "Live Chat", resellers: "Resellers", imei_logs: "IMEI Logs",
     announcements: "Announcements", email_preview: "Email Preview",
@@ -5260,6 +5313,7 @@ export function AdminPage() {
 
   const pageSubtitle: Record<Tab, string> = {
     overview: "Store performance at a glance",
+    calls: "Live support calls and call history",
     orders: "Manage and fulfil customer orders",
     products: "Catalogue of services & products",
     users: "Registered customer accounts",
@@ -5273,7 +5327,7 @@ export function AdminPage() {
 
   // Sidebar nav groups
   const NAV_MAIN = NAV.filter(n => ["overview","orders","products","users","resellers"].includes(n.id));
-  const NAV_TOOLS = NAV.filter(n => ["payments","announcements","live_chat","imei_logs","email_preview"].includes(n.id));
+  const NAV_TOOLS = NAV.filter(n => ["calls","payments","announcements","live_chat","imei_logs","email_preview"].includes(n.id));
 
   const SidebarNav = ({ onNav }: { onNav?: () => void }) => (
     <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-4">
@@ -5454,7 +5508,7 @@ export function AdminPage() {
 
           {/* ── Scrollable content ── */}
           <main ref={mainRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-16 md:pb-0" style={{ overscrollBehavior: "contain", background: "#0c1120" }}>
-            {authed && <LiveCallsPanel pwd={pwd} />}
+            {tab === "calls"     && <LiveCallsPanel pwd={pwd} />}
             {tab === "overview"   && <OverviewPanel pwd={pwd} onNavigate={setTab} />}
             {tab === "orders"     && <OrdersPanel     pwd={pwd} />}
             {tab === "products"   && <ProductsPanel   pwd={pwd} />}

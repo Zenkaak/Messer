@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Clock3, Phone, PhoneCall, PhoneOff, ShieldCheck, X } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
-import { VoiceCallPanel } from "@/components/voice-call";
+import { requestMicrophoneAccess, VoiceCallPanel } from "@/components/voice-call";
 
 interface CallRecord {
   id: number;
@@ -30,10 +30,14 @@ function visitorId() {
   return value;
 }
 
+let ringContext: AudioContext | null = null;
+
 function ringOnce() {
   try {
     const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    const context = new AudioContextClass();
+    ringContext ??= new AudioContextClass();
+    const context = ringContext;
+    void context.resume();
     const gain = context.createGain();
     const oscillator = context.createOscillator();
     oscillator.type = "sine";
@@ -45,7 +49,6 @@ function ringOnce() {
     gain.connect(context.destination);
     oscillator.start();
     oscillator.stop(context.currentTime + 0.45);
-    window.setTimeout(() => void context.close(), 600);
   } catch {
     // Browsers can block synthesized audio until the user interacts.
   }
@@ -58,6 +61,7 @@ export function CallDashboard() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const lastIncomingId = useRef<number | null>(null);
+  const notifiedIncomingId = useRef<number | null>(null);
   const base = apiBase();
 
   const refreshIncoming = useCallback(async () => {
@@ -72,7 +76,23 @@ export function CallDashboard() {
           lastIncomingId.current = data.id;
           setOpen(true);
           ringOnce();
+          if (notifiedIncomingId.current !== data.id && "Notification" in window && Notification.permission === "granted") {
+            notifiedIncomingId.current = data.id;
+            void navigator.serviceWorker?.ready.then((registration) =>
+              registration.showNotification("Incoming GSM UNLOCK call", {
+                body: "Your support agent is calling. Tap to answer.",
+                tag: `gsm-call-${data.id}`,
+                requireInteraction: true,
+                data: { url: window.location.href },
+              }),
+            ).catch(() => {
+              new Notification("Incoming GSM UNLOCK call", { body: "Your support agent is calling. Tap to answer.", tag: `gsm-call-${data.id}` });
+            });
+          }
         }
+      } else if (call?.direction === "admin_to_user") {
+        setCall(null);
+        setOpen(false);
       }
     } catch {
       // Incoming ringing is best-effort while the user is online.
@@ -119,6 +139,9 @@ export function CallDashboard() {
     setError(null);
     setOpen(true);
     try {
+      if ("Notification" in window && Notification.permission === "default") {
+        await Notification.requestPermission();
+      }
       const response = await fetch(`${base}/api/calls`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
@@ -138,6 +161,7 @@ export function CallDashboard() {
     if (!call || !token) return;
     setLoading(true);
     try {
+      await requestMicrophoneAccess();
       const response = await fetch(`${base}/api/calls/${call.id}/accept`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },

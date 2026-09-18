@@ -1,10 +1,12 @@
 package com.gsmworld.admin;
 
 import android.annotation.SuppressLint;
+import android.Manifest;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.ActivityNotFoundException;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
 import android.util.Base64;
@@ -24,6 +26,7 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.webkit.PermissionRequest;
 import android.webkit.ValueCallback;
 import android.widget.Button;
 import android.widget.Toast;
@@ -67,6 +70,7 @@ public class MainActivity extends AppCompatActivity {
  "https://unlockgsm.vercel.app/api/download/admin-apk";
  private static final int REQUEST_INSTALL_PERMISSION = 1001;
  private static final int REQUEST_FILE_CHOOSER = 1002;
+ private static final int REQUEST_RECORD_AUDIO = 1003;
  private static final String WEB_VERSION_API =
  "https://unlockgsm.vercel.app/api/web-version";
  private static final long WEB_VERSION_POLL_MS = 60_000;
@@ -79,6 +83,7 @@ public class MainActivity extends AppCompatActivity {
  private View errorView;
  private File pendingApkFile;
  private ValueCallback<Uri[]> filePathCallback;
+ private PermissionRequest pendingPermissionRequest;
  private boolean errorShown = false;
 
  private final Handler mainHandler = new Handler(Looper.getMainLooper());
@@ -314,9 +319,18 @@ public class MainActivity extends AppCompatActivity {
 
  webView.setWebChromeClient(new WebChromeClient() {
  @Override
- public void onPermissionRequest(android.webkit.PermissionRequest request) {
- // Grant all permissions from the web page (needed for WebAuthn/fingerprint).
- request.grant(request.getResources());
+  public void onPermissionRequest(PermissionRequest request) {
+  if (request.getResources().length == 1
+  && PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(request.getResources()[0])) {
+  if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.RECORD_AUDIO)
+  == PackageManager.PERMISSION_GRANTED) {
+  request.grant(new String[] { PermissionRequest.RESOURCE_AUDIO_CAPTURE });
+  } else {
+  pendingPermissionRequest = request;
+  requestPermissions(new String[] { Manifest.permission.RECORD_AUDIO }, REQUEST_RECORD_AUDIO);
+  }
+  } else {
+  request.grant(request.getResources());
  }
 
  @Override
@@ -696,6 +710,19 @@ public class MainActivity extends AppCompatActivity {
  }
 
  @Override
+  public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+  super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+  if (requestCode != REQUEST_RECORD_AUDIO || pendingPermissionRequest == null) return;
+  PermissionRequest request = pendingPermissionRequest;
+  pendingPermissionRequest = null;
+  if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+  request.grant(new String[] { PermissionRequest.RESOURCE_AUDIO_CAPTURE });
+  } else {
+  request.deny();
+  }
+  }
+
+  @Override
  protected void onDestroy() {
  super.onDestroy();
  executor.shutdown();
