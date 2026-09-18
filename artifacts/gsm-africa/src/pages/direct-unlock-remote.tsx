@@ -328,15 +328,15 @@ function DeviceStage({ selected, onSelect }: { selected: Device | null; onSelect
             {devices.map((model) => {
               const device = { brand: currentBrand.brand, model: model.name, price: model.price };
               const isSelected = selected?.brand === device.brand && selected.model === device.model;
-              return <button type="button" key={model.name} onClick={() => onSelect(device)} aria-label={\`Select \${model.name}\`} className={\`group relative flex h-full flex-col overflow-hidden rounded-2xl border text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg \${isSelected ? "border-[#00bda9] bg-[#edfcf9] ring-1 ring-[#00bda9]/20" : "border-gray-100 bg-white hover:border-[#8edfd5]"}\`}>
+              return <button type="button" key={model.name} onClick={() => onSelect(device)} aria-label={`Select ${model.name}`} className={`group relative flex h-full flex-col overflow-hidden rounded-2xl border text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg ${isSelected ? "border-[#00bda9] bg-[#edfcf9] ring-1 ring-[#00bda9]/20" : "border-gray-100 bg-white hover:border-[#8edfd5]"}`}>
                 <div className="relative flex aspect-square w-full items-center justify-center overflow-hidden bg-gradient-to-br from-slate-50 to-slate-100">
-                  <div className={\`flex flex-col items-center justify-center gap-1.5 transition-opacity \${isSelected ? "text-[#008b99]" : "text-slate-500 opacity-45 group-hover:opacity-70"}\`}><Smartphone size={32} strokeWidth={1.5} /><span className="max-w-[90%] truncate px-2 text-center text-[9px] font-black uppercase tracking-[0.12em]">{currentBrand.brand}</span></div>
+                  <div className={`flex flex-col items-center justify-center gap-1.5 transition-opacity ${isSelected ? "text-[#008b99]" : "text-slate-500 opacity-45 group-hover:opacity-70"}`}><Smartphone size={32} strokeWidth={1.5} /><span className="max-w-[90%] truncate px-2 text-center text-[9px] font-black uppercase tracking-[0.12em]">{currentBrand.brand}</span></div>
                   <span className="absolute left-2 top-2 rounded-full border border-[#b7eee7] bg-[#edfcf9] px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider text-[#007c89]">Unlock</span>
                 </div>
                 <div className="flex flex-1 flex-col gap-1 p-2.5">
                   <span className="truncate text-[9px] font-bold uppercase tracking-widest text-[#008b99]">{currentBrand.brand}</span>
                   <p className="min-h-[30px] flex-1 text-[11px] font-semibold leading-snug text-gray-800">{model.name}</p>
-                  <div className="mt-auto flex items-center justify-between gap-1 border-t border-gray-50 pt-1.5"><p className="text-[13px] font-black text-gray-900">{money(model.price)}</p><span className={\`rounded-full px-1.5 py-0.5 text-[9px] font-semibold \${isSelected ? "bg-[#00bda9] text-white" : "bg-emerald-50 text-emerald-600"}\`}>{isSelected ? "Selected" : "Select"}</span></div>
+                  <div className="mt-auto flex items-center justify-between gap-1 border-t border-gray-50 pt-1.5"><p className="text-[13px] font-black text-gray-900">{money(model.price)}</p><span className={`rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${isSelected ? "bg-[#00bda9] text-white" : "bg-emerald-50 text-emerald-600"}`}>{isSelected ? "Selected" : "Select"}</span></div>
                 </div>
               </button>;
             })}

@@ -10,6 +10,7 @@ export * from "./adminSettings";
 export * from "./orderMessages";
 export * from "./notifications";
 export * from "./live_chats";
+export * from "./live_calls";
 export * from "./resellers";
 export * from "./imeiLookups";
 export * from "./walletTransactions";

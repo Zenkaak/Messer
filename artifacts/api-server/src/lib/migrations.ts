@@ -76,6 +76,38 @@ export async function runMigrations(): Promise<void> {
     await db.execute(sql`ALTER TABLE live_chat_sessions ADD COLUMN IF NOT EXISTS visitor_email TEXT`);
     await db.execute(sql`ALTER TABLE live_chat_messages ADD COLUMN IF NOT EXISTS read_at TIMESTAMP`);
 
+    // ── live call queue ─────────────────────────────────────────────────────
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS live_calls (
+        id            SERIAL PRIMARY KEY,
+        visitor_id    TEXT NOT NULL,
+        user_id       INTEGER,
+        caller_name   TEXT,
+        caller_email  TEXT,
+        caller_phone  TEXT,
+        status        TEXT NOT NULL DEFAULT 'queued',
+        session_id    INTEGER,
+        accepted_by   TEXT,
+        queued_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        accepted_at   TIMESTAMPTZ,
+        ended_at      TIMESTAMPTZ,
+        updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS live_calls_queue_order_idx
+        ON live_calls (status, queued_at, id)
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS live_calls_visitor_status_idx
+        ON live_calls (visitor_id, status)
+    `);
+    await db.execute(sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS live_calls_one_active_idx
+        ON live_calls (status)
+        WHERE status = 'active'
+    `);
+
     // ── reseller tables ───────────────────────────────────────────────────────
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS reseller_applications (

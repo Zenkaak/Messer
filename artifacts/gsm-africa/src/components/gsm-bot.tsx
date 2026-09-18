@@ -5,9 +5,10 @@ import {
   ExternalLink, CheckCircle, Clock, XCircle, AlertCircle,
   Package, ShoppingCart, Tag, Paperclip, UserCheck, ArrowLeft,
   Headphones, WifiOff, Mail, Copy, Shield, Upload, Smartphone, Wallet,
-  History, Trash2, ChevronRight,
+  History, Trash2, ChevronRight, Lock,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import { CallWidget, type CallState } from "@/components/call-widget";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface OrderItem { name: string; quantity: number; price: number }
@@ -120,6 +121,19 @@ function getVisitorId(): string {
   } catch {
     return "visitor-" + Math.random().toString(36).slice(2);
   }
+}
+
+function luhnValid(value: string): boolean {
+  let sum = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    let digit = Number(value[value.length - 1 - index]);
+    if (index % 2 === 1) {
+      digit *= 2;
+      if (digit > 9) digit -= 9;
+    }
+    sum += digit;
+  }
+  return sum % 10 === 0;
 }
 
 // ─── Chat history helpers ─────────────────────────────────────────────────────
@@ -1462,6 +1476,18 @@ export function GsmBot() {
   const [capturedPhone, setCapturedPhone] = useState("");
   const [emailError, setEmailError] = useState("");
   const [phoneError, setPhoneError] = useState("");
+  const [callMode, setCallMode] = useState(false);
+  const [callId, setCallId] = useState<number | null>(() => {
+    try {
+      const stored = sessionStorage.getItem("gsm_live_call_id");
+      return stored ? Number(stored) || null : null;
+    } catch { return null; }
+  });
+  const [callState, setCallState] = useState<CallState>("idle");
+  const [callPosition, setCallPosition] = useState<number | null>(null);
+  const [callQueuedAt, setCallQueuedAt] = useState<string | null>(null);
+  const [callLoading, setCallLoading] = useState(false);
+  const [callError, setCallError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const humanInputRef = useRef<HTMLInputElement>(null);
@@ -1473,6 +1499,114 @@ export function GsmBot() {
   const visitorId = useRef(getVisitorId());
   const openLiveChatRef = useRef(false);
   const base = apiBase();
+
+  const applyCall = useCallback((data: {
+    id: number;
+    status: CallState;
+    position?: number | null;
+    queuedAt?: string | null;
+  }) => {
+    setCallId(data.id);
+    setCallState(data.status);
+    setCallPosition(data.position ?? null);
+    setCallQueuedAt(data.queuedAt ?? null);
+    setCallError(null);
+    try { sessionStorage.setItem("gsm_live_call_id", String(data.id)); } catch { /* ignore */ }
+  }, []);
+
+  const requestCall = useCallback(async () => {
+    if (callLoading) return;
+    setCallLoading(true);
+    setCallError(null);
+    setCallMode(true);
+    setOpen(true);
+    try {
+      const response = await fetch(`${base}/api/calls`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          visitorId: visitorId.current,
+          name: user?.name ?? undefined,
+          email: user?.email ?? (capturedEmail.trim() || undefined),
+          phone: capturedPhone.trim() || undefined,
+        }),
+      });
+      const data = await response.json() as { id?: number; status?: CallState; position?: number | null; queuedAt?: string | null; error?: string };
+      if (!response.ok || !data.id || !data.status) throw new Error(data.error || "Could not request a call");
+      applyCall(data as { id: number; status: CallState; position?: number | null; queuedAt?: string | null });
+    } catch (err) {
+      setCallError(err instanceof Error ? err.message : "Could not request a call");
+    } finally {
+      setCallLoading(false);
+    }
+  }, [applyCall, base, callLoading, capturedEmail, capturedPhone, user]);
+
+  const openCallPanel = useCallback(() => {
+    setCallMode(true);
+    setOpen(true);
+  }, []);
+
+  const handleFloatingCall = useCallback(() => {
+    if (callState === "idle" || callState === "completed" || callState === "cancelled") {
+      void requestCall();
+      return;
+    }
+    openCallPanel();
+  }, [callState, openCallPanel, requestCall]);
+
+  const cancelCall = useCallback(async () => {
+    if (!callId) return;
+    setCallLoading(true);
+    try {
+      const response = await fetch(`${base}/api/calls/${callId}?visitorId=${encodeURIComponent(visitorId.current)}`, { method: "DELETE" });
+      const data = await response.json() as { status?: CallState; error?: string };
+      if (!response.ok) throw new Error(data.error || "Could not cancel the call");
+      setCallState(data.status || "cancelled");
+      setCallPosition(null);
+    } catch (err) {
+      setCallError(err instanceof Error ? err.message : "Could not cancel the call");
+    } finally {
+      setCallLoading(false);
+    }
+  }, [base, callId]);
+
+  const hangUpCall = useCallback(async () => {
+    if (!callId) return;
+    setCallLoading(true);
+    try {
+      const response = await fetch(`${base}/api/calls/${callId}/hangup`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ visitorId: visitorId.current }),
+      });
+      const data = await response.json() as { status?: CallState; error?: string };
+      if (!response.ok) throw new Error(data.error || "Could not end the call");
+      setCallState(data.status || "completed");
+    } catch (err) {
+      setCallError(err instanceof Error ? err.message : "Could not end the call");
+    } finally {
+      setCallLoading(false);
+    }
+  }, [base, callId]);
+
+  useEffect(() => {
+    if (!callId) return;
+    let cancelled = false;
+    const pollCall = async () => {
+      try {
+        const response = await fetch(`${base}/api/calls/${callId}?visitorId=${encodeURIComponent(visitorId.current)}`);
+        if (!response.ok) return;
+        const data = await response.json() as { id: number; status: CallState; position?: number | null; queuedAt?: string | null };
+        if (!cancelled) applyCall(data);
+      } catch { /* polling retries automatically */ }
+    };
+    void pollCall();
+    const timer = window.setInterval(pollCall, 3000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [applyCall, base, callId]);
 
   // IMEI auto-lookup states
   const [imeiDetected, setImeiDetected] = useState<string | null>(null);
@@ -1980,7 +2114,21 @@ export function GsmBot() {
 
 
           {/* ── HEADER ── */}
-          {humanMode ? (
+          {callMode ? (
+            <div className="flex-1 overflow-y-auto bg-[#f4fbfc] p-3">
+              <CallWidget
+                state={callState}
+                queuePosition={callPosition}
+                queueTimestamp={callQueuedAt}
+                error={callError}
+                loading={callLoading}
+                onRequest={requestCall}
+                onCancel={cancelCall}
+                onHangUp={hangUpCall}
+                onClose={() => setCallMode(false)}
+              />
+            </div>
+          ) : humanMode ? (
             <div className="flex items-center gap-3 px-4 py-3.5 shrink-0"
               style={{ background: "linear-gradient(135deg,#1a2332 0%,#1e3a5f 100%)" }}>
               <div className="w-9 h-9 rounded-xl bg-emerald-500 flex items-center justify-center shrink-0">
@@ -2021,7 +2169,7 @@ export function GsmBot() {
                   <span className="text-blue-300 text-[11px]">Full store knowledge · Orders · Payments</span>
                 </div>
               </div>
-              <button
+         <button
                 onClick={() => { setShowHistory(h => !h); setSavedConversations(getSavedConversations()); }}
                 title="Chat history"
                 className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors ${showHistory ? "bg-white/20 text-white" : "bg-white/10 text-white/60 hover:text-white hover:bg-white/20"}`}>
@@ -2496,26 +2644,41 @@ export function GsmBot() {
         </div>
       )}
 
-      {/* ── Floating chat button with tooltip ── */}
-      <div className="fixed z-[400] bottom-[5.5rem] right-4 md:bottom-6 md:right-6 flex flex-col items-end gap-2">
-        {!open && tooltipVisible && (
-          <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-2xl px-3.5 py-2 shadow-lg animate-fade-in"
-            style={{ animationDuration: "0.3s" }}>
-            <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse shrink-0" />
-            <span className="text-[12px] font-semibold text-red-600 whitespace-nowrap">We're here to help 😊</span>
-            <button onClick={() => setTooltipVisible(false)}
-              className="ml-1 text-gray-300 hover:text-gray-500 transition-colors">
-              <X size={11} />
-            </button>
-          </div>
-        )}
-        <button
-          onClick={() => setOpen(o => !o)}
-          aria-label={open ? "Close GSMBot" : "Open GSMBot"}
-          className="w-14 h-14 rounded-full shadow-xl flex items-center justify-center transition-all hover:scale-110 active:scale-95"
-          style={{ background: "linear-gradient(135deg,#f97316 0%,#ea580c 100%)" }}>
-          {open ? <X size={22} className="text-white" /> : <MessageSquare size={24} className="text-white" />}
-        </button>
+      {/* ── Floating support actions ── */}
+      <div className="fixed z-[400] bottom-[5.5rem] right-4 md:bottom-6 md:right-6 flex items-end gap-2">
+        <CallWidget
+          state={callState}
+          queuePosition={callPosition}
+          queueTimestamp={callQueuedAt}
+          loading={callLoading}
+          onRequest={requestCall}
+          onCompactClick={handleFloatingCall}
+          onCancel={cancelCall}
+          onHangUp={hangUpCall}
+          onClose={openCallPanel}
+          presentation="compact"
+          className="max-w-[190px] sm:max-w-none"
+        />
+        <div className="flex flex-col items-end gap-2">
+          {!open && tooltipVisible && (
+            <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-2xl px-3.5 py-2 shadow-lg animate-fade-in"
+              style={{ animationDuration: "0.3s" }}>
+              <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse shrink-0" />
+              <span className="text-[12px] font-semibold text-red-600 whitespace-nowrap">We're here to help 😊</span>
+              <button onClick={() => setTooltipVisible(false)}
+                className="ml-1 text-gray-300 hover:text-gray-500 transition-colors">
+                <X size={11} />
+              </button>
+            </div>
+          )}
+          <button
+            onClick={() => setOpen(o => !o)}
+            aria-label={open ? "Close GSMBot" : "Open GSMBot"}
+            className="w-14 h-14 rounded-full shadow-xl flex items-center justify-center transition-all hover:scale-110 active:scale-95"
+            style={{ background: "linear-gradient(135deg,#f97316 0%,#ea580c 100%)" }}>
+            {open ? <X size={22} className="text-white" /> : <MessageSquare size={24} className="text-white" />}
+          </button>
+        </div>
       </div>
     </>
   );

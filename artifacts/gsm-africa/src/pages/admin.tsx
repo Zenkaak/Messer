@@ -108,6 +108,17 @@ interface LiveChatMsg {
   message: string; fileUrl: string | null; createdAt: string;
   readAt: string | null;
 }
+interface LiveCall {
+  id: number;
+  visitorId: string;
+  callerName: string | null;
+  callerEmail: string | null;
+  callerPhone: string | null;
+  status: "queued" | "active" | "completed" | "cancelled";
+  queuedAt: string;
+  acceptedAt: string | null;
+  position: number | null;
+}
 
 const NAV = [
   { id: "overview",       label: "Overview",       icon: LayoutDashboard },
@@ -3860,6 +3871,115 @@ function LoginScreen({ onLogin }: { onLogin: (pwd: string, isDefault: boolean) =
 }
 
 // ─── main export ──────────────────────────────────────────────────────────────
+function LiveCallsPanel({ pwd }: { pwd: string }) {
+  const { toast } = useToast();
+  const [calls, setCalls] = useState<LiveCall[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [workingId, setWorkingId] = useState<number | null>(null);
+  const knownIds = useRef<Set<number>>(new Set());
+
+  const loadCalls = useCallback(() => {
+    adminFetch(apiPath("/api/admin/calls?status=queued,active"), pwd)
+      .then((response) => response.ok ? response.json() : Promise.reject())
+      .then((data: LiveCall[]) => {
+        const newCalls = data.filter((call) => call.status === "queued" && !knownIds.current.has(call.id));
+        if (knownIds.current.size > 0 && newCalls.length > 0) {
+          const first = newCalls[0];
+          toast({
+            title: "Incoming call request",
+            description: `${first.callerName || `Visitor #${first.id}`} is waiting in the call queue.`,
+          });
+          try {
+            const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+            const context = new AudioContextClass();
+            const oscillator = context.createOscillator();
+            const gain = context.createGain();
+            oscillator.frequency.value = 740;
+            gain.gain.value = 0.08;
+            oscillator.connect(gain);
+            gain.connect(context.destination);
+            oscillator.start();
+            oscillator.stop(context.currentTime + 0.18);
+          } catch { /* browser audio may be unavailable */ }
+        }
+        data.forEach((call) => knownIds.current.add(call.id));
+        setCalls(data);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, [pwd, toast]);
+
+  useEffect(() => {
+    loadCalls();
+    const timer = window.setInterval(loadCalls, 3000);
+    return () => window.clearInterval(timer);
+  }, [loadCalls]);
+
+  async function updateCall(id: number, action: "accept" | "hangup") {
+    setWorkingId(id);
+    try {
+      const response = await adminFetch(apiPath(`/api/admin/calls/${id}/${action}`), pwd, { method: "POST" });
+      const data = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(data.error || `Could not ${action} call`);
+      toast({ title: action === "accept" ? "Call accepted" : "Call ended" });
+      loadCalls();
+    } catch (err) {
+      toast({ variant: "destructive", title: "Call action failed", description: err instanceof Error ? err.message : "Please try again." });
+    } finally {
+      setWorkingId(null);
+    }
+  }
+
+  const queued = calls.filter((call) => call.status === "queued");
+  const active = calls.find((call) => call.status === "active");
+
+  return (
+    <section className="border-b border-slate-200 bg-white px-4 py-5 sm:px-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="flex items-center gap-2 text-sm font-black text-slate-800"><Phone size={16} className="text-emerald-600" /> Call queue</p>
+          <p className="mt-1 text-xs text-slate-400">{queued.length} waiting · {active ? "1 active call" : "No active call"} · refreshes every 3s</p>
+        </div>
+        <button onClick={loadCalls} className="flex h-8 items-center gap-1.5 rounded-xl bg-slate-100 px-3 text-[11px] font-semibold text-slate-600 hover:bg-slate-200"><RefreshCw size={12} /> Refresh</button>
+      </div>
+
+      {loading ? (
+        <div className="mt-4 rounded-2xl bg-slate-50 p-6 text-center text-xs text-slate-400">Loading call queue…</div>
+      ) : calls.length === 0 ? (
+        <div className="mt-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-7 text-center">
+          <Phone size={28} className="mx-auto text-slate-300" />
+          <p className="mt-2 text-sm font-bold text-slate-500">No incoming calls</p>
+          <p className="mt-1 text-xs text-slate-400">Customer call requests will appear here.</p>
+        </div>
+      ) : (
+        <div className="mt-4 space-y-2">
+          {calls.map((call) => (
+            <div key={call.id} className={`flex flex-wrap items-center gap-3 rounded-2xl border p-3.5 ${call.status === "active" ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50/60"}`}>
+              <div className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${call.status === "active" ? "bg-emerald-600 text-white" : "bg-amber-400 text-white animate-pulse"}`}><Phone size={15} /></div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-xs font-black text-slate-800">{call.callerName || `Visitor #${call.id}`}</p>
+                <p className="mt-0.5 truncate text-[10px] text-slate-500">{call.callerEmail || call.callerPhone || "Guest caller"} · requested {new Date(call.queuedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
+              </div>
+              <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${call.status === "active" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
+                {call.status === "active" ? "Connected" : `Queue #${call.position ?? "—"}`}
+              </span>
+              {call.status === "queued" ? (
+                <button onClick={() => updateCall(call.id, "accept")} disabled={workingId !== null || Boolean(active)} className="rounded-xl bg-emerald-600 px-3 py-2 text-[11px] font-bold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40">
+                  {workingId === call.id ? "Accepting…" : active ? "Finish active call" : "Accept call"}
+                </button>
+              ) : (
+                <button onClick={() => updateCall(call.id, "hangup")} disabled={workingId !== null} className="rounded-xl bg-red-600 px-3 py-2 text-[11px] font-bold text-white hover:bg-red-700 disabled:opacity-40">
+                  {workingId === call.id ? "Ending…" : "Hang up"}
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 // ─── Live Chats Panel ─────────────────────────────────────────────────────────
 function LiveChatsPanel({ pwd }: { pwd: string }) {
   const { toast } = useToast();
@@ -5214,7 +5334,7 @@ export function AdminPage() {
             {tab === "users"      && <UsersPanel      pwd={pwd} />}
             {tab === "resellers"  && <ResellersPanel  pwd={pwd} />}
             {tab === "payments"   && <PaymentsPanel   pwd={pwd} />}
-            {tab === "live_chat"  && <LiveChatsPanel  pwd={pwd} />}
+            {tab === "live_chat"  && <><LiveCallsPanel pwd={pwd} /><LiveChatsPanel pwd={pwd} /></>}
             {tab === "announcements" && <AnnouncementsPanel pwd={pwd} />}
             {tab === "imei_logs"  && <ImeiLogsPanel   pwd={pwd} />}
             {tab === "email_preview" && <EmailPreviewPanel pwd={pwd} />}

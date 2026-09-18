@@ -21,6 +21,7 @@ import versionRouter from "./version";
 import imeiRouter from "./imei";
 import imeiRepairRouter from "./imei-repair";
 import cronRouter from "./cron";
+import callsRouter from "./calls";
 
 const router: IRouter = Router();
 
@@ -46,5 +47,6 @@ router.use(downloadRouter);
 router.use(imeiRouter);
 router.use(imeiRepairRouter);
 router.use(cronRouter);
+router.use(callsRouter);
 
 export default router;
