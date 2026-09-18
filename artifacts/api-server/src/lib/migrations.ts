@@ -94,6 +94,10 @@ export async function runMigrations(): Promise<void> {
         updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
     `);
+    await db.execute(sql`ALTER TABLE live_calls ADD COLUMN IF NOT EXISTS target_user_id INTEGER`);
+    await db.execute(sql`ALTER TABLE live_calls ADD COLUMN IF NOT EXISTS caller_label TEXT NOT NULL DEFAULT 'GSM UNLOCK'`);
+    await db.execute(sql`ALTER TABLE live_calls ADD COLUMN IF NOT EXISTS direction TEXT NOT NULL DEFAULT 'user_to_admin'`);
+    await db.execute(sql`ALTER TABLE live_calls ADD COLUMN IF NOT EXISTS signal_token TEXT`);
     await db.execute(sql`
       CREATE INDEX IF NOT EXISTS live_calls_queue_order_idx
         ON live_calls (status, queued_at, id)

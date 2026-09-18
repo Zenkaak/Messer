@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { NotificationBell } from "@/components/notification-bell";
 import { GsmBot } from "@/components/gsm-bot";
 import { LiveNotifications } from "@/components/live-notifications";
+import { CallDashboard } from "@/components/call-dashboard";
 
 const GALLERY_IMAGES = [
   { url: "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=400&h=400&fit=crop&q=70", label: "iPhone 15 Pro Max" },
@@ -759,6 +760,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
       {/* ── GSMBot AI Chat Widget ── */}
       <GsmBot />
+      {/* ── Dedicated voice support dashboard ── */}
+      <CallDashboard />
 
       {/* ── Mobile Bottom Nav ── */}
       <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden"

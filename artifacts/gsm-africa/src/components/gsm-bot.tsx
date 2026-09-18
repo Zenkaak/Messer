@@ -8,7 +8,6 @@ import {
   History, Trash2, ChevronRight, Lock,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
-import { CallWidget, type CallState } from "@/components/call-widget";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface OrderItem { name: string; quantity: number; price: number }
@@ -1476,18 +1475,6 @@ export function GsmBot() {
   const [capturedPhone, setCapturedPhone] = useState("");
   const [emailError, setEmailError] = useState("");
   const [phoneError, setPhoneError] = useState("");
-  const [callMode, setCallMode] = useState(false);
-  const [callId, setCallId] = useState<number | null>(() => {
-    try {
-      const stored = sessionStorage.getItem("gsm_live_call_id");
-      return stored ? Number(stored) || null : null;
-    } catch { return null; }
-  });
-  const [callState, setCallState] = useState<CallState>("idle");
-  const [callPosition, setCallPosition] = useState<number | null>(null);
-  const [callQueuedAt, setCallQueuedAt] = useState<string | null>(null);
-  const [callLoading, setCallLoading] = useState(false);
-  const [callError, setCallError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const humanInputRef = useRef<HTMLInputElement>(null);
@@ -1499,114 +1486,6 @@ export function GsmBot() {
   const visitorId = useRef(getVisitorId());
   const openLiveChatRef = useRef(false);
   const base = apiBase();
-
-  const applyCall = useCallback((data: {
-    id: number;
-    status: CallState;
-    position?: number | null;
-    queuedAt?: string | null;
-  }) => {
-    setCallId(data.id);
-    setCallState(data.status);
-    setCallPosition(data.position ?? null);
-    setCallQueuedAt(data.queuedAt ?? null);
-    setCallError(null);
-    try { sessionStorage.setItem("gsm_live_call_id", String(data.id)); } catch { /* ignore */ }
-  }, []);
-
-  const requestCall = useCallback(async () => {
-    if (callLoading) return;
-    setCallLoading(true);
-    setCallError(null);
-    setCallMode(true);
-    setOpen(true);
-    try {
-      const response = await fetch(`${base}/api/calls`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          visitorId: visitorId.current,
-          name: user?.name ?? undefined,
-          email: user?.email ?? (capturedEmail.trim() || undefined),
-          phone: capturedPhone.trim() || undefined,
-        }),
-      });
-      const data = await response.json() as { id?: number; status?: CallState; position?: number | null; queuedAt?: string | null; error?: string };
-      if (!response.ok || !data.id || !data.status) throw new Error(data.error || "Could not request a call");
-      applyCall(data as { id: number; status: CallState; position?: number | null; queuedAt?: string | null });
-    } catch (err) {
-      setCallError(err instanceof Error ? err.message : "Could not request a call");
-    } finally {
-      setCallLoading(false);
-    }
-  }, [applyCall, base, callLoading, capturedEmail, capturedPhone, user]);
-
-  const openCallPanel = useCallback(() => {
-    setCallMode(true);
-    setOpen(true);
-  }, []);
-
-  const handleFloatingCall = useCallback(() => {
-    if (callState === "idle" || callState === "completed" || callState === "cancelled") {
-      void requestCall();
-      return;
-    }
-    openCallPanel();
-  }, [callState, openCallPanel, requestCall]);
-
-  const cancelCall = useCallback(async () => {
-    if (!callId) return;
-    setCallLoading(true);
-    try {
-      const response = await fetch(`${base}/api/calls/${callId}?visitorId=${encodeURIComponent(visitorId.current)}`, { method: "DELETE" });
-      const data = await response.json() as { status?: CallState; error?: string };
-      if (!response.ok) throw new Error(data.error || "Could not cancel the call");
-      setCallState(data.status || "cancelled");
-      setCallPosition(null);
-    } catch (err) {
-      setCallError(err instanceof Error ? err.message : "Could not cancel the call");
-    } finally {
-      setCallLoading(false);
-    }
-  }, [base, callId]);
-
-  const hangUpCall = useCallback(async () => {
-    if (!callId) return;
-    setCallLoading(true);
-    try {
-      const response = await fetch(`${base}/api/calls/${callId}/hangup`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ visitorId: visitorId.current }),
-      });
-      const data = await response.json() as { status?: CallState; error?: string };
-      if (!response.ok) throw new Error(data.error || "Could not end the call");
-      setCallState(data.status || "completed");
-    } catch (err) {
-      setCallError(err instanceof Error ? err.message : "Could not end the call");
-    } finally {
-      setCallLoading(false);
-    }
-  }, [base, callId]);
-
-  useEffect(() => {
-    if (!callId) return;
-    let cancelled = false;
-    const pollCall = async () => {
-      try {
-        const response = await fetch(`${base}/api/calls/${callId}?visitorId=${encodeURIComponent(visitorId.current)}`);
-        if (!response.ok) return;
-        const data = await response.json() as { id: number; status: CallState; position?: number | null; queuedAt?: string | null };
-        if (!cancelled) applyCall(data);
-      } catch { /* polling retries automatically */ }
-    };
-    void pollCall();
-    const timer = window.setInterval(pollCall, 3000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-    };
-  }, [applyCall, base, callId]);
 
   // IMEI auto-lookup states
   const [imeiDetected, setImeiDetected] = useState<string | null>(null);
@@ -2114,21 +1993,7 @@ export function GsmBot() {
 
 
           {/* ── HEADER ── */}
-          {callMode ? (
-            <div className="flex-1 overflow-y-auto bg-[#f4fbfc] p-3">
-              <CallWidget
-                state={callState}
-                queuePosition={callPosition}
-                queueTimestamp={callQueuedAt}
-                error={callError}
-                loading={callLoading}
-                onRequest={requestCall}
-                onCancel={cancelCall}
-                onHangUp={hangUpCall}
-                onClose={() => setCallMode(false)}
-              />
-            </div>
-          ) : humanMode ? (
+          {humanMode ? (
             <div className="flex items-center gap-3 px-4 py-3.5 shrink-0"
               style={{ background: "linear-gradient(135deg,#1a2332 0%,#1e3a5f 100%)" }}>
               <div className="w-9 h-9 rounded-xl bg-emerald-500 flex items-center justify-center shrink-0">
@@ -2646,19 +2511,6 @@ export function GsmBot() {
 
       {/* ── Floating support actions ── */}
       <div className="fixed z-[400] bottom-[5.5rem] right-4 md:bottom-6 md:right-6 flex items-end gap-2">
-        <CallWidget
-          state={callState}
-          queuePosition={callPosition}
-          queueTimestamp={callQueuedAt}
-          loading={callLoading}
-          onRequest={requestCall}
-          onCompactClick={handleFloatingCall}
-          onCancel={cancelCall}
-          onHangUp={hangUpCall}
-          onClose={openCallPanel}
-          presentation="compact"
-          className="max-w-[190px] sm:max-w-none"
-        />
         <div className="flex flex-col items-end gap-2">
           {!open && tooltipVisible && (
             <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-2xl px-3.5 py-2 shadow-lg animate-fade-in"

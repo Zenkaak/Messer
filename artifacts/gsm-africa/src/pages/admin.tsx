@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { startRegistration, startAuthentication } from "@simplewebauthn/browser";
 import { BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import { VoiceCallPanel } from "@/components/voice-call";
 
 // ─── types ────────────────────────────────────────────────────────────────────
 interface PaymentNotification {
@@ -114,10 +115,12 @@ interface LiveCall {
   callerName: string | null;
   callerEmail: string | null;
   callerPhone: string | null;
-  status: "queued" | "active" | "completed" | "cancelled";
+  status: "queued" | "ringing" | "active" | "completed" | "cancelled";
   queuedAt: string;
   acceptedAt: string | null;
   position: number | null;
+  targetUserId?: number | null;
+  signalToken?: string | null;
 }
 
 const NAV = [
@@ -2381,6 +2384,7 @@ function UserDetailView({ user: initUser, pwd, onBack, onUserUpdated, onUserDele
   const [msgSending, setMsgSending] = useState(false);
   const [chatHistory, setChatHistory] = useState<{ id: number; senderType: string; message: string; createdAt: string }[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
+  const [callingUser, setCallingUser] = useState(false);
   const [kbOffset, setKbOffset] = useState(0);
   const [deleteMenu, setDeleteMenu] = useState<{ id: number; x: number; y: number } | null>(null);
   const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -2448,6 +2452,20 @@ function UserDetailView({ user: initUser, pwd, onBack, onUserUpdated, onUserDele
         toast({ title: status === "active" ? "User activated" : status === "disabled" ? "User disabled" : "User banned" });
       } else toast({ variant: "destructive", title: "Action failed" });
     } finally { setActing(false); }
+  }
+
+  async function callUser() {
+    setCallingUser(true);
+    try {
+      const r = await adminFetch(`/api/admin/calls/user/${user.id}`, pwd, { method: "POST" });
+      const data = await r.json() as { error?: string };
+      if (!r.ok) throw new Error(data.error || "Could not start the call");
+      toast({ title: "Calling user", description: "GSM UNLOCK is ringing their account now." });
+    } catch (err) {
+      toast({ variant: "destructive", title: "Call failed", description: err instanceof Error ? err.message : "Could not start the call" });
+    } finally {
+      setCallingUser(false);
+    }
   }
 
   async function adjustWallet() {
@@ -2634,7 +2652,10 @@ function UserDetailView({ user: initUser, pwd, onBack, onUserUpdated, onUserDele
           <p className="text-xs text-slate-400 font-medium">User #{user.id}</p>
           <h2 className="text-base font-black text-slate-900 truncate">{user.name || user.email}</h2>
         </div>
-        <UserStatusBadge status={user.status} />
+         <button onClick={() => void callUser()} disabled={callingUser || user.status !== "active"} className="flex items-center gap-1.5 rounded-xl bg-[#087f8c] px-3 py-2 text-[11px] font-bold text-white hover:bg-[#086f7b] disabled:cursor-not-allowed disabled:opacity-50">
+           <Phone size={12} /> {callingUser ? "Calling…" : "Call user"}
+         </button>
+         <UserStatusBadge status={user.status} />
       </div>
 
       {/* ── Profile ── */}
@@ -3877,11 +3898,12 @@ function LiveCallsPanel({ pwd }: { pwd: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [workingId, setWorkingId] = useState<number | null>(null);
+  const [selectedCall, setSelectedCall] = useState<LiveCall | null>(null);
   const knownIds = useRef<Set<number>>(new Set());
 
   const loadCalls = useCallback(async () => {
     try {
-      const response = await adminFetch(apiPath("/api/admin/calls?status=queued,active"), pwd);
+      const response = await adminFetch(apiPath("/api/admin/calls?status=queued,ringing,active"), pwd);
       const body = await response.json().catch(() => ({})) as LiveCall[] | { error?: string };
       if (!response.ok) {
         throw new Error(!Array.isArray(body) && body.error ? body.error : `Call queue returned ${response.status}`);
@@ -3909,6 +3931,9 @@ function LiveCallsPanel({ pwd }: { pwd: string }) {
         }
         data.forEach((call) => knownIds.current.add(call.id));
         setCalls(data);
+        const connected = data.find((call) => call.status === "active" || call.status === "ringing");
+        if (connected) setSelectedCall(connected);
+        else setSelectedCall(null);
         setError(null);
         setLoading(false);
     } catch (err) {
@@ -3927,8 +3952,10 @@ function LiveCallsPanel({ pwd }: { pwd: string }) {
     setWorkingId(id);
     try {
       const response = await adminFetch(apiPath(`/api/admin/calls/${id}/${action}`), pwd, { method: "POST" });
-      const data = await response.json() as { error?: string };
+      const data = await response.json() as LiveCall & { error?: string };
       if (!response.ok) throw new Error(data.error || `Could not ${action} call`);
+      if (action === "accept") setSelectedCall(data);
+      if (action === "hangup") setSelectedCall(null);
       toast({ title: action === "accept" ? "Call accepted" : "Call ended" });
       loadCalls();
     } catch (err) {
@@ -3939,7 +3966,7 @@ function LiveCallsPanel({ pwd }: { pwd: string }) {
   }
 
   const queued = calls.filter((call) => call.status === "queued");
-  const active = calls.find((call) => call.status === "active");
+  const active = calls.find((call) => call.status === "active" || call.status === "ringing");
 
   return (
     <section className="border-b border-slate-200 bg-white px-4 py-5 sm:px-6">
@@ -3950,6 +3977,17 @@ function LiveCallsPanel({ pwd }: { pwd: string }) {
         </div>
         <button onClick={loadCalls} className="flex h-8 items-center gap-1.5 rounded-xl bg-slate-100 px-3 text-[11px] font-semibold text-slate-600 hover:bg-slate-200"><RefreshCw size={12} /> Refresh</button>
       </div>
+
+      {selectedCall?.signalToken && (selectedCall.status === "active" || selectedCall.status === "ringing") && (
+        <div className="mt-4 max-w-md">
+          <VoiceCallPanel
+            callId={selectedCall.id}
+            signalToken={selectedCall.signalToken}
+            role="admin"
+            onHangUp={() => updateCall(selectedCall.id, "hangup")}
+          />
+        </div>
+      )}
 
       {loading ? (
         <div className="mt-4 rounded-2xl bg-slate-50 p-6 text-center text-xs text-slate-400">Loading call queue…</div>
@@ -3968,16 +4006,16 @@ function LiveCallsPanel({ pwd }: { pwd: string }) {
       ) : (
         <div className="mt-4 space-y-2">
           {calls.map((call) => (
-            <div key={call.id} className={`flex flex-wrap items-center gap-3 rounded-2xl border p-3.5 ${call.status === "active" ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50/60"}`}>
-              <div className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${call.status === "active" ? "bg-emerald-600 text-white" : "bg-amber-400 text-white animate-pulse"}`}><Phone size={15} /></div>
+              <div key={call.id} className={`flex flex-wrap items-center gap-3 rounded-2xl border p-3.5 ${call.status === "active" ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50/60"}`}>
+               <div className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${call.status === "active" ? "bg-emerald-600 text-white" : "bg-amber-400 text-white animate-pulse"}`}><Phone size={15} /></div>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-xs font-black text-slate-800">{call.callerName || `Visitor #${call.id}`}</p>
                 <p className="mt-0.5 truncate text-[10px] text-slate-500">{call.callerEmail || call.callerPhone || "Guest caller"} · requested {new Date(call.queuedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
               </div>
               <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${call.status === "active" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
-                {call.status === "active" ? "Connected" : `Queue #${call.position ?? "—"}`}
+                 {call.status === "active" ? "Connected" : call.status === "ringing" ? "Ringing user" : `Queue #${call.position ?? "—"}`}
               </span>
-              {call.status === "queued" ? (
+               {call.status === "queued" ? (
                 <button onClick={() => updateCall(call.id, "accept")} disabled={workingId !== null || Boolean(active)} className="rounded-xl bg-emerald-600 px-3 py-2 text-[11px] font-bold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40">
                   {workingId === call.id ? "Accepting…" : active ? "Finish active call" : "Accept call"}
                 </button>
