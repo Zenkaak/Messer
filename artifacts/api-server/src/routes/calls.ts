@@ -25,6 +25,17 @@ function getAuthenticatedUser(req: import("express").Request) {
   }
 }
 
+function canAccessCall(
+  call: typeof liveCallsTable.$inferSelect,
+  req: import("express").Request,
+  visitorId: string,
+) {
+  if (call.targetUserId !== null) {
+    return getAuthenticatedUser(req)?.userId === call.targetUserId;
+  }
+  return Boolean(visitorId && call.visitorId === visitorId);
+}
+
 async function authenticateAdmin(req: import("express").Request, res: import("express").Response) {
   const password = req.headers["x-admin-password"];
   if (typeof password !== "string" || !(await checkAdminPassword(password))) {
@@ -112,7 +123,7 @@ router.get("/calls/:id", async (req, res) => {
       res.status(404).json({ error: "Call not found" });
       return;
     }
-    if (call.visitorId !== visitorId) {
+    if (!canAccessCall(call, req, visitorId)) {
       res.status(403).json({ error: "Forbidden" });
       return;
     }
@@ -182,7 +193,7 @@ router.delete("/calls/:id", async (req, res) => {
       res.status(404).json({ error: "Call not found" });
       return;
     }
-    if (!visitorId || call.visitorId !== visitorId) {
+    if (!canAccessCall(call, req, visitorId)) {
       res.status(403).json({ error: "Forbidden" });
       return;
     }
@@ -212,7 +223,7 @@ router.post("/calls/:id/hangup", async (req, res) => {
       res.status(404).json({ error: "Call not found" });
       return;
     }
-    if (!visitorId || call.visitorId !== visitorId) {
+    if (!canAccessCall(call, req, visitorId)) {
       res.status(403).json({ error: "Forbidden" });
       return;
     }

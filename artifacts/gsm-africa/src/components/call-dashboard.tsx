@@ -234,7 +234,14 @@ export function CallDashboard() {
               )}
 
               {isActive && call.signalToken && (
-                <VoiceCallPanel callId={call.id} signalToken={call.signalToken} role="user" onHangUp={() => void hangUp()} />
+                <VoiceCallPanel
+                  callId={call.id}
+                  signalToken={call.signalToken}
+                  role="user"
+                  authToken={token}
+                  visitorId={call.visitorId}
+                  onHangUp={() => void hangUp()}
+                />
               )}
 
               {error && <p className="rounded-2xl bg-rose-50 px-3 py-2.5 text-xs font-semibold text-rose-700">{error}</p>}

@@ -369,7 +369,7 @@ export function StorePage() {
         <div className="absolute inset-0 opacity-10 pointer-events-none"
           style={{ backgroundImage: "radial-gradient(circle at 20% 50%,#38bdf8 0%,transparent 50%),radial-gradient(circle at 80% 20%,#818cf8 0%,transparent 40%)" }} />
         <div className="relative max-w-3xl mx-auto">
-          <p className="text-teal-400 text-[10px] font-bold uppercase tracking-[0.2em] mb-1">GSM World Store</p>
+          <p className="text-teal-400 text-[10px] font-bold uppercase tracking-[0.2em] mb-1">GSM UNLOCK Store</p>
           <h1 className="text-white font-black text-2xl leading-tight mb-4">
             Phone Unlocks &<br />Digital Services
           </h1>

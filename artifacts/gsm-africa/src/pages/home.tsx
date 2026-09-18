@@ -680,7 +680,7 @@ export function Home() {
           style={{ background: "linear-gradient(135deg,#0c1a32,#0e1e3a)", border: "1px solid rgba(99,102,241,0.15)", boxShadow: "0 8px 32px rgba(0,0,0,0.4)" }}>
           <div className="px-4 pt-4 pb-2 flex items-center gap-2">
             <div className="w-1.5 h-6 rounded-full" style={{ background: "linear-gradient(to bottom,#3b82f6,#6366f1)" }} />
-            <h2 className="font-black text-[14px]" style={{ color: "#f8fafc" }}>Why 10,000+ Choose GSM World</h2>
+            <h2 className="font-black text-[14px]" style={{ color: "#f8fafc" }}>Why 10,000+ Choose GSM UNLOCK</h2>
           </div>
           <div className="grid grid-cols-3 gap-0 border-t border-b mx-4 mb-3 rounded-xl overflow-hidden" style={{ borderColor: "rgba(99,102,241,0.1)" }}>
             {[
@@ -867,7 +867,7 @@ function AppBannerContent({ isUpdate }: { isUpdate: boolean }) {
       </div>
       <div className="flex-1 min-w-0">
         <p className="font-black text-[14px] text-white leading-tight">
-          {isUpdate ? "Update GSM World App" : "Get the GSM World App"}
+          {isUpdate ? "Update GSM UNLOCK App" : "Get the GSM UNLOCK App"}
         </p>
         <p className="text-[11px] mt-0.5 leading-snug" style={{ color: "#86efac" }}>
           {isUpdate ? "Download & install the latest version" : "Faster · Offline-ready · Instant notifications"}

@@ -3,10 +3,13 @@ import type { Server } from "http";
 import { logger } from "./logger";
 import { db, liveCallsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import jwt from "jsonwebtoken";
+import { checkAdminPassword } from "./admin-settings";
 
 const subscribers = new Map<number, Set<WebSocket>>();
 const callSubscribers = new Map<number, Set<WebSocket>>();
 const callRoles = new WeakMap<WebSocket, "admin" | "user">();
+const JWT_SECRET = process.env.JWT_SECRET || "gsm-africa-jwt-secret-CHANGE-IN-PRODUCTION";
 
 export function attachWss(httpServer: Server): void {
   const wss = new WebSocketServer({ noServer: true });
@@ -33,6 +36,9 @@ export function attachWss(httpServer: Server): void {
           callId?: unknown;
           signalToken?: unknown;
           role?: unknown;
+          authToken?: unknown;
+          adminPassword?: unknown;
+          visitorId?: unknown;
           payload?: unknown;
         };
         if (data.type === "subscribe" && typeof data.orderId === "number") {
@@ -47,7 +53,12 @@ export function attachWss(httpServer: Server): void {
           ws.send(JSON.stringify({ type: "subscribed", orderId: subscribedOrderId }));
           logger.debug({ orderId: subscribedOrderId }, "WS: client subscribed to order");
         }
-        if (data.type === "call-join" && typeof data.callId === "number" && typeof data.signalToken === "string" && (data.role === "admin" || data.role === "user")) {
+        if (
+          data.type === "call-join" &&
+          typeof data.callId === "number" &&
+          typeof data.signalToken === "string" &&
+          (data.role === "admin" || data.role === "user")
+        ) {
           const [call] = await db
             .select({ signalToken: liveCallsTable.signalToken, status: liveCallsTable.status })
             .from(liveCallsTable)
@@ -55,6 +66,38 @@ export function attachWss(httpServer: Server): void {
             .limit(1);
           if (!call || !call.signalToken || call.signalToken !== data.signalToken || !["ringing", "active"].includes(call.status)) {
             ws.send(JSON.stringify({ type: "call-error", message: "This call is not available." }));
+            return;
+          }
+          const [fullCall] = await db
+            .select()
+            .from(liveCallsTable)
+            .where(eq(liveCallsTable.id, data.callId))
+            .limit(1);
+          if (!fullCall) {
+            ws.send(JSON.stringify({ type: "call-error", message: "This call is not available." }));
+            return;
+          }
+
+          let authorized = false;
+          if (data.role === "admin") {
+            authorized = typeof data.adminPassword === "string" && await checkAdminPassword(data.adminPassword);
+          } else if (
+            fullCall.targetUserId === null &&
+            typeof data.visitorId === "string" &&
+            data.visitorId === fullCall.visitorId
+          ) {
+            authorized = true;
+          } else if (typeof data.authToken === "string") {
+            try {
+              const user = jwt.verify(data.authToken, JWT_SECRET) as { userId?: number };
+              authorized = user.userId !== undefined &&
+                (fullCall.targetUserId === user.userId || fullCall.userId === user.userId);
+            } catch {
+              authorized = false;
+            }
+          }
+          if (!authorized) {
+            ws.send(JSON.stringify({ type: "call-error", message: "You are not authorized to join this call." }));
             return;
           }
           const current = callSubscribers.get(data.callId) ?? new Set<WebSocket>();

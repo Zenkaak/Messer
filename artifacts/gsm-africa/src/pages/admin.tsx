@@ -3984,6 +3984,7 @@ function LiveCallsPanel({ pwd }: { pwd: string }) {
             callId={selectedCall.id}
             signalToken={selectedCall.signalToken}
             role="admin"
+            adminPassword={pwd}
             onHangUp={() => updateCall(selectedCall.id, "hangup")}
           />
         </div>

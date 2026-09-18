@@ -9,6 +9,9 @@ interface VoiceCallProps {
   role: VoiceRole;
   onHangUp: () => void;
   compact?: boolean;
+  authToken?: string | null;
+  adminPassword?: string;
+  visitorId?: string;
 }
 
 interface SignalMessage {
@@ -26,7 +29,16 @@ function socketUrl() {
   return `${protocol}//${window.location.host}${base}/api/ws`;
 }
 
-export function VoiceCallPanel({ callId, signalToken, role, onHangUp, compact = false }: VoiceCallProps) {
+export function VoiceCallPanel({
+  callId,
+  signalToken,
+  role,
+  onHangUp,
+  compact = false,
+  authToken,
+  adminPassword,
+  visitorId,
+}: VoiceCallProps) {
   const socketRef = useRef<WebSocket | null>(null);
   const peerRef = useRef<RTCPeerConnection | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -84,7 +96,7 @@ export function VoiceCallPanel({ callId, signalToken, role, onHangUp, compact = 
     const socket = new WebSocket(socketUrl());
     socketRef.current = socket;
     socket.onopen = async () => {
-      send({ type: "call-join", callId, signalToken, role });
+      send({ type: "call-join", callId, signalToken, role, authToken, adminPassword, visitorId });
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
         if (disposed) {
@@ -144,7 +156,7 @@ export function VoiceCallPanel({ callId, signalToken, role, onHangUp, compact = 
       socketRef.current = null;
       peerRef.current = null;
     };
-  }, [callId, createOffer, role, send, signalToken]);
+  }, [adminPassword, authToken, callId, createOffer, role, send, signalToken, visitorId]);
 
   function toggleMute() {
     const next = !muted;

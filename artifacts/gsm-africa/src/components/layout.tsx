@@ -95,7 +95,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     if (isMobile && Date.now() - lastPrompt > weekMs) {
       setTimeout(() => {
         toast({
-          title: "📱 Get the GSM World App",
+          title: "📱 Get the GSM UNLOCK App",
           description: "Download our Android app — faster, offline-ready & instant notifications.",
           action: (
             <a
@@ -183,7 +183,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   <span className="text-white font-black text-sm">G</span>
                 </div>
                 <div>
-                  <p className="font-black text-base leading-tight">GSM World</p>
+                  <p className="font-black text-base leading-tight">GSM UNLOCK</p>
                   <p className="text-[10px] text-teal-300/80 leading-tight font-medium">Trusted Since 2016</p>
                 </div>
               </div>
@@ -506,7 +506,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           {/* Gallery header */}
           <div className="flex items-center justify-between px-4 py-3 shrink-0" style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
             <div>
-              <p className="text-[10px] text-white/40 uppercase tracking-widest leading-none">GSM World</p>
+              <p className="text-[10px] text-white/40 uppercase tracking-widest leading-none">GSM UNLOCK</p>
               <p className="text-sm font-black text-white leading-tight">Success Gallery</p>
             </div>
             <div className="flex items-center gap-2">
@@ -604,10 +604,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
             </button>
             <Link href={`${basePath}/`} className="flex flex-col">
               <span className="font-black text-lg leading-tight tracking-tight text-white hover:text-teal-400 transition-colors">
-                GSM WORLD
+                GSM UNLOCK
               </span>
               <span className="text-[9px] text-gray-400 uppercase tracking-widest font-semibold hidden sm:block">
-                www.gsmworld.com | Since 2016
+                Official GSM services | Since 2016
               </span>
             </Link>
           </div>
@@ -667,7 +667,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 <div className="w-8 h-8 rounded-full bg-teal-500 flex items-center justify-center">
                   <span className="text-white font-black text-sm">G</span>
                 </div>
-                <span className="font-black text-lg">GSM World</span>
+                <span className="font-black text-lg">GSM UNLOCK</span>
               </div>
               <p className="text-gray-400 text-sm leading-relaxed mb-4">
                 Worldwide source for unlock tools, server credits &amp; GSM services. Trusted since 2016.
@@ -742,7 +742,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="border-t border-white/10 pt-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            <p className="text-gray-500 text-xs">© {new Date().getFullYear()} GSM World. All rights reserved. Official distributor for major tool teams.</p>
+            <p className="text-gray-500 text-xs">© {new Date().getFullYear()} GSM UNLOCK. All rights reserved. Official distributor for major tool teams.</p>
             <div className="flex items-center gap-4 flex-wrap">
               <Link href={`${basePath}/terms`} className="text-gray-500 hover:text-teal-400 text-xs transition-colors">Terms &amp; Conditions</Link>
               <Link href={`${basePath}/privacy`} className="text-gray-500 hover:text-teal-400 text-xs transition-colors">Privacy Policy</Link>
