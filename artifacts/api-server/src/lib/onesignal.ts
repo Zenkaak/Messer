@@ -4,14 +4,21 @@ import { getOneSignalCredentials } from "./admin-settings";
 const ONESIGNAL_API_URL = "https://api.onesignal.com/notifications";
 
 interface OneSignalCallPushInput {
-  userId: number;
+  externalId: string | number;
   callId: number;
+  heading?: string;
+  body?: string;
 }
 
-export async function sendIncomingCallPush({ userId, callId }: OneSignalCallPushInput): Promise<void> {
+export async function sendIncomingCallPush({
+  externalId,
+  callId,
+  heading = "Incoming GSM WORLD call",
+  body = "GSM UNLOCK is calling you. Tap to answer.",
+}: OneSignalCallPushInput): Promise<void> {
   const { appId, apiKey } = await getOneSignalCredentials();
   if (!apiKey) {
-    logger.warn({ userId, callId }, "OneSignal push skipped: REST API key is not configured");
+    logger.warn({ externalId, callId }, "OneSignal push skipped: REST API key is not configured");
     return;
   }
 
@@ -25,9 +32,9 @@ export async function sendIncomingCallPush({ userId, callId }: OneSignalCallPush
       body: JSON.stringify({
         app_id: appId,
         target_channel: "push",
-        include_aliases: { external_id: [String(userId)] },
-        headings: { en: "Incoming GSM WORLD call" },
-        contents: { en: "GSM UNLOCK is calling you. Tap to answer." },
+        include_aliases: { external_id: [String(externalId)] },
+        headings: { en: heading },
+        contents: { en: body },
         url: `${process.env.PUBLIC_APP_URL || "https://unlockgsm.vercel.app"}/?call=${callId}`,
         web_url: `${process.env.PUBLIC_APP_URL || "https://unlockgsm.vercel.app"}/?call=${callId}`,
         ttl: 120,
@@ -42,9 +49,9 @@ export async function sendIncomingCallPush({ userId, callId }: OneSignalCallPush
 
     if (!response.ok) {
       const body = await response.text().catch(() => "");
-      logger.warn({ userId, callId, status: response.status, body: body.slice(0, 500) }, "OneSignal call push failed");
+      logger.warn({ externalId, callId, status: response.status, body: body.slice(0, 500) }, "OneSignal call push failed");
     }
   } catch (err) {
-    logger.warn({ err, userId, callId }, "OneSignal call push request failed");
+    logger.warn({ err, externalId, callId }, "OneSignal call push request failed");
   }
 }

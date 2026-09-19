@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Clock3, Phone, PhoneCall, PhoneOff, ShieldCheck, X } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { microphoneErrorMessage, requestMicrophoneAccess, VoiceCallPanel } from "@/components/voice-call";
+import { enableOneSignalPush } from "@/lib/onesignal";
 
 interface CallRecord {
   id: number;
@@ -140,9 +141,9 @@ export function CallDashboard() {
     setError(null);
     setOpen(true);
     try {
-      if ("Notification" in window && Notification.permission === "default") {
-        await Notification.requestPermission();
-      }
+      // A call button is a user gesture, so this is the reliable point to
+      // grant push permission and associate this device with the account.
+      if (user?.id) void enableOneSignalPush(String(user.id));
       const response = await fetch(`${base}/api/calls`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },

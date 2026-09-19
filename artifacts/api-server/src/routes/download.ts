@@ -19,6 +19,8 @@ interface GhAsset {
 }
 interface GhRelease {
   tag_name: string;
+  published_at?: string | null;
+  created_at?: string;
   assets?: GhAsset[];
 }
 
@@ -102,7 +104,7 @@ async function getAdminApkAsset(): Promise<CachedAdminAsset | null> {
   if (now < adminCacheExpiry) return cachedAdminAsset;
 
   try {
-    const listRes = await fetch(`${GH_API}/releases?per_page=20`, {
+    const listRes = await fetch(`${GH_API}/releases?per_page=100`, {
       headers: GH_HEADERS,
     });
     if (!listRes.ok) {
@@ -111,8 +113,14 @@ async function getAdminApkAsset(): Promise<CachedAdminAsset | null> {
       return null;
     }
     const releases = (await listRes.json()) as GhRelease[];
-    for (const release of releases) {
-      if (!release.tag_name?.startsWith("admin-apk-")) continue;
+    const adminReleases = releases
+      .filter((release) => release.tag_name?.startsWith("admin-apk-"))
+      .sort((a, b) => {
+        const aTime = Date.parse(a.published_at ?? a.created_at ?? "");
+        const bTime = Date.parse(b.published_at ?? b.created_at ?? "");
+        return bTime - aTime;
+      });
+    for (const release of adminReleases) {
       const asset = release.assets?.find(
         (a) => a.name.endsWith(".apk") && a.state === "uploaded",
       );

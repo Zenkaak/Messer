@@ -612,6 +612,11 @@ public class MainActivity extends AppCompatActivity {
  //noinspection ResultOfMethodCallIgnored
  dir.mkdirs();
  File apkFile = new File(dir, "gsm-admin-update.apk");
+  // Never let a partial download from an earlier attempt reach the package
+  // installer.
+  if (apkFile.exists() && !apkFile.delete()) {
+   throw new java.io.IOException("Could not replace the previous update file");
+  }
 
   HttpURLConnection conn = openGet(downloadUrl, adminPassword);
  conn.setConnectTimeout(30_000);
@@ -635,14 +640,26 @@ public class MainActivity extends AppCompatActivity {
  return;
  }
 
- try (InputStream in = conn.getInputStream();
+  long expectedBytes = conn.getContentLengthLong();
+  long downloadedBytes = 0;
+  try (InputStream in = conn.getInputStream();
  FileOutputStream out = new FileOutputStream(apkFile)) {
  byte[] buf = new byte[8192];
  int n;
- while ((n = in.read(buf)) != -1) out.write(buf, 0, n);
+  while ((n = in.read(buf)) != -1) {
+   out.write(buf, 0, n);
+   downloadedBytes += n;
+  }
  }
 
- mainHandler.post(() -> installApk(apkFile));
+  if (expectedBytes > 0 && downloadedBytes != expectedBytes) {
+   throw new java.io.IOException("Incomplete update download");
+  }
+  if (!isValidAdminApk(apkFile)) {
+   throw new java.io.IOException("The server returned an invalid GSM Admin APK");
+  }
+
+  mainHandler.post(() -> installApk(apkFile));
 
  } catch (Exception e) {
  Log.e(TAG, "Download failed", e);
@@ -758,6 +775,35 @@ public class MainActivity extends AppCompatActivity {
   request.grant(new String[] { PermissionRequest.RESOURCE_AUDIO_CAPTURE });
   } else {
   request.deny();
+  }
+  }
+
+  private boolean isValidAdminApk(File apkFile) {
+  if (!apkFile.isFile() || apkFile.length() < 100_000) return false;
+  try (InputStream in = new java.io.FileInputStream(apkFile)) {
+   byte[] magic = new byte[4];
+   if (in.read(magic) != 4
+   || magic[0] != 0x50 || magic[1] != 0x4b
+   || magic[2] != 0x03 || magic[3] != 0x04) {
+   return false;
+   }
+  } catch (Exception e) {
+   return false;
+  }
+
+  try {
+   android.content.pm.PackageInfo info =
+   getPackageManager().getPackageArchiveInfo(apkFile.getAbsolutePath(), 0);
+   if (info == null || !"com.gsmworld.admin".equals(info.packageName)) return false;
+   long downloadedVersion = android.os.Build.VERSION.SDK_INT >= 28
+   ? info.getLongVersionCode() : info.versionCode;
+   android.content.pm.PackageInfo installed =
+   getPackageManager().getPackageInfo(getPackageName(), 0);
+   long installedVersion = android.os.Build.VERSION.SDK_INT >= 28
+   ? installed.getLongVersionCode() : installed.versionCode;
+   return downloadedVersion >= installedVersion;
+  } catch (Exception e) {
+   return false;
   }
   }
 

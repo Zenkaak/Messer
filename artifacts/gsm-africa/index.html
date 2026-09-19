@@ -46,6 +46,8 @@
         if (window.location.hostname !== "unlockgsm.vercel.app") return;
         await OneSignal.init({
           appId: "955effe4-8fe1-4735-83c6-8aa90061d916",
+          serviceWorkerPath: "push/OneSignalSDKWorker.js",
+          serviceWorkerParam: { scope: "/push/" },
         });
       });
     </script>

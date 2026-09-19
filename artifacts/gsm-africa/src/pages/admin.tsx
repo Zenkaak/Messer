@@ -14,6 +14,7 @@ import {
 import { startRegistration, startAuthentication } from "@simplewebauthn/browser";
 import { BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { microphoneErrorMessage, requestMicrophoneAccess, VoiceCallPanel } from "@/components/voice-call";
+import { enableOneSignalPush, syncOneSignalUser } from "@/lib/onesignal";
 
 // ─── types ────────────────────────────────────────────────────────────────────
 interface PaymentNotification {
@@ -4066,9 +4067,12 @@ function LiveCallsPanel({ pwd }: { pwd: string }) {
         }
         data.forEach((call) => knownIds.current.add(call.id));
         setCalls(data);
-        const connected = data.find((call) => call.status === "active" || call.status === "ringing");
-        if (connected) setSelectedCall(connected);
-        else setSelectedCall(null);
+        // A ringing call is not connected yet. In particular, do not mount
+        // VoiceCallPanel for it: that requests the microphone before the
+        // admin presses Answer and a second request then fails with
+        // NotReadableError on Android WebView.
+        const connected = data.find((call) => call.status === "active");
+        setSelectedCall(connected ?? null);
         setError(null);
         setLoading(false);
     } catch (err) {
@@ -4146,7 +4150,7 @@ function LiveCallsPanel({ pwd }: { pwd: string }) {
         <button onClick={loadCalls} className="flex h-8 items-center gap-1.5 rounded-xl bg-slate-100 px-3 text-[11px] font-semibold text-slate-600 hover:bg-slate-200"><RefreshCw size={12} /> Refresh</button>
       </div>
 
-      {selectedCall?.signalToken && (selectedCall.status === "active" || selectedCall.status === "ringing") && (
+      {selectedCall?.signalToken && selectedCall.status === "active" && (
         <div className="mt-4 max-w-md">
           <VoiceCallPanel
             callId={selectedCall.id}
@@ -4185,11 +4189,19 @@ function LiveCallsPanel({ pwd }: { pwd: string }) {
               <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${call.status === "active" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
                  {call.status === "active" ? "Connected" : call.status === "ringing" ? "Ringing user" : `Queue #${call.position ?? "—"}`}
               </span>
-               {call.status === "queued" || call.status === "ringing" ? (
-                <button onClick={() => updateCall(call.id, "accept")} disabled={workingId !== null || Boolean(active && active.id !== call.id)} className="rounded-xl bg-emerald-600 px-3 py-2 text-[11px] font-bold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40">
-                  {workingId === call.id ? "Accepting…" : active && active.id !== call.id ? "Finish active call" : call.status === "ringing" ? "Answer call" : "Accept call"}
-                </button>
-              ) : (
+               {call.direction === "admin_to_user" && call.status === "ringing" ? (
+                 <span className="rounded-xl bg-blue-100 px-3 py-2 text-[11px] font-bold text-blue-700">
+                   Calling user…
+                 </span>
+               ) : call.direction === "admin_to_user" && call.status === "queued" ? (
+                 <span className="rounded-xl bg-slate-100 px-3 py-2 text-[11px] font-bold text-slate-600">
+                   Waiting for user
+                 </span>
+               ) : call.status === "queued" || call.status === "ringing" ? (
+                 <button onClick={() => updateCall(call.id, "accept")} disabled={workingId !== null || Boolean(active && active.id !== call.id)} className="rounded-xl bg-emerald-600 px-3 py-2 text-[11px] font-bold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40">
+                   {workingId === call.id ? "Accepting…" : active && active.id !== call.id ? "Finish active call" : call.status === "ringing" ? "Answer call" : "Accept call"}
+                 </button>
+               ) : (
                 <button onClick={() => updateCall(call.id, "hangup")} disabled={workingId !== null} className="rounded-xl bg-red-600 px-3 py-2 text-[11px] font-bold text-white hover:bg-red-700 disabled:opacity-40">
                   {workingId === call.id ? "Ending…" : "Hang up"}
                 </button>
@@ -5390,8 +5402,16 @@ export function AdminPage() {
     setAuthed(true);
     writeAdminSession(ADMIN_SESSION_PASSWORD_KEY, password);
     writeAdminSession(ADMIN_SESSION_AUTH_KEY, "1");
+    // The admin is a OneSignal external user too. This lets user-to-admin
+    // calls wake the admin browser/PWA even when the calls tab is closed.
+    void syncOneSignalUser("admin");
+    void enableOneSignalPush("admin");
     if (isDefault) { setIsDefaultWarn(true); setShowChangePwd(true); }
   }
+
+  useEffect(() => {
+    if (authed) void syncOneSignalUser("admin");
+  }, [authed]);
 
   if (!authed) return <LoginScreen onLogin={handleLogin} />;
 

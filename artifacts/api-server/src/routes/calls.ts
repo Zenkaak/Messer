@@ -123,6 +123,17 @@ router.post("/calls", async (req, res) => {
       })
       .returning();
 
+    // The admin dashboard may be closed, so polling alone cannot wake it.
+    // The admin browser/PWA registers the stable OneSignal external id
+    // "admin" after admin login.
+    if (call) {
+      void sendIncomingCallPush({
+        externalId: "admin",
+        callId: call.id,
+        heading: "Incoming GSM UNLOCK call",
+        body: `${call.callerName || "A customer"} is calling GSM UNLOCK. Tap to answer.`,
+      });
+    }
     res.status(201).json(await presentCall(call));
   } catch (err) {
     req.log.error({ err }, "Failed to create live call request");
@@ -351,6 +362,10 @@ router.post("/admin/calls/:id/accept", async (req, res) => {
       res.status(409).json({ error: "Call is no longer available" });
       return;
     }
+    if (call.direction === "admin_to_user") {
+      res.status(409).json({ error: "This call is waiting for the user to answer." });
+      return;
+    }
 
     const [session] = await db
       .insert(liveChatSessionsTable)
@@ -479,7 +494,7 @@ router.post("/admin/calls/:id/retry", async (req, res) => {
       })
       .returning();
     if (call) {
-      void sendIncomingCallPush({ userId: targetUserId, callId: call.id });
+      void sendIncomingCallPush({ externalId: targetUserId, callId: call.id });
     }
     res.status(201).json(await presentCall(call));
   } catch (err) {
@@ -529,7 +544,7 @@ router.post("/admin/calls/user/:userId", async (req, res) => {
       })
       .returning();
     if (call) {
-      void sendIncomingCallPush({ userId: targetUserId, callId: call.id });
+      void sendIncomingCallPush({ externalId: targetUserId, callId: call.id });
     }
     res.status(201).json(await presentCall(call));
   } catch (err) {
