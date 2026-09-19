@@ -62,6 +62,7 @@ export function CallDashboard() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [preparedStream, setPreparedStream] = useState<MediaStream | null>(null);
+  const [pushState, setPushState] = useState<"idle" | "enabling" | "enabled" | "failed">("idle");
   const lastIncomingId = useRef<number | null>(null);
   const notifiedIncomingId = useRef<number | null>(null);
   const base = apiBase();
@@ -159,6 +160,13 @@ export function CallDashboard() {
     }
   }
 
+  async function enableCallNotifications() {
+    if (!user?.id) return;
+    setPushState("enabling");
+    const enabled = await enableOneSignalPush(String(user.id));
+    setPushState(enabled ? "enabled" : "failed");
+  }
+
   async function acceptIncoming() {
     if (!call || !token) return;
     setLoading(true);
@@ -245,6 +253,19 @@ export function CallDashboard() {
                   <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-[#eaf8f8] text-[#087f8c]"><PhoneCall className="h-6 w-6" /></div>
                   <h3 className="mt-4 text-lg font-extrabold text-[#163642]">Talk to a real agent</h3>
                   <p className="mt-2 text-sm leading-6 text-[#66838b]">A private voice session opens here. It does not use the GSMBot chat box.</p>
+                   {user?.id && pushState !== "enabled" && (
+                     <div className="mt-4 rounded-2xl border border-[#ccebed] bg-[#f1fbfb] p-3 text-left">
+                       <p className="text-xs font-bold text-[#163642]">Get call alerts when this page is closed</p>
+                       <p className="mt-1 text-[11px] leading-5 text-[#66838b]">Allow browser notifications so GSM UNLOCK can reach you while you are using another app.</p>
+                       <button type="button" onClick={() => void enableCallNotifications()} disabled={pushState === "enabling"} className="mt-2 w-full rounded-xl border border-[#087f8c] px-3 py-2 text-xs font-bold text-[#087f8c] disabled:opacity-60">
+                         {pushState === "enabling" ? "Enabling notifications…" : "Enable call notifications"}
+                       </button>
+                       {pushState === "failed" && <p className="mt-2 text-[11px] font-semibold text-rose-600">Permission was not granted. Check this site’s notification settings and try again.</p>}
+                     </div>
+                   )}
+                   {user?.id && pushState === "enabled" && (
+                     <p className="mt-4 rounded-2xl bg-emerald-50 px-3 py-2 text-[11px] font-semibold text-emerald-700">Call notifications are enabled on this browser.</p>
+                   )}
                   <button type="button" onClick={() => void requestCall()} disabled={loading} className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-[#087f8c] px-4 py-3.5 text-sm font-bold text-white disabled:opacity-60">
                     <Phone className="h-4 w-4" /> {loading ? "Calling…" : "Request a call"}
                   </button>
