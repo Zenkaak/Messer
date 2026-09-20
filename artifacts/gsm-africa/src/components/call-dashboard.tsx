@@ -222,7 +222,7 @@ export function CallDashboard() {
     <>
       <button
         type="button"
-        onClick={() => { if (!call) void requestCall(); else setOpen(true); }}
+        onClick={() => setOpen(true)}
         className="fixed bottom-[10.5rem] right-4 z-[390] flex min-h-12 items-center gap-2 rounded-2xl bg-[linear-gradient(135deg,#087f8c,#0b596d)] px-4 text-left text-white shadow-[0_12px_30px_rgba(8,127,140,0.32)] transition-transform hover:-translate-y-0.5 md:bottom-6 md:right-[6.75rem]"
         aria-label="Open GSM UNLOCK call dashboard"
       >

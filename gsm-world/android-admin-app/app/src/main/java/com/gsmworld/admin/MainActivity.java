@@ -321,6 +321,12 @@ public class MainActivity extends AppCompatActivity {
  webView.setWebChromeClient(new WebChromeClient() {
  @Override
   public void onPermissionRequest(PermissionRequest request) {
+   // WebView callbacks can arrive off the activity's normal event path.
+   // Always handle the runtime permission and grant on the UI thread.
+   mainHandler.post(() -> handleWebPermissionRequest(request));
+   }
+
+  private void handleWebPermissionRequest(PermissionRequest request) {
   if (request.getResources().length == 1
   && PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(request.getResources()[0])) {
   if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.RECORD_AUDIO)
@@ -332,6 +338,7 @@ public class MainActivity extends AppCompatActivity {
   }
   } else {
   request.grant(request.getResources());
+ }
  }
 
  @Override

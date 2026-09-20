@@ -31,14 +31,24 @@ export async function requestMicrophoneAccess(): Promise<MediaStream> {
   if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
     throw new Error("Microphone access is only available from a secure browser or the GSM World app.");
   }
-  return navigator.mediaDevices.getUserMedia({
-    audio: {
-      echoCancellation: true,
-      noiseSuppression: true,
-      autoGainControl: true,
-    },
-    video: false,
-  });
+  try {
+    return await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      },
+      video: false,
+    });
+  } catch (error) {
+    // Some Android WebView microphone implementations reject the optional
+    // audio constraints with NotReadableError even though plain audio capture
+    // is available. Retry once with the WebView-compatible minimal request.
+    if (error instanceof DOMException && ["NotReadableError", "OverconstrainedError"].includes(error.name)) {
+      return navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    }
+    throw error;
+  }
 }
 
 export function microphoneErrorMessage(error: unknown) {
