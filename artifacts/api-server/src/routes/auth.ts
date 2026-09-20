@@ -105,6 +105,21 @@ function getAppOrigin(req: import("express").Request): string {
   return `${proto}://${host}`;
 }
 
+function getCanonicalOrigin(): string {
+  return (
+    process.env.APP_BASE_URL ||
+    process.env.PUBLIC_APP_URL ||
+    "https://unlockgsm.vercel.app"
+  ).replace(/\/$/, "");
+}
+
+type OAuthState = {
+  ts: number;
+  isApp?: boolean;
+  sessionId?: string;
+  returnOrigin?: string;
+};
+
 router.post("/auth/register", async (req, res) => {
   const ip =
     (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ||
@@ -522,7 +537,11 @@ router.get("/auth/google/redirect", async (req, res) => {
     return;
   }
   const origin = getAppOrigin(req);
-  const redirectUri = encodeURIComponent(`${origin}/api/auth/google/callback`);
+  // Google only accepts exact redirect URIs. Always use the canonical Vercel
+  // callback, then use the signed state to return to the originating domain.
+  const redirectUri = encodeURIComponent(
+    `${getCanonicalOrigin()}/api/auth/google/callback`,
+  );
   const scope = encodeURIComponent("openid email profile");
   // Detect Android WebView app by user-agent; encode isApp flag + sessionId in state
   // so the callback can (a) redirect via deep link and (b) store token for polling fallback.
@@ -532,12 +551,14 @@ router.get("/auth/google/redirect", async (req, res) => {
   // (which is only passed by the Android WebView's login.tsx — the web browser path never adds it).
   // Chrome's UA won't contain "GSMWorldApp", so the sessionId check is the reliable signal.
   const isAndroidApp = ua.includes("GSMWorldApp") || !!sessionId;
-  const statePayload = {
+  const statePayload: OAuthState = {
     ts: Date.now(),
+    returnOrigin: origin,
     ...(isAndroidApp ? { isApp: true } : {}),
     ...(sessionId ? { sessionId } : {}),
   };
-  const state = Buffer.from(JSON.stringify(statePayload)).toString("base64url");
+  // Sign the state so the callback cannot be turned into an open redirect.
+  const state = jwt.sign(statePayload, _jwtSecret, { expiresIn: "10m" });
   // No &prompt= parameter: if the user already has an active Google session in
   // this browser the account picker is skipped automatically.  Only adding
   // prompt=select_account would force re-selection on every visit, which is
@@ -561,10 +582,10 @@ router.get("/auth/google/redirect", async (req, res) => {
 </body></html>`);
 });
 
-function decodeOAuthState(raw: unknown): { isApp?: boolean; sessionId?: string } {
+function decodeOAuthState(raw: unknown): OAuthState {
   if (typeof raw !== "string") return {};
   try {
-    return JSON.parse(Buffer.from(raw, "base64url").toString("utf8")) as { isApp?: boolean; sessionId?: string };
+    return jwt.verify(raw, _jwtSecret) as OAuthState;
   } catch {
     return {};
   }
@@ -609,8 +630,10 @@ router.get("/auth/google/poll", async (req, res) => {
 });
 
 router.get("/auth/google/callback", async (req, res) => {
-  const origin = getAppOrigin(req);
   const stateData = decodeOAuthState(req.query.state);
+  // The Google callback always lands on the canonical domain. Return the user
+  // to the signed domain that initiated login, including a custom domain.
+  const origin = stateData.returnOrigin || getCanonicalOrigin();
   const isAppRedirect = stateData.isApp === true;
   const sessionId = stateData.sessionId;
 
@@ -685,7 +708,8 @@ window.addEventListener('load', function() {
       if (isAppRedirect) { await appRedirect(params); } else { webRedirect(params); }
       return;
     }
-    const redirectUri = `${origin}/api/auth/google/callback`;
+    // Must exactly match the redirect_uri sent in the authorization request.
+    const redirectUri = `${getCanonicalOrigin()}/api/auth/google/callback`;
     const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
