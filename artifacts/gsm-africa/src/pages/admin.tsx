@@ -2543,6 +2543,16 @@ function UserDetailView({ user: initUser, pwd, onBack, onUserUpdated, onUserDele
     return () => window.clearInterval(timer);
   }, [directCall, pwd]);
 
+  // A queued/ringing outgoing call prewarms one stream so the admin can
+  // connect immediately when the user answers. If this detail view closes
+  // before that happens, release the stream or the next call can fail with
+  // NotReadableError.
+  useEffect(() => {
+    return () => {
+      preparedCallStream?.getTracks().forEach((track) => track.stop());
+    };
+  }, [preparedCallStream]);
+
   async function adjustWallet() {
     const amt = parseFloat(walletAmount);
     if (isNaN(amt) || amt <= 0 || !walletModal) { toast({ variant: "destructive", title: "Enter a valid amount" }); return; }
@@ -2743,7 +2753,7 @@ function UserDetailView({ user: initUser, pwd, onBack, onUserUpdated, onUserDele
                 <p className="text-xs text-amber-700">The user is offline. This call will ring when they come online.</p>
               </div>
             </div>
-          ) : directCall.signalToken ? (
+          ) : directCall.signalToken && directCall.status === "active" ? (
             <VoiceCallPanel
               callId={directCall.id}
               signalToken={directCall.signalToken}
@@ -2758,6 +2768,14 @@ function UserDetailView({ user: initUser, pwd, onBack, onUserUpdated, onUserDele
                    });
               }}
             />
+          ) : directCall.signalToken ? (
+            <div className="flex items-center gap-3 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3">
+              <Phone size={17} className="animate-pulse text-blue-600" />
+              <div>
+                <p className="text-sm font-black text-blue-900">Waiting for the user to answer…</p>
+                <p className="text-xs text-blue-700">The microphone will connect after the user accepts the call.</p>
+              </div>
+            </div>
           ) : null}
         </div>
       )}
@@ -4024,7 +4042,7 @@ function LoginScreen({ onLogin }: { onLogin: (pwd: string, isDefault: boolean) =
 }
 
 // ─── main export ──────────────────────────────────────────────────────────────
-function LiveCallsPanel({ pwd }: { pwd: string }) {
+function LiveCallsPanel({ pwd, visible }: { pwd: string; visible: boolean }) {
   const { toast } = useToast();
   const [calls, setCalls] = useState<LiveCall[]>([]);
   const [loading, setLoading] = useState(true);
@@ -4045,7 +4063,11 @@ function LiveCallsPanel({ pwd }: { pwd: string }) {
         throw new Error(!Array.isArray(body) && body.error ? body.error : `Call queue returned ${response.status}`);
       }
       const data = body as LiveCall[];
-        const newCalls = data.filter((call) => ["queued", "ringing"].includes(call.status) && !knownIds.current.has(call.id));
+        const newCalls = data.filter((call) =>
+          call.direction !== "admin_to_user" &&
+          ["queued", "ringing"].includes(call.status) &&
+          !knownIds.current.has(call.id),
+        );
         if (knownIds.current.size > 0 && newCalls.length > 0) {
           const first = newCalls[0];
           toast({
@@ -4064,6 +4086,15 @@ function LiveCallsPanel({ pwd }: { pwd: string }) {
             oscillator.start();
             oscillator.stop(context.currentTime + 0.18);
           } catch { /* browser audio may be unavailable */ }
+          if ("Notification" in window && Notification.permission === "granted") {
+            try {
+              new Notification("Incoming GSM UNLOCK call", {
+                body: "A customer is waiting. Open the admin console to answer.",
+                tag: `gsm-admin-call-${first.id}`,
+                requireInteraction: true,
+              });
+            } catch { /* browser notifications may be unavailable */ }
+          }
         }
         data.forEach((call) => knownIds.current.add(call.id));
         setCalls(data);
@@ -4071,7 +4102,12 @@ function LiveCallsPanel({ pwd }: { pwd: string }) {
         // VoiceCallPanel for it: that requests the microphone before the
         // admin presses Answer and a second request then fails with
         // NotReadableError on Android WebView.
-        const connected = data.find((call) => call.status === "active");
+        // Direct admin-to-user calls are owned by UserDetailView. Keeping
+        // them out of this panel prevents a second VoiceCallPanel from
+        // opening another microphone when the admin changes tabs.
+        const connected = data.find((call) =>
+          call.status === "active" && call.direction !== "admin_to_user",
+        );
         setSelectedCall(connected ?? null);
         setError(null);
         setLoading(false);
@@ -4139,19 +4175,14 @@ function LiveCallsPanel({ pwd }: { pwd: string }) {
   const active = calls.find((call) => call.status === "active" || call.status === "ringing");
   const liveCalls = calls.filter((call) => ["queued", "ringing", "active"].includes(call.status));
   const history = calls.filter((call) => ["completed", "cancelled"].includes(call.status));
+  const incoming = calls.find((call) =>
+    call.direction !== "admin_to_user" && ["queued", "ringing"].includes(call.status),
+  );
 
   return (
-    <section className="border-b border-slate-200 bg-white px-4 py-5 sm:px-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="flex items-center gap-2 text-sm font-black text-slate-800"><Phone size={16} className="text-emerald-600" /> Call queue</p>
-          <p className="mt-1 text-xs text-slate-400">{queued.length} waiting · {active ? "1 active call" : "No active call"} · refreshes every 3s</p>
-        </div>
-        <button onClick={loadCalls} className="flex h-8 items-center gap-1.5 rounded-xl bg-slate-100 px-3 text-[11px] font-semibold text-slate-600 hover:bg-slate-200"><RefreshCw size={12} /> Refresh</button>
-      </div>
-
+    <>
       {selectedCall?.signalToken && selectedCall.status === "active" && (
-        <div className="mt-4 max-w-md">
+        <div className={visible ? "mt-4 max-w-md" : "fixed bottom-4 right-4 z-[600] w-[calc(100vw-2rem)] max-w-md"}>
           <VoiceCallPanel
             callId={selectedCall.id}
             signalToken={selectedCall.signalToken}
@@ -4162,6 +4193,48 @@ function LiveCallsPanel({ pwd }: { pwd: string }) {
           />
         </div>
       )}
+
+      {!visible && incoming && (
+        <div className="fixed inset-0 z-[590] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-sm">
+          <section className="w-full max-w-sm rounded-3xl bg-white p-5 text-center shadow-2xl">
+            <div className="mx-auto grid h-16 w-16 animate-pulse place-items-center rounded-full bg-emerald-600 text-white">
+              <Phone size={28} />
+            </div>
+            <p className="mt-4 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-700">Incoming support call</p>
+            <h2 className="mt-1 text-xl font-black text-slate-900">{incoming.callerName || "Customer"}</h2>
+            <p className="mt-2 text-sm text-slate-500">Answer from any admin tab. You do not need to open Calls.</p>
+            <div className="mt-5 flex gap-2">
+              <button
+                onClick={() => updateCall(incoming.id, "hangup")}
+                disabled={workingId !== null}
+                className="flex-1 rounded-xl border border-red-200 px-4 py-3 text-sm font-bold text-red-600 hover:bg-red-50 disabled:opacity-50"
+              >
+                Decline
+              </button>
+              <button
+                onClick={() => updateCall(incoming.id, "accept")}
+                disabled={workingId !== null || Boolean(active && active.id !== incoming.id && active.status === "active")}
+                className="flex-1 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {workingId === incoming.id
+                  ? "Answering…"
+                  : active && active.id !== incoming.id && active.status === "active"
+                    ? "Finish active call first"
+                    : "Answer"}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {visible && <section className="border-b border-slate-200 bg-white px-4 py-5 sm:px-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="flex items-center gap-2 text-sm font-black text-slate-800"><Phone size={16} className="text-emerald-600" /> Call queue</p>
+          <p className="mt-1 text-xs text-slate-400">{queued.length} waiting · {active ? "1 active call" : "No active call"} · refreshes every 3s</p>
+        </div>
+        <button onClick={loadCalls} className="flex h-8 items-center gap-1.5 rounded-xl bg-slate-100 px-3 text-[11px] font-semibold text-slate-600 hover:bg-slate-200"><RefreshCw size={12} /> Refresh</button>
+      </div>
 
       {loading ? (
         <div className="mt-4 rounded-2xl bg-slate-50 p-6 text-center text-xs text-slate-400">Loading call queue…</div>
@@ -4187,7 +4260,11 @@ function LiveCallsPanel({ pwd }: { pwd: string }) {
                 <p className="mt-0.5 truncate text-[10px] text-slate-500">{call.callerEmail || call.callerPhone || "Guest caller"} · requested {new Date(call.queuedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
               </div>
               <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${call.status === "active" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
-                 {call.status === "active" ? "Connected" : call.status === "ringing" ? "Ringing user" : `Queue #${call.position ?? "—"}`}
+                 {call.status === "active"
+                   ? "Connected"
+                   : call.status === "ringing"
+                     ? call.direction === "admin_to_user" ? "Ringing user" : "Incoming call"
+                     : `Queue #${call.position ?? "—"}`}
               </span>
                {call.direction === "admin_to_user" && call.status === "ringing" ? (
                   <div className="flex items-center gap-2">
@@ -4264,7 +4341,8 @@ function LiveCallsPanel({ pwd }: { pwd: string }) {
           </div>
         </div>
       )}
-    </section>
+      </section>}
+    </>
   );
 }
 
@@ -5625,7 +5703,7 @@ export function AdminPage() {
 
           {/* ── Scrollable content ── */}
           <main ref={mainRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-16 md:pb-0" style={{ overscrollBehavior: "contain", background: "#0c1120" }}>
-            {tab === "calls"     && <LiveCallsPanel pwd={pwd} />}
+            <LiveCallsPanel pwd={pwd} visible={tab === "calls"} />
             {tab === "overview"   && <OverviewPanel pwd={pwd} onNavigate={setTab} />}
             {tab === "orders"     && <OrdersPanel     pwd={pwd} />}
             {tab === "products"   && <ProductsPanel   pwd={pwd} />}

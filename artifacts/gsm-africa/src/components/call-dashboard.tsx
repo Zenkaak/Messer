@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Clock3, Phone, PhoneCall, PhoneOff, ShieldCheck, X } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { microphoneErrorMessage, requestMicrophoneAccess, VoiceCallPanel } from "@/components/voice-call";
-import { enableOneSignalPush } from "@/lib/onesignal";
+import { enableOneSignalPush, syncOneSignalPush } from "@/lib/onesignal";
 
 interface CallRecord {
   id: number;
@@ -124,6 +124,24 @@ export function CallDashboard() {
     const timer = window.setInterval(refreshIncoming, 2500);
     return () => window.clearInterval(timer);
   }, [refreshIncoming]);
+
+  // Re-attach a browser that already granted notification permission after a
+  // reload. The explicit button remains the first-time permission flow.
+  useEffect(() => {
+    if (!user?.id) {
+      setPushState("idle");
+      return;
+    }
+    if (!("Notification" in window) || Notification.permission !== "granted") {
+      setPushState("idle");
+      return;
+    }
+    let cancelled = false;
+    void syncOneSignalPush(String(user.id)).then((enabled) => {
+      if (!cancelled && enabled) setPushState("enabled");
+    });
+    return () => { cancelled = true; };
+  }, [user?.id]);
 
   useEffect(() => {
     if (!call || call.status === "completed" || call.status === "cancelled") return;

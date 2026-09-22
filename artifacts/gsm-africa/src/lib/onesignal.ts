@@ -73,3 +73,38 @@ export function enableOneSignalPush(externalId: string | number): Promise<boolea
   });
   });
 }
+
+/**
+ * Reconnect an already-authorized browser to the account without opening a
+ * permission prompt. This is safe to call from authentication effects and
+ * keeps call delivery working after a reload.
+ */
+export function syncOneSignalPush(externalId: string | number): Promise<boolean> {
+  if (
+    typeof window === "undefined" ||
+    !window.OneSignalDeferred ||
+    ("Notification" in window && Notification.permission !== "granted")
+  ) return Promise.resolve(false);
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (value: boolean) => {
+      if (settled) return;
+      settled = true;
+      resolve(value);
+    };
+    const timeout = window.setTimeout(() => finish(false), 10000);
+
+    window.OneSignalDeferred?.push(async (OneSignal) => {
+      try {
+        await OneSignal.login(String(externalId));
+        await OneSignal.User?.PushSubscription?.optIn?.();
+        window.clearTimeout(timeout);
+        finish(true);
+      } catch {
+        window.clearTimeout(timeout);
+        finish(false);
+      }
+    });
+  });
+}
