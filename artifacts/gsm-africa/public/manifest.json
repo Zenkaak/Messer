@@ -1,0 +1,39 @@
+{
+  "name": "GSM World",
+  "short_name": "GSM World",
+  "description": "Phone unlocking services, GSM tools, credits and customer support.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0a1628",
+  "theme_color": "#0a1628",
+  "lang": "en",
+  "categories": ["shopping", "utilities"],
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "My account",
+      "short_name": "Account",
+      "url": "/account"
+    },
+    {
+      "name": "Browse store",
+      "short_name": "Store",
+      "url": "/products"
+    },
+    {
+      "name": "Admin console",
+      "short_name": "Admin",
+      "url": "/admin"
+    }
+  ]
+}

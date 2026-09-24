@@ -1,0 +1,25 @@
+{
+  "installCommand": "pnpm install --no-frozen-lockfile",
+  "buildCommand": "bash scripts/vercel-build.sh",
+  "framework": null,
+  "env": {
+    "PORT": "24115",
+    "BASE_PATH": "/",
+    "APP_BASE_URL": "https://unlockgsm.vercel.app",
+    "PUBLIC_APP_URL": "https://unlockgsm.vercel.app"
+  },
+  "crons": [
+    {
+      "path": "/api/admin/cron/refresh-models",
+      "schedule": "0 4 */2 * *"
+    },
+    {
+      "path": "/api/admin/cron/abandoned-carts",
+      "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/admin/cron/daily-marketing",
+      "schedule": "50 0 * * *"
+    }
+  ]
+}

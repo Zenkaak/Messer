@@ -1,0 +1,2 @@
+- [Imported workspace preview](imported-workspace-preview.md) — restart managed artifact workflows and avoid destructive database setup when preserving catalog data.
+- [Workspace dependency install](workspace-dependency-install.md) — when the full workspace install is blocked by an unrelated package, install only the app/API dependency filters needed for verification.

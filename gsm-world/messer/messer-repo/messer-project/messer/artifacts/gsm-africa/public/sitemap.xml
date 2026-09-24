@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <!-- Core pages -->
+  <url><loc>https://gsmworld.vercel.app/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>
+  <url><loc>https://gsmworld.vercel.app/iphone-unlock</loc><changefreq>weekly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://gsmworld.vercel.app/android-unlock</loc><changefreq>weekly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://gsmworld.vercel.app/frp</loc><changefreq>weekly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://gsmworld.vercel.app/credits</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://gsmworld.vercel.app/direct-unlock</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://gsmworld.vercel.app/imei</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://gsmworld.vercel.app/products</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://gsmworld.vercel.app/categories</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://gsmworld.vercel.app/activate</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://gsmworld.vercel.app/unlock-tools</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://gsmworld.vercel.app/gift-cards</loc><changefreq>weekly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://gsmworld.vercel.app/orders/lookup</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>
+  <url><loc>https://gsmworld.vercel.app/login</loc><changefreq>monthly</changefreq><priority>0.4</priority></url>
+  <url><loc>https://gsmworld.vercel.app/signup</loc><changefreq>monthly</changefreq><priority>0.4</priority></url>
+
+  <!-- iPhone Unlock by Carrier (USA) -->
+  <url><loc>https://gsmworld.vercel.app/seo/iphone-unlock-t-mobile-usa</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/iphone-unlock-att-usa</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/iphone-unlock-sprint-usa</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/iphone-unlock-verizon-usa</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/iphone-unlock-cricket-usa</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/iphone-unlock-boost-mobile-usa</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/iphone-unlock-metropcs-usa</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+
+  <!-- iPhone Unlock by Carrier (UK/Europe/Oceania) -->
+  <url><loc>https://gsmworld.vercel.app/seo/iphone-unlock-ee-uk</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/iphone-unlock-o2-uk</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/iphone-unlock-vodafone-uk</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/iphone-unlock-three-uk</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/iphone-unlock-optus-australia</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/iphone-unlock-telstra-australia</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/iphone-unlock-rogers-canada</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/iphone-unlock-telus-canada</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+
+  <!-- iPhone by Model -->
+  <url><loc>https://gsmworld.vercel.app/seo/iphone-15-unlock</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/iphone-14-unlock</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/iphone-13-unlock</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/iphone-12-unlock</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/iphone-11-unlock</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/iphone-xr-unlock</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/ipad-unlock-service</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/iphone-carrier-unlock</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+
+  <!-- iCloud Pages -->
+  <url><loc>https://gsmworld.vercel.app/seo/icloud-activation-lock-removal</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/icloud-bypass-network-ios12-17</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/icloud-full-unlock</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/icloud-bypass-ios-17</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/icloud-bypass-ios-16</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/a12-iphone-ipad-offer</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/hfz-activator-a12-windows</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/mina-a12-bypass-no-signal</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/iremoval-pro-tools</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+
+  <!-- Samsung Pages -->
+  <url><loc>https://gsmworld.vercel.app/seo/samsung-frp-remove</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/samsung-account-remove</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/samsung-unlock-network</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/samsung-galaxy-s24-unlock</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/samsung-galaxy-s23-unlock</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/samsung-galaxy-a54-frp-bypass</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/samsung-galaxy-a15-frp</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/samsung-mdm-bypass</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/samsung-kg-lock-remove</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/samsung-frp-bypass-android-14</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/samsung-network-unlock-imei</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/samsung-knox-bypass</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/z3x-samstool-online</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+
+  <!-- Huawei Pages -->
+  <url><loc>https://gsmworld.vercel.app/seo/huawei-frp-remove</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/huawei-id-remove</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/huawei-unlock-nck</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+
+  <!-- Xiaomi Pages -->
+  <url><loc>https://gsmworld.vercel.app/seo/xiaomi-frp-remove</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/xiaomi-mi-account-remove</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/fcktool-xiaomi-frp</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/xiaomi-repair-tool-xrt</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/xiaomi-redmi-note-unlock</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/xiaomi-poco-unlock</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/xiaomi-bootloader-unlock</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+
+  <!-- Other Brand Pages -->
+  <url><loc>https://gsmworld.vercel.app/seo/oppo-services</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/oppo-frp-bypass</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/oneplus-services</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/oneplus-frp-bypass</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/vivo-unlock-service</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/realme-unlock-service</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/honor-unlock-service</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/honor-frp-bypass</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/tecno-unlock-service</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/infinix-unlock-service</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/infinix-frp-bypass</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+
+  <!-- LG / Motorola / Nokia / HTC / ZTE / Sony -->
+  <url><loc>https://gsmworld.vercel.app/seo/lg-factory-unlock</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/lg-frp-bypass</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/motorola-factory-unlock</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/motorola-frp-bypass</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/nokia-factory-unlock</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/nokia-frp-bypass</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/htc-unlock-service</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/zte-unlock-service</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/sony-xperia-unlock</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/sony-frp-bypass</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/google-pixel-unlock</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+
+  <!-- Android FRP Pages -->
+  <url><loc>https://gsmworld.vercel.app/seo/frp-bypass-android-11</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/frp-bypass-android-12</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/frp-bypass-android-13</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/frp-bypass-android-14</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/frp-bypass-any-android</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/frptoolpro-service</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+
+  <!-- IMEI Services -->
+  <url><loc>https://gsmworld.vercel.app/seo/imei-check-service</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/imei-repair-service</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/imei-blacklist-removal</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/imei-unlock-any-phone</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+
+  <!-- Tool Rentals -->
+  <url><loc>https://gsmworld.vercel.app/seo/ultra-tool-credit</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/ultra-tool-rental</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/multiunlock-tool</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/multiunlock-tool-rental</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/nc-auth-service</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/nc-auth-credits</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/bmt-pro-service</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/chimera-tool-rental</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/z3x-pro-rental</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/octoplus-samsung-rental</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/eft-pro-android-unlock</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/sigma-software-service</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/iremoval-pro-rental</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/gsm-server-credits</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+
+  <!-- General Services -->
+  <url><loc>https://gsmworld.vercel.app/seo/phone-unlock-service</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/android-mdm-bypass</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/mdm-removal-service</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/direct-phone-unlock</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/google-account-removal</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/pattern-lock-bypass</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/pattern-pin-unlock</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://gsmworld.vercel.app/seo/gsm-world-reviews</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
+</urlset>

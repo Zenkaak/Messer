@@ -1,0 +1,2 @@
+-keep class com.gsmworld.admin.** { *; }
+-keepclassmembers class * extends android.webkit.WebViewClient { *; }

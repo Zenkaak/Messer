@@ -1,0 +1,44 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.gsmworld.app'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.gsmworld.app"
+        minSdk 21
+        targetSdk 34
+        versionCode 3
+        versionName "1.0.2"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt')
+        }
+        debug {
+            applicationIdSuffix ""
+            versionNameSuffix ""
+        }
+    }
+
+    // Rename output APK to "GSMWorld.apk" for all variants
+    applicationVariants.all { variant ->
+        variant.outputs.all {
+            outputFileName = "GSMWorld.apk"
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+}
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.1.0'
+}

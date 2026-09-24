@@ -1,0 +1,31 @@
+kind = "web"
+  previewPath = "/"
+  title = "GSM World Store (dev)"
+  version = "1.0.0"
+  id = "artifacts/gsm-africa"
+  router = "path"
+
+  [[integratedSkills]]
+  name = "react-vite"
+  version = "1.0.0"
+
+  [[services]]
+  name = "web"
+  paths = [ "/" ]
+  localPort = 3001
+
+  [services.development]
+  run = "pnpm -C /home/runner/workspace/gsm-world --filter @workspace/gsm-africa run dev"
+
+  [services.production]
+  build = [ "pnpm", "--filter", "@workspace/gsm-africa", "run", "build" ]
+  publicDir = "artifacts/gsm-africa/dist/public"
+  serve = "static"
+
+  [[services.production.rewrites]]
+  from = "/*"
+  to = "/index.html"
+
+  [services.env]
+  PORT = "3001"
+  BASE_PATH = "/"

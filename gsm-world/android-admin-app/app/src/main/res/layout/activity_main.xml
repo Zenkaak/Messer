@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/background">
+
+    <!-- SwipeRefreshLayout enables pull-to-refresh on the WebView -->
+    <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+        android:id="@+id/swipeRefresh"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <WebView
+            android:id="@+id/webview"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+    </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+
+    <!-- Offline / error overlay — shown when main-frame load fails -->
+    <LinearLayout
+        android:id="@+id/errorView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:padding="48dp"
+        android:background="@color/background"
+        android:visibility="gone">
+
+        <ImageView
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:src="@drawable/ic_wifi_off"
+            android:contentDescription="No connection" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/offline_title"
+            android:textColor="#f1f5f9"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            android:layout_marginTop="28dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/offline_subtitle"
+            android:textColor="#64748b"
+            android:textSize="14sp"
+            android:gravity="center"
+            android:layout_marginTop="10dp" />
+
+        <Button
+            android:id="@+id/retryButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/offline_retry"
+            android:backgroundTint="@color/colorPrimary"
+            android:textColor="#ffffff"
+            android:paddingHorizontal="36dp"
+            android:layout_marginTop="36dp"
+            style="@style/Widget.MaterialComponents.Button" />
+
+        <!-- Branding watermark -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="GSM World Admin"
+            android:textColor="#1e293b"
+            android:textSize="11sp"
+            android:letterSpacing="0.08"
+            android:layout_marginTop="56dp" />
+
+    </LinearLayout>
+
+</FrameLayout>
