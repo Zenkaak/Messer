@@ -254,9 +254,9 @@ export function CallDashboard() {
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-[500] flex items-end justify-center bg-slate-950/45 p-3 backdrop-blur-sm sm:items-center">
-          <section className="w-full max-w-md overflow-hidden rounded-[28px] bg-[#f4fbfc] shadow-2xl">
-            <header className="flex items-center gap-3 bg-[linear-gradient(135deg,#163642,#087f8c)] px-5 py-4 text-white">
+        <div className="fixed inset-0 z-[500] flex items-stretch justify-center bg-slate-950/65 backdrop-blur-sm sm:items-center sm:p-4">
+          <section className="flex min-h-[100dvh] w-full max-w-md flex-col overflow-hidden bg-[#f4fbfc] shadow-2xl sm:min-h-0 sm:rounded-[28px]">
+            <header className="flex items-center gap-3 bg-[linear-gradient(135deg,#163642,#087f8c)] px-5 pb-4 pt-[calc(1rem+env(safe-area-inset-top))] text-white sm:pt-4">
               <div className="grid h-10 w-10 place-items-center rounded-2xl bg-white/15"><PhoneCall className="h-5 w-5" /></div>
               <div className="min-w-0 flex-1">
                 <p className="text-[10px] font-black uppercase tracking-[0.16em] text-teal-100">Private voice support</p>
@@ -265,7 +265,7 @@ export function CallDashboard() {
               <button type="button" onClick={() => setOpen(false)} className="grid h-8 w-8 place-items-center rounded-full bg-white/10 text-white/80 hover:bg-white/20 hover:text-white"><X className="h-4 w-4" /></button>
             </header>
 
-            <div className="space-y-4 p-4">
+            <div className="flex-1 space-y-4 overflow-y-auto p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
               {!call && (
                 <div className="rounded-3xl bg-white p-5 text-center shadow-sm">
                   <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-[#eaf8f8] text-[#087f8c]"><PhoneCall className="h-6 w-6" /></div>

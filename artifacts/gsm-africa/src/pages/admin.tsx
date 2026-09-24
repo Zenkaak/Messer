@@ -9,7 +9,7 @@ import {
   Smartphone, Zap, Ban, Trash2, UserCheck, MoreVertical,
   MessageSquare, Send, Cpu, UserPlus, Phone, PhoneOff, Headphones, WifiOff, Bell,
   Store, ExternalLink, Image, Menu, Megaphone, RotateCcw, Wallet,
-  Download, Tag, Fingerprint, Paperclip,
+  Download, Tag, Fingerprint, Paperclip, Plus, ListChecks,
 } from "lucide-react";
 import { startRegistration, startAuthentication } from "@simplewebauthn/browser";
 import { BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
@@ -100,7 +100,15 @@ interface AdminUser {
 interface AdminProduct {
   id: number; name: string; price: string;
   inStock: boolean; categoryName: string | null; imageUrl: string | null;
+  categoryId?: number | null;
   originalPrice?: string | null; description?: string | null; featured?: boolean;
+}
+
+interface AdminCategory {
+  id: number;
+  name: string;
+  slug: string;
+  productCount: number;
 }
 interface LiveChatSession {
   id: number; visitorId: string; visitorName: string | null;
@@ -1584,30 +1592,50 @@ function OrdersPanel({ pwd }: { pwd: string }) {
 // ─── products ─────────────────────────────────────────────────────────────────
 function ProductsPanel({ pwd }: { pwd: string }) {
   const [products, setProducts] = useState<AdminProduct[]>([]);
+  const [categories, setCategories] = useState<AdminCategory[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
   const [search, setSearch] = useState("");
+  const [categoryId, setCategoryId] = useState("all");
   const [editModal, setEditModal] = useState<AdminProduct | null>(null);
-  const [editForm, setEditForm] = useState<{ name: string; price: string; originalPrice: string; imageUrl: string; description: string; inStock: boolean; featured: boolean }>({ name: "", price: "", originalPrice: "", imageUrl: "", description: "", inStock: true, featured: false });
+  const [creating, setCreating] = useState(false);
+  const [editForm, setEditForm] = useState<{ name: string; price: string; originalPrice: string; imageUrl: string; description: string; categoryId: string; inStock: boolean; featured: boolean }>({ name: "", price: "", originalPrice: "", imageUrl: "", description: "", categoryId: "", inStock: true, featured: false });
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
   const PER = 30;
 
-  const load = useCallback(async (p: number, q: string) => {
+  const load = useCallback(async (p: number, q: string, selectedCategory = categoryId) => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ limit: String(PER), offset: String(p * PER), ...(q ? { search: q } : {}) });
+      const params = new URLSearchParams({ limit: String(PER), offset: String(p * PER), ...(q ? { search: q } : {}), ...(selectedCategory !== "all" ? { category_id: selectedCategory } : {}) });
       const r = await adminFetch(`/api/admin/products?${params}`, pwd);
       if (r.ok) { const d = await r.json() as { products: AdminProduct[]; total: number }; setProducts(d.products); setTotal(d.total); }
     } finally { setLoading(false); }
-  }, [pwd]);
+  }, [categoryId, pwd]);
 
-  useEffect(() => { load(page, search); }, [load, page, search]);
+  useEffect(() => {
+    void load(page, search);
+  }, [load, page, search]);
+
+  useEffect(() => {
+    void fetch(apiPath("/api/categories"))
+      .then((response) => response.ok ? response.json() as Promise<AdminCategory[]> : [])
+      .then((data) => setCategories(data))
+      .catch(() => setCategories([]));
+  }, []);
 
   function openEdit(p: AdminProduct) {
-    setEditForm({ name: p.name, price: String(p.price), originalPrice: p.originalPrice ? String(p.originalPrice) : "", imageUrl: p.imageUrl ?? "", description: p.description ?? "", inStock: p.inStock, featured: p.featured ?? false });
+    setCreating(false);
+    setEditForm({ name: p.name, price: String(p.price), originalPrice: p.originalPrice ? String(p.originalPrice) : "", imageUrl: p.imageUrl ?? "", description: p.description ?? "", categoryId: String(p.categoryId ?? ""), inStock: p.inStock, featured: p.featured ?? false });
     setEditModal(p);
+  }
+
+  function openCreate() {
+    const scopedCategory = categoryId !== "all" ? categoryId : String(categories[0]?.id ?? "");
+    setCreating(true);
+    setEditForm({ name: "", price: "", originalPrice: "", imageUrl: "", description: "", categoryId: scopedCategory, inStock: true, featured: false });
+    setEditModal({ id: 0, name: "", price: "", categoryName: null, categoryId: Number(scopedCategory) || null, imageUrl: null, inStock: true });
   }
 
   async function saveProduct() {
@@ -1621,10 +1649,11 @@ function ProductsPanel({ pwd }: { pwd: string }) {
         featured: editForm.featured,
         imageUrl: editForm.imageUrl || null,
         description: editForm.description || null,
+        categoryId: Number(editForm.categoryId),
       };
       if (editForm.originalPrice) body.originalPrice = editForm.originalPrice;
-      const r = await adminFetch(`/api/admin/products/${editModal.id}`, pwd, { method: "PATCH", body: JSON.stringify(body) });
-      if (r.ok) { toast({ title: "Product updated" }); setEditModal(null); load(page, search); }
+      const r = await adminFetch(creating ? "/api/admin/products" : `/api/admin/products/${editModal.id}`, pwd, { method: creating ? "POST" : "PATCH", body: JSON.stringify(body) });
+      if (r.ok) { toast({ title: creating ? "Product added" : "Product updated" }); setEditModal(null); setCreating(false); void load(page, search); }
       else { const e = await r.json().catch(() => ({})) as { error?: string }; toast({ variant: "destructive", title: e.error ?? "Update failed" }); }
     } finally { setSaving(false); }
   }
@@ -1632,13 +1661,13 @@ function ProductsPanel({ pwd }: { pwd: string }) {
   async function deleteProduct(id: number) {
     if (!confirm("Delete this product? This cannot be undone.")) return;
     const r = await adminFetch(`/api/admin/products/${id}`, pwd, { method: "DELETE" });
-    if (r.ok || r.status === 204) { toast({ title: "Product deleted" }); load(page, search); }
+    if (r.ok || r.status === 204) { toast({ title: "Product deleted" }); void load(page, search); }
     else toast({ variant: "destructive", title: "Delete failed" });
   }
 
   async function toggleStock(id: number, inStock: boolean) {
     const r = await adminFetch(`/api/admin/products/${id}`, pwd, { method: "PATCH", body: JSON.stringify({ inStock: !inStock }) });
-    if (r.ok) { toast({ title: !inStock ? "Marked in stock" : "Marked out of stock" }); load(page, search); }
+    if (r.ok) { toast({ title: !inStock ? "Marked in stock" : "Marked out of stock" }); void load(page, search); }
     else toast({ variant: "destructive", title: "Update failed" });
   }
 
@@ -1700,10 +1729,14 @@ function ProductsPanel({ pwd }: { pwd: string }) {
     <div className="p-4 pb-6 space-y-3">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-xs text-slate-400 font-medium">{total} total</p>
+          <p className="text-xs text-slate-400 font-medium">{total} in {categoryId === "all" ? "all categories" : categories.find(c => String(c.id) === categoryId)?.name ?? "selected category"}</p>
           <h2 className="text-xl font-black text-slate-900">Products</h2>
         </div>
         <div className="flex items-center gap-2">
+          <button onClick={openCreate} disabled={categories.length === 0}
+            className="flex items-center gap-1.5 px-3 h-9 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition-colors disabled:cursor-not-allowed disabled:opacity-50">
+            <Plus size={13} /> Add product
+          </button>
           <button onClick={() => void smartUpdateImages()}
             title="Auto-assign images to products without images"
             className="flex items-center gap-1.5 px-3 h-9 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition-colors">
@@ -1716,19 +1749,28 @@ function ProductsPanel({ pwd }: { pwd: string }) {
         </div>
       </div>
 
-      {/* search */}
-      <div className="relative">
-        <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-        <input value={search} onChange={e => { setSearch(e.target.value); setPage(0); }}
-          placeholder="Search products or category…"
-          className="w-full pl-9 pr-3 py-3 border border-slate-200 rounded-2xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm" />
+      <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-3">
+        <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-blue-700"><ListChecks size={13} /> Category workspace</div>
+        <p className="mt-1 text-[11px] text-slate-500">Select a category to add products or manage only the services inside it.</p>
+        <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+          <select value={categoryId} onChange={e => { setCategoryId(e.target.value); setPage(0); }} className="h-10 flex-1 rounded-xl border border-blue-100 bg-white px-3 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-400">
+            <option value="all">All categories</option>
+            {categories.map(category => <option key={category.id} value={category.id}>{category.name} ({category.productCount})</option>)}
+          </select>
+          <div className="relative flex-1">
+            <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input value={search} onChange={e => { setSearch(e.target.value); setPage(0); }}
+              placeholder="Search within this category…"
+              className="h-10 w-full rounded-xl border border-blue-100 bg-white pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-blue-400" />
+          </div>
+        </div>
       </div>
 
       {loading
         ? <div className="space-y-2">{[1,2,3,4,5].map(i => <Skeleton key={i} h="h-14" />)}</div>
         : (
           <div className="space-y-1.5">
-            {products.map(p => (
+             {products.length === 0 ? <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center"><Smartphone size={24} className="mx-auto text-slate-300" /><p className="mt-2 text-sm font-bold text-slate-500">No products in this view</p><p className="mt-1 text-xs text-slate-400">Choose another category or add the first product.</p></div> : products.map(p => (
               <div key={p.id} className="bg-white border border-slate-100 rounded-2xl px-3.5 py-3 shadow-sm">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-slate-100 shrink-0 overflow-hidden flex items-center justify-center">
@@ -1785,7 +1827,7 @@ function ProductsPanel({ pwd }: { pwd: string }) {
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm" onClick={e => { if (e.target === e.currentTarget) setEditModal(null); }}>
           <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl p-5 space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between">
-              <h3 className="font-black text-slate-900 text-lg">Edit Product</h3>
+              <h3 className="font-black text-slate-900 text-lg">{creating ? "Add Product" : "Edit Product"}</h3>
               <button onClick={() => setEditModal(null)} className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 text-sm">✕</button>
             </div>
             <div className="space-y-3">
@@ -1795,6 +1837,7 @@ function ProductsPanel({ pwd }: { pwd: string }) {
                 <div><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Original Price</label><input type="number" step="0.01" value={editForm.originalPrice} onChange={e => setEditForm(f=>({...f,originalPrice:e.target.value}))} placeholder="Optional" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
               </div>
               <div><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Image URL</label><input value={editForm.imageUrl} onChange={e => setEditForm(f=>({...f,imageUrl:e.target.value}))} placeholder="https://..." className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+              <div><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Category</label><select value={editForm.categoryId} onChange={e => setEditForm(f=>({...f,categoryId:e.target.value}))} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-400"><option value="">Choose a category</option>{categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}</select></div>
               <div><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Description</label><textarea value={editForm.description} onChange={e => setEditForm(f=>({...f,description:e.target.value}))} rows={3} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none" /></div>
               <div className="flex gap-4">
                 <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 cursor-pointer"><input type="checkbox" checked={editForm.inStock} onChange={e => setEditForm(f=>({...f,inStock:e.target.checked}))} className="w-4 h-4 rounded" /> In Stock</label>
@@ -1803,7 +1846,7 @@ function ProductsPanel({ pwd }: { pwd: string }) {
             </div>
             <div className="flex gap-2 pt-1">
               <button onClick={() => setEditModal(null)} className="flex-1 py-3 border border-slate-200 text-slate-600 font-bold rounded-2xl text-sm">Cancel</button>
-              <button onClick={saveProduct} disabled={saving} className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-2xl text-sm disabled:opacity-60">{saving ? "Saving…" : "Save Changes"}</button>
+              <button onClick={saveProduct} disabled={saving || !editForm.name.trim() || !editForm.price || !editForm.categoryId} className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-2xl text-sm disabled:opacity-60">{saving ? "Saving…" : creating ? "Add Product" : "Save Changes"}</button>
             </div>
           </div>
         </div>
@@ -4194,16 +4237,16 @@ function LiveCallsPanel({ pwd, visible }: { pwd: string; visible: boolean }) {
         </div>
       )}
 
-      {!visible && incoming && (
-        <div className="fixed inset-0 z-[590] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-sm">
-          <section className="w-full max-w-sm rounded-3xl bg-white p-5 text-center shadow-2xl">
+      {incoming && (
+        <div className="fixed inset-0 z-[590] flex items-stretch justify-center bg-slate-950/65 p-0 backdrop-blur-sm sm:items-center sm:p-4">
+          <section className="flex min-h-[100dvh] w-full max-w-sm flex-col justify-center rounded-none bg-white p-6 text-center shadow-2xl sm:min-h-0 sm:rounded-3xl">
             <div className="mx-auto grid h-16 w-16 animate-pulse place-items-center rounded-full bg-emerald-600 text-white">
               <Phone size={28} />
             </div>
-            <p className="mt-4 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-700">Incoming support call</p>
+            <p className="mt-5 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-700">Incoming support call</p>
             <h2 className="mt-1 text-xl font-black text-slate-900">{incoming.callerName || "Customer"}</h2>
-            <p className="mt-2 text-sm text-slate-500">Answer from any admin tab. You do not need to open Calls.</p>
-            <div className="mt-5 flex gap-2">
+            <p className="mt-2 text-sm leading-6 text-slate-500">Answer from any admin tab. The call opens full-screen so you can respond immediately.</p>
+            <div className="mt-7 flex gap-2">
               <button
                 onClick={() => updateCall(incoming.id, "hangup")}
                 disabled={workingId !== null}
