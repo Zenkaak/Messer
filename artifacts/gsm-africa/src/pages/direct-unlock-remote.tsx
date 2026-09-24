@@ -82,19 +82,32 @@ function validIdentifier(value: string) {
 }
 
 function StageHeader({ stage }: { stage: Stage }) {
-  const labels = ["Device", "IMEI / Serial", "Checks", "Payment"];
+  const labels = [
+    { label: "Device", detail: "Choose service" },
+    { label: "Identifier", detail: "IMEI or serial" },
+    { label: "Checks", detail: "Verify request" },
+    { label: "Payment", detail: "Secure checkout" },
+  ];
   const index = stage === "pending" ? 4 : ["device", "details", "processing", "payment"].indexOf(stage);
+  const activeIndex = Math.max(0, index);
   return (
-    <div className="mb-4 rounded-[18px] border border-slate-200 bg-white px-4 py-4 shadow-[0_10px_28px_rgba(15,23,42,0.06)] sm:px-7 sm:py-5">
-      <div className="mb-4 flex items-center gap-2"><LockKeyhole size={14} className="text-[#008b99]" /><div><p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#008b99]">Secure request flow</p><p className="mt-0.5 text-[10px] font-semibold text-slate-500">Complete each step to submit your unlock.</p></div></div>
+    <div className="mb-4 rounded-[20px] border border-[#d6e4e8] bg-white px-4 py-4 shadow-[0_10px_28px_rgba(15,23,42,0.06)] sm:px-7 sm:py-5">
+      <div className="mb-5 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <span className="grid h-8 w-8 place-items-center rounded-xl bg-[#e7f8f6] text-[#007f8c]"><LockKeyhole size={15} /></span>
+          <div><p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#007f8c]">Secure request flow</p><p className="mt-0.5 text-[10px] font-semibold text-[#69808a]">Your request is saved to your account.</p></div>
+        </div>
+        <span className="hidden rounded-full bg-[#f0f5f6] px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-[#69808a] sm:inline-flex">{stage === "pending" ? "Submitted" : `Step ${Math.min(activeIndex + 1, 4)} of 4`}</span>
+      </div>
       <div className="flex items-start">
-        {labels.map((label, itemIndex) => (
-          <div key={label} className="flex min-w-0 flex-1 items-start last:flex-none">
+        {labels.map((item, itemIndex) => (
+          <div key={item.label} className="flex min-w-0 flex-1 items-start last:flex-none">
             <div className="flex min-w-[58px] flex-1 flex-col items-center gap-2 text-center sm:min-w-[82px]">
-              <span aria-current={itemIndex === index ? "step" : undefined} className={`grid h-8 w-8 place-items-center rounded-full border text-[10px] font-black transition-all ${itemIndex < index ? "border-[#0d2638] bg-[#0d2638] text-white" : itemIndex === index ? "border-[#00bda9] bg-[#dffaf5] text-[#008b99] ring-4 ring-[#e9fcf8]" : "border-slate-200 bg-slate-50 text-slate-400"}`}>{itemIndex < index ? <Check size={14} strokeWidth={3} /> : itemIndex + 1}</span>
-              <span className={`text-[9px] font-bold leading-tight sm:text-[10px] ${itemIndex <= index ? "text-slate-700" : "text-slate-400"}`}>{label}</span>
+              <span aria-current={itemIndex === index ? "step" : undefined} className={`grid h-8 w-8 place-items-center rounded-full border text-[10px] font-black transition-all ${itemIndex < index ? "border-[#163642] bg-[#163642] text-white" : itemIndex === index ? "border-[#00a995] bg-[#e1faf6] text-[#007f8c] ring-4 ring-[#effcf9]" : "border-[#d9e4e7] bg-[#f7fafb] text-[#9aadb4]"}`}>{itemIndex < index ? <Check size={14} strokeWidth={3} /> : itemIndex + 1}</span>
+              <span className={`text-[9px] font-black leading-tight sm:text-[10px] ${itemIndex <= index ? "text-[#294452]" : "text-[#9aadb4]"}`}>{item.label}</span>
+              <span className="hidden text-[8px] font-semibold text-[#8ba0a8] sm:block">{item.detail}</span>
             </div>
-            {itemIndex < labels.length - 1 && <span className={`mt-4 h-px flex-1 ${itemIndex < index ? "bg-[#0d2638]" : "bg-slate-200"}`} />}
+            {itemIndex < labels.length - 1 && <span className={`mt-4 h-px flex-1 ${itemIndex < index ? "bg-[#163642]" : "bg-[#dfe8ea]"}`} />}
           </div>
         ))}
       </div>
@@ -352,41 +365,43 @@ function DetailsStage({ device, identifier, accountEmail, setIdentifier, onBack,
   const [touched, setTouched] = useState(false);
   const identifierOk = validIdentifier(identifier);
   return (
-    <div className="mx-auto max-w-3xl">
-      <p className="mono mb-3 text-[11px] font-bold uppercase tracking-[.18em] text-primary">Step 02 / device identifier</p>
-      <h1 className="display-font text-[clamp(2rem,5vw,3.5rem)] font-bold leading-[.98] tracking-[-.06em]">Tell us which device is yours.</h1>
-      <p className="mt-4 max-w-2xl text-sm leading-7 text-muted-foreground">Enter the IMEI or serial number for the selected device. We use it to validate the request before showing payment options.</p>
-
-      <div className="mt-8 grid gap-4 sm:grid-cols-[1fr_auto]">
-        <div className="rounded-2xl border border-primary/25 bg-primary/5 p-5">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-primary">Selected service</span>
-          <p className="mt-2 text-sm font-bold">{device.model}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{device.brand}</p>
+    <div className="mx-auto max-w-4xl text-[#163642]">
+      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+        <div><p className="mb-3 font-mono text-[10px] font-black uppercase tracking-[.2em] text-[#007f8c]">Step 02 / device identifier</p>
+          <h1 className="text-[clamp(2rem,5vw,3.5rem)] font-black leading-[.98] tracking-[-.06em] text-[#102b3a]">Tell us which device is yours.</h1>
+          <p className="mt-4 max-w-2xl text-sm leading-7 text-[#607983]">Enter the IMEI or serial number for the selected device. We use it to validate the request before showing payment options.</p>
         </div>
-        <div className="rounded-2xl border border-border bg-card p-5 sm:min-w-[150px]">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Price</span>
-          <p className="mono mt-2 text-2xl font-bold">{money(device.price)}</p>
+        <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-[#e8f8f6] px-3 py-1.5 text-[10px] font-black text-[#007f8c]"><ShieldCheck size={13} /> Account protected</span>
+      </div>
+
+      <div className="mt-8 grid gap-3 sm:grid-cols-[1fr_auto]">
+        <div className="rounded-2xl border border-[#bfe9e3] bg-[#effbf9] p-5">
+          <div className="flex items-start gap-3"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#d9f5f0] text-[#007f8c]"><Smartphone size={18} /></span><div><span className="text-[10px] font-black uppercase tracking-wider text-[#007f8c]">Selected service</span><p className="mt-1.5 text-sm font-black text-[#163642]">{device.model}</p><p className="mt-1 text-xs font-semibold text-[#66838b]">{device.brand} · Ready to verify</p></div></div>
+        </div>
+        <div className="rounded-2xl border border-[#d8e5e8] bg-white p-5 sm:min-w-[170px]">
+          <span className="text-[10px] font-black uppercase tracking-wider text-[#7a9199]">Price</span>
+          <p className="mt-2 font-mono text-2xl font-black text-[#163642]">{money(device.price)}</p>
         </div>
       </div>
 
       <label className="mt-6 block">
-        <span className="mb-2 block text-sm font-bold">IMEI or serial number</span>
-        <input value={identifier} onChange={(event) => setIdentifier(event.target.value)} onBlur={() => setTouched(true)} autoFocus placeholder="15-digit IMEI or device serial" className={`h-14 w-full rounded-xl border bg-card px-4 font-mono text-sm outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/15 ${touched && !identifierOk ? "border-destructive" : "border-input"}`} />
-        {touched && !identifierOk ? <span className="mt-2 flex items-center gap-1.5 text-xs text-destructive"><AlertCircle size={13} /> Enter a valid 15-digit IMEI or a serial number with at least 6 characters.</span> : <span className="mt-2 block text-xs leading-5 text-muted-foreground">Find your IMEI by dialing *#06# or in Settings → About. iPad and supported devices can use a serial number.</span>}
+        <span className="mb-2 flex items-center justify-between gap-3 text-sm font-black text-[#163642]"><span>IMEI or serial number</span><span className="font-mono text-[10px] font-bold uppercase tracking-wider text-[#8ba0a8]">Required</span></span>
+        <input value={identifier} onChange={(event) => setIdentifier(event.target.value)} onBlur={() => setTouched(true)} autoFocus placeholder="15-digit IMEI or device serial" className={`h-14 w-full rounded-xl border bg-white px-4 font-mono text-sm text-[#163642] outline-none transition-colors placeholder:text-[#9aadb4] focus:border-[#00a995] focus:ring-4 focus:ring-[#00a995]/10 ${touched && !identifierOk ? "border-[#df6565]" : "border-[#cfdee2]"}`} />
+        {touched && !identifierOk ? <span className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-[#c64c56]"><AlertCircle size={13} /> Enter a valid 15-digit IMEI or a serial number with at least 6 characters.</span> : <span className="mt-2 block text-xs leading-5 text-[#6f858d]">Find your IMEI by dialing *#06# or in Settings → About. iPad and supported devices can use a serial number.</span>}
       </label>
 
-      <div className="mt-6 flex items-start gap-3 rounded-2xl border border-border bg-card p-4">
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-primary/10 text-primary"><Mail size={16} /></span>
+      <div className="mt-6 flex items-start gap-3 rounded-2xl border border-[#d8e5e8] bg-white p-4">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#eaf7f7] text-[#007f8c]"><Mail size={16} /></span>
         <div className="min-w-0">
-          <p className="text-sm font-bold">Unlock details will go to your account</p>
-          <p className="mt-1 truncate text-sm text-primary">{accountEmail}</p>
-          <p className="mt-1 text-xs text-muted-foreground">You are signed in. There is no need to enter your email again.</p>
+          <p className="text-sm font-black text-[#163642]">Unlock details will go to your account</p>
+          <p className="mt-1 truncate text-sm font-bold text-[#007f8c]">{accountEmail}</p>
+          <p className="mt-1 text-xs text-[#6f858d]">You are signed in. There is no need to enter your email again.</p>
         </div>
       </div>
 
-      <div className="mt-8 flex flex-col-reverse justify-between gap-3 border-t border-border pt-6 sm:flex-row">
-        <button type="button" onClick={onBack} className="flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-bold text-muted-foreground hover:text-foreground"><ArrowLeft size={16} /> Change device</button>
-        <button type="button" disabled={!identifierOk} onClick={onContinue} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-primary px-6 text-sm font-bold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-40">Run device checks <ArrowRight size={16} /></button>
+      <div className="mt-8 flex flex-col-reverse justify-between gap-3 border-t border-[#d8e5e8] pt-6 sm:flex-row">
+        <button type="button" onClick={onBack} className="flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-black text-[#6f858d] hover:bg-[#eef5f6] hover:text-[#163642]"><ArrowLeft size={16} /> Change device</button>
+        <button type="button" disabled={!identifierOk} onClick={onContinue} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#087f8c] px-6 text-sm font-black text-white shadow-[0_10px_22px_rgba(8,127,140,0.2)] transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-40">Run device checks <ArrowRight size={16} /></button>
       </div>
     </div>
   );
@@ -414,33 +429,33 @@ function ProcessingStage({ device, identifier, onDone }: { device: Device; ident
   }, [onDone]);
 
   return (
-    <div className="mx-auto max-w-5xl">
+    <div className="mx-auto max-w-5xl text-[#163642]">
       <div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
         <div>
-          <p className="mb-2 font-mono text-[10px] font-bold uppercase tracking-[.2em] text-[#008b99]">REMOTE UNLOCK SERVER / LIVE JOB</p>
-          <h1 className="text-2xl font-black tracking-tight text-[#1a2332] sm:text-3xl">Verifying device eligibility</h1>
-          <p className="mt-2 text-sm text-gray-500">The service request is being prepared for <strong className="text-gray-800">{device.model}</strong>. Payment appears after this server check completes.</p>
+          <p className="mb-2 font-mono text-[10px] font-black uppercase tracking-[.2em] text-[#007f8c]">Step 03 / secure device checks</p>
+          <h1 className="text-[clamp(2rem,5vw,3rem)] font-black tracking-[-.04em] text-[#102b3a]">Verifying device eligibility</h1>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-[#607983]">We are preparing the service request for <strong className="text-[#163642]">{device.model}</strong>. Payment appears after this verification window completes.</p>
         </div>
-        <div className="flex items-center gap-2 self-start rounded-full border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-700 sm:self-auto">
-          <span className="h-2 w-2 animate-pulse rounded-full bg-amber-500" /> SERVER CHECK IN PROGRESS
+        <div className="flex items-center gap-2 self-start rounded-full border border-[#f4dfaa] bg-[#fff8e7] px-3 py-2 text-[10px] font-black uppercase tracking-wider text-[#a27012] sm:self-auto">
+          <span className="h-2 w-2 animate-pulse rounded-full bg-[#e7a928]" /> Check in progress
         </div>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(250px,.55fr)]">
-        <section className="overflow-hidden rounded-2xl border border-[#26344b] bg-[#111827] shadow-lg">
-          <div className="flex items-center justify-between border-b border-white/10 bg-[#1a2332] px-4 py-3">
-            <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-white"><span className="h-2 w-2 rounded-full bg-emerald-400" /> GSM remote queue</div>
-            <span className="font-mono text-[10px] text-white/45">JOB / {identifier.slice(-6).toUpperCase()}</span>
+        <section className="overflow-hidden rounded-2xl border border-[#254653] bg-[#102b3a] shadow-[0_18px_38px_rgba(16,43,58,0.18)]">
+          <div className="flex items-center justify-between border-b border-white/10 bg-[#163642] px-4 py-3">
+            <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-widest text-white"><span className="h-2 w-2 animate-pulse rounded-full bg-[#2dd9bb]" /> GSM remote queue</div>
+            <span className="font-mono text-[10px] text-white/50">JOB / {identifier.slice(-6).toUpperCase()}</span>
           </div>
           <div className="p-4 sm:p-6">
             <div className="flex items-end justify-between gap-4">
-              <div><p className="font-mono text-[10px] uppercase tracking-widest text-cyan-300/70">Current operation</p><p className="mt-2 text-lg font-bold text-white">{PREPARATION_STEPS[activeIndex].title}</p><p className="mt-1 max-w-md text-xs leading-5 text-white/55">{PREPARATION_STEPS[activeIndex].detail}</p></div>
-              <div className="text-right"><p className="font-mono text-3xl font-black text-cyan-300">{remainingLabel}</p><p className="font-mono text-[9px] uppercase tracking-widest text-white/40">remaining</p></div>
+              <div><p className="font-mono text-[10px] uppercase tracking-widest text-[#7ee9da]">Current operation</p><p className="mt-2 text-lg font-black text-white">{PREPARATION_STEPS[activeIndex].title}</p><p className="mt-1 max-w-md text-xs leading-5 text-white/60">{PREPARATION_STEPS[activeIndex].detail}</p></div>
+              <div className="text-right"><p className="font-mono text-3xl font-black text-[#7ee9da]">{remainingLabel}</p><p className="font-mono text-[9px] uppercase tracking-widest text-white/45">remaining</p></div>
             </div>
-            <div className="mt-6 h-2 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-emerald-400 transition-[width] duration-300" style={{ width: `${progress}%` }} /></div>
-            <div className="mt-2 flex justify-between font-mono text-[10px] text-white/45"><span>{progress}% complete</span><span>minimum verification time 05:00</span></div>
+            <div className="mt-6 h-2 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-gradient-to-r from-[#16b8ce] to-[#2dd9bb] transition-[width] duration-300" style={{ width: `${progress}%` }} /></div>
+            <div className="mt-2 flex justify-between font-mono text-[10px] text-white/50"><span>{progress}% complete</span><span>verification window 05:00</span></div>
 
-            <div className="mt-7 rounded-xl border border-white/10 bg-black/20 p-3">
+            <div className="mt-7 rounded-xl border border-white/10 bg-[#0b202d] p-3">
               <div className="mb-3 flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest text-white/40"><span className="text-emerald-400">$</span> server activity</div>
               <div className="space-y-2 font-mono text-[11px] leading-5">
                 <p className="text-emerald-300/80">[00:00:00] connection established · secure queue online</p>
@@ -454,28 +469,28 @@ function ProcessingStage({ device, identifier, onDone }: { device: Device; ident
           </div>
         </section>
 
-        <aside className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-gray-500"><Smartphone size={15} className="text-[#008b99]" /> Job details</div>
-          <div className="mt-5 rounded-xl bg-gray-50 p-4">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Device</p>
-            <p className="mt-2 text-sm font-black text-gray-800">{device.model}</p>
-            <p className="mt-1 text-xs text-gray-500">{device.brand} direct unlock</p>
+        <aside className="rounded-2xl border border-[#d8e5e8] bg-white p-5 shadow-sm">
+          <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-widest text-[#71878f]"><Smartphone size={15} className="text-[#007f8c]" /> Job details</div>
+          <div className="mt-5 rounded-xl bg-[#f2f7f8] p-4">
+            <p className="text-[10px] font-black uppercase tracking-wider text-[#8aa0a7]">Device</p>
+            <p className="mt-2 text-sm font-black text-[#163642]">{device.model}</p>
+            <p className="mt-1 text-xs text-[#66838b]">{device.brand} direct unlock</p>
           </div>
-          <div className="mt-3 space-y-3 border-b border-gray-100 pb-4 text-xs">
-            <div className="flex justify-between gap-3"><span className="text-gray-400">Identifier</span><span className="font-mono text-gray-700">{identifier.slice(0, 4)}••••{identifier.slice(-4)}</span></div>
-            <div className="flex justify-between gap-3"><span className="text-gray-400">Service price</span><span className="font-mono font-bold text-gray-800">{money(device.price)}</span></div>
-            <div className="flex justify-between gap-3"><span className="text-gray-400">Account</span><span className="max-w-[140px] truncate text-gray-700">signed in</span></div>
+          <div className="mt-3 space-y-3 border-b border-[#e7eef0] pb-4 text-xs">
+            <div className="flex justify-between gap-3"><span className="text-[#8aa0a7]">Identifier</span><span className="font-mono text-[#36515c]">{identifier.slice(0, 4)}••••{identifier.slice(-4)}</span></div>
+            <div className="flex justify-between gap-3"><span className="text-[#8aa0a7]">Service price</span><span className="font-mono font-black text-[#163642]">{money(device.price)}</span></div>
+            <div className="flex justify-between gap-3"><span className="text-[#8aa0a7]">Account</span><span className="max-w-[140px] truncate font-semibold text-[#36515c]">signed in</span></div>
           </div>
           <div className="mt-4 space-y-3">
             {PREPARATION_STEPS.map((step, index) => {
               const done = index < completed;
               const active = index === activeIndex;
-              return <div key={step.code} className="flex items-center gap-3"><span className={`grid h-6 w-6 shrink-0 place-items-center rounded-full ${done ? "bg-emerald-100 text-emerald-600" : active ? "border-2 border-cyan-500 text-cyan-600" : "border border-gray-200 text-gray-300"}`}>{done ? <Check size={12} /> : active ? <RefreshCw size={11} className="animate-spin" /> : <Circle size={8} />}</span><span className={`text-xs font-semibold ${done || active ? "text-gray-700" : "text-gray-400"}`}>{step.title}</span></div>;
+              return <div key={step.code} className="flex items-center gap-3"><span className={`grid h-6 w-6 shrink-0 place-items-center rounded-full ${done ? "bg-[#dff7ef] text-[#16856d]" : active ? "border-2 border-[#16b8ce] text-[#007f8c]" : "border border-[#dce7ea] text-[#b4c3c8]"}`}>{done ? <Check size={12} /> : active ? <RefreshCw size={11} className="animate-spin" /> : <Circle size={8} />}</span><span className={`text-xs font-bold ${done || active ? "text-[#36515c]" : "text-[#9aadb4]"}`}>{step.title}</span></div>;
             })}
           </div>
         </aside>
       </div>
-      <div className="mt-4 flex items-start gap-3 rounded-xl border border-blue-100 bg-blue-50 p-4 text-xs leading-5 text-blue-700"><Clock3 size={15} className="mt-0.5 shrink-0" /><span><strong>Why five minutes?</strong> Remote unlock providers need a verification window before they return the eligible service options. Keep this page open; the payment screen will open automatically when the job is ready.</span></div>
+      <div className="mt-4 flex items-start gap-3 rounded-xl border border-[#cfe6ef] bg-[#eff9fc] p-4 text-xs leading-5 text-[#397083]"><Clock3 size={15} className="mt-0.5 shrink-0 text-[#007f8c]" /><span><strong className="text-[#245361]">Why five minutes?</strong> Remote unlock providers need a verification window before they return the eligible service options. Keep this page open; payment will open automatically when the job is ready.</span></div>
     </div>
   );
 }
@@ -492,21 +507,21 @@ function PaymentStage({ device, accountEmail, onBack, onSubmit, submitting, erro
     { id: "usdt_manual", label: "USDT TRC20", description: "Manual transfer with payment reference", icon: <span>💲</span> },
   ];
   return (
-    <div className="mx-auto max-w-3xl">
-      <p className="mono mb-3 text-[11px] font-bold uppercase tracking-[.18em] text-primary">Step 04 / payment</p>
-      <h1 className="display-font text-[clamp(2rem,5vw,3.5rem)] font-bold leading-[.98] tracking-[-.06em]">Choose how to pay.</h1>
-      <p className="mt-4 max-w-2xl text-sm leading-7 text-muted-foreground">Your request is ready. Pay the quoted amount below and the unlock details will be sent to your signed-in account.</p>
-      <div className="mt-7 flex flex-col gap-4 rounded-2xl border border-primary/25 bg-primary/5 p-5 sm:flex-row sm:items-center sm:justify-between">
-        <div><span className="text-[10px] font-bold uppercase tracking-wider text-primary">Direct unlock request</span><p className="mt-2 text-sm font-bold">{device.brand} · {device.model}</p><p className="mt-2 flex items-center gap-2 text-xs text-muted-foreground"><Mail size={13} /> {accountEmail}</p></div>
-        <span className="mono text-3xl font-bold">{money(device.price)}</span>
+    <div className="mx-auto max-w-4xl text-[#163642]">
+      <p className="mb-3 font-mono text-[10px] font-black uppercase tracking-[.2em] text-[#007f8c]">Step 04 / secure payment</p>
+      <h1 className="text-[clamp(2rem,5vw,3.5rem)] font-black leading-[.98] tracking-[-.06em] text-[#102b3a]">Choose how to pay.</h1>
+      <p className="mt-4 max-w-2xl text-sm leading-7 text-[#607983]">Your request is ready. Pay the quoted amount below and the unlock details will be sent to your signed-in account.</p>
+      <div className="mt-7 flex flex-col gap-4 rounded-2xl border border-[#bfe9e3] bg-[#effbf9] p-5 sm:flex-row sm:items-center sm:justify-between">
+        <div><span className="text-[10px] font-black uppercase tracking-wider text-[#007f8c]">Direct unlock request</span><p className="mt-2 text-sm font-black text-[#163642]">{device.brand} · {device.model}</p><p className="mt-2 flex items-center gap-2 text-xs text-[#66838b]"><Mail size={13} /> {accountEmail}</p></div>
+        <span className="font-mono text-3xl font-black text-[#163642]">{money(device.price)}</span>
       </div>
       <div className="mt-6 grid gap-3 sm:grid-cols-2">
-        {methods.map((item) => <button type="button" key={item.id} disabled={item.id === "nowpayments" && cryptoDisabled} onClick={() => setMethod(item.id)} className={`flex min-h-[92px] items-start gap-3 rounded-2xl border p-4 text-left transition-colors ${item.id === "nowpayments" && cryptoDisabled ? "cursor-not-allowed opacity-50" : method === item.id ? "border-primary bg-primary/10 ring-1 ring-primary" : "border-border bg-card hover:border-primary/50"}`}><span className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${method === item.id ? "bg-primary text-primary-foreground" : "bg-secondary text-primary"}`}>{item.icon}</span><span><span className="block text-sm font-bold">{item.label}</span><span className="mt-1 block text-xs leading-5 text-muted-foreground">{item.description}</span></span>{method === item.id && <Check className="ml-auto shrink-0 text-primary" size={17} />}</button>)}
+        {methods.map((item) => <button type="button" key={item.id} disabled={item.id === "nowpayments" && cryptoDisabled} onClick={() => setMethod(item.id)} className={`flex min-h-[92px] items-start gap-3 rounded-2xl border bg-white p-4 text-left transition-all ${item.id === "nowpayments" && cryptoDisabled ? "cursor-not-allowed opacity-50" : method === item.id ? "border-[#00a995] bg-[#effbf9] ring-2 ring-[#00a995]/15" : "border-[#d8e5e8] hover:-translate-y-0.5 hover:border-[#8edfd5] hover:shadow-sm"}`}><span className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${method === item.id ? "bg-[#087f8c] text-white" : "bg-[#edf5f6] text-[#007f8c]"}`}>{item.icon}</span><span><span className="block text-sm font-black text-[#163642]">{item.label}</span><span className="mt-1 block text-xs leading-5 text-[#6f858d]">{item.description}</span></span>{method === item.id && <Check className="ml-auto shrink-0 text-[#007f8c]" size={17} />}</button>)}
       </div>
-      {method === "mpesa" && <label className="mt-5 block"><span className="mb-2 block text-sm font-bold">M-Pesa phone number</span><input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="2547XXXXXXXX" className="h-12 w-full rounded-xl border border-input bg-card px-4 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/15" /></label>}
-      {method === "nowpayments" && <label className="mt-5 block"><span className="mb-2 block text-sm font-bold">Cryptocurrency</span><select value={currency} onChange={(event) => setCurrency(event.target.value)} className="h-12 w-full rounded-xl border border-input bg-card px-4 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"><option value="usdttrc20">USDT (TRC20)</option><option value="usdterc20">USDT (ERC20)</option><option value="btc">Bitcoin</option><option value="eth">Ethereum</option><option value="ltc">Litecoin</option></select></label>}
-      {error && <p className="mt-4 flex items-start gap-2 rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive"><AlertCircle size={17} className="mt-0.5 shrink-0" /> {error}</p>}
-      <div className="mt-8 flex flex-col-reverse justify-between gap-3 border-t border-border pt-6 sm:flex-row"><button type="button" onClick={onBack} disabled={submitting} className="flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-bold text-muted-foreground hover:text-foreground"><ArrowLeft size={16} /> Back to checks</button><button type="button" onClick={() => onSubmit(method, method === "mpesa" ? phone : method === "nowpayments" ? currency : undefined)} disabled={submitting || (method === "mpesa" && !phone.trim())} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-primary px-6 text-sm font-bold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-40">{submitting ? "Starting payment…" : `Pay ${money(device.price)}`} {!submitting && <ArrowRight size={16} />}</button></div>
+      {method === "mpesa" && <label className="mt-5 block"><span className="mb-2 block text-sm font-black text-[#163642]">M-Pesa phone number</span><input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="2547XXXXXXXX" className="h-12 w-full rounded-xl border border-[#cfdee2] bg-white px-4 text-sm text-[#163642] outline-none placeholder:text-[#9aadb4] focus:border-[#00a995] focus:ring-4 focus:ring-[#00a995]/10" /></label>}
+      {method === "nowpayments" && <label className="mt-5 block"><span className="mb-2 block text-sm font-black text-[#163642]">Cryptocurrency</span><select value={currency} onChange={(event) => setCurrency(event.target.value)} className="h-12 w-full rounded-xl border border-[#cfdee2] bg-white px-4 text-sm text-[#163642] outline-none focus:border-[#00a995] focus:ring-4 focus:ring-[#00a995]/10"><option value="usdttrc20">USDT (TRC20)</option><option value="usdterc20">USDT (ERC20)</option><option value="btc">Bitcoin</option><option value="eth">Ethereum</option><option value="ltc">Litecoin</option></select></label>}
+      {error && <p className="mt-4 flex items-start gap-2 rounded-xl border border-[#f1c4c4] bg-[#fff2f2] p-4 text-sm font-semibold text-[#c64c56]"><AlertCircle size={17} className="mt-0.5 shrink-0" /> {error}</p>}
+      <div className="mt-8 flex flex-col-reverse justify-between gap-3 border-t border-[#d8e5e8] pt-6 sm:flex-row"><button type="button" onClick={onBack} disabled={submitting} className="flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-black text-[#6f858d] hover:bg-[#eef5f6] hover:text-[#163642]"><ArrowLeft size={16} /> Back to checks</button><button type="button" onClick={() => onSubmit(method, method === "mpesa" ? phone : method === "nowpayments" ? currency : undefined)} disabled={submitting || (method === "mpesa" && !phone.trim())} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#087f8c] px-6 text-sm font-black text-white shadow-[0_10px_22px_rgba(8,127,140,0.2)] disabled:cursor-not-allowed disabled:opacity-40">{submitting ? "Starting payment…" : `Pay ${money(device.price)}`} {!submitting && <ArrowRight size={16} />}</button></div>
     </div>
   );
 }

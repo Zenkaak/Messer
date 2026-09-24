@@ -826,8 +826,10 @@ router.get("/admin/products", async (req, res) => {
     const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 30));
     const offset = Math.max(0, Number(req.query.offset) || 0);
     const search = req.query.search as string | undefined;
+    const categoryId = req.query.category_id ? Number(req.query.category_id) : null;
     const conditions: import("drizzle-orm").SQL[] = [];
-    if (search) conditions.push(ilike(productsTable.name, `%${search}%`));
+    if (search) conditions.push(or(ilike(productsTable.name, `%${search}%`), ilike(categoriesTable.name, `%${search}%`))!);
+    if (categoryId && Number.isFinite(categoryId)) conditions.push(eq(productsTable.categoryId, categoryId));
     const products = await db
       .select({
         id: productsTable.id,
@@ -846,10 +848,45 @@ router.get("/admin/products", async (req, res) => {
       .orderBy(desc(productsTable.createdAt))
       .limit(limit)
       .offset(offset);
-    const [{ total }] = await db.select({ total: count() }).from(productsTable);
+    const [{ total }] = await db
+      .select({ total: count() })
+      .from(productsTable)
+      .leftJoin(categoriesTable, eq(productsTable.categoryId, categoriesTable.id))
+      .where(conditions.length ? and(...conditions) : undefined);
     res.json({ products, total });
   } catch (err) {
     req.log.error({ err }, "Failed to list admin products");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.post("/admin/products", async (req, res) => {
+  try {
+    if (!(await checkAdminAuth(req, res))) return;
+    const parsed = z.object({
+      name: z.string().trim().min(1).max(240),
+      price: z.union([z.number(), z.string()]),
+      categoryId: z.number().int().positive(),
+      inStock: z.boolean().optional(),
+      featured: z.boolean().optional(),
+      imageUrl: z.string().nullable().optional(),
+      description: z.string().nullable().optional(),
+      originalPrice: z.union([z.number(), z.string()]).nullable().optional(),
+    }).safeParse(req.body);
+    if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+    const [product] = await db.insert(productsTable).values({
+      name: parsed.data.name,
+      price: String(parsed.data.price),
+      categoryId: parsed.data.categoryId,
+      inStock: parsed.data.inStock ?? true,
+      featured: parsed.data.featured ?? false,
+      imageUrl: parsed.data.imageUrl ?? "",
+      description: parsed.data.description ?? "",
+      originalPrice: parsed.data.originalPrice ? String(parsed.data.originalPrice) : null,
+    }).returning();
+    res.status(201).json(product);
+  } catch (err) {
+    req.log.error({ err }, "Failed to create admin product");
     res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -867,6 +904,7 @@ router.patch("/admin/products/:id", async (req, res) => {
         imageUrl: z.string().nullable().optional(),
         description: z.string().nullable().optional(),
         originalPrice: z.union([z.number(), z.string()]).nullable().optional(),
+        categoryId: z.number().int().positive().optional(),
       })
       .safeParse(req.body);
     if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
@@ -878,6 +916,7 @@ router.patch("/admin/products/:id", async (req, res) => {
     if (parsed.data.imageUrl !== undefined) updateData.imageUrl = parsed.data.imageUrl ?? "";
     if (parsed.data.description !== undefined) updateData.description = parsed.data.description ?? "";
     if (parsed.data.originalPrice !== undefined) updateData.originalPrice = parsed.data.originalPrice ? String(parsed.data.originalPrice) : null;
+    if (parsed.data.categoryId !== undefined) updateData.categoryId = parsed.data.categoryId;
     if (Object.keys(updateData).length === 0) { res.status(400).json({ error: "No fields to update" }); return; }
     const [product] = await db.update(productsTable).set(updateData).where(eq(productsTable.id, id)).returning();
     if (!product) { res.status(404).json({ error: "Product not found" }); return; }
