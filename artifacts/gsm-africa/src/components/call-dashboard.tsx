@@ -86,7 +86,14 @@ export function CallDashboard() {
                 body: "Your support agent is calling. Tap to answer.",
                 tag: `gsm-call-${data.id}`,
                 requireInteraction: true,
-                data: { url: window.location.href },
+                renotify: true,
+                silent: false,
+                vibrate: [250, 120, 250, 120, 600],
+                actions: [
+                  { action: "answer", title: "Answer" },
+                  { action: "open", title: "Open call" },
+                ],
+                data: { url: `${window.location.origin}${window.location.pathname}?call=${data.id}` },
               }),
             ).catch(() => {
               new Notification("Incoming GSM UNLOCK call", { body: "Your support agent is calling. Tap to answer.", tag: `gsm-call-${data.id}` });
@@ -117,6 +124,12 @@ export function CallDashboard() {
     const openDashboard = () => setOpen(true);
     window.addEventListener("gsm-open-call-dashboard", openDashboard);
     return () => window.removeEventListener("gsm-open-call-dashboard", openDashboard);
+  }, []);
+
+  // A push notification opens the PWA with ?call=<id>. Open the call sheet
+  // immediately; the authenticated poll below hydrates the call record.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).has("call")) setOpen(true);
   }, []);
 
   useEffect(() => {

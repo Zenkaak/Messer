@@ -1,4 +1,4 @@
-const CACHE_VERSION = "gsm-world-v3.0.3";
+const CACHE_VERSION = "gsm-world-v3.0.4";
   const CACHE_NAME = `gsm-world-${CACHE_VERSION}`;
 
   self.addEventListener("install", (event) => {
@@ -27,8 +27,7 @@ const CACHE_VERSION = "gsm-world-v3.0.3";
         const existing = clients.find((client) => "focus" in client);
         if (existing) {
           existing.focus();
-          existing.navigate(targetUrl);
-          return;
+          return existing.navigate(targetUrl);
         }
         return self.clients.openWindow(targetUrl);
       }),
