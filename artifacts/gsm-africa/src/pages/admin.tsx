@@ -2545,23 +2545,19 @@ function UserDetailView({ user: initUser, pwd, onBack, onUserUpdated, onUserDele
 
   async function callUser() {
     setCallingUser(true);
-    let stream: MediaStream | null = null;
     try {
-      stream = await requestMicrophoneAccess();
       const r = await adminFetch(`/api/admin/calls/user/${user.id}`, pwd, { method: "POST" });
       const data = await r.json() as LiveCall & { error?: string };
       if (!r.ok) throw new Error(data.error || "Could not start the call");
-      if (data.status === "queued") {
-        stream.getTracks().forEach((track) => track.stop());
-        stream = null;
-        setPreparedCallStream(null);
-      } else {
-        setPreparedCallStream(stream);
-      }
+      // Do not open the microphone while the user is still being rung.
+      // Android WebView/browser implementations can hold this device-level
+      // resource after a rejected or backgrounded request, which causes the
+      // actual connected call to fail with NotReadableError. VoiceCallPanel
+      // requests it only after the user answers.
+      setPreparedCallStream(null);
       setDirectCall(data);
       toast({ title: "Calling user", description: "GSM UNLOCK is ringing their account now." });
     } catch (err) {
-      stream?.getTracks().forEach((track) => track.stop());
       setPreparedCallStream(null);
       toast({ variant: "destructive", title: "Call failed", description: microphoneErrorMessage(err) });
     } finally {

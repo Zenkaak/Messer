@@ -40,6 +40,13 @@ export async function sendIncomingCallPush({
         ttl: 120,
         priority: 10,
         collapse_id: `gsm-call-${callId}`,
+        // Android Chrome displays this as a high-priority heads-up
+        // notification while the user is in another app. A web/PWA cannot
+        // request WhatsApp-style full-screen intent UI; that requires a
+        // native Android wrapper and OS-level call permissions.
+        buttons: [
+          { id: "open", text: "Open call" },
+        ],
         chrome_web_icon: `${process.env.PUBLIC_APP_URL || "https://unlockgsm.vercel.app"}/favicon.svg`,
         chrome_web_badge: `${process.env.PUBLIC_APP_URL || "https://unlockgsm.vercel.app"}/favicon.svg`,
         web_push_topic: `gsm-call-${callId}`,
